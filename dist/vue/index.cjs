@@ -77,21 +77,21 @@ var DialStoreClass = class {
      */
     this.allControls = /* @__PURE__ */ new Map();
   }
-  registerPanel(id, name, config, shortcuts) {
+  registerPanel(id, name, config, shortcuts, group, defaultOpen) {
     const allControls = this.parseConfig(config, "", shortcuts);
     const values = this.flattenValues(config, "");
     this.initTransitionModes(config, "", values);
     this.allControls.set(id, allControls);
     const controls = this.filterByVisibility(allControls, values);
-    this.panels.set(id, { id, name, controls, values, shortcuts: shortcuts ?? {} });
+    this.panels.set(id, { id, name, controls, values, shortcuts: shortcuts ?? {}, group, defaultOpen });
     this.snapshots.set(id, { ...values });
     this.baseValues.set(id, { ...values });
     this.notifyGlobal();
   }
-  updatePanel(id, name, config, shortcuts) {
+  updatePanel(id, name, config, shortcuts, group, defaultOpen) {
     const existing = this.panels.get(id);
     if (!existing) {
-      this.registerPanel(id, name, config, shortcuts);
+      this.registerPanel(id, name, config, shortcuts, group, defaultOpen);
       return;
     }
     const allControls = this.parseConfig(config, "", shortcuts);
@@ -118,7 +118,7 @@ var DialStoreClass = class {
     }
     this.allControls.set(id, allControls);
     const controls = this.filterByVisibility(allControls, nextValues);
-    const nextPanel = { id, name, controls, values: nextValues, shortcuts: shortcuts ?? existing.shortcuts };
+    const nextPanel = { id, name, controls, values: nextValues, shortcuts: shortcuts ?? existing.shortcuts, group: group ?? existing.group, defaultOpen: defaultOpen ?? existing.defaultOpen };
     this.panels.set(id, nextPanel);
     this.snapshots.set(id, { ...nextValues });
     const previousBaseValues = this.baseValues.get(id) ?? {};
@@ -149,17 +149,27 @@ var DialStoreClass = class {
     this.notifyGlobal();
   }
   updateValue(panelId, path, value) {
+    this.updateValues(panelId, { [path]: value });
+  }
+  /**
+   * Batch-write multiple flat store paths in one pass: a single snapshot bump,
+   * a single `notify`, and exactly one conditional-visibility re-evaluation at
+   * the end. Mirrors {@link updateValue}'s auto-save (active preset or base
+   * values) so the controller's `setValues` is consistent with slider edits.
+   */
+  updateValues(panelId, updates) {
     const panel = this.panels.get(panelId);
     if (!panel) return;
-    panel.values[path] = value;
     const activeId = this.activePreset.get(panelId);
-    if (activeId) {
-      const presets = this.presets.get(panelId) ?? [];
-      const preset = presets.find((p) => p.id === activeId);
-      if (preset) preset.values[path] = value;
-    } else {
-      const base = this.baseValues.get(panelId);
-      if (base) base[path] = value;
+    const activePreset = activeId ? (this.presets.get(panelId) ?? []).find((p) => p.id === activeId) : void 0;
+    const base = activeId ? void 0 : this.baseValues.get(panelId);
+    for (const [path, value] of Object.entries(updates)) {
+      panel.values[path] = value;
+      if (activePreset) {
+        activePreset.values[path] = value;
+      } else if (base) {
+        base[path] = value;
+      }
     }
     this.snapshots.set(panelId, { ...panel.values });
     this.notify(panelId);
@@ -170,6 +180,15 @@ var DialStoreClass = class {
       panel.controls = nextControls;
       this.notifyGlobal();
     }
+  }
+  /**
+   * Reset a panel back to its base values and clear any active preset. Thin
+   * wrapper over {@link clearActivePreset}, which already restores base values
+   * and re-evaluates conditional visibility. Exposed as a named method so the
+   * controller's `resetValues` has a stable target.
+   */
+  resetValues(panelId) {
+    this.clearActivePreset(panelId);
   }
   updateSpringMode(panelId, path, mode) {
     this.updateTransitionMode(panelId, path, mode);

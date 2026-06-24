@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { DialStore, PanelConfig } from '../store/DialStore';
 import { Panel } from './Panel';
+import { Folder } from './Folder';
 import { ShortcutListener } from './ShortcutListener';
 
 export type DialPosition = 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
@@ -30,9 +31,16 @@ interface DialRootProps {
    * open at a time. Nested folders are unaffected.
    */
   folderMode?: FolderMode;
+  /**
+   * Fired when the aggregate open state changes — `true` when the first panel
+   * expands, `false` when the last panel collapses to its bubble. Lets a host
+   * react to "is the control surface showing anything." Fires on user-driven
+   * open/close, not on mount.
+   */
+  onOpenChange?: (open: boolean) => void;
 }
 
-export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'popover', theme = 'system', productionEnabled = isDevDefault, folderMode = 'independent' }: DialRootProps) {
+export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'popover', theme = 'system', productionEnabled = isDevDefault, folderMode = 'independent', onOpenChange }: DialRootProps) {
   if (!productionEnabled) return null;
   const [panels, setPanels] = useState<PanelConfig[]>([]);
   const [mounted, setMounted] = useState(false);
@@ -47,6 +55,24 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
   const dragStartRef = useRef<{ pointerX: number; pointerY: number; elX: number; elY: number } | null>(null);
   const didDragRef = useRef(false);
 
+  // Aggregate open-state tracking for the optional `onOpenChange` callback.
+  // Tracks which panels are currently expanded; fires the host callback only
+  // when the aggregate flips (first open / last close), never on mount.
+  const onOpenChangeRef = useRef(onOpenChange);
+  onOpenChangeRef.current = onOpenChange;
+  const openPanelsRef = useRef<Set<string>>(new Set());
+  const aggregateOpenRef = useRef<boolean | null>(null);
+
+  const handlePanelOpenChange = useCallback((panelId: string, open: boolean) => {
+    const set = openPanelsRef.current;
+    if (open) set.add(panelId); else set.delete(panelId);
+    const aggregate = set.size > 0;
+    if (aggregate !== aggregateOpenRef.current) {
+      aggregateOpenRef.current = aggregate;
+      onOpenChangeRef.current?.(aggregate);
+    }
+  }, []);
+
   // Subscribe to global panel changes
   useEffect(() => {
     setMounted(true);
@@ -58,6 +84,21 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
 
     return unsubscribe;
   }, []);
+
+  // Seed the aggregate-open baseline exactly once, when panels first appear.
+  // Panels mount in their `defaultOpen` state; seeding silently means the host
+  // `onOpenChange` only fires on later user-driven toggles. Guarded so the
+  // store's `notifyGlobal` re-renders (visibility re-eval) never re-seed and
+  // clobber user toggle state.
+  const seededOpenRef = useRef(false);
+  useEffect(() => {
+    if (seededOpenRef.current || panels.length === 0) return;
+    seededOpenRef.current = true;
+    if (inline || defaultOpen) {
+      for (const p of panels) openPanelsRef.current.add(p.id);
+    }
+    aggregateOpenRef.current = openPanelsRef.current.size > 0;
+  }, [panels, inline, defaultOpen]);
 
   // Watch for panel open/close — snap to corner on open, restore drag position on close
   useEffect(() => {
@@ -152,6 +193,53 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
     bottom: 'auto' as const,
   } : undefined;
 
+  // Group-aware rendering. Panels with no group render as independent
+  // standalone shells (historical behavior). Panels sharing a non-empty group
+  // render as collapsible sections inside ONE merged shell, emitted at the
+  // position of that group's first panel so DOM order tracks registration order.
+  const renderedGroups = new Set<string>();
+  const panelNodes = panels.map((panel) => {
+    const group = panel.group;
+    if (!group) {
+      return (
+        <Panel
+          key={panel.id}
+          panel={panel}
+          defaultOpen={inline || defaultOpen}
+          inline={inline}
+          folderMode={folderMode}
+          onOpenChange={(open) => handlePanelOpenChange(panel.id, open)}
+        />
+      );
+    }
+    if (renderedGroups.has(group)) return null;
+    renderedGroups.add(group);
+    const sectionPanels = panels.filter((p) => p.group === group);
+    return (
+      <div key={`group:${group}`} className="dialkit-panel-wrapper" data-group={group}>
+        <Folder
+          title={group}
+          defaultOpen={inline || defaultOpen}
+          isRoot
+          inline={inline}
+          panelHeightOffset={2}
+          onOpenChange={(open) => handlePanelOpenChange(`group:${group}`, open)}
+        >
+          {sectionPanels.map((p) => (
+            <Panel
+              key={p.id}
+              panel={p}
+              variant="section"
+              defaultOpen={inline || defaultOpen}
+              inline={inline}
+              folderMode={folderMode}
+            />
+          ))}
+        </Folder>
+      </div>
+    );
+  });
+
   const content = (
   <ShortcutListener>
     <div className="dialkit-root" data-mode={mode} data-theme={theme}>
@@ -165,9 +253,7 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
         onPointerMove={!inline ? handlePointerMove : undefined}
         onPointerUp={!inline ? handlePointerUp : undefined}
       >
-        {panels.map((panel) => (
-          <Panel key={panel.id} panel={panel} defaultOpen={inline || defaultOpen} inline={inline} folderMode={folderMode} />
-        ))}
+        {panelNodes}
       </div>
     </div>
   </ShortcutListener>

@@ -129,6 +129,19 @@ type PanelConfig = {
     controls: ControlMeta[];
     values: Record<string, DialValue>;
     shortcuts: Record<string, ShortcutConfig>;
+    /**
+     * Optional grouping key. Panels sharing the same non-empty `group` are
+     * rendered as collapsible sections inside ONE merged shell by `DialRoot`.
+     * Panels with no group (the default) render as independent standalone
+     * shells, exactly as before.
+     */
+    group?: string;
+    /**
+     * Initial open state for this panel's folder. Defaults to open. Most useful
+     * for a grouped panel that should start collapsed as a section inside the
+     * merged shell (e.g. a secondary settings section). `undefined` ⇒ open.
+     */
+    defaultOpen?: boolean;
 };
 type Listener = () => void;
 type ActionListener = (action: string) => void;
@@ -153,10 +166,24 @@ declare class DialStoreClass {
      * flip back when a dependent value changes.
      */
     private allControls;
-    registerPanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>): void;
-    updatePanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>): void;
+    registerPanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, group?: string, defaultOpen?: boolean): void;
+    updatePanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, group?: string, defaultOpen?: boolean): void;
     unregisterPanel(id: string): void;
     updateValue(panelId: string, path: string, value: DialValue): void;
+    /**
+     * Batch-write multiple flat store paths in one pass: a single snapshot bump,
+     * a single `notify`, and exactly one conditional-visibility re-evaluation at
+     * the end. Mirrors {@link updateValue}'s auto-save (active preset or base
+     * values) so the controller's `setValues` is consistent with slider edits.
+     */
+    updateValues(panelId: string, updates: Record<string, DialValue>): void;
+    /**
+     * Reset a panel back to its base values and clear any active preset. Thin
+     * wrapper over {@link clearActivePreset}, which already restores base values
+     * and re-evaluates conditional visibility. Exposed as a named method so the
+     * controller's `resetValues` has a stable target.
+     */
+    resetValues(panelId: string): void;
     updateSpringMode(panelId: string, path: string, mode: 'simple' | 'advanced'): void;
     getSpringMode(panelId: string, path: string): 'simple' | 'advanced';
     updateTransitionMode(panelId: string, path: string, mode: 'easing' | 'simple' | 'advanced'): void;
@@ -244,7 +271,38 @@ declare const DialStore: DialStoreClass;
 interface UseDialOptions {
     onAction?: (action: string) => void;
     shortcuts?: Record<string, ShortcutConfig>;
+    /**
+     * Optional grouping key. Panels sharing the same non-empty `group` render as
+     * collapsible sections inside one merged shell (see `DialRoot`). Omit for an
+     * independent standalone panel — the historical default.
+     */
+    group?: string;
+    /**
+     * Initial open state for this panel's folder. Defaults to open. Most useful
+     * for a grouped panel that should start collapsed as a section inside the
+     * merged shell.
+     */
+    defaultOpen?: boolean;
 }
+/**
+ * Imperative handle for a DialKit panel: reactive `values` plus write methods.
+ * `setValue`/`setValues` write flat store paths (the dot-delimited paths used
+ * throughout the store, e.g. `"debug.showStats"`), `getValues` reads the
+ * current flat snapshot, and `resetValues` restores the panel's base values.
+ */
+interface DialKitController<T extends DialConfig> {
+    values: ResolvedValues<T>;
+    setValue: (path: string, value: DialValue) => void;
+    setValues: (updates: Record<string, DialValue>) => void;
+    getValues: () => Record<string, DialValue>;
+    resetValues: () => void;
+}
+/**
+ * Like {@link useDialKit} but returns the full imperative controller instead of
+ * just the resolved values. Use this when the host needs to write values back
+ * into the panel (app → DialKit) rather than only reading them.
+ */
+declare function useDialKitController<T extends DialConfig>(name: string, config: T, options?: UseDialOptions): DialKitController<T>;
 declare function useDialKit<T extends DialConfig>(name: string, config: T, options?: UseDialOptions): ResolvedValues<T>;
 
 type DialPosition = 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
@@ -263,8 +321,15 @@ interface DialRootProps {
      * open at a time. Nested folders are unaffected.
      */
     folderMode?: FolderMode;
+    /**
+     * Fired when the aggregate open state changes — `true` when the first panel
+     * expands, `false` when the last panel collapses to its bubble. Lets a host
+     * react to "is the control surface showing anything." Fires on user-driven
+     * open/close, not on mount.
+     */
+    onOpenChange?: (open: boolean) => void;
 }
-declare function DialRoot({ position, defaultOpen, mode, theme, productionEnabled, folderMode }: DialRootProps): react_jsx_runtime.JSX.Element | null;
+declare function DialRoot({ position, defaultOpen, mode, theme, productionEnabled, folderMode, onOpenChange }: DialRootProps): react_jsx_runtime.JSX.Element | null;
 
 interface SliderProps {
     label: string;
@@ -306,8 +371,15 @@ interface FolderProps {
     open?: boolean;
     /** Toggle handler for controlled mode. Receives the requested next state. */
     onToggle?: (next: boolean) => void;
+    /**
+     * Vertical padding (px) added to the measured content height when sizing the
+     * root panel. Defaults to 10 for a standard single-panel shell. A merged
+     * shell that stacks section folders sets this lower (e.g. 2) so the sections
+     * own their own internal spacing instead of double-padding the shell.
+     */
+    panelHeightOffset?: number;
 }
-declare function Folder({ title, children, defaultOpen, isRoot, inline, onOpenChange, toolbar, open, onToggle }: FolderProps): react_jsx_runtime.JSX.Element;
+declare function Folder({ title, children, defaultOpen, isRoot, inline, onOpenChange, toolbar, open, onToggle, panelHeightOffset }: FolderProps): react_jsx_runtime.JSX.Element;
 
 interface ButtonGroupProps {
     buttons: Array<{
@@ -386,4 +458,4 @@ interface ShortcutsMenuProps {
 }
 declare function ShortcutsMenu({ panelId }: ShortcutsMenuProps): react_jsx_runtime.JSX.Element | null;
 
-export { type ActionConfig, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, type ControlWithVisibility, type DialConfig, type DialMode, type DialPosition, DialRoot, DialStore, type DialTheme, type DialValue, type EasingConfig, EasingVisualization, Folder, type FolderMode, type PanelConfig, type Preset, PresetManager, type ResolvedValues, type SelectConfig, SelectControl, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, SpringVisualization, type TextConfig, TextControl, Toggle, type TransitionConfig, TransitionControl, type UseDialOptions, type VisibleWhen, type VisibleWhenValue, unwrapVisibility, useDialKit, withVisibility };
+export { type ActionConfig, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, type ControlWithVisibility, type DialConfig, type DialKitController, type DialMode, type DialPosition, DialRoot, DialStore, type DialTheme, type DialValue, type EasingConfig, EasingVisualization, Folder, type FolderMode, type PanelConfig, type Preset, PresetManager, type ResolvedValues, type SelectConfig, SelectControl, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, SpringVisualization, type TextConfig, TextControl, Toggle, type TransitionConfig, TransitionControl, type UseDialOptions, type VisibleWhen, type VisibleWhenValue, unwrapVisibility, useDialKit, useDialKitController, withVisibility };

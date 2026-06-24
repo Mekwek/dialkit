@@ -1,16 +1,47 @@
-import { useEffect, useId, useSyncExternalStore, useRef } from 'react';
+import { useCallback, useEffect, useId, useSyncExternalStore, useRef } from 'react';
 import { DialStore, DialConfig, DialValue, ResolvedValues, SpringConfig, EasingConfig, SelectConfig, ColorConfig, TextConfig, ActionConfig, ShortcutConfig, unwrapVisibility } from '../store/DialStore';
 
 export interface UseDialOptions {
   onAction?: (action: string) => void;
   shortcuts?: Record<string, ShortcutConfig>;
+  /**
+   * Optional grouping key. Panels sharing the same non-empty `group` render as
+   * collapsible sections inside one merged shell (see `DialRoot`). Omit for an
+   * independent standalone panel — the historical default.
+   */
+  group?: string;
+  /**
+   * Initial open state for this panel's folder. Defaults to open. Most useful
+   * for a grouped panel that should start collapsed as a section inside the
+   * merged shell.
+   */
+  defaultOpen?: boolean;
 }
 
-export function useDialKit<T extends DialConfig>(
+/**
+ * Imperative handle for a DialKit panel: reactive `values` plus write methods.
+ * `setValue`/`setValues` write flat store paths (the dot-delimited paths used
+ * throughout the store, e.g. `"debug.showStats"`), `getValues` reads the
+ * current flat snapshot, and `resetValues` restores the panel's base values.
+ */
+export interface DialKitController<T extends DialConfig> {
+  values: ResolvedValues<T>;
+  setValue: (path: string, value: DialValue) => void;
+  setValues: (updates: Record<string, DialValue>) => void;
+  getValues: () => Record<string, DialValue>;
+  resetValues: () => void;
+}
+
+/**
+ * Like {@link useDialKit} but returns the full imperative controller instead of
+ * just the resolved values. Use this when the host needs to write values back
+ * into the panel (app → DialKit) rather than only reading them.
+ */
+export function useDialKitController<T extends DialConfig>(
   name: string,
   config: T,
   options?: UseDialOptions
-): ResolvedValues<T> {
+): DialKitController<T> {
   const instanceId = useId();
   const panelId = `${name}-${instanceId}`;
   const configRef = useRef(config);
@@ -21,23 +52,29 @@ export function useDialKit<T extends DialConfig>(
   const shortcutsRef = useRef(options?.shortcuts);
   shortcutsRef.current = options?.shortcuts;
   const serializedShortcuts = JSON.stringify(options?.shortcuts);
+  const groupRef = useRef(options?.group);
+  groupRef.current = options?.group;
+  const group = options?.group;
+  const defaultOpenRef = useRef(options?.defaultOpen);
+  defaultOpenRef.current = options?.defaultOpen;
+  const defaultOpenOption = options?.defaultOpen;
 
   // Register panel on mount
   useEffect(() => {
-    DialStore.registerPanel(panelId, name, configRef.current, shortcutsRef.current);
+    DialStore.registerPanel(panelId, name, configRef.current, shortcutsRef.current, groupRef.current, defaultOpenRef.current);
     return () => DialStore.unregisterPanel(panelId);
   }, [panelId, name]);
 
-  // Update panel when config structure or shortcuts change
+  // Update panel when config structure, shortcuts, group, or defaultOpen change
   const mountedRef = useRef(false);
   useEffect(() => {
     if (!mountedRef.current) {
       mountedRef.current = true;
       return;
     }
-    DialStore.updatePanel(panelId, name, configRef.current, shortcutsRef.current);
+    DialStore.updatePanel(panelId, name, configRef.current, shortcutsRef.current, groupRef.current, defaultOpenRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [panelId, name, serializedConfig, serializedShortcuts]);
+  }, [panelId, name, serializedConfig, serializedShortcuts, group, defaultOpenOption]);
 
   // Subscribe to action events
   useEffect(() => {
@@ -54,8 +91,29 @@ export function useDialKit<T extends DialConfig>(
     () => DialStore.getValues(panelId)
   );
 
+  const setValue = useCallback(
+    (path: string, value: DialValue) => DialStore.updateValue(panelId, path, value),
+    [panelId]
+  );
+  const setValues = useCallback(
+    (updates: Record<string, DialValue>) => DialStore.updateValues(panelId, updates),
+    [panelId]
+  );
+  const getValues = useCallback(() => DialStore.getValues(panelId), [panelId]);
+  const resetValues = useCallback(() => DialStore.resetValues(panelId), [panelId]);
+
   // Build resolved values object
-  return buildResolvedValues(config, values, '') as ResolvedValues<T>;
+  const resolved = buildResolvedValues(config, values, '') as ResolvedValues<T>;
+
+  return { values: resolved, setValue, setValues, getValues, resetValues };
+}
+
+export function useDialKit<T extends DialConfig>(
+  name: string,
+  config: T,
+  options?: UseDialOptions
+): ResolvedValues<T> {
+  return useDialKitController(name, config, options).values;
 }
 
 function buildResolvedValues(

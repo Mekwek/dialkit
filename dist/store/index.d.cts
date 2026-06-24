@@ -126,6 +126,19 @@ type PanelConfig = {
     controls: ControlMeta[];
     values: Record<string, DialValue>;
     shortcuts: Record<string, ShortcutConfig>;
+    /**
+     * Optional grouping key. Panels sharing the same non-empty `group` are
+     * rendered as collapsible sections inside ONE merged shell by `DialRoot`.
+     * Panels with no group (the default) render as independent standalone
+     * shells, exactly as before.
+     */
+    group?: string;
+    /**
+     * Initial open state for this panel's folder. Defaults to open. Most useful
+     * for a grouped panel that should start collapsed as a section inside the
+     * merged shell (e.g. a secondary settings section). `undefined` ⇒ open.
+     */
+    defaultOpen?: boolean;
 };
 type Listener = () => void;
 type ActionListener = (action: string) => void;
@@ -150,10 +163,24 @@ declare class DialStoreClass {
      * flip back when a dependent value changes.
      */
     private allControls;
-    registerPanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>): void;
-    updatePanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>): void;
+    registerPanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, group?: string, defaultOpen?: boolean): void;
+    updatePanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, group?: string, defaultOpen?: boolean): void;
     unregisterPanel(id: string): void;
     updateValue(panelId: string, path: string, value: DialValue): void;
+    /**
+     * Batch-write multiple flat store paths in one pass: a single snapshot bump,
+     * a single `notify`, and exactly one conditional-visibility re-evaluation at
+     * the end. Mirrors {@link updateValue}'s auto-save (active preset or base
+     * values) so the controller's `setValues` is consistent with slider edits.
+     */
+    updateValues(panelId: string, updates: Record<string, DialValue>): void;
+    /**
+     * Reset a panel back to its base values and clear any active preset. Thin
+     * wrapper over {@link clearActivePreset}, which already restores base values
+     * and re-evaluates conditional visibility. Exposed as a named method so the
+     * controller's `resetValues` has a stable target.
+     */
+    resetValues(panelId: string): void;
     updateSpringMode(panelId: string, path: string, mode: 'simple' | 'advanced'): void;
     getSpringMode(panelId: string, path: string): 'simple' | 'advanced';
     updateTransitionMode(panelId: string, path: string, mode: 'easing' | 'simple' | 'advanced'): void;

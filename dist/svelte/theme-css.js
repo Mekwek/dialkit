@@ -675,8 +675,9 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   flex-direction: column;
 }
 
-/* Panel Toolbar */
-.dialkit-panel-toolbar {
+/* Panel Toolbar (root panel header toolbar + merged-shell section toolbar) */
+.dialkit-panel-toolbar,
+.dialkit-panel-section-toolbar {
   display: flex;
   align-items: center;
   gap: 6px;

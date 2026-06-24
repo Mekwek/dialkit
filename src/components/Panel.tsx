@@ -26,13 +26,40 @@ interface PanelProps {
    * other. Nested folders (depth > 0) are unaffected in either mode.
    */
   folderMode?: 'independent' | 'accordion';
+  /**
+   * Fired when this panel's root folder opens or closes (collapse to bubble /
+   * expand). Used by `DialRoot` to surface an aggregate open/close signal via
+   * its own `onOpenChange` prop. Omit for standalone use.
+   */
+  onOpenChange?: (open: boolean) => void;
+  /**
+   * How this panel renders. `'root'` (default) is the historical standalone
+   * shell — its own collapsible bubble with the panel-inner sizing. `'section'`
+   * renders the panel as a plain nested folder with no bubble, so several
+   * panels can be stacked as collapsible sections inside one shared merged
+   * shell (see `DialRoot` group rendering).
+   */
+  variant?: 'root' | 'section';
 }
 
-export function Panel({ panel, defaultOpen = true, inline = false, folderMode = 'independent' }: PanelProps) {
+export function Panel({ panel, defaultOpen = true, inline = false, folderMode = 'independent', onOpenChange, variant = 'root' }: PanelProps) {
   const [copied, setCopied] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(defaultOpen);
   const shortcutCtx = useContext(ShortcutContext);
   const hasShortcuts = Object.keys(panel.shortcuts).length > 0;
+
+  // Section de-nesting: when a section panel's controls are exactly one folder,
+  // that folder is visually redundant with the section header (same single
+  // collapse). Render the folder's CHILDREN directly under the section instead.
+  // This is purely a render concern — control `path`s (and therefore every
+  // store value, bridge handler, and visibleWhen rule) are unchanged.
+  const hoistedFolder =
+    variant === 'section' &&
+    panel.controls.length === 1 &&
+    panel.controls[0].type === 'folder'
+      ? panel.controls[0]
+      : null;
+  const topLevelControls = hoistedFolder ? (hoistedFolder.children ?? []) : panel.controls;
 
   // Accordion coordination for first-level folders. Holds the path of the
   // currently-open top-level folder (or null). Initialized to the first
@@ -40,12 +67,20 @@ export function Panel({ panel, defaultOpen = true, inline = false, folderMode = 
   // holds from first paint even when several groups default open.
   const [openFolder, setOpenFolder] = useState<string | null>(() => {
     if (folderMode !== 'accordion') return null;
-    const first = panel.controls.find(
+    const first = topLevelControls.find(
       (c) => c.type === 'folder' && (c.defaultOpen ?? true)
     );
     return first?.path ?? null;
   });
   const accordion = folderMode === 'accordion';
+
+  // Mirror the root folder's open state locally and surface it to DialRoot's
+  // aggregate `onOpenChange` (a no-op for section panels, which don't receive
+  // the callback — their open/close is section-level, not shell-level).
+  const handleOpenChange = (open: boolean) => {
+    setIsPanelOpen(open);
+    onOpenChange?.(open);
+  };
 
   // Subscribe to panel value changes
   const values = useSyncExternalStore(
@@ -224,7 +259,7 @@ Apply these values as the new defaults in the useDialKit call.`;
     // first-mount enter animation — the panel appears instantly on open.
     return (
       <AnimatePresence initial={false}>
-        {panel.controls.map((control) => renderControl(control, 0))}
+        {topLevelControls.map((control) => renderControl(control, 0))}
       </AnimatePresence>
     );
   };
@@ -303,9 +338,25 @@ Apply these values as the new defaults in the useDialKit call.`;
     </>
   );
 
+  // Section variant: render as a plain nested folder (no bubble, no panel-inner
+  // sizing) so the parent merged shell owns the outer chrome. The preset/copy
+  // toolbar moves inside the section body; host CSS can hide it per-section.
+  if (variant === 'section') {
+    return (
+      <div className="dialkit-panel-section" data-panel-name={panel.name}>
+        <Folder title={panel.name} defaultOpen={panel.defaultOpen ?? defaultOpen} onOpenChange={handleOpenChange}>
+          <div className="dialkit-panel-section-toolbar" onClick={(e) => e.stopPropagation()}>
+            {toolbar}
+          </div>
+          {renderControls()}
+        </Folder>
+      </div>
+    );
+  }
+
   return (
     <div className="dialkit-panel-wrapper">
-      <Folder title={panel.name} defaultOpen={defaultOpen} isRoot={true} inline={inline} onOpenChange={setIsPanelOpen} toolbar={toolbar}>
+      <Folder title={panel.name} defaultOpen={defaultOpen} isRoot={true} inline={inline} onOpenChange={handleOpenChange} toolbar={toolbar}>
         {renderControls()}
       </Folder>
     </div>

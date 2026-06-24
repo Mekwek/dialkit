@@ -20,9 +20,16 @@ interface FolderProps {
   open?: boolean;
   /** Toggle handler for controlled mode. Receives the requested next state. */
   onToggle?: (next: boolean) => void;
+  /**
+   * Vertical padding (px) added to the measured content height when sizing the
+   * root panel. Defaults to 10 for a standard single-panel shell. A merged
+   * shell that stacks section folders sets this lower (e.g. 2) so the sections
+   * own their own internal spacing instead of double-padding the shell.
+   */
+  panelHeightOffset?: number;
 }
 
-export function Folder({ title, children, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, open, onToggle }: FolderProps) {
+export function Folder({ title, children, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, open, onToggle, panelHeightOffset = 10 }: FolderProps) {
   const controlled = open !== undefined;
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
   const isOpen = controlled ? open : internalOpen;
@@ -70,7 +77,7 @@ export function Folder({ title, children, defaultOpen = true, isRoot = false, in
   };
 
   const folderContent = (
-    <div ref={isRoot ? contentRef : undefined} className={`dialkit-folder ${isRoot ? 'dialkit-folder-root' : ''}`}>
+    <div ref={isRoot ? contentRef : undefined} className={`dialkit-folder ${isRoot ? 'dialkit-folder-root' : ''}`} data-open={String(isOpen)}>
       <div className={`dialkit-folder-header ${isRoot ? 'dialkit-panel-header' : ''}`} onClick={handleToggle}>
         <div className="dialkit-folder-header-top">
           {isRoot ? (
@@ -152,7 +159,7 @@ export function Folder({ title, children, defaultOpen = true, isRoot = false, in
     }
 
     const panelStyle = isOpen
-      ? { width: 280, height: contentHeight !== undefined ? Math.min(contentHeight + 10, windowHeight - 32) : 'auto' as const, borderRadius: 14, boxShadow: 'var(--dial-shadow)', cursor: undefined as string | undefined, overflowY: 'auto' as const }
+      ? { width: 280, height: contentHeight !== undefined ? Math.min(contentHeight + panelHeightOffset, windowHeight - 32) : 'auto' as const, borderRadius: 14, boxShadow: 'var(--dial-shadow)', cursor: undefined as string | undefined, overflowY: 'auto' as const }
       : { width: 42, height: 42, borderRadius: '50%', boxSizing: 'border-box' as const, boxShadow: 'var(--dial-shadow-collapsed)', overflow: 'hidden' as const, cursor: 'pointer' as const };
 
     return (

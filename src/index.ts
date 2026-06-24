@@ -1,6 +1,6 @@
 // Main hook
-export { useDialKit } from './hooks/useDialKit';
-export type { UseDialOptions } from './hooks/useDialKit';
+export { useDialKit, useDialKitController } from './hooks/useDialKit';
+export type { UseDialOptions, DialKitController } from './hooks/useDialKit';
 
 // Root component (user mounts once)
 export { DialRoot } from './components/DialRoot';

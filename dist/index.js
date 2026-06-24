@@ -1,7 +1,7 @@
 "use client";
 
 // src/hooks/useDialKit.ts
-import { useEffect, useId, useSyncExternalStore, useRef } from "react";
+import { useCallback, useEffect, useId, useSyncExternalStore, useRef } from "react";
 
 // src/store/DialStore.ts
 function withVisibility(control, rule) {
@@ -32,21 +32,21 @@ var DialStoreClass = class {
      */
     this.allControls = /* @__PURE__ */ new Map();
   }
-  registerPanel(id, name, config, shortcuts) {
+  registerPanel(id, name, config, shortcuts, group, defaultOpen) {
     const allControls = this.parseConfig(config, "", shortcuts);
     const values = this.flattenValues(config, "");
     this.initTransitionModes(config, "", values);
     this.allControls.set(id, allControls);
     const controls = this.filterByVisibility(allControls, values);
-    this.panels.set(id, { id, name, controls, values, shortcuts: shortcuts ?? {} });
+    this.panels.set(id, { id, name, controls, values, shortcuts: shortcuts ?? {}, group, defaultOpen });
     this.snapshots.set(id, { ...values });
     this.baseValues.set(id, { ...values });
     this.notifyGlobal();
   }
-  updatePanel(id, name, config, shortcuts) {
+  updatePanel(id, name, config, shortcuts, group, defaultOpen) {
     const existing = this.panels.get(id);
     if (!existing) {
-      this.registerPanel(id, name, config, shortcuts);
+      this.registerPanel(id, name, config, shortcuts, group, defaultOpen);
       return;
     }
     const allControls = this.parseConfig(config, "", shortcuts);
@@ -73,7 +73,7 @@ var DialStoreClass = class {
     }
     this.allControls.set(id, allControls);
     const controls = this.filterByVisibility(allControls, nextValues);
-    const nextPanel = { id, name, controls, values: nextValues, shortcuts: shortcuts ?? existing.shortcuts };
+    const nextPanel = { id, name, controls, values: nextValues, shortcuts: shortcuts ?? existing.shortcuts, group: group ?? existing.group, defaultOpen: defaultOpen ?? existing.defaultOpen };
     this.panels.set(id, nextPanel);
     this.snapshots.set(id, { ...nextValues });
     const previousBaseValues = this.baseValues.get(id) ?? {};
@@ -104,17 +104,27 @@ var DialStoreClass = class {
     this.notifyGlobal();
   }
   updateValue(panelId, path, value) {
+    this.updateValues(panelId, { [path]: value });
+  }
+  /**
+   * Batch-write multiple flat store paths in one pass: a single snapshot bump,
+   * a single `notify`, and exactly one conditional-visibility re-evaluation at
+   * the end. Mirrors {@link updateValue}'s auto-save (active preset or base
+   * values) so the controller's `setValues` is consistent with slider edits.
+   */
+  updateValues(panelId, updates) {
     const panel = this.panels.get(panelId);
     if (!panel) return;
-    panel.values[path] = value;
     const activeId = this.activePreset.get(panelId);
-    if (activeId) {
-      const presets = this.presets.get(panelId) ?? [];
-      const preset = presets.find((p) => p.id === activeId);
-      if (preset) preset.values[path] = value;
-    } else {
-      const base = this.baseValues.get(panelId);
-      if (base) base[path] = value;
+    const activePreset = activeId ? (this.presets.get(panelId) ?? []).find((p) => p.id === activeId) : void 0;
+    const base = activeId ? void 0 : this.baseValues.get(panelId);
+    for (const [path, value] of Object.entries(updates)) {
+      panel.values[path] = value;
+      if (activePreset) {
+        activePreset.values[path] = value;
+      } else if (base) {
+        base[path] = value;
+      }
     }
     this.snapshots.set(panelId, { ...panel.values });
     this.notify(panelId);
@@ -125,6 +135,15 @@ var DialStoreClass = class {
       panel.controls = nextControls;
       this.notifyGlobal();
     }
+  }
+  /**
+   * Reset a panel back to its base values and clear any active preset. Thin
+   * wrapper over {@link clearActivePreset}, which already restores base values
+   * and re-evaluates conditional visibility. Exposed as a named method so the
+   * controller's `resetValues` has a stable target.
+   */
+  resetValues(panelId) {
+    this.clearActivePreset(panelId);
   }
   updateSpringMode(panelId, path, mode) {
     this.updateTransitionMode(panelId, path, mode);
@@ -618,7 +637,7 @@ var DialStoreClass = class {
 var DialStore = new DialStoreClass();
 
 // src/hooks/useDialKit.ts
-function useDialKit(name, config, options) {
+function useDialKitController(name, config, options) {
   const instanceId = useId();
   const panelId = `${name}-${instanceId}`;
   const configRef = useRef(config);
@@ -629,8 +648,14 @@ function useDialKit(name, config, options) {
   const shortcutsRef = useRef(options?.shortcuts);
   shortcutsRef.current = options?.shortcuts;
   const serializedShortcuts = JSON.stringify(options?.shortcuts);
+  const groupRef = useRef(options?.group);
+  groupRef.current = options?.group;
+  const group = options?.group;
+  const defaultOpenRef = useRef(options?.defaultOpen);
+  defaultOpenRef.current = options?.defaultOpen;
+  const defaultOpenOption = options?.defaultOpen;
   useEffect(() => {
-    DialStore.registerPanel(panelId, name, configRef.current, shortcutsRef.current);
+    DialStore.registerPanel(panelId, name, configRef.current, shortcutsRef.current, groupRef.current, defaultOpenRef.current);
     return () => DialStore.unregisterPanel(panelId);
   }, [panelId, name]);
   const mountedRef = useRef(false);
@@ -639,8 +664,8 @@ function useDialKit(name, config, options) {
       mountedRef.current = true;
       return;
     }
-    DialStore.updatePanel(panelId, name, configRef.current, shortcutsRef.current);
-  }, [panelId, name, serializedConfig, serializedShortcuts]);
+    DialStore.updatePanel(panelId, name, configRef.current, shortcutsRef.current, groupRef.current, defaultOpenRef.current);
+  }, [panelId, name, serializedConfig, serializedShortcuts, group, defaultOpenOption]);
   useEffect(() => {
     return DialStore.subscribeActions(panelId, (action) => {
       onActionRef.current?.(action);
@@ -651,7 +676,21 @@ function useDialKit(name, config, options) {
     () => DialStore.getValues(panelId),
     () => DialStore.getValues(panelId)
   );
-  return buildResolvedValues(config, values, "");
+  const setValue = useCallback(
+    (path, value) => DialStore.updateValue(panelId, path, value),
+    [panelId]
+  );
+  const setValues = useCallback(
+    (updates) => DialStore.updateValues(panelId, updates),
+    [panelId]
+  );
+  const getValues = useCallback(() => DialStore.getValues(panelId), [panelId]);
+  const resetValues = useCallback(() => DialStore.resetValues(panelId), [panelId]);
+  const resolved = buildResolvedValues(config, values, "");
+  return { values: resolved, setValue, setValues, getValues, resetValues };
+}
+function useDialKit(name, config, options) {
+  return useDialKitController(name, config, options).values;
 }
 function buildResolvedValues(config, flatValues, prefix) {
   const result = {};
@@ -707,7 +746,7 @@ function getFirstOptionValue(options) {
 }
 
 // src/components/DialRoot.tsx
-import { useEffect as useEffect8, useState as useState10, useRef as useRef11, useCallback as useCallback6 } from "react";
+import { useEffect as useEffect8, useState as useState10, useRef as useRef11, useCallback as useCallback7 } from "react";
 import { createPortal as createPortal3 } from "react-dom";
 
 // src/components/Panel.tsx
@@ -728,7 +767,7 @@ var CONTROL_ANIM = {
 };
 
 // src/components/ShortcutListener.tsx
-import { createContext, useEffect as useEffect2, useRef as useRef2, useState, useCallback } from "react";
+import { createContext, useEffect as useEffect2, useRef as useRef2, useState, useCallback as useCallback2 } from "react";
 
 // src/shortcut-utils.ts
 function decimalsForStep(step) {
@@ -824,7 +863,7 @@ function ShortcutListener({ children }) {
   const isDraggingRef = useRef2(false);
   const lastMouseXRef = useRef2(null);
   const dragAccumulatorRef = useRef2(0);
-  const resolveActiveTarget = useCallback((interaction) => {
+  const resolveActiveTarget = useCallback2((interaction) => {
     for (const key of activeKeysRef.current) {
       const panels = DialStore.getPanels();
       for (const panel of panels) {
@@ -1037,7 +1076,7 @@ var ICON_PANEL = {
 import { useState as useState2, useRef as useRef3, useEffect as useEffect3 } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { jsx as jsx2, jsxs } from "react/jsx-runtime";
-function Folder({ title, children, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, open, onToggle }) {
+function Folder({ title, children, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, open, onToggle, panelHeightOffset = 10 }) {
   const controlled = open !== void 0;
   const [internalOpen, setInternalOpen] = useState2(defaultOpen);
   const isOpen = controlled ? open : internalOpen;
@@ -1079,7 +1118,7 @@ function Folder({ title, children, defaultOpen = true, isRoot = false, inline = 
     }
     onOpenChange?.(next);
   };
-  const folderContent = /* @__PURE__ */ jsxs("div", { ref: isRoot ? contentRef : void 0, className: `dialkit-folder ${isRoot ? "dialkit-folder-root" : ""}`, children: [
+  const folderContent = /* @__PURE__ */ jsxs("div", { ref: isRoot ? contentRef : void 0, className: `dialkit-folder ${isRoot ? "dialkit-folder-root" : ""}`, "data-open": String(isOpen), children: [
     /* @__PURE__ */ jsxs("div", { className: `dialkit-folder-header ${isRoot ? "dialkit-panel-header" : ""}`, onClick: handleToggle, children: [
       /* @__PURE__ */ jsxs("div", { className: "dialkit-folder-header-top", children: [
         isRoot ? isOpen && /* @__PURE__ */ jsx2("div", { className: "dialkit-folder-title-row", children: /* @__PURE__ */ jsx2("span", { className: "dialkit-folder-title dialkit-folder-title-root", children: title }) }) : /* @__PURE__ */ jsx2("div", { className: "dialkit-folder-title-row", children: /* @__PURE__ */ jsx2("span", { className: "dialkit-folder-title", children: title }) }),
@@ -1131,7 +1170,7 @@ function Folder({ title, children, defaultOpen = true, isRoot = false, inline = 
     if (inline) {
       return /* @__PURE__ */ jsx2("div", { className: "dialkit-panel-inner dialkit-panel-inline", children: folderContent });
     }
-    const panelStyle = isOpen ? { width: 280, height: contentHeight !== void 0 ? Math.min(contentHeight + 10, windowHeight - 32) : "auto", borderRadius: 14, boxShadow: "var(--dial-shadow)", cursor: void 0, overflowY: "auto" } : { width: 42, height: 42, borderRadius: "50%", boxSizing: "border-box", boxShadow: "var(--dial-shadow-collapsed)", overflow: "hidden", cursor: "pointer" };
+    const panelStyle = isOpen ? { width: 280, height: contentHeight !== void 0 ? Math.min(contentHeight + panelHeightOffset, windowHeight - 32) : "auto", borderRadius: 14, boxShadow: "var(--dial-shadow)", cursor: void 0, overflowY: "auto" } : { width: 42, height: 42, borderRadius: "50%", boxSizing: "border-box", boxShadow: "var(--dial-shadow-collapsed)", overflow: "hidden", cursor: "pointer" };
     return /* @__PURE__ */ jsx2(
       motion.div,
       {
@@ -1149,7 +1188,7 @@ function Folder({ title, children, defaultOpen = true, isRoot = false, inline = 
 }
 
 // src/components/Slider.tsx
-import { useRef as useRef4, useState as useState3, useCallback as useCallback2, useEffect as useEffect4 } from "react";
+import { useRef as useRef4, useState as useState3, useCallback as useCallback3, useEffect as useEffect4 } from "react";
 import { motion as motion2, useMotionValue, useTransform, animate } from "motion/react";
 import { jsx as jsx3, jsxs as jsxs2 } from "react/jsx-runtime";
 var CLICK_THRESHOLD = 3;
@@ -1207,7 +1246,7 @@ function Slider({
       fillPercent.jump(percentage);
     }
   }, [percentage, isInteracting, fillPercent]);
-  const positionToValue = useCallback2(
+  const positionToValue = useCallback3(
     (clientX) => {
       const rect = wrapperRectRef.current;
       if (!rect) return value;
@@ -1220,11 +1259,11 @@ function Slider({
     },
     [min, max, value]
   );
-  const percentFromValue = useCallback2(
+  const percentFromValue = useCallback3(
     (v) => (v - min) / (max - min) * 100,
     [min, max]
   );
-  const computeRubberStretch = useCallback2(
+  const computeRubberStretch = useCallback3(
     (clientX, sign) => {
       const rect = wrapperRectRef.current;
       if (!rect) return 0;
@@ -1234,7 +1273,7 @@ function Slider({
     },
     []
   );
-  const handlePointerDown = useCallback2(
+  const handlePointerDown = useCallback3(
     (e) => {
       if (showInput) return;
       e.preventDefault();
@@ -1250,7 +1289,7 @@ function Slider({
     },
     [showInput]
   );
-  const handlePointerMove = useCallback2(
+  const handlePointerMove = useCallback3(
     (e) => {
       if (!isInteracting || !pointerDownPos.current) return;
       const dx = e.clientX - pointerDownPos.current.x;
@@ -1291,7 +1330,7 @@ function Slider({
       computeRubberStretch
     ]
   );
-  const handlePointerUp = useCallback2(
+  const handlePointerUp = useCallback3(
     (e) => {
       if (!isInteracting) return;
       if (isClickRef.current) {
@@ -1508,7 +1547,7 @@ function Slider({
 }
 
 // src/components/SegmentedControl.tsx
-import { useRef as useRef5, useState as useState4, useLayoutEffect, useCallback as useCallback3 } from "react";
+import { useRef as useRef5, useState as useState4, useLayoutEffect, useCallback as useCallback4 } from "react";
 import { jsx as jsx4, jsxs as jsxs3 } from "react/jsx-runtime";
 function SegmentedControl({
   options,
@@ -1518,7 +1557,7 @@ function SegmentedControl({
   const containerRef = useRef5(null);
   const hasAnimated = useRef5(false);
   const [pillStyle, setPillStyle] = useState4(null);
-  const measure = useCallback3(() => {
+  const measure = useCallback4(() => {
     const container = containerRef.current;
     if (!container) return;
     const activeButton = container.querySelector('[data-active="true"]');
@@ -1986,7 +2025,7 @@ function TextControl({ label, value, onChange, placeholder }) {
 }
 
 // src/components/SelectControl.tsx
-import { useState as useState6, useRef as useRef8, useEffect as useEffect5, useCallback as useCallback4 } from "react";
+import { useState as useState6, useRef as useRef8, useEffect as useEffect5, useCallback as useCallback5 } from "react";
 import { createPortal } from "react-dom";
 import { motion as motion4, AnimatePresence as AnimatePresence3 } from "motion/react";
 import { jsx as jsx11, jsxs as jsxs10 } from "react/jsx-runtime";
@@ -2006,7 +2045,7 @@ function SelectControl({ label, value, options, onChange }) {
   const [pos, setPos] = useState6(null);
   const normalized = normalizeOptions(options);
   const selectedOption = normalized.find((o) => o.value === value);
-  const updatePos = useCallback4(() => {
+  const updatePos = useCallback5(() => {
     const el = triggerRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
@@ -2185,7 +2224,7 @@ function expandShorthandHex(hex) {
 }
 
 // src/components/PresetManager.tsx
-import { useState as useState8, useRef as useRef10, useEffect as useEffect7, useCallback as useCallback5 } from "react";
+import { useState as useState8, useRef as useRef10, useEffect as useEffect7, useCallback as useCallback6 } from "react";
 import { createPortal as createPortal2 } from "react-dom";
 import { motion as motion5, AnimatePresence as AnimatePresence4 } from "motion/react";
 import { jsx as jsx13, jsxs as jsxs12 } from "react/jsx-runtime";
@@ -2196,7 +2235,7 @@ function PresetManager({ panelId, presets, activePresetId, onAdd }) {
   const [pos, setPos] = useState8({ top: 0, left: 0, width: 0, above: false });
   const hasPresets = presets.length > 0;
   const activePreset = presets.find((p) => p.id === activePresetId);
-  const open = useCallback5(() => {
+  const open = useCallback6(() => {
     if (!hasPresets) return;
     const rect = triggerRef.current?.getBoundingClientRect();
     if (rect) {
@@ -2212,8 +2251,8 @@ function PresetManager({ panelId, presets, activePresetId, onAdd }) {
     }
     setIsOpen(true);
   }, [hasPresets, presets.length]);
-  const close = useCallback5(() => setIsOpen(false), []);
-  const toggle = useCallback5(() => {
+  const close = useCallback6(() => setIsOpen(false), []);
+  const toggle = useCallback6(() => {
     if (isOpen) close();
     else open();
   }, [isOpen, open, close]);
@@ -2326,19 +2365,25 @@ function PresetManager({ panelId, presets, activePresetId, onAdd }) {
 
 // src/components/Panel.tsx
 import { Fragment as Fragment3, jsx as jsx14, jsxs as jsxs13 } from "react/jsx-runtime";
-function Panel({ panel, defaultOpen = true, inline = false, folderMode = "independent" }) {
+function Panel({ panel, defaultOpen = true, inline = false, folderMode = "independent", onOpenChange, variant = "root" }) {
   const [copied, setCopied] = useState9(false);
   const [isPanelOpen, setIsPanelOpen] = useState9(defaultOpen);
   const shortcutCtx = useContext(ShortcutContext);
   const hasShortcuts = Object.keys(panel.shortcuts).length > 0;
+  const hoistedFolder = variant === "section" && panel.controls.length === 1 && panel.controls[0].type === "folder" ? panel.controls[0] : null;
+  const topLevelControls = hoistedFolder ? hoistedFolder.children ?? [] : panel.controls;
   const [openFolder, setOpenFolder] = useState9(() => {
     if (folderMode !== "accordion") return null;
-    const first = panel.controls.find(
+    const first = topLevelControls.find(
       (c) => c.type === "folder" && (c.defaultOpen ?? true)
     );
     return first?.path ?? null;
   });
   const accordion = folderMode === "accordion";
+  const handleOpenChange = (open) => {
+    setIsPanelOpen(open);
+    onOpenChange?.(open);
+  };
   const values = useSyncExternalStore4(
     (cb) => DialStore.subscribe(panel.id, cb),
     () => DialStore.getValues(panel.id),
@@ -2478,7 +2523,7 @@ Apply these values as the new defaults in the useDialKit call.`;
     );
   };
   const renderControls = () => {
-    return /* @__PURE__ */ jsx14(AnimatePresence5, { initial: false, children: panel.controls.map((control) => renderControl(control, 0)) });
+    return /* @__PURE__ */ jsx14(AnimatePresence5, { initial: false, children: topLevelControls.map((control) => renderControl(control, 0)) });
   };
   const iconTransition = { type: "spring", visualDuration: 0.4, bounce: 0.1 };
   const toolbar = /* @__PURE__ */ jsxs13(Fragment3, { children: [
@@ -2548,13 +2593,19 @@ Apply these values as the new defaults in the useDialKit call.`;
       }
     )
   ] });
-  return /* @__PURE__ */ jsx14("div", { className: "dialkit-panel-wrapper", children: /* @__PURE__ */ jsx14(Folder, { title: panel.name, defaultOpen, isRoot: true, inline, onOpenChange: setIsPanelOpen, toolbar, children: renderControls() }) });
+  if (variant === "section") {
+    return /* @__PURE__ */ jsx14("div", { className: "dialkit-panel-section", "data-panel-name": panel.name, children: /* @__PURE__ */ jsxs13(Folder, { title: panel.name, defaultOpen: panel.defaultOpen ?? defaultOpen, onOpenChange: handleOpenChange, children: [
+      /* @__PURE__ */ jsx14("div", { className: "dialkit-panel-section-toolbar", onClick: (e) => e.stopPropagation(), children: toolbar }),
+      renderControls()
+    ] }) });
+  }
+  return /* @__PURE__ */ jsx14("div", { className: "dialkit-panel-wrapper", children: /* @__PURE__ */ jsx14(Folder, { title: panel.name, defaultOpen, isRoot: true, inline, onOpenChange: handleOpenChange, toolbar, children: renderControls() }) });
 }
 
 // src/components/DialRoot.tsx
 import { jsx as jsx15 } from "react/jsx-runtime";
 var isDevDefault = typeof process !== "undefined" && process?.env?.NODE_ENV ? process.env.NODE_ENV !== "production" : typeof import.meta !== "undefined" && import.meta.env?.MODE ? import.meta.env.MODE !== "production" : true;
-function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover", theme = "system", productionEnabled = isDevDefault, folderMode = "independent" }) {
+function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover", theme = "system", productionEnabled = isDevDefault, folderMode = "independent", onOpenChange }) {
   if (!productionEnabled) return null;
   const [panels, setPanels] = useState10([]);
   const [mounted, setMounted] = useState10(false);
@@ -2566,6 +2617,20 @@ function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover"
   const draggingRef = useRef11(false);
   const dragStartRef = useRef11(null);
   const didDragRef = useRef11(false);
+  const onOpenChangeRef = useRef11(onOpenChange);
+  onOpenChangeRef.current = onOpenChange;
+  const openPanelsRef = useRef11(/* @__PURE__ */ new Set());
+  const aggregateOpenRef = useRef11(null);
+  const handlePanelOpenChange = useCallback7((panelId, open) => {
+    const set = openPanelsRef.current;
+    if (open) set.add(panelId);
+    else set.delete(panelId);
+    const aggregate = set.size > 0;
+    if (aggregate !== aggregateOpenRef.current) {
+      aggregateOpenRef.current = aggregate;
+      onOpenChangeRef.current?.(aggregate);
+    }
+  }, []);
   useEffect8(() => {
     setMounted(true);
     setPanels(DialStore.getPanels());
@@ -2574,6 +2639,15 @@ function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover"
     });
     return unsubscribe;
   }, []);
+  const seededOpenRef = useRef11(false);
+  useEffect8(() => {
+    if (seededOpenRef.current || panels.length === 0) return;
+    seededOpenRef.current = true;
+    if (inline || defaultOpen) {
+      for (const p of panels) openPanelsRef.current.add(p.id);
+    }
+    aggregateOpenRef.current = openPanelsRef.current.size > 0;
+  }, [panels, inline, defaultOpen]);
   useEffect8(() => {
     if (!panelRef.current || inline) return;
     const observer = new MutationObserver(() => {
@@ -2597,7 +2671,7 @@ function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover"
     observer.observe(panelRef.current, { subtree: true, attributes: true, attributeFilter: ["data-collapsed"] });
     return () => observer.disconnect();
   }, [inline, dragOffset, position]);
-  const handlePointerDown = useCallback6((e) => {
+  const handlePointerDown = useCallback7((e) => {
     const inner = panelRef.current?.querySelector(".dialkit-panel-inner");
     if (!inner || inner.getAttribute("data-collapsed") !== "true") return;
     const rect = panelRef.current.getBoundingClientRect();
@@ -2611,7 +2685,7 @@ function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover"
     draggingRef.current = true;
     e.target.setPointerCapture(e.pointerId);
   }, []);
-  const handlePointerMove = useCallback6((e) => {
+  const handlePointerMove = useCallback7((e) => {
     if (!draggingRef.current || !dragStartRef.current) return;
     const dx = e.clientX - dragStartRef.current.pointerX;
     const dy = e.clientY - dragStartRef.current.pointerY;
@@ -2622,7 +2696,7 @@ function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover"
       y: dragStartRef.current.elY + dy
     });
   }, []);
-  const handlePointerUp = useCallback6((e) => {
+  const handlePointerUp = useCallback7((e) => {
     if (!draggingRef.current) return;
     draggingRef.current = false;
     dragStartRef.current = null;
@@ -2649,6 +2723,48 @@ function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover"
     right: "auto",
     bottom: "auto"
   } : void 0;
+  const renderedGroups = /* @__PURE__ */ new Set();
+  const panelNodes = panels.map((panel) => {
+    const group = panel.group;
+    if (!group) {
+      return /* @__PURE__ */ jsx15(
+        Panel,
+        {
+          panel,
+          defaultOpen: inline || defaultOpen,
+          inline,
+          folderMode,
+          onOpenChange: (open) => handlePanelOpenChange(panel.id, open)
+        },
+        panel.id
+      );
+    }
+    if (renderedGroups.has(group)) return null;
+    renderedGroups.add(group);
+    const sectionPanels = panels.filter((p) => p.group === group);
+    return /* @__PURE__ */ jsx15("div", { className: "dialkit-panel-wrapper", "data-group": group, children: /* @__PURE__ */ jsx15(
+      Folder,
+      {
+        title: group,
+        defaultOpen: inline || defaultOpen,
+        isRoot: true,
+        inline,
+        panelHeightOffset: 2,
+        onOpenChange: (open) => handlePanelOpenChange(`group:${group}`, open),
+        children: sectionPanels.map((p) => /* @__PURE__ */ jsx15(
+          Panel,
+          {
+            panel: p,
+            variant: "section",
+            defaultOpen: inline || defaultOpen,
+            inline,
+            folderMode
+          },
+          p.id
+        ))
+      }
+    ) }, `group:${group}`);
+  });
   const content = /* @__PURE__ */ jsx15(ShortcutListener, { children: /* @__PURE__ */ jsx15("div", { className: "dialkit-root", "data-mode": mode, "data-theme": theme, children: /* @__PURE__ */ jsx15(
     "div",
     {
@@ -2660,7 +2776,7 @@ function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover"
       onPointerDown: !inline ? handlePointerDown : void 0,
       onPointerMove: !inline ? handlePointerMove : void 0,
       onPointerUp: !inline ? handlePointerUp : void 0,
-      children: panels.map((panel) => /* @__PURE__ */ jsx15(Panel, { panel, defaultOpen: inline || defaultOpen, inline, folderMode }, panel.id))
+      children: panelNodes
     }
   ) }) });
   if (inline) {
@@ -2684,7 +2800,7 @@ function ButtonGroup({ buttons }) {
 }
 
 // src/components/ShortcutsMenu.tsx
-import { useState as useState11, useRef as useRef12, useEffect as useEffect9, useCallback as useCallback7 } from "react";
+import { useState as useState11, useRef as useRef12, useEffect as useEffect9, useCallback as useCallback8 } from "react";
 import { createPortal as createPortal4 } from "react-dom";
 import { motion as motion7, AnimatePresence as AnimatePresence6 } from "motion/react";
 import { Fragment as Fragment4, jsx as jsx17, jsxs as jsxs14 } from "react/jsx-runtime";
@@ -2711,15 +2827,15 @@ function ShortcutsMenu({ panelId }) {
   const triggerRef = useRef12(null);
   const dropdownRef = useRef12(null);
   const [pos, setPos] = useState11({ top: 0, right: 0 });
-  const open = useCallback7(() => {
+  const open = useCallback8(() => {
     const rect = triggerRef.current?.getBoundingClientRect();
     if (rect) {
       setPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
     }
     setIsOpen(true);
   }, []);
-  const close = useCallback7(() => setIsOpen(false), []);
-  const toggle = useCallback7(() => {
+  const close = useCallback8(() => setIsOpen(false), []);
+  const toggle = useCallback8(() => {
     if (isOpen) close();
     else open();
   }, [isOpen, open, close]);
@@ -2818,6 +2934,7 @@ export {
   TransitionControl,
   unwrapVisibility,
   useDialKit,
+  useDialKitController,
   withVisibility
 };
 //# sourceMappingURL=index.js.map

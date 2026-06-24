@@ -166,6 +166,19 @@ export type PanelConfig = {
   controls: ControlMeta[];
   values: Record<string, DialValue>;
   shortcuts: Record<string, ShortcutConfig>;
+  /**
+   * Optional grouping key. Panels sharing the same non-empty `group` are
+   * rendered as collapsible sections inside ONE merged shell by `DialRoot`.
+   * Panels with no group (the default) render as independent standalone
+   * shells, exactly as before.
+   */
+  group?: string;
+  /**
+   * Initial open state for this panel's folder. Defaults to open. Most useful
+   * for a grouped panel that should start collapsed as a section inside the
+   * merged shell (e.g. a secondary settings section). `undefined` ⇒ open.
+   */
+  defaultOpen?: boolean;
 };
 
 type Listener = () => void;
@@ -197,7 +210,7 @@ class DialStoreClass {
    */
   private allControls: Map<string, ControlMeta[]> = new Map();
 
-  registerPanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>): void {
+  registerPanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, group?: string, defaultOpen?: boolean): void {
     const allControls = this.parseConfig(config, '', shortcuts);
     const values = this.flattenValues(config, '');
 
@@ -207,16 +220,16 @@ class DialStoreClass {
     this.allControls.set(id, allControls);
     const controls = this.filterByVisibility(allControls, values);
 
-    this.panels.set(id, { id, name, controls, values, shortcuts: shortcuts ?? {} });
+    this.panels.set(id, { id, name, controls, values, shortcuts: shortcuts ?? {}, group, defaultOpen });
     this.snapshots.set(id, { ...values });
     this.baseValues.set(id, { ...values });
     this.notifyGlobal();
   }
 
-  updatePanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>): void {
+  updatePanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, group?: string, defaultOpen?: boolean): void {
     const existing = this.panels.get(id);
     if (!existing) {
-      this.registerPanel(id, name, config, shortcuts);
+      this.registerPanel(id, name, config, shortcuts, group, defaultOpen);
       return;
     }
 
@@ -251,7 +264,7 @@ class DialStoreClass {
     this.allControls.set(id, allControls);
     const controls = this.filterByVisibility(allControls, nextValues);
 
-    const nextPanel: PanelConfig = { id, name, controls, values: nextValues, shortcuts: shortcuts ?? existing.shortcuts };
+    const nextPanel: PanelConfig = { id, name, controls, values: nextValues, shortcuts: shortcuts ?? existing.shortcuts, group: group ?? existing.group, defaultOpen: defaultOpen ?? existing.defaultOpen };
     this.panels.set(id, nextPanel);
     this.snapshots.set(id, { ...nextValues });
 
@@ -288,29 +301,44 @@ class DialStoreClass {
   }
 
   updateValue(panelId: string, path: string, value: DialValue): void {
+    // Single-path writes route through the batch path so there is one
+    // implementation of the auto-save + snapshot + visibility re-eval logic.
+    this.updateValues(panelId, { [path]: value });
+  }
+
+  /**
+   * Batch-write multiple flat store paths in one pass: a single snapshot bump,
+   * a single `notify`, and exactly one conditional-visibility re-evaluation at
+   * the end. Mirrors {@link updateValue}'s auto-save (active preset or base
+   * values) so the controller's `setValues` is consistent with slider edits.
+   */
+  updateValues(panelId: string, updates: Record<string, DialValue>): void {
     const panel = this.panels.get(panelId);
     if (!panel) return;
 
-    panel.values[path] = value;
-
-    // Auto-save to active preset or base values
+    // Resolve the auto-save target once for the whole batch.
     const activeId = this.activePreset.get(panelId);
-    if (activeId) {
-      const presets = this.presets.get(panelId) ?? [];
-      const preset = presets.find(p => p.id === activeId);
-      if (preset) preset.values[path] = value;
-    } else {
-      const base = this.baseValues.get(panelId);
-      if (base) base[path] = value;
+    const activePreset = activeId
+      ? (this.presets.get(panelId) ?? []).find(p => p.id === activeId)
+      : undefined;
+    const base = activeId ? undefined : this.baseValues.get(panelId);
+
+    for (const [path, value] of Object.entries(updates)) {
+      panel.values[path] = value;
+      if (activePreset) {
+        activePreset.values[path] = value;
+      } else if (base) {
+        base[path] = value;
+      }
     }
 
     // Create a new snapshot reference so useSyncExternalStore detects the change
     this.snapshots.set(panelId, { ...panel.values });
     this.notify(panelId);
 
-    // Re-evaluate conditional visibility. If any control's visibility flipped,
-    // rebuild the filtered tree and bump the global listener so DialRoot picks
-    // up the new controls array.
+    // Re-evaluate conditional visibility once after the whole batch. If any
+    // control's visibility flipped, rebuild the filtered tree and bump the
+    // global listener so DialRoot picks up the new controls array.
     const allControls = this.allControls.get(panelId);
     if (!allControls) return;
     const nextControls = this.filterByVisibility(allControls, panel.values);
@@ -318,6 +346,16 @@ class DialStoreClass {
       panel.controls = nextControls;
       this.notifyGlobal();
     }
+  }
+
+  /**
+   * Reset a panel back to its base values and clear any active preset. Thin
+   * wrapper over {@link clearActivePreset}, which already restores base values
+   * and re-evaluates conditional visibility. Exposed as a named method so the
+   * controller's `resetValues` has a stable target.
+   */
+  resetValues(panelId: string): void {
+    this.clearActivePreset(panelId);
   }
 
   updateSpringMode(panelId: string, path: string, mode: 'simple' | 'advanced'): void {
