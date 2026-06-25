@@ -372,10 +372,12 @@ interface FolderProps {
     /** Toggle handler for controlled mode. Receives the requested next state. */
     onToggle?: (next: boolean) => void;
     /**
-     * Vertical padding (px) added to the measured content height when sizing the
-     * root panel. Defaults to 10 for a standard single-panel shell. A merged
-     * shell that stacks section folders sets this lower (e.g. 2) so the sections
-     * own their own internal spacing instead of double-padding the shell.
+     * Vertical slack (px) added to the measured content height when sizing the
+     * root panel. The measurement uses offsetHeight, which excludes margins that
+     * collapse through the content chain, so this offset covers that gap and
+     * prevents a spurious scrollbar. Defaults to 10 for a single-panel shell; a
+     * merged shell sets it a little higher (~12) because each stacked section
+     * folder contributes outer margins that escape the measurement.
      */
     panelHeightOffset?: number;
 }

@@ -2793,7 +2793,7 @@ function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover"
         defaultOpen: inline || defaultOpen,
         isRoot: true,
         inline,
-        panelHeightOffset: 2,
+        panelHeightOffset: 12,
         onOpenChange: (open) => handlePanelOpenChange(`group:${group}`, open),
         children: sectionPanels.map((p) => /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
           Panel,
