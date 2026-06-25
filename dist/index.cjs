@@ -2649,7 +2649,7 @@ Apply these values as the new defaults in the useDialKit call.`;
 var import_jsx_runtime15 = require("react/jsx-runtime");
 var import_meta = {};
 var isDevDefault = typeof process !== "undefined" && process?.env?.NODE_ENV ? process.env.NODE_ENV !== "production" : typeof import_meta !== "undefined" && import_meta.env?.MODE ? import_meta.env.MODE !== "production" : true;
-function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover", theme = "system", productionEnabled = isDevDefault, folderMode = "independent", onOpenChange }) {
+function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover", theme = "system", productionEnabled = isDevDefault, folderMode = "independent", onOpenChange, include }) {
   if (!productionEnabled) return null;
   const [panels, setPanels] = (0, import_react18.useState)([]);
   const [mounted, setMounted] = (0, import_react18.useState)(false);
@@ -2767,8 +2767,9 @@ function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover"
     right: "auto",
     bottom: "auto"
   } : void 0;
+  const visiblePanels = include ? panels.filter((p) => include.ungrouped === true && !p.group || !!include.groups && !!p.group && include.groups.includes(p.group)) : panels;
   const renderedGroups = /* @__PURE__ */ new Set();
-  const panelNodes = panels.map((panel) => {
+  const panelNodes = visiblePanels.map((panel) => {
     const group = panel.group;
     if (!group) {
       return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(

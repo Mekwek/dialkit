@@ -38,9 +38,18 @@ interface DialRootProps {
    * open/close, not on mount.
    */
   onOpenChange?: (open: boolean) => void;
+  /**
+   * Restrict which registered panels this root renders. Lets multiple
+   * `DialRoot` instances split the same store — e.g. one popover root showing
+   * only ungrouped panels, another inline root showing only a named group.
+   * - `{ ungrouped: true }` — render only panels with no `group`.
+   * - `{ groups: ['X'] }` — render only panels in the listed groups.
+   * Both may be combined (OR). Omit to render every panel (the default).
+   */
+  include?: { groups?: string[]; ungrouped?: boolean };
 }
 
-export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'popover', theme = 'system', productionEnabled = isDevDefault, folderMode = 'independent', onOpenChange }: DialRootProps) {
+export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'popover', theme = 'system', productionEnabled = isDevDefault, folderMode = 'independent', onOpenChange, include }: DialRootProps) {
   if (!productionEnabled) return null;
   const [panels, setPanels] = useState<PanelConfig[]>([]);
   const [mounted, setMounted] = useState(false);
@@ -193,12 +202,20 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
     bottom: 'auto' as const,
   } : undefined;
 
+  // Optionally restrict which panels this root renders (lets multiple roots
+  // split the same store — see the `include` prop).
+  const visiblePanels = include
+    ? panels.filter((p) =>
+        (include.ungrouped === true && !p.group) ||
+        (!!include.groups && !!p.group && include.groups.includes(p.group)))
+    : panels;
+
   // Group-aware rendering. Panels with no group render as independent
   // standalone shells (historical behavior). Panels sharing a non-empty group
   // render as collapsible sections inside ONE merged shell, emitted at the
   // position of that group's first panel so DOM order tracks registration order.
   const renderedGroups = new Set<string>();
-  const panelNodes = panels.map((panel) => {
+  const panelNodes = visiblePanels.map((panel) => {
     const group = panel.group;
     if (!group) {
       return (

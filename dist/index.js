@@ -2605,7 +2605,7 @@ Apply these values as the new defaults in the useDialKit call.`;
 // src/components/DialRoot.tsx
 import { jsx as jsx15 } from "react/jsx-runtime";
 var isDevDefault = typeof process !== "undefined" && process?.env?.NODE_ENV ? process.env.NODE_ENV !== "production" : typeof import.meta !== "undefined" && import.meta.env?.MODE ? import.meta.env.MODE !== "production" : true;
-function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover", theme = "system", productionEnabled = isDevDefault, folderMode = "independent", onOpenChange }) {
+function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover", theme = "system", productionEnabled = isDevDefault, folderMode = "independent", onOpenChange, include }) {
   if (!productionEnabled) return null;
   const [panels, setPanels] = useState10([]);
   const [mounted, setMounted] = useState10(false);
@@ -2723,8 +2723,9 @@ function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover"
     right: "auto",
     bottom: "auto"
   } : void 0;
+  const visiblePanels = include ? panels.filter((p) => include.ungrouped === true && !p.group || !!include.groups && !!p.group && include.groups.includes(p.group)) : panels;
   const renderedGroups = /* @__PURE__ */ new Set();
-  const panelNodes = panels.map((panel) => {
+  const panelNodes = visiblePanels.map((panel) => {
     const group = panel.group;
     if (!group) {
       return /* @__PURE__ */ jsx15(

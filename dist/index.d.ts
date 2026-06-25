@@ -328,8 +328,20 @@ interface DialRootProps {
      * open/close, not on mount.
      */
     onOpenChange?: (open: boolean) => void;
+    /**
+     * Restrict which registered panels this root renders. Lets multiple
+     * `DialRoot` instances split the same store — e.g. one popover root showing
+     * only ungrouped panels, another inline root showing only a named group.
+     * - `{ ungrouped: true }` — render only panels with no `group`.
+     * - `{ groups: ['X'] }` — render only panels in the listed groups.
+     * Both may be combined (OR). Omit to render every panel (the default).
+     */
+    include?: {
+        groups?: string[];
+        ungrouped?: boolean;
+    };
 }
-declare function DialRoot({ position, defaultOpen, mode, theme, productionEnabled, folderMode, onOpenChange }: DialRootProps): react_jsx_runtime.JSX.Element | null;
+declare function DialRoot({ position, defaultOpen, mode, theme, productionEnabled, folderMode, onOpenChange, include }: DialRootProps): react_jsx_runtime.JSX.Element | null;
 
 interface SliderProps {
     label: string;
