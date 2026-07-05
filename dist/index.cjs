@@ -1249,6 +1249,7 @@ function Slider({
   shortcut,
   shortcutActive
 }) {
+  if (typeof value !== "number" || !Number.isFinite(value)) value = min;
   const wrapperRef = (0, import_react5.useRef)(null);
   const trackRef = (0, import_react5.useRef)(null);
   const inputRef = (0, import_react5.useRef)(null);
@@ -2459,7 +2460,7 @@ Apply these values as the new defaults in the useDialKit call.`;
           Slider,
           {
             label: control.label,
-            value,
+            value: value ?? control.min ?? 0,
             onChange: (v) => DialStore.updateValue(panel.id, control.path, v),
             min: control.min,
             max: control.max,

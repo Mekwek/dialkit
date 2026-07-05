@@ -31,6 +31,11 @@ export function Slider({
   shortcut,
   shortcutActive,
 }: SliderProps) {
+  // Guard: during cross-preset panel rebuilds the store's controls list and
+  // values map can desync for one render — fall back to min instead of
+  // crashing on value.toFixed below.
+  if (typeof value !== 'number' || !Number.isFinite(value)) value = min;
+
   const wrapperRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);

@@ -121,7 +121,7 @@ Apply these values as the new defaults in the useDialKit call.`;
         return (
           <Slider
             label={control.label}
-            value={value as number}
+            value={(value as number) ?? control.min ?? 0}
             onChange={(v) => DialStore.updateValue(panel.id, control.path, v)}
             min={control.min}
             max={control.max}
