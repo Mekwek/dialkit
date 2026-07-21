@@ -1,5 +1,8 @@
-export { createDialKit } from './createDialKit.svelte';
-export type { CreateDialOptions, DialKitValues } from './createDialKit.svelte';
+export { createDialKit, createDialKitController } from './createDialKit.svelte.js';
+export type { CreateDialOptions, DialKitController, DialKitValues } from './createDialKit.svelte.js';
+export { createDialTimeline } from './createDialTimeline.svelte.js';
+export type { CreateDialTimelineOptions } from './createDialTimeline.svelte.js';
+export type { DialTimelineValues, TimelineClipConfig, TimelineClipCss, TimelineClipLoop, TimelineClipValues, TimelineConfig, TimelineGroupConfig, TimelineGroupValues, TimelinePropConfig, TimelinePropStepConfig, TimelineStepConfig, TimelineStepValues, } from 'dialkit/timeline';
 export { default as DialRoot } from './components/DialRoot.svelte';
 export type { DialPosition, DialMode, DialTheme } from './components/DialRoot.svelte';
 export { default as ShortcutListener } from './components/ShortcutListener.svelte';
@@ -18,6 +21,7 @@ export { default as TextControl } from './components/TextControl.svelte';
 export { default as SelectControl } from './components/SelectControl.svelte';
 export { default as ColorControl } from './components/ColorControl.svelte';
 export { default as PresetManager } from './components/PresetManager.svelte';
+export { default as DialTimeline } from './components/Timeline/DialTimeline.svelte';
 export { DialStore, withVisibility, unwrapVisibility } from 'dialkit/store';
-export type { SpringConfig, EasingConfig, TransitionConfig, ActionConfig, SelectConfig, ColorConfig, TextConfig, ShortcutConfig, Preset, DialValue, DialConfig, ResolvedValues, ControlMeta, PanelConfig, VisibleWhen, VisibleWhenValue, ControlWithVisibility, } from 'dialkit/store';
+export type { SpringConfig, EasingConfig, TransitionConfig, ActionConfig, SelectConfig, ColorConfig, TextConfig, ShortcutConfig, Preset, DialValue, DialConfig, DialKitPersistOptions, DialKitValueUpdates, ResolvedValues, ControlMeta, PanelConfig, VisibleWhen, VisibleWhenValue, ControlWithVisibility, } from 'dialkit/store';
 //# sourceMappingURL=index.d.ts.map

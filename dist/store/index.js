@@ -9,9 +9,110 @@ function unwrapVisibility(raw) {
   return raw;
 }
 var EMPTY_VALUES = Object.freeze({});
+function resolveDialValues(config, flatValues) {
+  return resolveConfigValues(config, flatValues, "");
+}
+function flattenDialValueUpdates(config, updates) {
+  const values = {};
+  if (typeof updates === "object" && updates !== null) {
+    flattenConfigUpdates(config, updates, "", values);
+  }
+  return values;
+}
+function resolveConfigValues(config, flatValues, prefix) {
+  const result = {};
+  for (const [key, rawConfigValue] of Object.entries(config)) {
+    if (key === "_collapsed") continue;
+    const path = prefix ? `${prefix}.${key}` : key;
+    const configValue = unwrapVisibility(rawConfigValue);
+    if (Array.isArray(configValue) && configValue.length <= 4 && typeof configValue[0] === "number") {
+      result[key] = flatValues[path] ?? configValue[0];
+    } else if (typeof configValue === "number" || typeof configValue === "boolean" || typeof configValue === "string") {
+      result[key] = flatValues[path] ?? configValue;
+    } else if (isSpringConfigValue(configValue) || isEasingConfigValue(configValue)) {
+      result[key] = flatValues[path] ?? configValue;
+    } else if (isActionConfigValue(configValue)) {
+      result[key] = flatValues[path] ?? configValue;
+    } else if (isSelectConfigValue(configValue)) {
+      const defaultValue = configValue.default ?? getFirstOptionValue(configValue.options);
+      result[key] = flatValues[path] ?? defaultValue;
+    } else if (isColorConfigValue(configValue)) {
+      result[key] = flatValues[path] ?? configValue.default ?? "#000000";
+    } else if (isTextConfigValue(configValue)) {
+      result[key] = flatValues[path] ?? configValue.default ?? "";
+    } else if (typeof configValue === "object" && configValue !== null) {
+      result[key] = resolveConfigValues(configValue, flatValues, path);
+    }
+  }
+  return result;
+}
+function flattenConfigUpdates(config, updates, prefix, values) {
+  for (const [key, rawConfigValue] of Object.entries(config)) {
+    if (key === "_collapsed" || !(key in updates)) continue;
+    const nextValue = updates[key];
+    if (nextValue === void 0) continue;
+    const path = prefix ? `${prefix}.${key}` : key;
+    const configValue = unwrapVisibility(rawConfigValue);
+    if (isActionConfigValue(configValue)) {
+      continue;
+    }
+    if (isLeafConfigValue(configValue)) {
+      values[path] = nextValue;
+      continue;
+    }
+    if (typeof configValue === "object" && configValue !== null && typeof nextValue === "object" && nextValue !== null && !Array.isArray(nextValue)) {
+      flattenConfigUpdates(configValue, nextValue, path, values);
+    }
+  }
+}
+function isLeafConfigValue(value) {
+  return Array.isArray(value) && value.length <= 4 && typeof value[0] === "number" || typeof value === "number" || typeof value === "boolean" || typeof value === "string" || isSpringConfigValue(value) || isEasingConfigValue(value) || isActionConfigValue(value) || isSelectConfigValue(value) || isColorConfigValue(value) || isTextConfigValue(value);
+}
+function hasType(value, type) {
+  return typeof value === "object" && value !== null && "type" in value && value.type === type;
+}
+function isSpringConfigValue(value) {
+  return hasType(value, "spring");
+}
+function isEasingConfigValue(value) {
+  return hasType(value, "easing");
+}
+function isHexColor(value) {
+  return /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$/.test(value);
+}
+function formatLabel(key) {
+  return key.replace(/([A-Z])/g, " $1").replace(/^./, (str) => str.toUpperCase()).trim();
+}
+function inferStep(min, max) {
+  const range = max - min;
+  if (range <= 1) return 0.01;
+  if (range <= 10) return 0.1;
+  if (range <= 100) return 1;
+  return 10;
+}
+function isActionConfigValue(value) {
+  return hasType(value, "action");
+}
+function isSelectConfigValue(value) {
+  return hasType(value, "select") && "options" in value && Array.isArray(value.options);
+}
+function isColorConfigValue(value) {
+  return hasType(value, "color");
+}
+function isTextConfigValue(value) {
+  return hasType(value, "text");
+}
+function getFirstOptionValue(options) {
+  const first = options[0];
+  if (first === void 0) return "";
+  return typeof first === "string" ? first : first.value;
+}
 var DialStoreClass = class {
   constructor() {
     this.panels = /* @__PURE__ */ new Map();
+    this.panelsSnapshot = [];
+    this.standardPanelsSnapshot = [];
+    this.timelinePanelsSnapshot = [];
     this.listeners = /* @__PURE__ */ new Map();
     this.globalListeners = /* @__PURE__ */ new Set();
     this.snapshots = /* @__PURE__ */ new Map();
@@ -19,6 +120,10 @@ var DialStoreClass = class {
     this.presets = /* @__PURE__ */ new Map();
     this.activePreset = /* @__PURE__ */ new Map();
     this.baseValues = /* @__PURE__ */ new Map();
+    this.defaultValues = /* @__PURE__ */ new Map();
+    this.registrationCounts = /* @__PURE__ */ new Map();
+    this.retainedPanels = /* @__PURE__ */ new Set();
+    this.persistConfigs = /* @__PURE__ */ new Map();
     /**
      * Full (unfiltered) control tree per panel. `panels[id].controls` holds the
      * tree with conditional-visibility controls already filtered out, which is
@@ -27,118 +132,170 @@ var DialStoreClass = class {
      */
     this.allControls = /* @__PURE__ */ new Map();
   }
-  registerPanel(id, name, config, shortcuts, group, defaultOpen) {
+  registerPanel(id, name, config, shortcuts, options = {}) {
+    const existingPanel = this.panels.get(id);
+    if (existingPanel && existingPanel.kind !== options.kind) {
+      console.warn(
+        `[dialkit] Panel id "${id}" cannot be shared by a timeline and a standard panel; the most recent registration controls where it renders.`
+      );
+    }
+    this.configurePanelRetention(id, options);
+    this.registrationCounts.set(id, (this.registrationCounts.get(id) ?? 0) + 1);
     const allControls = this.parseConfig(config, "", shortcuts);
-    const values = this.flattenValues(config, "");
-    this.initTransitionModes(config, "", values);
+    const controlsByPath = this.mapControlsByPath(allControls);
+    const defaultValues = this.flattenValues(config, "");
+    this.initTransitionModes(config, "", defaultValues);
+    const persisted = this.loadPersistedPanel(id);
+    const previousValues = this.panels.get(id)?.values ?? this.snapshots.get(id) ?? persisted?.values ?? {};
+    const values = this.reconcileValues(defaultValues, previousValues, controlsByPath);
+    const previousBaseValues = this.baseValues.get(id) ?? persisted?.baseValues ?? persisted?.values ?? {};
+    const baseValues = this.reconcileValues(defaultValues, previousBaseValues, controlsByPath);
     this.allControls.set(id, allControls);
     const controls = this.filterByVisibility(allControls, values);
-    this.panels.set(id, { id, name, controls, values, shortcuts: shortcuts ?? {}, group, defaultOpen });
+    this.panels.set(id, { id, name, controls, values, shortcuts: shortcuts ?? {}, kind: options.kind, group: options.group, defaultOpen: options.defaultOpen });
     this.snapshots.set(id, { ...values });
-    this.baseValues.set(id, { ...values });
+    this.baseValues.set(id, baseValues);
+    this.defaultValues.set(id, { ...defaultValues });
+    const existingPresets = this.presets.get(id) ?? persisted?.presets;
+    if (existingPresets) {
+      this.presets.set(id, this.reconcilePresets(existingPresets, defaultValues, controlsByPath));
+    }
+    if (!this.activePreset.has(id) && persisted?.activePresetId !== void 0) {
+      this.activePreset.set(id, persisted.activePresetId);
+    }
+    this.persistPanel(id);
+    this.notify(id);
     this.notifyGlobal();
   }
-  updatePanel(id, name, config, shortcuts, group, defaultOpen) {
+  updatePanel(id, name, config, shortcuts, options = {}) {
+    this.configurePanelRetention(id, options);
     const existing = this.panels.get(id);
     if (!existing) {
-      this.registerPanel(id, name, config, shortcuts, group, defaultOpen);
+      this.registerPanel(id, name, config, shortcuts, options);
       return;
     }
     const allControls = this.parseConfig(config, "", shortcuts);
     const controlsByPath = this.mapControlsByPath(allControls);
     const defaultValues = this.flattenValues(config, "");
-    const nextValues = {};
-    for (const [path, defaultValue] of Object.entries(defaultValues)) {
-      nextValues[path] = this.normalizePreservedValue(
-        existing.values[path],
-        defaultValue,
-        controlsByPath.get(path)
-      );
-    }
-    this.initTransitionModes(config, "", nextValues);
-    for (const [path, mode] of Object.entries(existing.values)) {
-      if (!path.endsWith(".__mode")) {
-        continue;
-      }
-      const transitionPath = path.slice(0, -"__mode".length - 1);
-      const transitionControl = controlsByPath.get(transitionPath);
-      if (transitionControl?.type === "transition") {
-        nextValues[path] = mode;
-      }
-    }
+    this.initTransitionModes(config, "", defaultValues);
+    const nextValues = this.reconcileValues(defaultValues, existing.values, controlsByPath);
     this.allControls.set(id, allControls);
     const controls = this.filterByVisibility(allControls, nextValues);
-    const nextPanel = { id, name, controls, values: nextValues, shortcuts: shortcuts ?? existing.shortcuts, group: group ?? existing.group, defaultOpen: defaultOpen ?? existing.defaultOpen };
+    const nextPanel = {
+      id,
+      name,
+      controls,
+      values: nextValues,
+      shortcuts: shortcuts ?? existing.shortcuts,
+      kind: options.kind ?? existing.kind,
+      group: options.group ?? existing.group,
+      defaultOpen: options.defaultOpen ?? existing.defaultOpen
+    };
     this.panels.set(id, nextPanel);
     this.snapshots.set(id, { ...nextValues });
     const previousBaseValues = this.baseValues.get(id) ?? {};
-    const nextBaseValues = {};
-    for (const [path, defaultValue] of Object.entries(defaultValues)) {
-      nextBaseValues[path] = this.normalizePreservedValue(
-        previousBaseValues[path],
-        defaultValue,
-        controlsByPath.get(path)
-      );
-    }
+    const nextBaseValues = this.reconcileValues(defaultValues, previousBaseValues, controlsByPath);
     for (const [path, value] of Object.entries(nextValues)) {
       if (path.endsWith(".__mode")) {
         nextBaseValues[path] = value;
       }
     }
     this.baseValues.set(id, nextBaseValues);
+    this.defaultValues.set(id, { ...defaultValues });
+    this.presets.set(id, this.reconcilePresets(this.presets.get(id) ?? [], defaultValues, controlsByPath));
+    this.persistPanel(id);
     this.notify(id);
     this.notifyGlobal();
   }
   unregisterPanel(id) {
+    const nextCount = (this.registrationCounts.get(id) ?? 1) - 1;
+    if (nextCount > 0) {
+      this.registrationCounts.set(id, nextCount);
+      return;
+    }
+    this.registrationCounts.delete(id);
     this.panels.delete(id);
-    this.listeners.delete(id);
-    this.snapshots.delete(id);
-    this.actionListeners.delete(id);
-    this.baseValues.delete(id);
-    this.allControls.delete(id);
+    if (this.listeners.get(id)?.size === 0) this.listeners.delete(id);
+    if (this.actionListeners.get(id)?.size === 0) this.actionListeners.delete(id);
+    if (!this.retainedPanels.has(id)) {
+      this.snapshots.delete(id);
+      this.baseValues.delete(id);
+      this.defaultValues.delete(id);
+      this.presets.delete(id);
+      this.activePreset.delete(id);
+      this.persistConfigs.delete(id);
+      this.allControls.delete(id);
+    }
     this.notifyGlobal();
   }
   updateValue(panelId, path, value) {
     this.updateValues(panelId, { [path]: value });
   }
-  /**
-   * Batch-write multiple flat store paths in one pass: a single snapshot bump,
-   * a single `notify`, and exactly one conditional-visibility re-evaluation at
-   * the end. Mirrors {@link updateValue}'s auto-save (active preset or base
-   * values) so the controller's `setValues` is consistent with slider edits.
-   */
   updateValues(panelId, updates) {
     const panel = this.panels.get(panelId);
     if (!panel) return;
-    const activeId = this.activePreset.get(panelId);
-    const activePreset = activeId ? (this.presets.get(panelId) ?? []).find((p) => p.id === activeId) : void 0;
-    const base = activeId ? void 0 : this.baseValues.get(panelId);
+    const validUpdates = {};
     for (const [path, value] of Object.entries(updates)) {
+      if (!Object.prototype.hasOwnProperty.call(panel.values, path)) {
+        continue;
+      }
+      const control = this.findControlByPath(panel.controls, path);
+      if (control?.type === "action") {
+        continue;
+      }
       panel.values[path] = value;
-      if (activePreset) {
-        activePreset.values[path] = value;
-      } else if (base) {
-        base[path] = value;
+      validUpdates[path] = value;
+    }
+    if (Object.keys(validUpdates).length === 0) {
+      return;
+    }
+    const activeId = this.activePreset.get(panelId);
+    if (activeId) {
+      const presets = this.presets.get(panelId) ?? [];
+      const preset = presets.find((p) => p.id === activeId);
+      if (preset) {
+        for (const [path, value] of Object.entries(validUpdates)) {
+          preset.values[path] = value;
+        }
+      }
+    } else {
+      const base = this.baseValues.get(panelId);
+      if (base) {
+        for (const [path, value] of Object.entries(validUpdates)) {
+          base[path] = value;
+        }
       }
     }
     this.snapshots.set(panelId, { ...panel.values });
+    this.persistPanel(panelId);
     this.notify(panelId);
     const allControls = this.allControls.get(panelId);
-    if (!allControls) return;
-    const nextControls = this.filterByVisibility(allControls, panel.values);
-    if (!this.sameControlPaths(panel.controls, nextControls)) {
-      panel.controls = nextControls;
-      this.notifyGlobal();
+    if (allControls) {
+      const nextControls = this.filterByVisibility(allControls, panel.values);
+      if (!this.sameControlPaths(panel.controls, nextControls)) {
+        panel.controls = nextControls;
+        this.notifyGlobal();
+      }
     }
   }
-  /**
-   * Reset a panel back to its base values and clear any active preset. Thin
-   * wrapper over {@link clearActivePreset}, which already restores base values
-   * and re-evaluates conditional visibility. Exposed as a named method so the
-   * controller's `resetValues` has a stable target.
-   */
   resetValues(panelId) {
-    this.clearActivePreset(panelId);
+    const panel = this.panels.get(panelId);
+    const defaults = this.defaultValues.get(panelId);
+    if (!panel || !defaults) return;
+    panel.values = { ...defaults };
+    this.snapshots.set(panelId, { ...panel.values });
+    this.baseValues.set(panelId, { ...defaults });
+    this.activePreset.set(panelId, null);
+    this.persistPanel(panelId);
+    this.notify(panelId);
+    const allControls = this.allControls.get(panelId);
+    if (allControls) {
+      const nextControls = this.filterByVisibility(allControls, panel.values);
+      if (!this.sameControlPaths(panel.controls, nextControls)) {
+        panel.controls = nextControls;
+        this.notifyGlobal();
+      }
+    }
   }
   updateSpringMode(panelId, path, mode) {
     this.updateTransitionMode(panelId, path, mode);
@@ -151,18 +308,9 @@ var DialStoreClass = class {
   updateTransitionMode(panelId, path, mode) {
     const panel = this.panels.get(panelId);
     if (!panel) return;
-    const modePath = `${path}.__mode`;
-    panel.values[modePath] = mode;
-    const activeId = this.activePreset.get(panelId);
-    if (activeId) {
-      const presets = this.presets.get(panelId) ?? [];
-      const preset = presets.find((p) => p.id === activeId);
-      if (preset) preset.values[modePath] = mode;
-    } else {
-      const base = this.baseValues.get(panelId);
-      if (base) base[modePath] = mode;
-    }
+    panel.values[`${path}.__mode`] = mode;
     this.snapshots.set(panelId, { ...panel.values });
+    this.persistPanel(panelId);
     this.notify(panelId);
   }
   getTransitionMode(panelId, path) {
@@ -177,8 +325,10 @@ var DialStoreClass = class {
   getValues(panelId) {
     return this.snapshots.get(panelId) ?? EMPTY_VALUES;
   }
-  getPanels() {
-    return Array.from(this.panels.values());
+  getPanels(kind) {
+    if (kind === "panel") return this.standardPanelsSnapshot;
+    if (kind === "timeline") return this.timelinePanelsSnapshot;
+    return this.panelsSnapshot;
   }
   getPanel(id) {
     return this.panels.get(id);
@@ -189,7 +339,11 @@ var DialStoreClass = class {
     }
     this.listeners.get(panelId).add(listener);
     return () => {
-      this.listeners.get(panelId)?.delete(listener);
+      const listeners = this.listeners.get(panelId);
+      listeners?.delete(listener);
+      if (listeners?.size === 0 && !this.panels.has(panelId)) {
+        this.listeners.delete(panelId);
+      }
     };
   }
   subscribeGlobal(listener) {
@@ -202,7 +356,11 @@ var DialStoreClass = class {
     }
     this.actionListeners.get(panelId).add(listener);
     return () => {
-      this.actionListeners.get(panelId)?.delete(listener);
+      const listeners = this.actionListeners.get(panelId);
+      listeners?.delete(listener);
+      if (listeners?.size === 0 && !this.panels.has(panelId)) {
+        this.actionListeners.delete(panelId);
+      }
     };
   }
   triggerAction(panelId, path) {
@@ -221,6 +379,7 @@ var DialStoreClass = class {
     this.presets.set(panelId, [...existing, preset]);
     this.activePreset.set(panelId, id);
     this.snapshots.set(panelId, { ...panel.values });
+    this.persistPanel(panelId);
     this.notify(panelId);
     return id;
   }
@@ -233,6 +392,8 @@ var DialStoreClass = class {
     panel.values = { ...preset.values };
     this.snapshots.set(panelId, { ...panel.values });
     this.activePreset.set(panelId, presetId);
+    this.persistPanel(panelId);
+    this.notify(panelId);
     const allControls = this.allControls.get(panelId);
     if (allControls) {
       const nextControls = this.filterByVisibility(allControls, panel.values);
@@ -241,7 +402,6 @@ var DialStoreClass = class {
         this.notifyGlobal();
       }
     }
-    this.notify(panelId);
   }
   deletePreset(panelId, presetId) {
     const presets = this.presets.get(panelId) ?? [];
@@ -253,6 +413,7 @@ var DialStoreClass = class {
     if (panel) {
       this.snapshots.set(panelId, { ...panel.values });
     }
+    this.persistPanel(panelId);
     this.notify(panelId);
   }
   getPresets(panelId) {
@@ -277,6 +438,7 @@ var DialStoreClass = class {
       }
     }
     this.activePreset.set(panelId, null);
+    this.persistPanel(panelId);
     this.notify(panelId);
   }
   resolveShortcutTarget(key, modifier) {
@@ -307,6 +469,94 @@ var DialStoreClass = class {
     }
     return results;
   }
+  configurePanelRetention(id, options) {
+    if (options.retainOnUnmount) {
+      this.retainedPanels.add(id);
+    }
+    const persistConfig = this.normalizePersistConfig(id, options.persist);
+    if (persistConfig) {
+      this.persistConfigs.set(id, persistConfig);
+      this.retainedPanels.add(id);
+    }
+  }
+  reconcileValues(defaultValues, previousValues, controlsByPath) {
+    const nextValues = {};
+    for (const [path, defaultValue] of Object.entries(defaultValues)) {
+      if (path.endsWith(".__mode")) {
+        const transitionPath = path.slice(0, -".__mode".length);
+        const transitionControl = controlsByPath.get(transitionPath);
+        nextValues[path] = transitionControl?.type === "transition" && previousValues[path] !== void 0 ? previousValues[path] : defaultValue;
+        continue;
+      }
+      nextValues[path] = this.normalizePreservedValue(
+        previousValues[path],
+        defaultValue,
+        controlsByPath.get(path)
+      );
+    }
+    return nextValues;
+  }
+  reconcilePresets(presets, defaultValues, controlsByPath) {
+    return presets.map((preset) => ({
+      ...preset,
+      values: this.reconcileValues(defaultValues, preset.values, controlsByPath)
+    }));
+  }
+  normalizePersistConfig(id, persist) {
+    if (!persist) return null;
+    const options = typeof persist === "object" ? persist : {};
+    return {
+      key: options.key ?? `dialkit:${id}`,
+      storage: options.storage ?? "localStorage",
+      presets: options.presets ?? true
+    };
+  }
+  loadPersistedPanel(id) {
+    const config = this.persistConfigs.get(id);
+    if (!config) return null;
+    const storage = this.getStorage(config.storage);
+    if (!storage) return null;
+    try {
+      const raw = storage.getItem(config.key);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (parsed?.version !== 1 || typeof parsed !== "object") return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+  persistPanel(id) {
+    const config = this.persistConfigs.get(id);
+    if (!config) return;
+    const storage = this.getStorage(config.storage);
+    if (!storage) return;
+    const values = this.snapshots.get(id) ?? this.panels.get(id)?.values;
+    if (!values) return;
+    const state = {
+      version: 1,
+      values,
+      baseValues: this.baseValues.get(id) ?? values,
+      activePresetId: this.activePreset.get(id) ?? null
+    };
+    if (config.presets) {
+      state.presets = this.presets.get(id) ?? [];
+    }
+    try {
+      storage.setItem(config.key, JSON.stringify(state));
+    } catch {
+    }
+  }
+  getStorage(kind) {
+    if (typeof globalThis === "undefined" || !("window" in globalThis)) {
+      return null;
+    }
+    try {
+      return kind === "sessionStorage" ? globalThis.window?.sessionStorage ?? null : globalThis.window?.localStorage ?? null;
+    } catch {
+      return null;
+    }
+  }
   findControlByPath(controls, path) {
     for (const control of controls) {
       if (control.path === path) return control;
@@ -321,6 +571,9 @@ var DialStoreClass = class {
     this.listeners.get(panelId)?.forEach((fn) => fn());
   }
   notifyGlobal() {
+    this.panelsSnapshot = Array.from(this.panels.values());
+    this.standardPanelsSnapshot = this.panelsSnapshot.filter((panel) => panel.kind !== "timeline");
+    this.timelinePanelsSnapshot = this.panelsSnapshot.filter((panel) => panel.kind === "timeline");
     this.globalListeners.forEach((fn) => fn());
   }
   initTransitionModes(config, prefix, values) {
@@ -450,10 +703,10 @@ var DialStoreClass = class {
     return typeof value === "object" && value !== null && "type" in value && value.type === "text";
   }
   isHexColor(value) {
-    return /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$/.test(value);
+    return isHexColor(value);
   }
   formatLabel(key) {
-    return key.replace(/([A-Z])/g, " $1").replace(/^./, (str) => str.toUpperCase()).trim();
+    return formatLabel(key);
   }
   inferRange(value) {
     if (value >= 0 && value <= 1) {
@@ -469,11 +722,7 @@ var DialStoreClass = class {
     }
   }
   inferStep(min, max) {
-    const range = max - min;
-    if (range <= 1) return 0.01;
-    if (range <= 10) return 0.1;
-    if (range <= 100) return 1;
-    return 10;
+    return inferStep(min, max);
   }
   normalizePreservedValue(existingValue, defaultValue, control) {
     if (existingValue === void 0 || !control) {
@@ -629,9 +878,16 @@ var DialStoreClass = class {
     return true;
   }
 };
-var DialStore = new DialStoreClass();
+var DialStore = /* @__PURE__ */ new DialStoreClass();
 export {
   DialStore,
+  flattenDialValueUpdates,
+  formatLabel,
+  inferStep,
+  isEasingConfigValue,
+  isHexColor,
+  isSpringConfigValue,
+  resolveDialValues,
   unwrapVisibility,
   withVisibility
 };

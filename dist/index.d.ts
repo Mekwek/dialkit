@@ -1,4 +1,5 @@
 import * as react_jsx_runtime from 'react/jsx-runtime';
+import * as react from 'react';
 import { ReactNode } from 'react';
 
 type SpringConfig = {
@@ -97,6 +98,9 @@ type DialConfig = {
 type ResolvedValues<T extends DialConfig> = {
     [K in keyof T]: T[K] extends [number, number, number, number?] ? number : T[K] extends SpringConfig ? TransitionConfig : T[K] extends EasingConfig ? TransitionConfig : T[K] extends SelectConfig ? string : T[K] extends ColorConfig ? string : T[K] extends TextConfig ? string : T[K] extends DialConfig ? ResolvedValues<T[K]> : T[K];
 };
+type DialKitValueUpdates<T extends DialConfig> = {
+    [K in keyof T as K extends '_collapsed' ? never : K]?: T[K] extends [number, number, number, number?] ? number : T[K] extends SpringConfig | EasingConfig ? TransitionConfig : T[K] extends ActionConfig ? never : T[K] extends SelectConfig | ColorConfig | TextConfig ? string : T[K] extends DialConfig ? DialKitValueUpdates<T[K]> : T[K];
+};
 type ShortcutMode = 'fine' | 'normal' | 'coarse';
 type ShortcutInteraction = 'scroll' | 'drag' | 'move' | 'scroll-only';
 type ShortcutConfig = {
@@ -129,6 +133,7 @@ type PanelConfig = {
     controls: ControlMeta[];
     values: Record<string, DialValue>;
     shortcuts: Record<string, ShortcutConfig>;
+    kind?: 'timeline';
     /**
      * Optional grouping key. Panels sharing the same non-empty `group` are
      * rendered as collapsible sections inside ONE merged shell by `DialRoot`.
@@ -143,15 +148,36 @@ type PanelConfig = {
      */
     defaultOpen?: boolean;
 };
-type Listener = () => void;
+type Listener$1 = () => void;
 type ActionListener = (action: string) => void;
 type Preset = {
     id: string;
     name: string;
     values: Record<string, DialValue>;
 };
+type DialKitPersistOptions = boolean | {
+    key?: string;
+    storage?: 'localStorage' | 'sessionStorage';
+    presets?: boolean;
+};
+type DialStorePanelOptions = {
+    retainOnUnmount?: boolean;
+    persist?: DialKitPersistOptions;
+    kind?: 'timeline';
+    /**
+     * Optional grouping key. See {@link PanelConfig.group}.
+     */
+    group?: string;
+    /**
+     * Initial open state for this panel's folder. See {@link PanelConfig.defaultOpen}.
+     */
+    defaultOpen?: boolean;
+};
 declare class DialStoreClass {
     private panels;
+    private panelsSnapshot;
+    private standardPanelsSnapshot;
+    private timelinePanelsSnapshot;
     private listeners;
     private globalListeners;
     private snapshots;
@@ -159,6 +185,10 @@ declare class DialStoreClass {
     private presets;
     private activePreset;
     private baseValues;
+    private defaultValues;
+    private registrationCounts;
+    private retainedPanels;
+    private persistConfigs;
     /**
      * Full (unfiltered) control tree per panel. `panels[id].controls` holds the
      * tree with conditional-visibility controls already filtered out, which is
@@ -166,23 +196,11 @@ declare class DialStoreClass {
      * flip back when a dependent value changes.
      */
     private allControls;
-    registerPanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, group?: string, defaultOpen?: boolean): void;
-    updatePanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, group?: string, defaultOpen?: boolean): void;
+    registerPanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, options?: DialStorePanelOptions): void;
+    updatePanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, options?: DialStorePanelOptions): void;
     unregisterPanel(id: string): void;
     updateValue(panelId: string, path: string, value: DialValue): void;
-    /**
-     * Batch-write multiple flat store paths in one pass: a single snapshot bump,
-     * a single `notify`, and exactly one conditional-visibility re-evaluation at
-     * the end. Mirrors {@link updateValue}'s auto-save (active preset or base
-     * values) so the controller's `setValues` is consistent with slider edits.
-     */
     updateValues(panelId: string, updates: Record<string, DialValue>): void;
-    /**
-     * Reset a panel back to its base values and clear any active preset. Thin
-     * wrapper over {@link clearActivePreset}, which already restores base values
-     * and re-evaluates conditional visibility. Exposed as a named method so the
-     * controller's `resetValues` has a stable target.
-     */
     resetValues(panelId: string): void;
     updateSpringMode(panelId: string, path: string, mode: 'simple' | 'advanced'): void;
     getSpringMode(panelId: string, path: string): 'simple' | 'advanced';
@@ -190,10 +208,10 @@ declare class DialStoreClass {
     getTransitionMode(panelId: string, path: string): 'easing' | 'simple' | 'advanced';
     getValue(panelId: string, path: string): DialValue | undefined;
     getValues(panelId: string): Record<string, DialValue>;
-    getPanels(): PanelConfig[];
+    getPanels(kind?: 'panel' | 'timeline'): PanelConfig[];
     getPanel(id: string): PanelConfig | undefined;
-    subscribe(panelId: string, listener: Listener): () => void;
-    subscribeGlobal(listener: Listener): () => void;
+    subscribe(panelId: string, listener: Listener$1): () => void;
+    subscribeGlobal(listener: Listener$1): () => void;
     subscribeActions(panelId: string, listener: ActionListener): () => void;
     triggerAction(panelId: string, path: string): void;
     savePreset(panelId: string, name: string): string;
@@ -213,6 +231,13 @@ declare class DialStoreClass {
         control: ControlMeta;
         shortcut: ShortcutConfig;
     }>;
+    private configurePanelRetention;
+    private reconcileValues;
+    private reconcilePresets;
+    private normalizePersistConfig;
+    private loadPersistedPanel;
+    private persistPanel;
+    private getStorage;
     private findControlByPath;
     private notify;
     private notifyGlobal;
@@ -269,6 +294,8 @@ declare class DialStoreClass {
 declare const DialStore: DialStoreClass;
 
 interface UseDialOptions {
+    id?: string;
+    persist?: DialKitPersistOptions;
     onAction?: (action: string) => void;
     shortcuts?: Record<string, ShortcutConfig>;
     /**
@@ -284,30 +311,24 @@ interface UseDialOptions {
      */
     defaultOpen?: boolean;
 }
-/**
- * Imperative handle for a DialKit panel: reactive `values` plus write methods.
- * `setValue`/`setValues` write flat store paths (the dot-delimited paths used
- * throughout the store, e.g. `"debug.showStats"`), `getValues` reads the
- * current flat snapshot, and `resetValues` restores the panel's base values.
- */
 interface DialKitController<T extends DialConfig> {
     values: ResolvedValues<T>;
     setValue: (path: string, value: DialValue) => void;
-    setValues: (updates: Record<string, DialValue>) => void;
-    getValues: () => Record<string, DialValue>;
+    setValues: (values: DialKitValueUpdates<T>) => void;
     resetValues: () => void;
+    getValues: () => ResolvedValues<T>;
 }
-/**
- * Like {@link useDialKit} but returns the full imperative controller instead of
- * just the resolved values. Use this when the host needs to write values back
- * into the panel (app → DialKit) rather than only reading them.
- */
-declare function useDialKitController<T extends DialConfig>(name: string, config: T, options?: UseDialOptions): DialKitController<T>;
 declare function useDialKit<T extends DialConfig>(name: string, config: T, options?: UseDialOptions): ResolvedValues<T>;
+declare function useDialKitController<T extends DialConfig>(name: string, config: T, options?: UseDialOptions): DialKitController<T>;
 
 type DialPosition = 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
 type DialMode = 'popover' | 'inline';
 type DialTheme = 'light' | 'dark' | 'system';
+/**
+ * First-level folder behavior. `'independent'` (default) keeps each top-level
+ * folder open state isolated. `'accordion'` allows only one top-level folder
+ * open at a time. Nested folders are unaffected.
+ */
 type FolderMode = 'independent' | 'accordion';
 interface DialRootProps {
     position?: DialPosition;
@@ -315,18 +336,8 @@ interface DialRootProps {
     mode?: DialMode;
     theme?: DialTheme;
     productionEnabled?: boolean;
-    /**
-     * First-level folder behavior. `'independent'` (default) keeps each top-level
-     * folder open state isolated. `'accordion'` allows only one top-level folder
-     * open at a time. Nested folders are unaffected.
-     */
+    /** See {@link FolderMode}. */
     folderMode?: FolderMode;
-    /**
-     * Fired when the aggregate open state changes — `true` when the first panel
-     * expands, `false` when the last panel collapses to its bubble. Lets a host
-     * react to "is the control surface showing anything." Fires on user-driven
-     * open/close, not on mount.
-     */
     onOpenChange?: (open: boolean) => void;
     /**
      * Restrict which registered panels this root renders. Lets multiple
@@ -342,6 +353,273 @@ interface DialRootProps {
     };
 }
 declare function DialRoot({ position, defaultOpen, mode, theme, productionEnabled, folderMode, onOpenChange, include }: DialRootProps): react_jsx_runtime.JSX.Element | null;
+
+type TimelineClipTrackMeta = {
+    prop: string;
+    /** Step folder keys when the track is a sequence. */
+    stepKeys?: string[];
+};
+type TimelineClipMeta = {
+    key: string;
+    label: string;
+    color: string;
+    /** Code-defined playback behavior; intentionally not exposed as a dial. */
+    loop: 'off' | 'repeat';
+    /** Group key when the clip lives inside a nested layer, e.g. "circle". */
+    group?: string;
+    /** Step folder keys for sequence clips, e.g. ["step1", "step2"]. */
+    stepKeys?: string[];
+    /** Independent property tracks of a props clip — full rows when expanded. */
+    tracks?: TimelineClipTrackMeta[];
+};
+type TimelineMeta = {
+    id: string;
+    name: string;
+    duration: number;
+    loop: boolean;
+    /** Loop wraps back to this time, not 0 — clips before it play once
+     * (intro-then-idle). 0 loops the whole timeline. */
+    loopStart: number;
+    clips: TimelineClipMeta[];
+};
+type TimelineTransport = {
+    time: number;
+    playing: boolean;
+    duration: number;
+    /** Completed loop passes — keeps looping clips phase-continuous across
+     * timeline wraps. Reset by seek/replay so scrubbing stays deterministic. */
+    wraps: number;
+};
+type Listener = () => void;
+declare class TimelineStoreClass {
+    private timelines;
+    private transports;
+    private listeners;
+    private globalListeners;
+    private registrationCounts;
+    private listCache;
+    private rafId;
+    private lastTick;
+    register(meta: TimelineMeta, options: {
+        autoplay: boolean;
+    }): void;
+    update(meta: TimelineMeta): void;
+    unregister(id: string): void;
+    play(id: string): void;
+    pause(id: string): void;
+    replay(id: string): void;
+    seek(id: string, time: number): void;
+    getTransport(id: string): TimelineTransport;
+    getTimeline(id: string): TimelineMeta | undefined;
+    getTimelines(): TimelineMeta[];
+    subscribe(id: string, listener: Listener): () => void;
+    subscribeGlobal(listener: Listener): () => void;
+    private applyMeta;
+    private ensureLoop;
+    private tick;
+    private notify;
+    private notifyGlobal;
+}
+declare const TimelineStore: TimelineStoreClass;
+
+type TimelineClipLoop = 'off' | 'repeat';
+type TimelineStepValues = {
+    [key: string]: DialConfig[string] | undefined;
+};
+type TimelineStepConfig = {
+    duration?: number;
+    to?: TimelineStepValues;
+    transition?: TransitionConfig;
+};
+type TimelinePropStepConfig = {
+    duration?: number;
+    to?: number | string;
+    transition?: TransitionConfig;
+};
+type TimelinePropConfig = {
+    from?: number | string;
+    to?: number | string;
+    duration?: number;
+    /** Offset from the clip's `at` in seconds. */
+    delay?: number;
+    transition?: TransitionConfig;
+    steps?: TimelinePropStepConfig[];
+};
+type TimelineClipBase = {
+    at: number;
+    duration?: number;
+    transition?: TransitionConfig;
+    loop?: boolean | TimelineClipLoop;
+};
+type TimelineClipConfig = TimelineClipBase & ({
+    from?: DialConfig;
+    to?: DialConfig;
+    steps?: never;
+    props?: never;
+} | {
+    from?: DialConfig;
+    to?: never;
+    /** Sequential legs on one row — a segmented bar; boundaries retime legs. */
+    steps: TimelineStepConfig[];
+    props?: never;
+} | {
+    from?: never;
+    to?: never;
+    steps?: never;
+    /** Independent per-property tracks — mutually exclusive with from/to/steps. */
+    props: {
+        [prop: string]: TimelinePropConfig;
+    };
+});
+/** Nested keys group clips into a collapsible layer — purely presentational. */
+type TimelineGroupConfig = {
+    [key: string]: TimelineClipConfig;
+};
+type TimelineConfig = {
+    /** Total timeline length in seconds. Inferred from the last clip when omitted. */
+    duration?: number;
+} & {
+    [key: string]: TimelineClipConfig | TimelineGroupConfig | number | undefined;
+};
+/** CSS-friendly output for consumers not using Motion — spread into a style. */
+type TimelineClipCss = {
+    transitionDuration: string;
+    transitionTimingFunction: string;
+};
+type TimelineClipValues<C extends TimelineClipConfig = TimelineClipConfig> = {
+    at: number;
+    duration: number;
+    /** Effective code-defined loop mode. */
+    loop: TimelineClipLoop;
+    /** Playhead is at or past the clip start. */
+    started: boolean;
+    /** Playhead is inside the clip — for looping clips, inside any cycle. */
+    active: boolean;
+    /** Playhead is past the clip end (for looping clips, past the timeline end). */
+    done: boolean;
+    /**
+     * 0–1 position of the playhead within the clip — cycle progress (a
+     * sawtooth) for looping clips, sequence progress for steps clips.
+     */
+    progress: number;
+    /** Index of the leg under the playhead, for sequence clips. */
+    step: C['steps'] extends TimelineStepConfig[] ? number : undefined;
+    from: C['props'] extends Record<string, TimelinePropConfig> ? {
+        [K in keyof C['props']]: number | string;
+    } : C['from'] extends DialConfig ? ResolvedValues<C['from']> : undefined;
+    to: C['props'] extends Record<string, TimelinePropConfig> ? {
+        [K in keyof C['props']]: number | string;
+    } : C['steps'] extends TimelineStepConfig[] ? C['from'] extends DialConfig ? ResolvedValues<C['from']> : Record<string, number | string> : C['to'] extends DialConfig ? ResolvedValues<C['to']> : undefined;
+    /** `to` once the clip has started, `from` before — hand it to Motion's animate.
+     * For sequences this is the final merged state; for props clips, per-track
+     * endpoint records. */
+    animate: C['props'] extends Record<string, TimelinePropConfig> ? {
+        [K in keyof C['props']]: number | string;
+    } : C['steps'] extends TimelineStepConfig[] ? C['from'] extends DialConfig ? ResolvedValues<C['from']> : Record<string, number | string> | undefined : C['to'] extends DialConfig ? C['from'] extends DialConfig ? ResolvedValues<C['from']> | ResolvedValues<C['to']> : ResolvedValues<C['to']> | undefined : undefined;
+    /** The clip's editable curve — single-curve clips only. */
+    transition: C['props'] extends Record<string, TimelinePropConfig> ? undefined : C['steps'] extends TimelineStepConfig[] ? undefined : C extends {
+        transition: TransitionConfig;
+    } | {
+        from: DialConfig;
+    } | {
+        to: DialConfig;
+    } ? TransitionConfig : undefined;
+    /** Duration + timing-function for native CSS transitions — single-curve clips only. */
+    css: C['props'] extends Record<string, TimelinePropConfig> ? undefined : C['steps'] extends TimelineStepConfig[] ? undefined : C extends {
+        transition: TransitionConfig;
+    } | {
+        from: DialConfig;
+    } | {
+        to: DialConfig;
+    } ? TimelineClipCss : undefined;
+    /**
+     * Values interpolated through the clip's curves at the current playhead —
+     * bind to style for true scrubbing: the element is exactly at this point
+     * in time whether playing, paused, or scrubbing. Sequence clips report the
+     * merged state of all legs (declare every animated property in `from`);
+     * props clips report every track's value.
+     */
+    current: C['props'] extends Record<string, TimelinePropConfig> ? {
+        [K in keyof C['props']]: number | string;
+    } : C['steps'] extends TimelineStepConfig[] ? C['from'] extends DialConfig ? ResolvedValues<C['from']> : Record<string, number | string> : C['to'] extends DialConfig ? C['from'] extends DialConfig ? ResolvedValues<C['from']> | ResolvedValues<C['to']> : undefined : undefined;
+};
+type TimelineGroupValues<G extends TimelineGroupConfig> = {
+    [K in keyof G as G[K] extends TimelineClipConfig ? K : never]: TimelineClipValues<Extract<G[K], TimelineClipConfig>>;
+};
+type DialTimelineValues<T extends TimelineConfig> = {
+    time: number;
+    playing: boolean;
+    duration: number;
+    play: () => void;
+    pause: () => void;
+    replay: () => void;
+    seek: (time: number) => void;
+} & {
+    [K in keyof T as T[K] extends TimelineClipConfig ? K : never]: TimelineClipValues<Extract<T[K], TimelineClipConfig>>;
+} & {
+    [K in keyof T as T[K] extends TimelineClipConfig ? never : T[K] extends TimelineGroupConfig ? K : never]: TimelineGroupValues<Extract<T[K], TimelineGroupConfig>>;
+};
+declare function formatClock(time: number, tenths?: boolean): string;
+
+interface DialTimelineOptions {
+    id?: string;
+    persist?: DialKitPersistOptions;
+    /** Start playing on mount. Defaults to true. */
+    autoplay?: boolean;
+    /**
+     * Loop when the playhead reaches the end. `true` restarts the whole
+     * timeline; `{ from }` wraps back to that time instead, so clips before it
+     * play once and looping clips keep cycling forever. Defaults to false.
+     */
+    loop?: boolean | {
+        from: number;
+    };
+}
+
+type UseDialTimelineOptions = DialTimelineOptions;
+declare function useDialTimeline<T extends TimelineConfig>(name: string, config: T, options?: UseDialTimelineOptions): DialTimelineValues<T>;
+
+interface DialTimelineProps {
+    theme?: DialTheme;
+    /** Initial dock visibility. Expansion is controlled separately by defaultOpen. */
+    defaultVisible?: boolean;
+    /** Controlled dock visibility. */
+    visible?: boolean;
+    onVisibilityChange?: (visible: boolean) => void;
+    defaultOpen?: boolean;
+    productionEnabled?: boolean;
+}
+declare const DialTimeline: react.NamedExoticComponent<DialTimelineProps>;
+
+interface ControlRendererProps {
+    panelId: string;
+    controls: ControlMeta[];
+    values: Record<string, DialValue>;
+    /** Optional timeline-owned duration rendered inside the transition editor. */
+    transitionDuration?: {
+        value: number;
+        onChange: (value: number) => void;
+        min?: number;
+        max?: number;
+        step?: number;
+    };
+    /**
+     * Opt-in enter/exit animation for each rendered control (used so
+     * conditionally-visible controls animate in/out when their `visibleWhen`
+     * rule flips). Defaults to false so callers like the Timeline clip
+     * popover stay vanilla — no motion wrapper, no AnimatePresence.
+     */
+    animateControls?: boolean;
+    /**
+     * Path of the currently-open top-level (depth 0) folder when the caller is
+     * running accordion mode. Only consulted when `onAccordionToggle` is also
+     * provided; nested folders (depth > 0) always stay independent.
+     */
+    accordionOpenPath?: string | null;
+    /** Fired when a depth-0 folder is toggled in accordion mode. Receives the folder's path and its requested next open state. */
+    onAccordionToggle?: (path: string, next: boolean) => void;
+}
+declare function ControlRenderer({ panelId, controls, values, transitionDuration, animateControls, accordionOpenPath, onAccordionToggle, }: ControlRendererProps): react_jsx_runtime.JSX.Element;
 
 interface SliderProps {
     label: string;
@@ -424,8 +702,18 @@ interface TransitionControlProps {
     label: string;
     value: TransitionConfig;
     onChange: (value: TransitionConfig) => void;
+    /** Hide duration sliders when something else owns the duration (e.g. a timeline clip bar). */
+    hideDuration?: boolean;
+    /** Route duration edits through an external owner while keeping this control's layout. */
+    durationControl?: {
+        value: number;
+        onChange: (value: number) => void;
+        min?: number;
+        max?: number;
+        step?: number;
+    };
 }
-declare function TransitionControl({ panelId, path, label, value, onChange }: TransitionControlProps): react_jsx_runtime.JSX.Element;
+declare function TransitionControl({ panelId, path, label, value, onChange, hideDuration, durationControl, }: TransitionControlProps): react_jsx_runtime.JSX.Element;
 
 interface EasingVisualizationProps {
     easing: EasingConfig;
@@ -472,4 +760,4 @@ interface ShortcutsMenuProps {
 }
 declare function ShortcutsMenu({ panelId }: ShortcutsMenuProps): react_jsx_runtime.JSX.Element | null;
 
-export { type ActionConfig, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, type ControlWithVisibility, type DialConfig, type DialKitController, type DialMode, type DialPosition, DialRoot, DialStore, type DialTheme, type DialValue, type EasingConfig, EasingVisualization, Folder, type FolderMode, type PanelConfig, type Preset, PresetManager, type ResolvedValues, type SelectConfig, SelectControl, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, SpringVisualization, type TextConfig, TextControl, Toggle, type TransitionConfig, TransitionControl, type UseDialOptions, type VisibleWhen, type VisibleWhenValue, unwrapVisibility, useDialKit, useDialKitController, withVisibility };
+export { type ActionConfig, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, type EasingConfig, EasingVisualization, Folder, type FolderMode, type PanelConfig, type Preset, PresetManager, type ResolvedValues, type SelectConfig, SelectControl, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipMeta, type TimelineClipTrackMeta, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelineMeta, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, TimelineStore, type TimelineTransport, Toggle, type TransitionConfig, TransitionControl, type UseDialOptions, type UseDialTimelineOptions, type VisibleWhen, type VisibleWhenValue, formatClock, unwrapVisibility, useDialKit, useDialKitController, useDialTimeline, withVisibility };

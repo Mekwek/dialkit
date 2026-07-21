@@ -79,7 +79,11 @@ export function Folder({ title, children, defaultOpen = true, isRoot = false, in
   };
 
   const folderContent = (
-    <div ref={isRoot ? contentRef : undefined} className={`dialkit-folder ${isRoot ? 'dialkit-folder-root' : ''}`} data-open={String(isOpen)}>
+    <div
+      ref={isRoot ? contentRef : undefined}
+      className={`dialkit-folder ${isRoot ? 'dialkit-folder-root' : ''}`}
+      data-open={String(isOpen)}
+    >
       <div className={`dialkit-folder-header ${isRoot ? 'dialkit-panel-header' : ''}`} onClick={handleToggle}>
         <div className="dialkit-folder-header-top">
           {isRoot ? (

@@ -1,11 +1,18 @@
-import { DialStore, unwrapVisibility } from 'dialkit/store';
+import { DialStore, flattenDialValueUpdates, resolveDialValues } from 'dialkit/store';
 let dialKitInstance = 0;
 export function createDialKit(name, config, options) {
-    const panelId = `${name}-${++dialKitInstance}`;
-    const resolve = () => buildResolvedValues(config, DialStore.getValues(panelId), '');
+    return createDialKitController(name, config, options).values;
+}
+export function createDialKitController(name, config, options) {
+    const hasStableId = options?.id !== undefined;
+    const panelId = options?.id ?? `${name}-${++dialKitInstance}`;
+    const resolve = () => resolveDialValues(config, DialStore.getValues(panelId));
     let values = $state(resolve());
     $effect(() => {
-        DialStore.registerPanel(panelId, name, config, options?.shortcuts);
+        DialStore.registerPanel(panelId, name, config, options?.shortcuts, {
+            retainOnUnmount: hasStableId,
+            persist: options?.persist,
+        });
         values = resolve();
         const unsubValues = DialStore.subscribe(panelId, () => {
             values = resolve();
@@ -19,43 +26,65 @@ export function createDialKit(name, config, options) {
             DialStore.unregisterPanel(panelId);
         };
     });
-    return values;
+    return {
+        values: buildReactiveValues(config, () => values, ''),
+        setValue(path, value) {
+            DialStore.updateValue(panelId, path, value);
+        },
+        setValues(nextValues) {
+            DialStore.updateValues(panelId, flattenDialValueUpdates(config, nextValues));
+        },
+        resetValues() {
+            DialStore.resetValues(panelId);
+        },
+        getValues() {
+            return resolve();
+        },
+    };
 }
-function buildResolvedValues(config, flatValues, prefix) {
+function buildReactiveValues(config, getValues, prefix) {
     const result = {};
-    for (const [key, rawConfigValue] of Object.entries(config)) {
+    for (const [key, configValue] of Object.entries(config)) {
         if (key === '_collapsed')
             continue;
         const path = prefix ? `${prefix}.${key}` : key;
-        // Unwrap conditional-visibility wrapper, if any.
-        const configValue = unwrapVisibility(rawConfigValue);
-        if (Array.isArray(configValue) && configValue.length <= 4 && typeof configValue[0] === 'number') {
-            result[key] = flatValues[path] ?? configValue[0];
+        if (typeof configValue === 'object' && configValue !== null && !isLeafConfigValue(configValue)) {
+            const nested = buildReactiveValues(configValue, getValues, path);
+            Object.defineProperty(result, key, {
+                enumerable: true,
+                get() {
+                    return nested;
+                },
+            });
+            continue;
         }
-        else if (typeof configValue === 'number' || typeof configValue === 'boolean' || typeof configValue === 'string') {
-            result[key] = flatValues[path] ?? configValue;
-        }
-        else if (isSpringConfig(configValue) || isEasingConfig(configValue)) {
-            result[key] = flatValues[path] ?? configValue;
-        }
-        else if (isActionConfig(configValue)) {
-            result[key] = flatValues[path] ?? configValue;
-        }
-        else if (isSelectConfig(configValue)) {
-            const defaultValue = configValue.default ?? getFirstOptionValue(configValue.options);
-            result[key] = flatValues[path] ?? defaultValue;
-        }
-        else if (isColorConfig(configValue)) {
-            result[key] = flatValues[path] ?? configValue.default ?? '#000000';
-        }
-        else if (isTextConfig(configValue)) {
-            result[key] = flatValues[path] ?? configValue.default ?? '';
-        }
-        else if (typeof configValue === 'object' && configValue !== null) {
-            result[key] = buildResolvedValues(configValue, flatValues, path);
-        }
+        Object.defineProperty(result, key, {
+            enumerable: true,
+            get() {
+                return getPathValue(getValues(), path);
+            },
+        });
     }
     return result;
+}
+function getPathValue(source, path) {
+    return path.split('.').reduce((value, segment) => {
+        if (typeof value !== 'object' || value === null)
+            return undefined;
+        return value[segment];
+    }, source);
+}
+function isLeafConfigValue(value) {
+    return ((Array.isArray(value) && value.length <= 4 && typeof value[0] === 'number') ||
+        typeof value === 'number' ||
+        typeof value === 'boolean' ||
+        typeof value === 'string' ||
+        isSpringConfig(value) ||
+        isEasingConfig(value) ||
+        isActionConfig(value) ||
+        isSelectConfig(value) ||
+        isColorConfig(value) ||
+        isTextConfig(value));
 }
 function hasType(value, type) {
     return typeof value === 'object' && value !== null && 'type' in value && value.type === type;
@@ -77,8 +106,4 @@ function isColorConfig(value) {
 }
 function isTextConfig(value) {
     return hasType(value, 'text');
-}
-function getFirstOptionValue(options) {
-    const first = options[0];
-    return typeof first === 'string' ? first : first.value;
 }

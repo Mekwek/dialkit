@@ -1,8 +1,10 @@
-import { DialStore, unwrapVisibility } from 'dialkit/store';
+import { DialStore, flattenDialValueUpdates, resolveDialValues } from 'dialkit/store';
 import type {
   ActionConfig,
   ColorConfig,
   DialConfig,
+  DialKitPersistOptions,
+  DialKitValueUpdates,
   DialValue,
   EasingConfig,
   ResolvedValues,
@@ -13,11 +15,21 @@ import type {
 } from 'dialkit/store';
 
 export interface CreateDialOptions {
+  id?: string;
+  persist?: DialKitPersistOptions;
   onAction?: (action: string) => void;
   shortcuts?: Record<string, ShortcutConfig>;
 }
 
 export type DialKitValues<T> = T;
+
+export interface DialKitController<T extends DialConfig> {
+  values: DialKitValues<ResolvedValues<T>>;
+  setValue: (path: string, value: DialValue) => void;
+  setValues: (values: DialKitValueUpdates<T>) => void;
+  resetValues: () => void;
+  getValues: () => ResolvedValues<T>;
+}
 
 let dialKitInstance = 0;
 
@@ -26,13 +38,25 @@ export function createDialKit<T extends DialConfig>(
   config: T,
   options?: CreateDialOptions
 ): DialKitValues<ResolvedValues<T>> {
-  const panelId = `${name}-${++dialKitInstance}`;
-  const resolve = () => buildResolvedValues(config, DialStore.getValues(panelId), '') as ResolvedValues<T>;
+  return createDialKitController(name, config, options).values;
+}
+
+export function createDialKitController<T extends DialConfig>(
+  name: string,
+  config: T,
+  options?: CreateDialOptions
+): DialKitController<T> {
+  const hasStableId = options?.id !== undefined;
+  const panelId = options?.id ?? `${name}-${++dialKitInstance}`;
+  const resolve = () => resolveDialValues(config, DialStore.getValues(panelId));
 
   let values = $state<ResolvedValues<T>>(resolve());
 
   $effect(() => {
-    DialStore.registerPanel(panelId, name, config, options?.shortcuts);
+    DialStore.registerPanel(panelId, name, config, options?.shortcuts, {
+      retainOnUnmount: hasStableId,
+      persist: options?.persist,
+    });
     values = resolve();
 
     const unsubValues = DialStore.subscribe(panelId, () => {
@@ -50,43 +74,77 @@ export function createDialKit<T extends DialConfig>(
     };
   });
 
-  return values;
+  return {
+    values: buildReactiveValues(config, () => values, '') as DialKitValues<ResolvedValues<T>>,
+    setValue(path, value) {
+      DialStore.updateValue(panelId, path, value);
+    },
+    setValues(nextValues) {
+      DialStore.updateValues(panelId, flattenDialValueUpdates(config, nextValues));
+    },
+    resetValues() {
+      DialStore.resetValues(panelId);
+    },
+    getValues() {
+      return resolve();
+    },
+  };
 }
 
-function buildResolvedValues(
-  config: DialConfig,
-  flatValues: Record<string, DialValue>,
+function buildReactiveValues<T extends DialConfig>(
+  config: T,
+  getValues: () => ResolvedValues<T>,
   prefix: string
-): Record<string, unknown> {
+): DialKitValues<ResolvedValues<T>> {
   const result: Record<string, unknown> = {};
 
-  for (const [key, rawConfigValue] of Object.entries(config)) {
+  for (const [key, configValue] of Object.entries(config)) {
     if (key === '_collapsed') continue;
     const path = prefix ? `${prefix}.${key}` : key;
-    // Unwrap conditional-visibility wrapper, if any.
-    const configValue = unwrapVisibility(rawConfigValue);
 
-    if (Array.isArray(configValue) && configValue.length <= 4 && typeof configValue[0] === 'number') {
-      result[key] = flatValues[path] ?? configValue[0];
-    } else if (typeof configValue === 'number' || typeof configValue === 'boolean' || typeof configValue === 'string') {
-      result[key] = flatValues[path] ?? configValue;
-    } else if (isSpringConfig(configValue) || isEasingConfig(configValue)) {
-      result[key] = flatValues[path] ?? configValue;
-    } else if (isActionConfig(configValue)) {
-      result[key] = flatValues[path] ?? configValue;
-    } else if (isSelectConfig(configValue)) {
-      const defaultValue = configValue.default ?? getFirstOptionValue(configValue.options);
-      result[key] = flatValues[path] ?? defaultValue;
-    } else if (isColorConfig(configValue)) {
-      result[key] = flatValues[path] ?? configValue.default ?? '#000000';
-    } else if (isTextConfig(configValue)) {
-      result[key] = flatValues[path] ?? configValue.default ?? '';
-    } else if (typeof configValue === 'object' && configValue !== null) {
-      result[key] = buildResolvedValues(configValue as DialConfig, flatValues, path);
+    if (typeof configValue === 'object' && configValue !== null && !isLeafConfigValue(configValue)) {
+      const nested = buildReactiveValues(configValue as DialConfig, getValues, path);
+
+      Object.defineProperty(result, key, {
+        enumerable: true,
+        get() {
+          return nested;
+        },
+      });
+      continue;
     }
+
+    Object.defineProperty(result, key, {
+      enumerable: true,
+      get() {
+        return getPathValue(getValues(), path);
+      },
+    });
   }
 
-  return result;
+  return result as DialKitValues<ResolvedValues<T>>;
+}
+
+function getPathValue(source: unknown, path: string): unknown {
+  return path.split('.').reduce<unknown>((value, segment) => {
+    if (typeof value !== 'object' || value === null) return undefined;
+    return (value as Record<string, unknown>)[segment];
+  }, source);
+}
+
+function isLeafConfigValue(value: unknown): boolean {
+  return (
+    (Array.isArray(value) && value.length <= 4 && typeof value[0] === 'number') ||
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    typeof value === 'string' ||
+    isSpringConfig(value) ||
+    isEasingConfig(value) ||
+    isActionConfig(value) ||
+    isSelectConfig(value) ||
+    isColorConfig(value) ||
+    isTextConfig(value)
+  );
 }
 
 function hasType(value: unknown, type: string): boolean {
@@ -115,9 +173,4 @@ function isColorConfig(value: unknown): value is ColorConfig {
 
 function isTextConfig(value: unknown): value is TextConfig {
   return hasType(value, 'text');
-}
-
-function getFirstOptionValue(options: (string | { value: string; label: string })[]): string {
-  const first = options[0];
-  return typeof first === 'string' ? first : first.value;
 }

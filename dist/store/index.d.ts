@@ -94,6 +94,9 @@ type DialConfig = {
 type ResolvedValues<T extends DialConfig> = {
     [K in keyof T]: T[K] extends [number, number, number, number?] ? number : T[K] extends SpringConfig ? TransitionConfig : T[K] extends EasingConfig ? TransitionConfig : T[K] extends SelectConfig ? string : T[K] extends ColorConfig ? string : T[K] extends TextConfig ? string : T[K] extends DialConfig ? ResolvedValues<T[K]> : T[K];
 };
+type DialKitValueUpdates<T extends DialConfig> = {
+    [K in keyof T as K extends '_collapsed' ? never : K]?: T[K] extends [number, number, number, number?] ? number : T[K] extends SpringConfig | EasingConfig ? TransitionConfig : T[K] extends ActionConfig ? never : T[K] extends SelectConfig | ColorConfig | TextConfig ? string : T[K] extends DialConfig ? DialKitValueUpdates<T[K]> : T[K];
+};
 type ShortcutMode = 'fine' | 'normal' | 'coarse';
 type ShortcutInteraction = 'scroll' | 'drag' | 'move' | 'scroll-only';
 type ShortcutConfig = {
@@ -126,6 +129,7 @@ type PanelConfig = {
     controls: ControlMeta[];
     values: Record<string, DialValue>;
     shortcuts: Record<string, ShortcutConfig>;
+    kind?: 'timeline';
     /**
      * Optional grouping key. Panels sharing the same non-empty `group` are
      * rendered as collapsible sections inside ONE merged shell by `DialRoot`.
@@ -147,8 +151,38 @@ type Preset = {
     name: string;
     values: Record<string, DialValue>;
 };
+type DialKitPersistOptions = boolean | {
+    key?: string;
+    storage?: 'localStorage' | 'sessionStorage';
+    presets?: boolean;
+};
+type DialStorePanelOptions = {
+    retainOnUnmount?: boolean;
+    persist?: DialKitPersistOptions;
+    kind?: 'timeline';
+    /**
+     * Optional grouping key. See {@link PanelConfig.group}.
+     */
+    group?: string;
+    /**
+     * Initial open state for this panel's folder. See {@link PanelConfig.defaultOpen}.
+     */
+    defaultOpen?: boolean;
+};
+declare function resolveDialValues<T extends DialConfig>(config: T, flatValues: Record<string, DialValue>): ResolvedValues<T>;
+declare function flattenDialValueUpdates<T extends DialConfig>(config: T, updates: DialKitValueUpdates<T>): Record<string, DialValue>;
+declare function isSpringConfigValue(value: unknown): value is SpringConfig;
+declare function isEasingConfigValue(value: unknown): value is EasingConfig;
+declare function isHexColor(value: string): boolean;
+/** camelCase → Title Case, the label rule used everywhere a key becomes UI text. */
+declare function formatLabel(key: string): string;
+/** Default slider step for a numeric range. */
+declare function inferStep(min: number, max: number): number;
 declare class DialStoreClass {
     private panels;
+    private panelsSnapshot;
+    private standardPanelsSnapshot;
+    private timelinePanelsSnapshot;
     private listeners;
     private globalListeners;
     private snapshots;
@@ -156,6 +190,10 @@ declare class DialStoreClass {
     private presets;
     private activePreset;
     private baseValues;
+    private defaultValues;
+    private registrationCounts;
+    private retainedPanels;
+    private persistConfigs;
     /**
      * Full (unfiltered) control tree per panel. `panels[id].controls` holds the
      * tree with conditional-visibility controls already filtered out, which is
@@ -163,23 +201,11 @@ declare class DialStoreClass {
      * flip back when a dependent value changes.
      */
     private allControls;
-    registerPanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, group?: string, defaultOpen?: boolean): void;
-    updatePanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, group?: string, defaultOpen?: boolean): void;
+    registerPanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, options?: DialStorePanelOptions): void;
+    updatePanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, options?: DialStorePanelOptions): void;
     unregisterPanel(id: string): void;
     updateValue(panelId: string, path: string, value: DialValue): void;
-    /**
-     * Batch-write multiple flat store paths in one pass: a single snapshot bump,
-     * a single `notify`, and exactly one conditional-visibility re-evaluation at
-     * the end. Mirrors {@link updateValue}'s auto-save (active preset or base
-     * values) so the controller's `setValues` is consistent with slider edits.
-     */
     updateValues(panelId: string, updates: Record<string, DialValue>): void;
-    /**
-     * Reset a panel back to its base values and clear any active preset. Thin
-     * wrapper over {@link clearActivePreset}, which already restores base values
-     * and re-evaluates conditional visibility. Exposed as a named method so the
-     * controller's `resetValues` has a stable target.
-     */
     resetValues(panelId: string): void;
     updateSpringMode(panelId: string, path: string, mode: 'simple' | 'advanced'): void;
     getSpringMode(panelId: string, path: string): 'simple' | 'advanced';
@@ -187,7 +213,7 @@ declare class DialStoreClass {
     getTransitionMode(panelId: string, path: string): 'easing' | 'simple' | 'advanced';
     getValue(panelId: string, path: string): DialValue | undefined;
     getValues(panelId: string): Record<string, DialValue>;
-    getPanels(): PanelConfig[];
+    getPanels(kind?: 'panel' | 'timeline'): PanelConfig[];
     getPanel(id: string): PanelConfig | undefined;
     subscribe(panelId: string, listener: Listener): () => void;
     subscribeGlobal(listener: Listener): () => void;
@@ -210,6 +236,13 @@ declare class DialStoreClass {
         control: ControlMeta;
         shortcut: ShortcutConfig;
     }>;
+    private configurePanelRetention;
+    private reconcileValues;
+    private reconcilePresets;
+    private normalizePersistConfig;
+    private loadPersistedPanel;
+    private persistPanel;
+    private getStorage;
     private findControlByPath;
     private notify;
     private notifyGlobal;
@@ -265,4 +298,4 @@ declare class DialStoreClass {
 }
 declare const DialStore: DialStoreClass;
 
-export { type ActionConfig, type ColorConfig, type ControlMeta, type ControlWithVisibility, type DialConfig, DialStore, type DialValue, type EasingConfig, type PanelConfig, type Preset, type ResolvedValues, type SelectConfig, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, type SpringConfig, type TextConfig, type TransitionConfig, type VisibleWhen, type VisibleWhenValue, unwrapVisibility, withVisibility };
+export { type ActionConfig, type ColorConfig, type ControlMeta, type ControlWithVisibility, type DialConfig, type DialKitPersistOptions, type DialKitValueUpdates, DialStore, type DialStorePanelOptions, type DialValue, type EasingConfig, type PanelConfig, type Preset, type ResolvedValues, type SelectConfig, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, type SpringConfig, type TextConfig, type TransitionConfig, type VisibleWhen, type VisibleWhenValue, flattenDialValueUpdates, formatLabel, inferStep, isEasingConfigValue, isHexColor, isSpringConfigValue, resolveDialValues, unwrapVisibility, withVisibility };

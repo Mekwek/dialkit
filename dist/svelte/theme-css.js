@@ -3,6 +3,8 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 
 /* Dialkit Theme - Dark glassmorphic design */
 .dialkit-root {
+  position: relative;
+
   /* Surfaces */
   --dial-surface: rgba(255, 255, 255, 0.03);
   --dial-surface-hover: rgba(255, 255, 255, 0.06);
@@ -49,15 +51,15 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 
 /* Inline mode */
 .dialkit-root[data-mode="inline"] {
-  height: 100%;
+  max-height: 100%;
 }
 
 .dialkit-panel[data-mode="inline"] {
   position: static;
   z-index: auto;
-  max-height: 100%;
-  height: 100%;
-  overflow: hidden;
+  max-height: inherit;
+  height: auto;
+  overflow: visible;
 }
 
 .dialkit-panel-inner {
@@ -68,6 +70,14 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   -webkit-backdrop-filter: blur(var(--dial-backdrop-blur));
   padding: 10px 12px 0 12px;
   transform: translateZ(0);
+  transform-origin: top right;
+}
+
+.dialkit-panel[data-origin-x="left"] .dialkit-panel-inner {
+  transform-origin: top left;
+}
+
+.dialkit-panel[data-origin-x="right"] .dialkit-panel-inner {
   transform-origin: top right;
 }
 
@@ -110,8 +120,8 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 
 .dialkit-panel-inline {
   width: 100%;
-  height: 100%;
-  max-height: none;
+  height: auto;
+  max-height: inherit;
   overflow-y: auto;
   box-shadow: none;
   border-radius: 0;
@@ -123,7 +133,8 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   display: flex;
   flex-direction: column;
   width: 100%;
-  height: 100%;
+  max-height: inherit;
+  height: auto;
 }
 
 /* Position variants */
@@ -180,6 +191,18 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   padding-bottom: 6px;
   margin-bottom: 12px;
   border-bottom: 1px solid var(--dial-surface-subtle);
+}
+
+.dialkit-panel:not([data-mode="inline"]) .dialkit-panel-inner:not([data-collapsed="true"]) > .dialkit-folder-root > .dialkit-panel-header {
+  cursor: grab;
+}
+
+.dialkit-panel:not([data-mode="inline"]) .dialkit-panel-inner:not([data-collapsed="true"]) > .dialkit-folder-root > .dialkit-panel-header:active {
+  cursor: grabbing;
+}
+
+.dialkit-panel:not([data-mode="inline"]) .dialkit-panel-icon {
+  cursor: pointer;
 }
 
 .dialkit-folder-header {
@@ -278,6 +301,11 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   padding-bottom: 0;
 }
 
+.dialkit-folder:not(.dialkit-folder-root):last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
 /* Adjacent non-root folders collapse gap and share a single divider */
 .dialkit-folder:not(.dialkit-folder-root) + .dialkit-folder:not(.dialkit-folder-root) {
   margin-top: -10px;
@@ -335,6 +363,66 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 /* Root folder inner needs no extra bottom padding */
 .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner {
   padding-bottom: 0;
+}
+
+.dialkit-panel[data-multiple="true"] .dialkit-panel-inner:not([data-collapsed="true"]) {
+  padding: 0 12px;
+}
+
+.dialkit-panel[data-multiple="true"] .dialkit-panel-inner:not([data-collapsed="true"]) .dialkit-panel-icon {
+  top: 14px;
+}
+
+.dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-panel-header {
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
+
+.dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-panel-header > .dialkit-folder-header-top,
+.dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder > .dialkit-folder-header > .dialkit-folder-header-top {
+  height: 44px;
+  padding: 0;
+}
+
+.dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder > .dialkit-folder-header {
+  height: 44px;
+}
+
+.dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner {
+  gap: 0;
+}
+
+.dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder {
+  margin: 0;
+  padding-bottom: 0;
+  border-top: 1px solid var(--dial-surface-subtle);
+  border-bottom: none;
+}
+
+.dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder > .dialkit-folder-header .dialkit-folder-title {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 20px;
+  color: var(--dial-text-root);
+  transform: translateZ(0);
+}
+
+.dialkit-panel[data-multiple="true"] .dialkit-folder-title-root {
+  line-height: 20px;
+}
+
+.dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder:first-child {
+  border-top: none;
+  margin-top: 0;
+}
+
+.dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder + .dialkit-folder {
+  margin-top: 0;
+}
+
+.dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder > .dialkit-folder-content > .dialkit-folder-inner {
+  padding-top: 4px;
+  padding-bottom: 12px;
 }
 
 /* Content spacing handled by folder-inner gap */
@@ -687,6 +775,16 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   overflow: hidden;
 }
 
+.dialkit-panel-section-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: var(--dial-row-height);
+  min-width: 0;
+  overflow: hidden;
+}
+
 .dialkit-toolbar-add {
   display: flex;
   align-items: center;
@@ -706,10 +804,26 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   background: var(--dial-surface-hover);
 }
 
+.dialkit-timeline-toolbar-toggle[data-active] {
+  background: var(--dial-surface-active);
+  color: var(--dial-text-root);
+}
+
 .dialkit-toolbar-add svg {
   width: 16px;
   height: 16px;
   color: var(--dial-text-label);
+}
+
+.dialkit-timeline-toolkit-only {
+  height: var(--dial-row-height);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border-radius: var(--dial-radius);
+  background: var(--dial-surface-subtle);
+  color: var(--dial-text-secondary);
+  font-size: 12px;
 }
 
 .dialkit-toolbar-copy {
@@ -1380,5 +1494,775 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
     box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.08);
   }
 
+}
+
+/* ── Timeline dock ── */
+.dialkit-timeline {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 9998;
+}
+
+.dialkit-timeline[hidden] {
+  display: none;
+}
+
+.dialkit-timeline-dock {
+  position: relative;
+  box-sizing: border-box;
+  background: var(--dial-glass-bg);
+  border: 1px solid var(--dial-border);
+  border-radius: 14px;
+  backdrop-filter: blur(var(--dial-backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--dial-backdrop-blur));
+  padding: 0 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--dial-text-tertiary) transparent;
+}
+
+.dialkit-timeline-resize-handle {
+  position: absolute;
+  top: -4px;
+  left: 0;
+  right: 0;
+  z-index: 9;
+  height: 10px;
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.dialkit-timeline-dock::-webkit-scrollbar {
+  width: 8px;
+}
+
+.dialkit-timeline-dock::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dialkit-timeline-dock::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--dial-text-tertiary);
+}
+
+.dialkit-timeline-section {
+  --dial-timeline-label-w: 96px;
+  --dial-timeline-actions-w: 284px;
+  --dial-timeline-header-h: calc(var(--dial-row-height) + 4px);
+}
+
+.dialkit-timeline-section + .dialkit-timeline-section {
+  border-top: 1px solid var(--dial-border);
+  padding-top: 10px;
+}
+
+.dialkit-timeline-header {
+  display: grid;
+  grid-template-columns: auto minmax(100px, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 7;
+  box-sizing: border-box;
+  height: var(--dial-timeline-header-h);
+  padding: 4px 0 0;
+  margin: 0;
+  background: var(--dial-glass-bg);
+  backdrop-filter: blur(var(--dial-backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--dial-backdrop-blur));
+}
+
+.dialkit-timeline-header[data-open] {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+}
+
+.dialkit-timeline-header:not([data-open]) {
+  grid-template-columns: var(--dial-timeline-label-w) minmax(0, 1fr) auto;
+  gap: 0;
+}
+
+.dialkit-timeline-header:not([data-open]) .dialkit-timeline-identity {
+  width: var(--dial-timeline-label-w);
+  box-sizing: border-box;
+  padding-right: 10px;
+  overflow: hidden;
+}
+
+.dialkit-timeline-header:not([data-open]) .dialkit-timeline-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dialkit-timeline-header:not([data-open]) .dialkit-timeline-overview {
+  margin-right: 12px;
+}
+
+.dialkit-timeline-identity {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dialkit-timeline-title {
+  display: block;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--dial-text-root);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.dialkit-timeline-header[data-open] .dialkit-timeline-identity {
+  width: 100%;
+  overflow: hidden;
+}
+
+.dialkit-timeline-header[data-open] .dialkit-timeline-title {
+  display: inline-block;
+  flex: 0 1 auto;
+  width: fit-content;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dialkit-timeline-time {
+  font-family: 'Geist Mono', ui-monospace, monospace;
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--dial-text-label);
+  white-space: nowrap;
+}
+
+.dialkit-timeline-overview {
+  position: relative;
+  min-width: 60px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--dial-surface-subtle);
+  overflow: hidden;
+  cursor: col-resize;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.dialkit-timeline-overview-viewport {
+  position: absolute;
+  inset-block: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.dialkit-timeline-overview-viewport[data-zoomed] {
+  background: color-mix(in srgb, var(--dial-text-tertiary) 18%, transparent);
+  box-shadow: inset 0 0 0 1px var(--dial-border);
+}
+
+.dialkit-timeline-overview-progress {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 999px 0 0 999px;
+  background: var(--dial-text-tertiary);
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.dialkit-timeline-overview-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--dial-text-root);
+  transform: translateX(-1px);
+  pointer-events: none;
+}
+
+.dialkit-timeline-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dialkit-timeline-header[data-open] .dialkit-timeline-actions {
+  width: auto;
+  box-sizing: border-box;
+  justify-content: flex-end;
+  padding-left: 0;
+}
+
+.dialkit-timeline-actions .dialkit-preset-manager {
+  flex: 0 0 120px;
+  width: 120px;
+}
+
+.dialkit-timeline-chevron {
+  background: none;
+  border: none;
+  width: 20px;
+  height: var(--dial-row-height);
+  padding: 2px;
+  cursor: pointer;
+  color: var(--dial-text-label);
+  opacity: 0.6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.15s;
+}
+
+.dialkit-timeline-chevron:hover {
+  opacity: 1;
+}
+
+.dialkit-timeline-chevron svg {
+  width: 16px;
+  height: 16px;
+  transition: transform 0.18s ease;
+}
+
+.dialkit-timeline-chevron[data-open="true"] svg {
+  transform: rotate(180deg);
+}
+
+.dialkit-timeline-body {
+  margin-top: 0;
+  overflow: visible;
+}
+
+.dialkit-timeline-scroll-row {
+  position: sticky;
+  bottom: -10px;
+  z-index: 6;
+  display: grid;
+  grid-template-columns: var(--dial-timeline-label-w) minmax(0, 1fr);
+  margin-top: 6px;
+  margin-bottom: -10px;
+  padding: 4px 0 10px;
+  background: var(--dial-glass-bg);
+  backdrop-filter: blur(var(--dial-backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--dial-backdrop-blur));
+}
+
+.dialkit-timeline-horizontal-scroll {
+  min-width: 0;
+  height: 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--dial-text-tertiary) transparent;
+  overscroll-behavior-x: contain;
+}
+
+.dialkit-timeline-horizontal-scroll > div {
+  height: 1px;
+}
+
+.dialkit-timeline-horizontal-scroll::-webkit-scrollbar {
+  height: 8px;
+}
+
+.dialkit-timeline-horizontal-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dialkit-timeline-horizontal-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--dial-text-tertiary);
+}
+
+.dialkit-timeline-grid {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dialkit-timeline-row {
+  display: grid;
+  grid-template-columns: var(--dial-timeline-label-w) minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.dialkit-timeline-label {
+  flex: 0 0 var(--dial-timeline-label-w);
+  box-sizing: border-box; /* indent padding must not widen the column — every lane starts at the same x */
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--dial-text-label);
+  padding-right: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.dialkit-timeline-ruler {
+  position: relative;
+  min-width: 0;
+  height: 28px;
+  cursor: col-resize;
+  touch-action: none;
+  overflow: visible;
+  user-select: none;
+  -webkit-user-select: none;
+  z-index: 5;
+}
+
+.dialkit-timeline-ruler-row {
+  position: sticky;
+  top: var(--dial-timeline-header-h);
+  z-index: 6;
+  height: 28px;
+  background: var(--dial-glass-bg);
+  backdrop-filter: blur(var(--dial-backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--dial-backdrop-blur));
+}
+
+.dialkit-timeline-tick {
+  position: absolute;
+  top: 50%;
+  width: 1px;
+  height: 100%;
+  background: var(--dial-text-tertiary);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.dialkit-timeline-tick-medium {
+  height: 16px;
+  background: var(--dial-border-hover);
+}
+
+.dialkit-timeline-tick-fine {
+  height: 8px;
+  background: var(--dial-border);
+}
+
+.dialkit-timeline-tick-label {
+  position: absolute;
+  top: 50%;
+  left: 4px;
+  display: flex;
+  align-items: center;
+  height: 18px;
+  transform: translateY(-50%);
+  font-family: 'Geist Mono', ui-monospace, monospace;
+  font-size: 9.5px;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+  color: var(--dial-text-tertiary);
+  white-space: nowrap;
+}
+
+.dialkit-timeline-row {
+  height: 28px;
+}
+
+/* ── Layer groups ── */
+
+.dialkit-timeline-group-row {
+  height: 22px;
+}
+
+.dialkit-timeline-group-row .dialkit-timeline-label {
+  gap: 4px;
+  font-weight: 600;
+  color: var(--dial-text-root);
+}
+
+.dialkit-timeline-group-row .dialkit-timeline-lane {
+  background: none;
+}
+
+.dialkit-timeline-group-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0;
+  margin-left: -2px;
+  cursor: pointer;
+  color: var(--dial-text-tertiary);
+}
+
+.dialkit-timeline-group-toggle svg {
+  width: 10px;
+  height: 10px;
+  transform: rotate(-90deg);
+  transition: transform 0.15s ease;
+}
+
+.dialkit-timeline-group-toggle[data-open="true"] svg {
+  transform: rotate(0deg);
+}
+
+.dialkit-timeline-row[data-grouped] .dialkit-timeline-label {
+  padding-left: 14px;
+}
+
+.dialkit-timeline-lane {
+  position: relative;
+  flex: 1;
+  background: var(--dial-surface-subtle);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.dialkit-timeline-clip {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 9px;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  box-sizing: border-box;
+  overflow: hidden;
+  z-index: 1;
+}
+
+.dialkit-timeline-clip-ghost {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  display: flex;
+  border-radius: 5px;
+  box-sizing: border-box;
+  overflow: hidden;
+  opacity: 0.18;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.dialkit-timeline-clip-ghost-segment {
+  height: 100%;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.dialkit-timeline-clip-ghost-segment + .dialkit-timeline-clip-ghost-segment {
+  box-shadow: inset 1px 0 0 rgba(0, 0, 0, 0.5);
+}
+
+.dialkit-timeline-loop-infinity {
+  position: absolute;
+  top: 50%;
+  right: 7px;
+  z-index: 2;
+  color: var(--dial-text-tertiary);
+  font-family: 'Geist Mono', ui-monospace, monospace;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  transform: translateY(-50%);
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.dialkit-timeline-clip[data-dragging] {
+  cursor: grabbing;
+}
+
+.dialkit-timeline-clip[data-selected] {
+  box-shadow: 0 0 0 2px var(--dial-text-root);
+}
+
+.dialkit-timeline-clip-duration {
+  font-family: 'Geist Mono', ui-monospace, monospace;
+  font-size: 9.5px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(0, 0, 0, 0.55);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ── Sequence segments ──
+   A steps clip is one bar sliced into legs; boundaries between legs are
+   drag handles that retime the leg to their left. */
+
+.dialkit-timeline-clip[data-steps] {
+  padding: 0;
+  justify-content: flex-start;
+}
+
+.dialkit-timeline-clip-segment {
+  position: relative;
+  height: 100%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 8px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.dialkit-timeline-clip-segment + .dialkit-timeline-clip-segment {
+  box-shadow: inset 1.5px 0 0 rgba(0, 0, 0, 0.25);
+}
+
+.dialkit-timeline-clip-segment:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.dialkit-timeline-clip-segment[data-selected] {
+  background: rgba(0, 0, 0, 0.12);
+}
+
+/* ── Property tracks ──
+   A props clip's row is a read-only composite — click to expand. Each
+   property expands into a full track row: a complete clip bar whose
+   position is the track's delay. */
+
+.dialkit-timeline-clip[data-composite] {
+  cursor: pointer;
+}
+
+.dialkit-timeline-track-row .dialkit-timeline-label {
+  font-size: 13px;
+  color: var(--dial-text-tertiary);
+  padding-left: 26px;
+}
+
+.dialkit-timeline-track-row[data-grouped] .dialkit-timeline-label {
+  padding-left: 32px;
+}
+
+.dialkit-timeline-clip-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: ew-resize;
+}
+
+.dialkit-timeline-clip-handle[data-edge="start"] {
+  left: 0;
+}
+
+.dialkit-timeline-clip-handle[data-edge="end"] {
+  right: 0;
+}
+
+.dialkit-timeline-playhead-control {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 12px;
+  margin-left: -6px;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.dialkit-timeline-playhead-anchor {
+  position: sticky;
+  top: calc(var(--dial-timeline-header-h) + 14px);
+  z-index: 8;
+  width: 0;
+  height: 0;
+  margin-left: 6px;
+}
+
+.dialkit-timeline-playhead-anchor::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -1px;
+  width: 2px;
+  height: 15px;
+  background: var(--dial-text-root);
+  pointer-events: none;
+}
+
+.dialkit-timeline-playhead-flag {
+  position: absolute;
+  top: 0;
+  left: calc(var(--dial-timeline-playhead-flag-offset, 0px) - 26px);
+  z-index: 1;
+  width: 52px;
+  height: 18px;
+  padding: 0 7px;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: 6px;
+  background: #f3f3f3;
+  color: #414141;
+  font-family: 'Geist Mono', ui-monospace, monospace;
+  font-size: 9.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+  line-height: 16px;
+  text-align: center;
+  white-space: nowrap;
+  transform: translateY(-50%);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.28);
+  transition: top 0.12s ease;
+}
+
+.dialkit-timeline-playhead-stem {
+  position: absolute;
+  top: 27px;
+  bottom: 0;
+  left: 5px;
+  z-index: 5;
+  width: 2px;
+  background: var(--dial-text-root);
+  pointer-events: none;
+}
+
+/* ── Timeline clip popover ── */
+.dialkit-timeline-popover {
+  position: fixed;
+  z-index: 10000;
+  background: var(--dial-glass-bg);
+  border: 1px solid var(--dial-border);
+  border-radius: 14px;
+  backdrop-filter: blur(var(--dial-backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--dial-backdrop-blur));
+  box-shadow: var(--dial-shadow);
+  padding: 10px 12px;
+  box-sizing: border-box;
+  max-height: 60vh;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.dialkit-timeline-popover::-webkit-scrollbar {
+  display: none;
+}
+
+.dialkit-timeline-popover-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 2px 8px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--dial-border);
+}
+
+.dialkit-timeline-popover-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--dial-text-root);
+  letter-spacing: -0.01em;
+}
+
+.dialkit-timeline-popover-close {
+  width: 24px;
+  height: 24px;
+  margin-left: auto;
+  padding: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--dial-text-tertiary);
+  cursor: pointer;
+}
+
+.dialkit-timeline-popover-close:hover {
+  color: var(--dial-text-root);
+  background: var(--dial-surface-hover);
+}
+
+.dialkit-timeline-popover-close svg {
+  width: 14px;
+  height: 14px;
+}
+
+.dialkit-timeline-popover-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dialkit-timeline-popover-body > .dialkit-folder:first-child {
+  margin-top: 0;
+  border-top: none;
+}
+
+@media (max-width: 720px) {
+  .dialkit-timeline-dock {
+    padding: 0 10px 10px;
+  }
+
+  .dialkit-timeline-header {
+    grid-template-columns: auto minmax(40px, 1fr) auto;
+    gap: 8px;
+  }
+
+  .dialkit-timeline-section {
+    --dial-timeline-label-w: 76px;
+    --dial-timeline-actions-w: 270px;
+  }
+
+  .dialkit-timeline-identity {
+    overflow: hidden;
+    gap: 7px;
+  }
+
+  .dialkit-timeline-title {
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .dialkit-timeline-time {
+    font-size: 11px;
+  }
+
+  .dialkit-timeline-overview {
+    height: 12px;
+  }
+
+  .dialkit-timeline-actions {
+    min-width: 0;
+  }
+
+  .dialkit-timeline-actions .dialkit-preset-manager {
+    flex-basis: 100px;
+    width: 100px;
+  }
+
+  .dialkit-timeline-chevron {
+    width: 26px;
+    height: 28px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .dialkit-timeline-grid {
+    min-width: 0;
+  }
 }
 `;

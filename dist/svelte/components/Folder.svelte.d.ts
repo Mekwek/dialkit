@@ -6,6 +6,7 @@ type $$ComponentProps = {
     inline?: boolean;
     onOpenChange?: (isOpen: boolean) => void;
     toolbar?: Snippet;
+    panelHeightOffset?: number;
     children?: Snippet;
 };
 declare const Folder: import("svelte").Component<$$ComponentProps, {}, "">;

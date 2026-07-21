@@ -1,18 +1,12 @@
-import { useState, useContext, useSyncExternalStore } from 'react';
+import { useCallback, useState, useSyncExternalStore } from 'react';
+import type { ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { DialStore, ControlMeta, PanelConfig, SpringConfig, TransitionConfig } from '../store/DialStore';
-import { CONTROL_ANIM } from './control-motion';
-import { ShortcutContext } from './ShortcutListener';
+import { DialStore, PanelConfig } from '../store/DialStore';
+import { buildCopyInstruction } from '../copy-instruction';
 import { ShortcutsMenu } from './ShortcutsMenu';
 import { ICON_CLIPBOARD, ICON_CHECK, ICON_ADD_PRESET } from '../icons';
+import { ControlRenderer } from './ControlRenderer';
 import { Folder } from './Folder';
-import { Slider } from './Slider';
-import { Toggle } from './Toggle';
-import { SpringControl } from './SpringControl';
-import { TransitionControl } from './TransitionControl';
-import { TextControl } from './TextControl';
-import { SelectControl } from './SelectControl';
-import { ColorControl } from './ColorControl';
 import { PresetManager } from './PresetManager';
 
 interface PanelProps {
@@ -26,11 +20,6 @@ interface PanelProps {
    * other. Nested folders (depth > 0) are unaffected in either mode.
    */
   folderMode?: 'independent' | 'accordion';
-  /**
-   * Fired when this panel's root folder opens or closes (collapse to bubble /
-   * expand). Used by `DialRoot` to surface an aggregate open/close signal via
-   * its own `onOpenChange` prop. Omit for standalone use.
-   */
   onOpenChange?: (open: boolean) => void;
   /**
    * How this panel renders. `'root'` (default) is the historical standalone
@@ -40,13 +29,20 @@ interface PanelProps {
    * shell (see `DialRoot` group rendering).
    */
   variant?: 'root' | 'section';
+  toolbarExtra?: ReactNode;
 }
 
-export function Panel({ panel, defaultOpen = true, inline = false, folderMode = 'independent', onOpenChange, variant = 'root' }: PanelProps) {
+export function Panel({ panel, defaultOpen = true, inline = false, folderMode = 'independent', onOpenChange, variant = 'root', toolbarExtra }: PanelProps) {
   const [copied, setCopied] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(defaultOpen);
-  const shortcutCtx = useContext(ShortcutContext);
-  const hasShortcuts = Object.keys(panel.shortcuts).length > 0;
+  const subscribe = useCallback(
+    (callback: () => void) => DialStore.subscribe(panel.id, callback),
+    [panel.id]
+  );
+  const getSnapshot = useCallback(
+    () => DialStore.getValues(panel.id),
+    [panel.id]
+  );
 
   // Section de-nesting: when a section panel's controls are exactly one folder,
   // that folder is visually redundant with the section header (same single
@@ -77,17 +73,13 @@ export function Panel({ panel, defaultOpen = true, inline = false, folderMode = 
   // Mirror the root folder's open state locally and surface it to DialRoot's
   // aggregate `onOpenChange` (a no-op for section panels, which don't receive
   // the callback — their open/close is section-level, not shell-level).
-  const handleOpenChange = (open: boolean) => {
+  const handleOpenChange = useCallback((open: boolean) => {
     setIsPanelOpen(open);
     onOpenChange?.(open);
-  };
+  }, [onOpenChange]);
 
   // Subscribe to panel value changes
-  const values = useSyncExternalStore(
-    (cb) => DialStore.subscribe(panel.id, cb),
-    () => DialStore.getValues(panel.id),
-    () => DialStore.getValues(panel.id)
-  );
+  const values = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
   const presets = DialStore.getPresets(panel.id);
   const activePresetId = DialStore.getActivePresetId(panel.id);
@@ -98,171 +90,25 @@ export function Panel({ panel, defaultOpen = true, inline = false, folderMode = 
   };
 
   const handleCopy = () => {
-    const jsonStr = JSON.stringify(values, null, 2);
-
-    const instruction = `Update the useDialKit configuration for "${panel.name}" with these values:
-
-\`\`\`json
-${jsonStr}
-\`\`\`
-
-Apply these values as the new defaults in the useDialKit call.`;
-
-    navigator.clipboard.writeText(instruction);
+    navigator.clipboard.writeText(buildCopyInstruction('useDialKit', panel.name, values));
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
 
-  const renderControlInner = (control: ControlMeta, depth: number) => {
-    const value = values[control.path];
+  const handleAccordionToggle = useCallback((path: string, next: boolean) => {
+    setOpenFolder(next ? path : null);
+  }, []);
 
-    switch (control.type) {
-      case 'slider':
-        return (
-          <Slider
-            label={control.label}
-            value={(value as number) ?? control.min ?? 0}
-            onChange={(v) => DialStore.updateValue(panel.id, control.path, v)}
-            min={control.min}
-            max={control.max}
-            step={control.step}
-            shortcut={control.shortcut}
-            shortcutActive={shortcutCtx.activePanelId === panel.id && shortcutCtx.activePath === control.path}
-          />
-        );
-
-      case 'toggle':
-        return (
-          <Toggle
-            label={control.label}
-            checked={value as boolean}
-            onChange={(v) => DialStore.updateValue(panel.id, control.path, v)}
-            shortcut={control.shortcut}
-            shortcutActive={shortcutCtx.activePanelId === panel.id && shortcutCtx.activePath === control.path}
-          />
-        );
-
-      case 'spring':
-        return (
-          <SpringControl
-            panelId={panel.id}
-            path={control.path}
-            label={control.label}
-            spring={value as SpringConfig}
-            onChange={(v) => DialStore.updateValue(panel.id, control.path, v)}
-          />
-        );
-
-      case 'transition':
-        return (
-          <TransitionControl
-            panelId={panel.id}
-            path={control.path}
-            label={control.label}
-            value={value as TransitionConfig}
-            onChange={(v) => DialStore.updateValue(panel.id, control.path, v)}
-          />
-        );
-
-      case 'folder': {
-        // Accordion only governs first-level (depth 0) folders. Nested
-        // folders keep independent (uncontrolled) behavior.
-        const controlledProps =
-          accordion && depth === 0
-            ? {
-                open: openFolder === control.path,
-                onToggle: (next: boolean) =>
-                  setOpenFolder(next ? control.path : null),
-              }
-            : {};
-        return (
-          <Folder title={control.label} defaultOpen={control.defaultOpen ?? true} {...controlledProps}>
-            <AnimatePresence initial={false}>
-              {control.children?.map((child) => renderControl(child, depth + 1))}
-            </AnimatePresence>
-          </Folder>
-        );
-      }
-
-      case 'text':
-        return (
-          <TextControl
-            label={control.label}
-            value={value as string}
-            onChange={(v) => DialStore.updateValue(panel.id, control.path, v)}
-            placeholder={control.placeholder}
-          />
-        );
-
-      case 'select':
-        return (
-          <SelectControl
-            label={control.label}
-            value={value as string}
-            options={control.options ?? []}
-            onChange={(v) => DialStore.updateValue(panel.id, control.path, v)}
-          />
-        );
-
-      case 'color':
-        return (
-          <ColorControl
-            label={control.label}
-            value={value as string}
-            onChange={(v) => DialStore.updateValue(panel.id, control.path, v)}
-          />
-        );
-
-      case 'action':
-        return (
-          <button
-            className="dialkit-button"
-            onClick={() => DialStore.triggerAction(panel.id, control.path)}
-          >
-            {control.label}
-          </button>
-        );
-
-      default:
-        return null;
-    }
-  };
-
-  const renderControl = (control: ControlMeta, depth = 0) => {
-    const inner = renderControlInner(control, depth);
-    if (inner === null) return null;
-
-    // Every control is wrapped in a motion.div so we can animate its
-    // enter/exit when conditional visibility hides/shows it. The marker
-    // classes let theme.css target folder wrappers specifically
-    // (for the adjacent-divider collapse rule) without needing :has().
-    // spring and transition controls render as Folder internally
-    const isFolder = control.type === 'folder' || control.type === 'spring' || control.type === 'transition';
-    const wrapClassName = isFolder
-      ? 'dialkit-control-wrap dialkit-control-wrap-folder'
-      : 'dialkit-control-wrap';
-
-    return (
-      <motion.div
-        key={control.path}
-        className={wrapClassName}
-        {...CONTROL_ANIM}
-      >
-        {inner}
-      </motion.div>
-    );
-  };
-
-  const renderControls = () => {
-    // AnimatePresence wraps the control list so each control's exit
-    // animation runs before unmount. initial={false} disables the
-    // first-mount enter animation — the panel appears instantly on open.
-    return (
-      <AnimatePresence initial={false}>
-        {topLevelControls.map((control) => renderControl(control, 0))}
-      </AnimatePresence>
-    );
-  };
+  const renderControls = () => (
+    <ControlRenderer
+      panelId={panel.id}
+      controls={topLevelControls}
+      values={values}
+      animateControls
+      accordionOpenPath={accordion ? openFolder : undefined}
+      onAccordionToggle={accordion ? handleAccordionToggle : undefined}
+    />
+  );
 
   const iconTransition = { type: 'spring' as const, visualDuration: 0.4, bounce: 0.1 };
 
@@ -335,6 +181,7 @@ Apply these values as the new defaults in the useDialKit call.`;
         </span>
       </motion.button>
 
+      {toolbarExtra}
     </>
   );
 

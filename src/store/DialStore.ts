@@ -134,6 +134,20 @@ export type ResolvedValues<T extends DialConfig> = {
                 : T[K];
 };
 
+export type DialKitValueUpdates<T extends DialConfig> = {
+  [K in keyof T as K extends '_collapsed' ? never : K]?: T[K] extends [number, number, number, number?]
+    ? number
+    : T[K] extends SpringConfig | EasingConfig
+      ? TransitionConfig
+      : T[K] extends ActionConfig
+        ? never
+        : T[K] extends SelectConfig | ColorConfig | TextConfig
+          ? string
+          : T[K] extends DialConfig
+            ? DialKitValueUpdates<T[K]>
+            : T[K];
+};
+
 export type ShortcutMode = 'fine' | 'normal' | 'coarse';
 export type ShortcutInteraction = 'scroll' | 'drag' | 'move' | 'scroll-only';
 
@@ -166,6 +180,7 @@ export type PanelConfig = {
   controls: ControlMeta[];
   values: Record<string, DialValue>;
   shortcuts: Record<string, ShortcutConfig>;
+  kind?: 'timeline';
   /**
    * Optional grouping key. Panels sharing the same non-empty `group` are
    * rendered as collapsible sections inside ONE merged shell by `DialRoot`.
@@ -190,11 +205,207 @@ export type Preset = {
   values: Record<string, DialValue>;
 };
 
+export type DialKitPersistOptions = boolean | {
+  key?: string;
+  storage?: 'localStorage' | 'sessionStorage';
+  presets?: boolean;
+};
+
+export type DialStorePanelOptions = {
+  retainOnUnmount?: boolean;
+  persist?: DialKitPersistOptions;
+  kind?: 'timeline';
+  /**
+   * Optional grouping key. See {@link PanelConfig.group}.
+   */
+  group?: string;
+  /**
+   * Initial open state for this panel's folder. See {@link PanelConfig.defaultOpen}.
+   */
+  defaultOpen?: boolean;
+};
+
+type PersistConfig = {
+  key: string;
+  storage: 'localStorage' | 'sessionStorage';
+  presets: boolean;
+};
+
+type PersistedPanelState = {
+  version: 1;
+  values?: Record<string, DialValue>;
+  baseValues?: Record<string, DialValue>;
+  presets?: Preset[];
+  activePresetId?: string | null;
+};
+
 // Stable empty object for unregistered panels (React 19 useSyncExternalStore requirement)
 const EMPTY_VALUES: Record<string, DialValue> = Object.freeze({});
 
+export function resolveDialValues<T extends DialConfig>(
+  config: T,
+  flatValues: Record<string, DialValue>
+): ResolvedValues<T> {
+  return resolveConfigValues(config, flatValues, '') as ResolvedValues<T>;
+}
+
+export function flattenDialValueUpdates<T extends DialConfig>(
+  config: T,
+  updates: DialKitValueUpdates<T>
+): Record<string, DialValue> {
+  const values: Record<string, DialValue> = {};
+  if (typeof updates === 'object' && updates !== null) {
+    flattenConfigUpdates(config, updates as Record<string, unknown>, '', values);
+  }
+  return values;
+}
+
+function resolveConfigValues(
+  config: DialConfig,
+  flatValues: Record<string, DialValue>,
+  prefix: string
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const [key, rawConfigValue] of Object.entries(config)) {
+    if (key === '_collapsed') continue;
+    const path = prefix ? `${prefix}.${key}` : key;
+    const configValue = unwrapVisibility(rawConfigValue);
+
+    if (Array.isArray(configValue) && configValue.length <= 4 && typeof configValue[0] === 'number') {
+      result[key] = flatValues[path] ?? configValue[0];
+    } else if (typeof configValue === 'number' || typeof configValue === 'boolean' || typeof configValue === 'string') {
+      result[key] = flatValues[path] ?? configValue;
+    } else if (isSpringConfigValue(configValue) || isEasingConfigValue(configValue)) {
+      result[key] = flatValues[path] ?? configValue;
+    } else if (isActionConfigValue(configValue)) {
+      result[key] = flatValues[path] ?? configValue;
+    } else if (isSelectConfigValue(configValue)) {
+      const defaultValue = configValue.default ?? getFirstOptionValue(configValue.options);
+      result[key] = flatValues[path] ?? defaultValue;
+    } else if (isColorConfigValue(configValue)) {
+      result[key] = flatValues[path] ?? configValue.default ?? '#000000';
+    } else if (isTextConfigValue(configValue)) {
+      result[key] = flatValues[path] ?? configValue.default ?? '';
+    } else if (typeof configValue === 'object' && configValue !== null) {
+      result[key] = resolveConfigValues(configValue as DialConfig, flatValues, path);
+    }
+  }
+
+  return result;
+}
+
+function flattenConfigUpdates(
+  config: DialConfig,
+  updates: Record<string, unknown>,
+  prefix: string,
+  values: Record<string, DialValue>
+): void {
+  for (const [key, rawConfigValue] of Object.entries(config)) {
+    if (key === '_collapsed' || !(key in updates)) continue;
+
+    const nextValue = updates[key];
+    if (nextValue === undefined) continue;
+
+    const path = prefix ? `${prefix}.${key}` : key;
+    const configValue = unwrapVisibility(rawConfigValue);
+
+    if (isActionConfigValue(configValue)) {
+      continue;
+    }
+
+    if (isLeafConfigValue(configValue)) {
+      values[path] = nextValue as DialValue;
+      continue;
+    }
+
+    if (
+      typeof configValue === 'object' &&
+      configValue !== null &&
+      typeof nextValue === 'object' &&
+      nextValue !== null &&
+      !Array.isArray(nextValue)
+    ) {
+      flattenConfigUpdates(configValue as DialConfig, nextValue as Record<string, unknown>, path, values);
+    }
+  }
+}
+
+function isLeafConfigValue(value: unknown): boolean {
+  return (
+    (Array.isArray(value) && value.length <= 4 && typeof value[0] === 'number') ||
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    typeof value === 'string' ||
+    isSpringConfigValue(value) ||
+    isEasingConfigValue(value) ||
+    isActionConfigValue(value) ||
+    isSelectConfigValue(value) ||
+    isColorConfigValue(value) ||
+    isTextConfigValue(value)
+  );
+}
+
+function hasType(value: unknown, type: string): boolean {
+  return typeof value === 'object' && value !== null && 'type' in value && (value as { type: string }).type === type;
+}
+
+export function isSpringConfigValue(value: unknown): value is SpringConfig {
+  return hasType(value, 'spring');
+}
+
+export function isEasingConfigValue(value: unknown): value is EasingConfig {
+  return hasType(value, 'easing');
+}
+
+export function isHexColor(value: string): boolean {
+  return /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$/.test(value);
+}
+
+/** camelCase → Title Case, the label rule used everywhere a key becomes UI text. */
+export function formatLabel(key: string): string {
+  return key
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/^./, str => str.toUpperCase())
+    .trim();
+}
+
+/** Default slider step for a numeric range. */
+export function inferStep(min: number, max: number): number {
+  const range = max - min;
+  if (range <= 1) return 0.01;
+  if (range <= 10) return 0.1;
+  if (range <= 100) return 1;
+  return 10;
+}
+
+function isActionConfigValue(value: unknown): value is ActionConfig {
+  return hasType(value, 'action');
+}
+
+function isSelectConfigValue(value: unknown): value is SelectConfig {
+  return hasType(value, 'select') && 'options' in (value as object) && Array.isArray((value as SelectConfig).options);
+}
+
+function isColorConfigValue(value: unknown): value is ColorConfig {
+  return hasType(value, 'color');
+}
+
+function isTextConfigValue(value: unknown): value is TextConfig {
+  return hasType(value, 'text');
+}
+
+function getFirstOptionValue(options: (string | { value: string; label: string })[]): string {
+  const first = options[0];
+  if (first === undefined) return '';
+  return typeof first === 'string' ? first : first.value;
+}
+
 class DialStoreClass {
   private panels: Map<string, PanelConfig> = new Map();
+  private panelsSnapshot: PanelConfig[] = [];
+  private standardPanelsSnapshot: PanelConfig[] = [];
+  private timelinePanelsSnapshot: PanelConfig[] = [];
   private listeners: Map<string, Set<Listener>> = new Map();
   private globalListeners: Set<Listener> = new Set();
   private snapshots: Map<string, Record<string, DialValue>> = new Map();
@@ -202,6 +413,10 @@ class DialStoreClass {
   private presets: Map<string, Preset[]> = new Map();
   private activePreset: Map<string, string | null> = new Map();
   private baseValues: Map<string, Record<string, DialValue>> = new Map();
+  private defaultValues: Map<string, Record<string, DialValue>> = new Map();
+  private registrationCounts: Map<string, number> = new Map();
+  private retainedPanels: Set<string> = new Set();
+  private persistConfigs: Map<string, PersistConfig> = new Map();
   /**
    * Full (unfiltered) control tree per panel. `panels[id].controls` holds the
    * tree with conditional-visibility controls already filtered out, which is
@@ -210,73 +425,87 @@ class DialStoreClass {
    */
   private allControls: Map<string, ControlMeta[]> = new Map();
 
-  registerPanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, group?: string, defaultOpen?: boolean): void {
+  registerPanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, options: DialStorePanelOptions = {}): void {
+    const existingPanel = this.panels.get(id);
+    if (existingPanel && existingPanel.kind !== options.kind) {
+      console.warn(
+        `[dialkit] Panel id "${id}" cannot be shared by a timeline and a standard panel; ` +
+        `the most recent registration controls where it renders.`
+      );
+    }
+    this.configurePanelRetention(id, options);
+    this.registrationCounts.set(id, (this.registrationCounts.get(id) ?? 0) + 1);
+
     const allControls = this.parseConfig(config, '', shortcuts);
-    const values = this.flattenValues(config, '');
+    const controlsByPath = this.mapControlsByPath(allControls);
+    const defaultValues = this.flattenValues(config, '');
 
     // Set initial transition modes based on config types
-    this.initTransitionModes(config, '', values);
+    this.initTransitionModes(config, '', defaultValues);
 
+    const persisted = this.loadPersistedPanel(id);
+    const previousValues = this.panels.get(id)?.values ?? this.snapshots.get(id) ?? persisted?.values ?? {};
+    const values = this.reconcileValues(defaultValues, previousValues, controlsByPath);
+
+    const previousBaseValues = this.baseValues.get(id) ?? persisted?.baseValues ?? persisted?.values ?? {};
+    const baseValues = this.reconcileValues(defaultValues, previousBaseValues, controlsByPath);
+
+    // Store the unfiltered tree so visibility can flip back later, then
+    // filter against the RECONCILED values (not raw defaults) for HMR/retain.
     this.allControls.set(id, allControls);
     const controls = this.filterByVisibility(allControls, values);
 
-    this.panels.set(id, { id, name, controls, values, shortcuts: shortcuts ?? {}, group, defaultOpen });
+    this.panels.set(id, { id, name, controls, values, shortcuts: shortcuts ?? {}, kind: options.kind, group: options.group, defaultOpen: options.defaultOpen });
     this.snapshots.set(id, { ...values });
-    this.baseValues.set(id, { ...values });
+    this.baseValues.set(id, baseValues);
+    this.defaultValues.set(id, { ...defaultValues });
+
+    const existingPresets = this.presets.get(id) ?? persisted?.presets;
+    if (existingPresets) {
+      this.presets.set(id, this.reconcilePresets(existingPresets, defaultValues, controlsByPath));
+    }
+    if (!this.activePreset.has(id) && persisted?.activePresetId !== undefined) {
+      this.activePreset.set(id, persisted.activePresetId);
+    }
+
+    this.persistPanel(id);
+    this.notify(id);
     this.notifyGlobal();
   }
 
-  updatePanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, group?: string, defaultOpen?: boolean): void {
+  updatePanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, options: DialStorePanelOptions = {}): void {
+    this.configurePanelRetention(id, options);
     const existing = this.panels.get(id);
     if (!existing) {
-      this.registerPanel(id, name, config, shortcuts, group, defaultOpen);
+      this.registerPanel(id, name, config, shortcuts, options);
       return;
     }
 
     const allControls = this.parseConfig(config, '', shortcuts);
     const controlsByPath = this.mapControlsByPath(allControls);
     const defaultValues = this.flattenValues(config, '');
-    const nextValues: Record<string, DialValue> = {};
+    this.initTransitionModes(config, '', defaultValues);
+    const nextValues = this.reconcileValues(defaultValues, existing.values, controlsByPath);
 
-    for (const [path, defaultValue] of Object.entries(defaultValues)) {
-      nextValues[path] = this.normalizePreservedValue(
-        existing.values[path],
-        defaultValue,
-        controlsByPath.get(path)
-      );
-    }
-
-    // Set mode defaults for new transition controls first.
-    this.initTransitionModes(config, '', nextValues);
-
-    for (const [path, mode] of Object.entries(existing.values)) {
-      if (!path.endsWith('.__mode')) {
-        continue;
-      }
-
-      const transitionPath = path.slice(0, -'__mode'.length - 1);
-      const transitionControl = controlsByPath.get(transitionPath);
-      if (transitionControl?.type === 'transition') {
-        nextValues[path] = mode;
-      }
-    }
-
+    // Store the unfiltered tree, filter against the reconciled next values.
     this.allControls.set(id, allControls);
     const controls = this.filterByVisibility(allControls, nextValues);
 
-    const nextPanel: PanelConfig = { id, name, controls, values: nextValues, shortcuts: shortcuts ?? existing.shortcuts, group: group ?? existing.group, defaultOpen: defaultOpen ?? existing.defaultOpen };
+    const nextPanel: PanelConfig = {
+      id,
+      name,
+      controls,
+      values: nextValues,
+      shortcuts: shortcuts ?? existing.shortcuts,
+      kind: options.kind ?? existing.kind,
+      group: options.group ?? existing.group,
+      defaultOpen: options.defaultOpen ?? existing.defaultOpen,
+    };
     this.panels.set(id, nextPanel);
     this.snapshots.set(id, { ...nextValues });
 
     const previousBaseValues = this.baseValues.get(id) ?? {};
-    const nextBaseValues: Record<string, DialValue> = {};
-    for (const [path, defaultValue] of Object.entries(defaultValues)) {
-      nextBaseValues[path] = this.normalizePreservedValue(
-        previousBaseValues[path],
-        defaultValue,
-        controlsByPath.get(path)
-      );
-    }
+    const nextBaseValues = this.reconcileValues(defaultValues, previousBaseValues, controlsByPath);
 
     for (const [path, value] of Object.entries(nextValues)) {
       if (path.endsWith('.__mode')) {
@@ -285,77 +514,130 @@ class DialStoreClass {
     }
 
     this.baseValues.set(id, nextBaseValues);
+    this.defaultValues.set(id, { ...defaultValues });
+    this.presets.set(id, this.reconcilePresets(this.presets.get(id) ?? [], defaultValues, controlsByPath));
 
+    this.persistPanel(id);
     this.notify(id);
     this.notifyGlobal();
   }
 
   unregisterPanel(id: string): void {
+    const nextCount = (this.registrationCounts.get(id) ?? 1) - 1;
+    if (nextCount > 0) {
+      this.registrationCounts.set(id, nextCount);
+      return;
+    }
+
+    this.registrationCounts.delete(id);
     this.panels.delete(id);
-    this.listeners.delete(id);
-    this.snapshots.delete(id);
-    this.actionListeners.delete(id);
-    this.baseValues.delete(id);
-    this.allControls.delete(id);
+    // Keep listener sets: subscribed components can outlive the registration
+    // (HMR unregister/re-register of the same id) and must keep receiving
+    // notifications. Cleanup happens via unsubscribe closures.
+    if (this.listeners.get(id)?.size === 0) this.listeners.delete(id);
+    if (this.actionListeners.get(id)?.size === 0) this.actionListeners.delete(id);
+
+    if (!this.retainedPanels.has(id)) {
+      this.snapshots.delete(id);
+      this.baseValues.delete(id);
+      this.defaultValues.delete(id);
+      this.presets.delete(id);
+      this.activePreset.delete(id);
+      this.persistConfigs.delete(id);
+      this.allControls.delete(id);
+    }
+    // Retained panels keep their allControls entry so a later re-registration
+    // (or a visibility re-eval before re-registration) has the full tree.
+
     this.notifyGlobal();
   }
 
   updateValue(panelId: string, path: string, value: DialValue): void {
-    // Single-path writes route through the batch path so there is one
-    // implementation of the auto-save + snapshot + visibility re-eval logic.
     this.updateValues(panelId, { [path]: value });
   }
 
-  /**
-   * Batch-write multiple flat store paths in one pass: a single snapshot bump,
-   * a single `notify`, and exactly one conditional-visibility re-evaluation at
-   * the end. Mirrors {@link updateValue}'s auto-save (active preset or base
-   * values) so the controller's `setValues` is consistent with slider edits.
-   */
   updateValues(panelId: string, updates: Record<string, DialValue>): void {
     const panel = this.panels.get(panelId);
     if (!panel) return;
 
-    // Resolve the auto-save target once for the whole batch.
-    const activeId = this.activePreset.get(panelId);
-    const activePreset = activeId
-      ? (this.presets.get(panelId) ?? []).find(p => p.id === activeId)
-      : undefined;
-    const base = activeId ? undefined : this.baseValues.get(panelId);
+    const validUpdates: Record<string, DialValue> = {};
 
     for (const [path, value] of Object.entries(updates)) {
+      if (!Object.prototype.hasOwnProperty.call(panel.values, path)) {
+        continue;
+      }
+
+      const control = this.findControlByPath(panel.controls, path);
+      if (control?.type === 'action') {
+        continue;
+      }
+
       panel.values[path] = value;
-      if (activePreset) {
-        activePreset.values[path] = value;
-      } else if (base) {
-        base[path] = value;
+      validUpdates[path] = value;
+    }
+
+    if (Object.keys(validUpdates).length === 0) {
+      return;
+    }
+
+    // Auto-save to active preset or base values
+    const activeId = this.activePreset.get(panelId);
+    if (activeId) {
+      const presets = this.presets.get(panelId) ?? [];
+      const preset = presets.find(p => p.id === activeId);
+      if (preset) {
+        for (const [path, value] of Object.entries(validUpdates)) {
+          preset.values[path] = value;
+        }
+      }
+    } else {
+      const base = this.baseValues.get(panelId);
+      if (base) {
+        for (const [path, value] of Object.entries(validUpdates)) {
+          base[path] = value;
+        }
       }
     }
 
     // Create a new snapshot reference so useSyncExternalStore detects the change
     this.snapshots.set(panelId, { ...panel.values });
+    this.persistPanel(panelId);
     this.notify(panelId);
 
-    // Re-evaluate conditional visibility once after the whole batch. If any
-    // control's visibility flipped, rebuild the filtered tree and bump the
-    // global listener so DialRoot picks up the new controls array.
+    // Re-evaluate conditional visibility once after the whole batch, against
+    // the values that just landed above. If any control's visibility
+    // flipped, rebuild the filtered tree and bump the global listener so
+    // DialRoot picks up the new controls array.
     const allControls = this.allControls.get(panelId);
-    if (!allControls) return;
-    const nextControls = this.filterByVisibility(allControls, panel.values);
-    if (!this.sameControlPaths(panel.controls, nextControls)) {
-      panel.controls = nextControls;
-      this.notifyGlobal();
+    if (allControls) {
+      const nextControls = this.filterByVisibility(allControls, panel.values);
+      if (!this.sameControlPaths(panel.controls, nextControls)) {
+        panel.controls = nextControls;
+        this.notifyGlobal();
+      }
     }
   }
 
-  /**
-   * Reset a panel back to its base values and clear any active preset. Thin
-   * wrapper over {@link clearActivePreset}, which already restores base values
-   * and re-evaluates conditional visibility. Exposed as a named method so the
-   * controller's `resetValues` has a stable target.
-   */
   resetValues(panelId: string): void {
-    this.clearActivePreset(panelId);
+    const panel = this.panels.get(panelId);
+    const defaults = this.defaultValues.get(panelId);
+    if (!panel || !defaults) return;
+
+    panel.values = { ...defaults };
+    this.snapshots.set(panelId, { ...panel.values });
+    this.baseValues.set(panelId, { ...defaults });
+    this.activePreset.set(panelId, null);
+    this.persistPanel(panelId);
+    this.notify(panelId);
+
+    const allControls = this.allControls.get(panelId);
+    if (allControls) {
+      const nextControls = this.filterByVisibility(allControls, panel.values);
+      if (!this.sameControlPaths(panel.controls, nextControls)) {
+        panel.controls = nextControls;
+        this.notifyGlobal();
+      }
+    }
   }
 
   updateSpringMode(panelId: string, path: string, mode: 'simple' | 'advanced'): void {
@@ -372,23 +654,9 @@ class DialStoreClass {
     const panel = this.panels.get(panelId);
     if (!panel) return;
 
-    const modePath = `${path}.__mode`;
-    panel.values[modePath] = mode;
-
-    // Auto-save to active preset or base values, mirroring updateValue.
-    // Without this, mode changes are ephemeral — they die at the next
-    // preset switch because loadPreset replaces panel.values wholesale.
-    const activeId = this.activePreset.get(panelId);
-    if (activeId) {
-      const presets = this.presets.get(panelId) ?? [];
-      const preset = presets.find(p => p.id === activeId);
-      if (preset) preset.values[modePath] = mode;
-    } else {
-      const base = this.baseValues.get(panelId);
-      if (base) base[modePath] = mode;
-    }
-
+    panel.values[`${path}.__mode`] = mode;
     this.snapshots.set(panelId, { ...panel.values });
+    this.persistPanel(panelId);
     this.notify(panelId);
   }
 
@@ -409,8 +677,13 @@ class DialStoreClass {
     return this.snapshots.get(panelId) ?? EMPTY_VALUES;
   }
 
-  getPanels(): PanelConfig[] {
-    return Array.from(this.panels.values());
+  getPanels(kind?: 'panel' | 'timeline'): PanelConfig[] {
+    // Stable reference between global notifications: getSnapshot-style
+    // consumers (React useSyncExternalStore, Solid `from`) compare by
+    // identity, and a fresh array on every call makes them loop or re-render.
+    if (kind === 'panel') return this.standardPanelsSnapshot;
+    if (kind === 'timeline') return this.timelinePanelsSnapshot;
+    return this.panelsSnapshot;
   }
 
   getPanel(id: string): PanelConfig | undefined {
@@ -424,7 +697,11 @@ class DialStoreClass {
     this.listeners.get(panelId)!.add(listener);
 
     return () => {
-      this.listeners.get(panelId)?.delete(listener);
+      const listeners = this.listeners.get(panelId);
+      listeners?.delete(listener);
+      if (listeners?.size === 0 && !this.panels.has(panelId)) {
+        this.listeners.delete(panelId);
+      }
     };
   }
 
@@ -440,7 +717,11 @@ class DialStoreClass {
     this.actionListeners.get(panelId)!.add(listener);
 
     return () => {
-      this.actionListeners.get(panelId)?.delete(listener);
+      const listeners = this.actionListeners.get(panelId);
+      listeners?.delete(listener);
+      if (listeners?.size === 0 && !this.panels.has(panelId)) {
+        this.actionListeners.delete(panelId);
+      }
     };
   }
 
@@ -465,6 +746,7 @@ class DialStoreClass {
 
     // Force re-render by creating new snapshot reference
     this.snapshots.set(panelId, { ...panel.values });
+    this.persistPanel(panelId);
     this.notify(panelId);
 
     return id;
@@ -482,6 +764,8 @@ class DialStoreClass {
     panel.values = { ...preset.values };
     this.snapshots.set(panelId, { ...panel.values });
     this.activePreset.set(panelId, presetId);
+    this.persistPanel(panelId);
+    this.notify(panelId);
 
     // Re-evaluate conditional visibility against the preset's values. If
     // any control's visibility flipped (e.g. the preset changed a field
@@ -495,8 +779,6 @@ class DialStoreClass {
         this.notifyGlobal();
       }
     }
-
-    this.notify(panelId);
   }
 
   deletePreset(panelId: string, presetId: string): void {
@@ -513,6 +795,7 @@ class DialStoreClass {
     if (panel) {
       this.snapshots.set(panelId, { ...panel.values });
     }
+    this.persistPanel(panelId);
     this.notify(panelId);
   }
 
@@ -545,6 +828,7 @@ class DialStoreClass {
       }
     }
     this.activePreset.set(panelId, null);
+    this.persistPanel(panelId);
     this.notify(panelId);
   }
 
@@ -588,6 +872,126 @@ class DialStoreClass {
     return results;
   }
 
+  private configurePanelRetention(id: string, options: DialStorePanelOptions): void {
+    if (options.retainOnUnmount) {
+      this.retainedPanels.add(id);
+    }
+
+    const persistConfig = this.normalizePersistConfig(id, options.persist);
+    if (persistConfig) {
+      this.persistConfigs.set(id, persistConfig);
+      this.retainedPanels.add(id);
+    }
+  }
+
+  private reconcileValues(
+    defaultValues: Record<string, DialValue>,
+    previousValues: Record<string, DialValue>,
+    controlsByPath: Map<string, ControlMeta>
+  ): Record<string, DialValue> {
+    const nextValues: Record<string, DialValue> = {};
+
+    for (const [path, defaultValue] of Object.entries(defaultValues)) {
+      if (path.endsWith('.__mode')) {
+        const transitionPath = path.slice(0, -'.__mode'.length);
+        const transitionControl = controlsByPath.get(transitionPath);
+        nextValues[path] = transitionControl?.type === 'transition' && previousValues[path] !== undefined
+          ? previousValues[path]
+          : defaultValue;
+        continue;
+      }
+
+      nextValues[path] = this.normalizePreservedValue(
+        previousValues[path],
+        defaultValue,
+        controlsByPath.get(path)
+      );
+    }
+
+    return nextValues;
+  }
+
+  private reconcilePresets(
+    presets: Preset[],
+    defaultValues: Record<string, DialValue>,
+    controlsByPath: Map<string, ControlMeta>
+  ): Preset[] {
+    return presets.map((preset) => ({
+      ...preset,
+      values: this.reconcileValues(defaultValues, preset.values, controlsByPath),
+    }));
+  }
+
+  private normalizePersistConfig(id: string, persist: DialKitPersistOptions | undefined): PersistConfig | null {
+    if (!persist) return null;
+    const options = typeof persist === 'object' ? persist : {};
+    return {
+      key: options.key ?? `dialkit:${id}`,
+      storage: options.storage ?? 'localStorage',
+      presets: options.presets ?? true,
+    };
+  }
+
+  private loadPersistedPanel(id: string): PersistedPanelState | null {
+    const config = this.persistConfigs.get(id);
+    if (!config) return null;
+
+    const storage = this.getStorage(config.storage);
+    if (!storage) return null;
+
+    try {
+      const raw = storage.getItem(config.key);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as PersistedPanelState;
+      if (parsed?.version !== 1 || typeof parsed !== 'object') return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+
+  private persistPanel(id: string): void {
+    const config = this.persistConfigs.get(id);
+    if (!config) return;
+
+    const storage = this.getStorage(config.storage);
+    if (!storage) return;
+
+    const values = this.snapshots.get(id) ?? this.panels.get(id)?.values;
+    if (!values) return;
+
+    const state: PersistedPanelState = {
+      version: 1,
+      values,
+      baseValues: this.baseValues.get(id) ?? values,
+      activePresetId: this.activePreset.get(id) ?? null,
+    };
+
+    if (config.presets) {
+      state.presets = this.presets.get(id) ?? [];
+    }
+
+    try {
+      storage.setItem(config.key, JSON.stringify(state));
+    } catch {
+      // Ignore storage quota/security errors; DialKit should still work in-memory.
+    }
+  }
+
+  private getStorage(kind: 'localStorage' | 'sessionStorage'): Storage | null {
+    if (typeof globalThis === 'undefined' || !('window' in globalThis)) {
+      return null;
+    }
+
+    try {
+      return kind === 'sessionStorage'
+        ? globalThis.window?.sessionStorage ?? null
+        : globalThis.window?.localStorage ?? null;
+    } catch {
+      return null;
+    }
+  }
+
   private findControlByPath(controls: ControlMeta[], path: string): ControlMeta | null {
     for (const control of controls) {
       if (control.path === path) return control;
@@ -604,6 +1008,9 @@ class DialStoreClass {
   }
 
   private notifyGlobal(): void {
+    this.panelsSnapshot = Array.from(this.panels.values());
+    this.standardPanelsSnapshot = this.panelsSnapshot.filter((panel) => panel.kind !== 'timeline');
+    this.timelinePanelsSnapshot = this.panelsSnapshot.filter((panel) => panel.kind === 'timeline');
     this.globalListeners.forEach(fn => fn());
   }
 
@@ -794,15 +1201,11 @@ class DialStoreClass {
   }
 
   private isHexColor(value: string): boolean {
-    return /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$/.test(value);
+    return isHexColor(value);
   }
 
   private formatLabel(key: string): string {
-    // Convert camelCase to Title Case
-    return key
-      .replace(/([A-Z])/g, ' $1')
-      .replace(/^./, str => str.toUpperCase())
-      .trim();
+    return formatLabel(key);
   }
 
   private inferRange(value: number): { min: number; max: number; step: number } {
@@ -821,11 +1224,7 @@ class DialStoreClass {
   }
 
   private inferStep(min: number, max: number): number {
-    const range = max - min;
-    if (range <= 1) return 0.01;
-    if (range <= 10) return 0.1;
-    if (range <= 100) return 1;
-    return 10;
+    return inferStep(min, max);
   }
 
   private normalizePreservedValue(
@@ -1015,4 +1414,4 @@ class DialStoreClass {
 }
 
 // Singleton instance
-export const DialStore = new DialStoreClass();
+export const DialStore = /* @__PURE__ */ new DialStoreClass();

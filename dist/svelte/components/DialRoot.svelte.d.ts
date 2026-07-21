@@ -7,6 +7,7 @@ type $$ComponentProps = {
     mode?: DialMode;
     theme?: DialTheme;
     productionEnabled?: boolean;
+    onOpenChange?: (open: boolean) => void;
 };
 declare const DialRoot: import("svelte").Component<$$ComponentProps, {}, "">;
 type DialRoot = ReturnType<typeof DialRoot>;

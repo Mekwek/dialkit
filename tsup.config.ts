@@ -1,6 +1,16 @@
 import { defineConfig } from 'tsup';
 import { solidPlugin } from 'esbuild-plugin-solid';
 
+const externalPackageStorePlugin = {
+  name: 'external-package-store',
+  setup(build: { onResolve: (options: { filter: RegExp }, callback: () => { path: string; external: boolean }) => void }) {
+    build.onResolve({ filter: /^\.\/store\/DialStore$/ }, () => ({
+      path: 'dialkit/store',
+      external: true,
+    }));
+  },
+};
+
 export default defineConfig([
   // Store build (shared across all framework entries)
   {
@@ -10,6 +20,31 @@ export default defineConfig([
     dts: true,
     splitting: false,
     sourcemap: true,
+  },
+  // Framework-neutral timeline runtime. Svelte consumes this as a package
+  // subpath because svelte-package preserves imports instead of bundling it.
+  {
+    entry: { index: 'src/timeline/index.ts' },
+    outDir: 'dist/timeline',
+    format: ['esm', 'cjs'],
+    dts: true,
+    splitting: false,
+    sourcemap: true,
+    esbuildPlugins: [externalPackageStorePlugin],
+  },
+  // Shared modules referenced by the packaged Svelte components.
+  {
+    entry: {
+      icons: 'src/icons.ts',
+      'dropdown-position': 'src/dropdown-position.ts',
+      'panel-drag': 'src/panel-drag.ts',
+      'shortcut-utils': 'src/shortcut-utils.ts',
+    },
+    format: ['esm'],
+    dts: true,
+    splitting: false,
+    sourcemap: true,
+    esbuildPlugins: [externalPackageStorePlugin],
   },
   // React build
   {
@@ -30,7 +65,7 @@ export default defineConfig([
   {
     entry: { index: 'src/solid/index.ts' },
     outDir: 'dist/solid',
-    format: ['esm', 'cjs'],
+    format: ['esm'],
     dts: {
       compilerOptions: {
         jsx: 'preserve',
@@ -39,7 +74,7 @@ export default defineConfig([
     },
     splitting: false,
     sourcemap: true,
-    external: ['solid-js', 'solid-js/web', 'motion'],
+    external: ['solid-js', 'solid-js/web', 'solid-js/store', 'motion'],
     tsconfig: 'tsconfig.solid.json',
     esbuildPlugins: [solidPlugin()],
   },
@@ -47,7 +82,7 @@ export default defineConfig([
   {
     entry: { index: 'src/vue/index.ts' },
     outDir: 'dist/vue',
-    format: ['esm', 'cjs'],
+    format: ['esm'],
     dts: true,
     splitting: false,
     sourcemap: true,

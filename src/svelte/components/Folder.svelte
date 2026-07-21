@@ -12,6 +12,7 @@
     inline = false,
     onOpenChange,
     toolbar,
+    panelHeightOffset = 10,
     children,
   } = $props<{
     title: string;
@@ -20,12 +21,14 @@
     inline?: boolean;
     onOpenChange?: (isOpen: boolean) => void;
     toolbar?: Snippet;
+    panelHeightOffset?: number;
     children?: Snippet;
   }>();
 
   let isOpen = $state(defaultOpen);
   let isCollapsed = $state(!defaultOpen);
   let contentHeight = $state<number | undefined>(undefined);
+  let hasInitializedRootSize = $state(!isRoot || !defaultOpen);
 
   let contentRef: HTMLDivElement | undefined;
   let panelRef: HTMLDivElement | undefined;
@@ -74,11 +77,16 @@
     if (!isRoot) return;
 
     const measured = contentHeight ?? panelRef?.getBoundingClientRect().height ?? 42;
-    const nextHeight = isOpen ? Math.min(measured + 10, windowHeight - 32) : 42;
+    const nextHeight = isOpen ? Math.min(measured + panelHeightOffset, windowHeight - 32) : 42;
+    const springOptions = !hasInitializedRootSize && isOpen ? { instant: true } : undefined;
 
-    panelWidth.set(isOpen ? 280 : 42);
-    panelHeight.set(nextHeight);
-    panelRadius.set(isOpen ? 14 : 21);
+    panelWidth.set(isOpen ? 280 : 42, springOptions);
+    panelHeight.set(nextHeight, springOptions);
+    panelRadius.set(isOpen ? 14 : 21, springOptions);
+
+    if (isOpen || !defaultOpen) {
+      hasInitializedRootSize = true;
+    }
   });
 
   const handleToggle = () => {
@@ -100,8 +108,9 @@
     panelScale.set(1);
   };
 
+  const panelHeightStyle = $derived(!hasInitializedRootSize && isOpen ? 'auto' : `${panelHeight.current}px`);
   const panelStyle = $derived(
-    `width:${panelWidth.current}px;height:${panelHeight.current}px;border-radius:${panelRadius.current}px;` +
+    `width:${panelWidth.current}px;height:${panelHeightStyle};max-height:${Math.max(windowHeight - 32, 42)}px;border-radius:${panelRadius.current}px;` +
       `box-shadow:${isOpen ? 'var(--dial-shadow)' : 'var(--dial-shadow-collapsed)'};` +
       `cursor:${isOpen ? '' : 'pointer'};overflow:${isOpen ? 'hidden auto' : 'hidden'};` +
       `transform:scale(${panelScale.current});`
@@ -110,7 +119,7 @@
 
 {#if isRoot && inline}
   <div class="dialkit-panel-inner dialkit-panel-inline">
-    <div bind:this={contentRef} class="dialkit-folder dialkit-folder-root">
+    <div bind:this={contentRef} class="dialkit-folder dialkit-folder-root" data-open={String(isOpen)}>
       <div class="dialkit-folder-header dialkit-panel-header" onclick={(e) => { e.stopPropagation(); handleToggle(); }}>
         <div class="dialkit-folder-header-top">
           <div class="dialkit-folder-title-row">
@@ -118,9 +127,11 @@
           </div>
         </div>
 
-        <div class="dialkit-panel-toolbar" onclick={(e) => e.stopPropagation()}>
-          {#if toolbar}{@render toolbar()}{/if}
-        </div>
+        {#if toolbar}
+          <div class="dialkit-panel-toolbar" onclick={(e) => e.stopPropagation()}>
+            {@render toolbar()}
+          </div>
+        {/if}
       </div>
 
       <div class="dialkit-folder-content">
@@ -142,7 +153,7 @@
     onpointerleave={handleCollapsedTapEnd}
     onclick={() => { if (!isOpen) handleToggle(); }}
   >
-    <div bind:this={contentRef} class="dialkit-folder dialkit-folder-root">
+    <div bind:this={contentRef} class="dialkit-folder dialkit-folder-root" data-open={String(isOpen)}>
       <div class="dialkit-folder-header dialkit-panel-header" onclick={(e) => { e.stopPropagation(); handleToggle(); }}>
         <div class="dialkit-folder-header-top">
           {#if isOpen}
@@ -163,9 +174,9 @@
           </svg>
         </div>
 
-        {#if isOpen}
+        {#if isOpen && toolbar}
           <div class="dialkit-panel-toolbar" onclick={(e) => e.stopPropagation()}>
-            {#if toolbar}{@render toolbar()}{/if}
+            {@render toolbar()}
           </div>
         {/if}
       </div>
@@ -180,7 +191,7 @@
     </div>
   </div>
 {:else}
-  <div class="dialkit-folder">
+  <div class="dialkit-folder" data-open={String(isOpen)}>
     <div class="dialkit-folder-header" onclick={handleToggle}>
       <div class="dialkit-folder-header-top">
         <div class="dialkit-folder-title-row">

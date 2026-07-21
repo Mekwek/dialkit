@@ -1,8 +1,12 @@
+import type { Snippet } from 'svelte';
 import type { PanelConfig } from 'dialkit/store';
 type $$ComponentProps = {
     panel: PanelConfig;
     defaultOpen?: boolean;
     inline?: boolean;
+    onOpenChange?: (open: boolean) => void;
+    variant?: 'root' | 'section';
+    toolbarExtra?: Snippet;
 };
 declare const Panel: import("svelte").Component<$$ComponentProps, {}, "">;
 type Panel = ReturnType<typeof Panel>;

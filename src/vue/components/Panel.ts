@@ -1,4 +1,4 @@
-import { Fragment, defineComponent, h, onMounted, onUnmounted, ref, type PropType } from 'vue';
+import { Fragment, defineComponent, h, onMounted, onUnmounted, ref, type PropType, type VNodeChild } from 'vue';
 import { AnimatePresence, motion } from 'motion-v';
 import { ICON_ADD_PRESET, ICON_CHECK, ICON_CLIPBOARD } from '../../icons';
 import { DialStore } from '../../store/DialStore';
@@ -30,8 +30,14 @@ export const Panel = defineComponent({
       type: Boolean,
       default: false,
     },
+    variant: {
+      type: String as PropType<'root' | 'section'>,
+      default: 'root',
+    },
+    toolbarExtra: Function as PropType<() => VNodeChild>,
   },
-  setup(props) {
+  emits: ['openChange'],
+  setup(props, { emit }) {
     const shortcutCtx = useShortcutContext();
     const values = ref<Record<string, DialValue>>(DialStore.getValues(props.panel.id));
     const presets = ref(DialStore.getPresets(props.panel.id));
@@ -81,6 +87,10 @@ export const Panel = defineComponent({
       copiedTimeout = window.setTimeout(() => {
         copied.value = false;
       }, 1500);
+    };
+
+    const handleOpenChange = (open: boolean) => {
+      emit('openChange', open);
     };
 
     const renderControl = (control: ControlMeta) => {
@@ -254,7 +264,24 @@ export const Panel = defineComponent({
           ]),
           'Copy',
         ]),
+        props.toolbarExtra?.(),
       ]);
+
+      if (props.variant === 'section') {
+        return h(Folder, {
+          title: props.panel.name,
+          defaultOpen: props.defaultOpen,
+          onOpenChange: handleOpenChange,
+        }, {
+          default: () => [
+            h('div', {
+              class: 'dialkit-panel-section-toolbar',
+              onClick: (event: Event) => event.stopPropagation(),
+            }, [toolbarNode]),
+            ...props.panel.controls.map(renderControl),
+          ],
+        });
+      }
 
       return h('div', { class: 'dialkit-panel-wrapper' }, [
         h(Folder, {
@@ -263,6 +290,7 @@ export const Panel = defineComponent({
           isRoot: true,
           inline: props.inline,
           toolbar: () => toolbarNode,
+          onOpenChange: handleOpenChange,
         }, {
           default: () => props.panel.controls.map(renderControl),
         }),

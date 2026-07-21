@@ -1,5 +1,5 @@
 import * as vue from 'vue';
-import { ComputedRef, ObjectDirective, InjectionKey, Ref, PropType, h } from 'vue';
+import { ComputedRef, ObjectDirective, PropType, InjectionKey, Ref, VNodeChild } from 'vue';
 
 type SpringConfig = {
     type: 'spring';
@@ -97,6 +97,9 @@ type DialConfig = {
 type ResolvedValues<T extends DialConfig> = {
     [K in keyof T]: T[K] extends [number, number, number, number?] ? number : T[K] extends SpringConfig ? TransitionConfig : T[K] extends EasingConfig ? TransitionConfig : T[K] extends SelectConfig ? string : T[K] extends ColorConfig ? string : T[K] extends TextConfig ? string : T[K] extends DialConfig ? ResolvedValues<T[K]> : T[K];
 };
+type DialKitValueUpdates<T extends DialConfig> = {
+    [K in keyof T as K extends '_collapsed' ? never : K]?: T[K] extends [number, number, number, number?] ? number : T[K] extends SpringConfig | EasingConfig ? TransitionConfig : T[K] extends ActionConfig ? never : T[K] extends SelectConfig | ColorConfig | TextConfig ? string : T[K] extends DialConfig ? DialKitValueUpdates<T[K]> : T[K];
+};
 type ShortcutMode = 'fine' | 'normal' | 'coarse';
 type ShortcutInteraction = 'scroll' | 'drag' | 'move' | 'scroll-only';
 type ShortcutConfig = {
@@ -129,6 +132,7 @@ type PanelConfig = {
     controls: ControlMeta[];
     values: Record<string, DialValue>;
     shortcuts: Record<string, ShortcutConfig>;
+    kind?: 'timeline';
     /**
      * Optional grouping key. Panels sharing the same non-empty `group` are
      * rendered as collapsible sections inside ONE merged shell by `DialRoot`.
@@ -150,8 +154,29 @@ type Preset = {
     name: string;
     values: Record<string, DialValue>;
 };
+type DialKitPersistOptions = boolean | {
+    key?: string;
+    storage?: 'localStorage' | 'sessionStorage';
+    presets?: boolean;
+};
+type DialStorePanelOptions = {
+    retainOnUnmount?: boolean;
+    persist?: DialKitPersistOptions;
+    kind?: 'timeline';
+    /**
+     * Optional grouping key. See {@link PanelConfig.group}.
+     */
+    group?: string;
+    /**
+     * Initial open state for this panel's folder. See {@link PanelConfig.defaultOpen}.
+     */
+    defaultOpen?: boolean;
+};
 declare class DialStoreClass {
     private panels;
+    private panelsSnapshot;
+    private standardPanelsSnapshot;
+    private timelinePanelsSnapshot;
     private listeners;
     private globalListeners;
     private snapshots;
@@ -159,6 +184,10 @@ declare class DialStoreClass {
     private presets;
     private activePreset;
     private baseValues;
+    private defaultValues;
+    private registrationCounts;
+    private retainedPanels;
+    private persistConfigs;
     /**
      * Full (unfiltered) control tree per panel. `panels[id].controls` holds the
      * tree with conditional-visibility controls already filtered out, which is
@@ -166,23 +195,11 @@ declare class DialStoreClass {
      * flip back when a dependent value changes.
      */
     private allControls;
-    registerPanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, group?: string, defaultOpen?: boolean): void;
-    updatePanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, group?: string, defaultOpen?: boolean): void;
+    registerPanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, options?: DialStorePanelOptions): void;
+    updatePanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, options?: DialStorePanelOptions): void;
     unregisterPanel(id: string): void;
     updateValue(panelId: string, path: string, value: DialValue): void;
-    /**
-     * Batch-write multiple flat store paths in one pass: a single snapshot bump,
-     * a single `notify`, and exactly one conditional-visibility re-evaluation at
-     * the end. Mirrors {@link updateValue}'s auto-save (active preset or base
-     * values) so the controller's `setValues` is consistent with slider edits.
-     */
     updateValues(panelId: string, updates: Record<string, DialValue>): void;
-    /**
-     * Reset a panel back to its base values and clear any active preset. Thin
-     * wrapper over {@link clearActivePreset}, which already restores base values
-     * and re-evaluates conditional visibility. Exposed as a named method so the
-     * controller's `resetValues` has a stable target.
-     */
     resetValues(panelId: string): void;
     updateSpringMode(panelId: string, path: string, mode: 'simple' | 'advanced'): void;
     getSpringMode(panelId: string, path: string): 'simple' | 'advanced';
@@ -190,7 +207,7 @@ declare class DialStoreClass {
     getTransitionMode(panelId: string, path: string): 'easing' | 'simple' | 'advanced';
     getValue(panelId: string, path: string): DialValue | undefined;
     getValues(panelId: string): Record<string, DialValue>;
-    getPanels(): PanelConfig[];
+    getPanels(kind?: 'panel' | 'timeline'): PanelConfig[];
     getPanel(id: string): PanelConfig | undefined;
     subscribe(panelId: string, listener: Listener): () => void;
     subscribeGlobal(listener: Listener): () => void;
@@ -213,6 +230,13 @@ declare class DialStoreClass {
         control: ControlMeta;
         shortcut: ShortcutConfig;
     }>;
+    private configurePanelRetention;
+    private reconcileValues;
+    private reconcilePresets;
+    private normalizePersistConfig;
+    private loadPersistedPanel;
+    private persistPanel;
+    private getStorage;
     private findControlByPath;
     private notify;
     private notifyGlobal;
@@ -269,10 +293,176 @@ declare class DialStoreClass {
 declare const DialStore: DialStoreClass;
 
 interface UseDialOptions {
+    id?: string;
+    persist?: DialKitPersistOptions;
     onAction?: (action: string) => void;
     shortcuts?: Record<string, ShortcutConfig>;
 }
+interface DialKitController<T extends DialConfig> {
+    values: ComputedRef<ResolvedValues<T>>;
+    setValue: (path: string, value: DialValue) => void;
+    setValues: (values: DialKitValueUpdates<T>) => void;
+    resetValues: () => void;
+    getValues: () => ResolvedValues<T>;
+}
 declare function useDialKit<T extends DialConfig>(name: string, config: T, options?: UseDialOptions): ComputedRef<ResolvedValues<T>>;
+declare function useDialKitController<T extends DialConfig>(name: string, config: T, options?: UseDialOptions): DialKitController<T>;
+
+type TimelineClipLoop = 'off' | 'repeat';
+type TimelineStepValues = {
+    [key: string]: DialConfig[string] | undefined;
+};
+type TimelineStepConfig = {
+    duration?: number;
+    to?: TimelineStepValues;
+    transition?: TransitionConfig;
+};
+type TimelinePropStepConfig = {
+    duration?: number;
+    to?: number | string;
+    transition?: TransitionConfig;
+};
+type TimelinePropConfig = {
+    from?: number | string;
+    to?: number | string;
+    duration?: number;
+    /** Offset from the clip's `at` in seconds. */
+    delay?: number;
+    transition?: TransitionConfig;
+    steps?: TimelinePropStepConfig[];
+};
+type TimelineClipBase = {
+    at: number;
+    duration?: number;
+    transition?: TransitionConfig;
+    loop?: boolean | TimelineClipLoop;
+};
+type TimelineClipConfig = TimelineClipBase & ({
+    from?: DialConfig;
+    to?: DialConfig;
+    steps?: never;
+    props?: never;
+} | {
+    from?: DialConfig;
+    to?: never;
+    /** Sequential legs on one row — a segmented bar; boundaries retime legs. */
+    steps: TimelineStepConfig[];
+    props?: never;
+} | {
+    from?: never;
+    to?: never;
+    steps?: never;
+    /** Independent per-property tracks — mutually exclusive with from/to/steps. */
+    props: {
+        [prop: string]: TimelinePropConfig;
+    };
+});
+/** Nested keys group clips into a collapsible layer — purely presentational. */
+type TimelineGroupConfig = {
+    [key: string]: TimelineClipConfig;
+};
+type TimelineConfig = {
+    /** Total timeline length in seconds. Inferred from the last clip when omitted. */
+    duration?: number;
+} & {
+    [key: string]: TimelineClipConfig | TimelineGroupConfig | number | undefined;
+};
+/** CSS-friendly output for consumers not using Motion — spread into a style. */
+type TimelineClipCss = {
+    transitionDuration: string;
+    transitionTimingFunction: string;
+};
+type TimelineClipValues<C extends TimelineClipConfig = TimelineClipConfig> = {
+    at: number;
+    duration: number;
+    /** Effective code-defined loop mode. */
+    loop: TimelineClipLoop;
+    /** Playhead is at or past the clip start. */
+    started: boolean;
+    /** Playhead is inside the clip — for looping clips, inside any cycle. */
+    active: boolean;
+    /** Playhead is past the clip end (for looping clips, past the timeline end). */
+    done: boolean;
+    /**
+     * 0–1 position of the playhead within the clip — cycle progress (a
+     * sawtooth) for looping clips, sequence progress for steps clips.
+     */
+    progress: number;
+    /** Index of the leg under the playhead, for sequence clips. */
+    step: C['steps'] extends TimelineStepConfig[] ? number : undefined;
+    from: C['props'] extends Record<string, TimelinePropConfig> ? {
+        [K in keyof C['props']]: number | string;
+    } : C['from'] extends DialConfig ? ResolvedValues<C['from']> : undefined;
+    to: C['props'] extends Record<string, TimelinePropConfig> ? {
+        [K in keyof C['props']]: number | string;
+    } : C['steps'] extends TimelineStepConfig[] ? C['from'] extends DialConfig ? ResolvedValues<C['from']> : Record<string, number | string> : C['to'] extends DialConfig ? ResolvedValues<C['to']> : undefined;
+    /** `to` once the clip has started, `from` before — hand it to Motion's animate.
+     * For sequences this is the final merged state; for props clips, per-track
+     * endpoint records. */
+    animate: C['props'] extends Record<string, TimelinePropConfig> ? {
+        [K in keyof C['props']]: number | string;
+    } : C['steps'] extends TimelineStepConfig[] ? C['from'] extends DialConfig ? ResolvedValues<C['from']> : Record<string, number | string> | undefined : C['to'] extends DialConfig ? C['from'] extends DialConfig ? ResolvedValues<C['from']> | ResolvedValues<C['to']> : ResolvedValues<C['to']> | undefined : undefined;
+    /** The clip's editable curve — single-curve clips only. */
+    transition: C['props'] extends Record<string, TimelinePropConfig> ? undefined : C['steps'] extends TimelineStepConfig[] ? undefined : C extends {
+        transition: TransitionConfig;
+    } | {
+        from: DialConfig;
+    } | {
+        to: DialConfig;
+    } ? TransitionConfig : undefined;
+    /** Duration + timing-function for native CSS transitions — single-curve clips only. */
+    css: C['props'] extends Record<string, TimelinePropConfig> ? undefined : C['steps'] extends TimelineStepConfig[] ? undefined : C extends {
+        transition: TransitionConfig;
+    } | {
+        from: DialConfig;
+    } | {
+        to: DialConfig;
+    } ? TimelineClipCss : undefined;
+    /**
+     * Values interpolated through the clip's curves at the current playhead —
+     * bind to style for true scrubbing: the element is exactly at this point
+     * in time whether playing, paused, or scrubbing. Sequence clips report the
+     * merged state of all legs (declare every animated property in `from`);
+     * props clips report every track's value.
+     */
+    current: C['props'] extends Record<string, TimelinePropConfig> ? {
+        [K in keyof C['props']]: number | string;
+    } : C['steps'] extends TimelineStepConfig[] ? C['from'] extends DialConfig ? ResolvedValues<C['from']> : Record<string, number | string> : C['to'] extends DialConfig ? C['from'] extends DialConfig ? ResolvedValues<C['from']> | ResolvedValues<C['to']> : undefined : undefined;
+};
+type TimelineGroupValues<G extends TimelineGroupConfig> = {
+    [K in keyof G as G[K] extends TimelineClipConfig ? K : never]: TimelineClipValues<Extract<G[K], TimelineClipConfig>>;
+};
+type DialTimelineValues<T extends TimelineConfig> = {
+    time: number;
+    playing: boolean;
+    duration: number;
+    play: () => void;
+    pause: () => void;
+    replay: () => void;
+    seek: (time: number) => void;
+} & {
+    [K in keyof T as T[K] extends TimelineClipConfig ? K : never]: TimelineClipValues<Extract<T[K], TimelineClipConfig>>;
+} & {
+    [K in keyof T as T[K] extends TimelineClipConfig ? never : T[K] extends TimelineGroupConfig ? K : never]: TimelineGroupValues<Extract<T[K], TimelineGroupConfig>>;
+};
+
+interface DialTimelineOptions {
+    id?: string;
+    persist?: DialKitPersistOptions;
+    /** Start playing on mount. Defaults to true. */
+    autoplay?: boolean;
+    /**
+     * Loop when the playhead reaches the end. `true` restarts the whole
+     * timeline; `{ from }` wraps back to that time instead, so clips before it
+     * play once and looping clips keep cycling forever. Defaults to false.
+     */
+    loop?: boolean | {
+        from: number;
+    };
+}
+
+type UseDialTimelineOptions = DialTimelineOptions;
+declare function useDialTimeline<T extends TimelineConfig>(name: string, config: T, options?: UseDialTimelineOptions): ComputedRef<DialTimelineValues<T>>;
 
 type DialPosition = 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
 type DialMode = 'popover' | 'inline';
@@ -300,7 +490,7 @@ declare const DialRoot: vue.DefineComponent<vue.ExtractPropTypes<{
     };
 }>, () => vue.VNode<vue.RendererNode, vue.RendererElement, {
     [key: string]: any;
-}> | null, {}, {}, {}, vue.ComponentOptionsMixin, vue.ComponentOptionsMixin, {}, string, vue.PublicProps, Readonly<vue.ExtractPropTypes<{
+}> | null, {}, {}, {}, vue.ComponentOptionsMixin, vue.ComponentOptionsMixin, "openChange"[], "openChange", vue.PublicProps, Readonly<vue.ExtractPropTypes<{
     position: {
         type: () => DialPosition;
         default: string;
@@ -321,9 +511,11 @@ declare const DialRoot: vue.DefineComponent<vue.ExtractPropTypes<{
         type: BooleanConstructor;
         default: boolean;
     };
-}>> & Readonly<{}>, {
-    mode: DialMode;
+}>> & Readonly<{
+    onOpenChange?: ((...args: any[]) => any) | undefined;
+}>, {
     defaultOpen: boolean;
+    mode: DialMode;
     position: DialPosition;
     theme: DialTheme;
     productionEnabled: boolean;
@@ -333,9 +525,64 @@ interface DialKitDirectiveOptions {
     position?: DialPosition;
     defaultOpen?: boolean;
     mode?: DialMode;
+    onOpenChange?: (open: boolean) => void;
 }
 type DialKitDirectiveValue = DialMode | DialKitDirectiveOptions | undefined;
 declare const vDialKit: ObjectDirective<HTMLElement, DialKitDirectiveValue>;
+
+declare const DialTimeline: vue.DefineComponent<vue.ExtractPropTypes<{
+    theme: {
+        type: PropType<DialTheme>;
+        default: string;
+    };
+    defaultVisible: {
+        type: BooleanConstructor;
+        default: boolean;
+    };
+    visible: {
+        type: PropType<boolean | undefined>;
+        default: undefined;
+    };
+    onVisibilityChange: PropType<(visible: boolean) => void>;
+    defaultOpen: {
+        type: BooleanConstructor;
+        default: boolean;
+    };
+    productionEnabled: {
+        type: BooleanConstructor;
+        default: boolean;
+    };
+}>, () => vue.VNode<vue.RendererNode, vue.RendererElement, {
+    [key: string]: any;
+}> | null, {}, {}, {}, vue.ComponentOptionsMixin, vue.ComponentOptionsMixin, {}, string, vue.PublicProps, Readonly<vue.ExtractPropTypes<{
+    theme: {
+        type: PropType<DialTheme>;
+        default: string;
+    };
+    defaultVisible: {
+        type: BooleanConstructor;
+        default: boolean;
+    };
+    visible: {
+        type: PropType<boolean | undefined>;
+        default: undefined;
+    };
+    onVisibilityChange: PropType<(visible: boolean) => void>;
+    defaultOpen: {
+        type: BooleanConstructor;
+        default: boolean;
+    };
+    productionEnabled: {
+        type: BooleanConstructor;
+        default: boolean;
+    };
+}>> & Readonly<{}>, {
+    defaultOpen: boolean;
+    visible: boolean | undefined;
+    theme: DialTheme;
+    productionEnabled: boolean;
+    defaultVisible: boolean;
+}, {}, {}, {}, string, vue.ComponentProvideOptions, true, {}, any>;
 
 interface ShortcutState {
     activePanelId: Ref<string | null>;
@@ -497,9 +744,13 @@ declare const Folder: vue.DefineComponent<vue.ExtractPropTypes<{
         default: boolean;
     };
     toolbar: {
-        type: PropType<(() => ReturnType<typeof h>) | null>;
+        type: PropType<(() => VNodeChild) | null>;
         required: false;
         default: null;
+    };
+    panelHeightOffset: {
+        type: NumberConstructor;
+        default: number;
     };
 }>, () => vue.VNode<vue.RendererNode, vue.RendererElement, {
     [key: string]: any;
@@ -521,9 +772,13 @@ declare const Folder: vue.DefineComponent<vue.ExtractPropTypes<{
         default: boolean;
     };
     toolbar: {
-        type: PropType<(() => ReturnType<typeof h>) | null>;
+        type: PropType<(() => VNodeChild) | null>;
         required: false;
         default: null;
+    };
+    panelHeightOffset: {
+        type: NumberConstructor;
+        default: number;
     };
 }>> & Readonly<{
     onOpenChange?: ((...args: any[]) => any) | undefined;
@@ -531,7 +786,8 @@ declare const Folder: vue.DefineComponent<vue.ExtractPropTypes<{
     defaultOpen: boolean;
     isRoot: boolean;
     inline: boolean;
-    toolbar: (() => ReturnType<typeof h>) | null;
+    toolbar: (() => VNodeChild) | null;
+    panelHeightOffset: number;
 }, {}, {}, {}, string, vue.ComponentProvideOptions, true, {}, any>;
 
 type ButtonGroupButton = {
@@ -614,6 +870,13 @@ declare const SpringVisualization: vue.DefineComponent<vue.ExtractPropTypes<{
     };
 }>> & Readonly<{}>, {}, {}, {}, {}, string, vue.ComponentProvideOptions, true, {}, any>;
 
+interface TransitionDurationControl {
+    value: number;
+    onChange: (value: number) => void;
+    min?: number;
+    max?: number;
+    step?: number;
+}
 declare const TransitionControl: vue.DefineComponent<vue.ExtractPropTypes<{
     panelId: {
         type: StringConstructor;
@@ -631,6 +894,11 @@ declare const TransitionControl: vue.DefineComponent<vue.ExtractPropTypes<{
         type: PropType<TransitionConfig>;
         required: true;
     };
+    hideDuration: {
+        type: BooleanConstructor;
+        default: boolean;
+    };
+    durationControl: PropType<TransitionDurationControl>;
 }>, () => vue.VNode<vue.RendererNode, vue.RendererElement, {
     [key: string]: any;
 }>, {}, {}, {}, vue.ComponentOptionsMixin, vue.ComponentOptionsMixin, "change"[], "change", vue.PublicProps, Readonly<vue.ExtractPropTypes<{
@@ -650,9 +918,16 @@ declare const TransitionControl: vue.DefineComponent<vue.ExtractPropTypes<{
         type: PropType<TransitionConfig>;
         required: true;
     };
+    hideDuration: {
+        type: BooleanConstructor;
+        default: boolean;
+    };
+    durationControl: PropType<TransitionDurationControl>;
 }>> & Readonly<{
     onChange?: ((...args: any[]) => any) | undefined;
-}>, {}, {}, {}, {}, string, vue.ComponentProvideOptions, true, {}, any>;
+}>, {
+    hideDuration: boolean;
+}, {}, {}, {}, string, vue.ComponentProvideOptions, true, {}, any>;
 
 declare const EasingVisualization: vue.DefineComponent<vue.ExtractPropTypes<{
     easing: {
@@ -794,4 +1069,36 @@ declare const PresetManager: vue.DefineComponent<vue.ExtractPropTypes<{
     activePresetId: string | null;
 }, {}, {}, {}, string, vue.ComponentProvideOptions, true, {}, any>;
 
-export { type ActionConfig, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, type ControlWithVisibility, type DialConfig, type DialKitDirectiveOptions, type DialKitDirectiveValue, type DialMode, type DialPosition, DialRoot, DialStore, type DialTheme, type DialValue, type EasingConfig, EasingVisualization, Folder, type PanelConfig, type Preset, PresetManager, type ResolvedValues, type SelectConfig, SelectControl, type ShortcutConfig, ShortcutKey, ShortcutListener, type ShortcutState, ShortcutsMenu, Slider, type SpringConfig, SpringControl, SpringVisualization, type TextConfig, TextControl, Toggle, type TransitionConfig, TransitionControl, type UseDialOptions, type VisibleWhen, type VisibleWhenValue, unwrapVisibility, useDialKit, useShortcutContext, vDialKit, withVisibility };
+declare const ControlRenderer: vue.DefineComponent<vue.ExtractPropTypes<{
+    panelId: {
+        type: StringConstructor;
+        required: true;
+    };
+    controls: {
+        type: PropType<ControlMeta[]>;
+        required: true;
+    };
+    values: {
+        type: PropType<Record<string, DialValue>>;
+        required: true;
+    };
+    transitionDuration: PropType<TransitionDurationControl>;
+}>, () => vue.VNode<vue.RendererNode, vue.RendererElement, {
+    [key: string]: any;
+}>, {}, {}, {}, vue.ComponentOptionsMixin, vue.ComponentOptionsMixin, {}, string, vue.PublicProps, Readonly<vue.ExtractPropTypes<{
+    panelId: {
+        type: StringConstructor;
+        required: true;
+    };
+    controls: {
+        type: PropType<ControlMeta[]>;
+        required: true;
+    };
+    values: {
+        type: PropType<Record<string, DialValue>>;
+        required: true;
+    };
+    transitionDuration: PropType<TransitionDurationControl>;
+}>> & Readonly<{}>, {}, {}, {}, {}, string, vue.ComponentProvideOptions, true, {}, any>;
+
+export { type ActionConfig, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type DialConfig, type DialKitController, type DialKitDirectiveOptions, type DialKitDirectiveValue, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineValues, type DialValue, type EasingConfig, EasingVisualization, Folder, type PanelConfig, type Preset, PresetManager, type ResolvedValues, type SelectConfig, SelectControl, type ShortcutConfig, ShortcutKey, ShortcutListener, type ShortcutState, ShortcutsMenu, Slider, type SpringConfig, SpringControl, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, Toggle, type TransitionConfig, TransitionControl, type UseDialOptions, type UseDialTimelineOptions, type VisibleWhen, type VisibleWhenValue, unwrapVisibility, useDialKit, useDialKitController, useDialTimeline, useShortcutContext, vDialKit, withVisibility };

@@ -1,4 +1,4 @@
-import { defineComponent, h, onMounted, onUnmounted, ref, type PropType } from 'vue';
+import { defineComponent, h, onMounted, onUnmounted, ref, type PropType, type VNodeChild } from 'vue';
 import { AnimatePresence, motion } from 'motion-v';
 import { ICON_CHEVRON, ICON_PANEL } from '../../icons';
 
@@ -10,9 +10,13 @@ export const Folder = defineComponent({
     isRoot: { type: Boolean, default: false },
     inline: { type: Boolean, default: false },
     toolbar: {
-      type: null as unknown as PropType<(() => ReturnType<typeof h>) | null>,
+      type: null as unknown as PropType<(() => VNodeChild) | null>,
       required: false,
       default: null,
+    },
+    panelHeightOffset: {
+      type: Number,
+      default: 10,
     },
   },
   emits: ['openChange'],
@@ -139,6 +143,7 @@ export const Folder = defineComponent({
     const folderContent = () => h('div', {
       ref: props.isRoot ? contentRef : undefined,
       class: `dialkit-folder ${props.isRoot ? 'dialkit-folder-root' : ''}`,
+      'data-open': String(isOpen.value),
     }, [
       renderHeader(),
       renderContent(),
@@ -153,7 +158,7 @@ export const Folder = defineComponent({
         const panelStyle = isOpen.value
           ? {
             width: 280,
-            height: contentHeight.value !== undefined ? Math.min(contentHeight.value + 10, windowHeight.value - 32) : 'auto',
+            height: contentHeight.value !== undefined ? Math.min(contentHeight.value + props.panelHeightOffset, windowHeight.value - 32) : 'auto',
             borderRadius: 14,
             boxShadow: 'var(--dial-shadow)',
             cursor: undefined as string | undefined,
