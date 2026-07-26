@@ -110,7 +110,7 @@ export function TransitionControl(props: TransitionControlProps) {
           else handleSpringUpdate('visualDuration', value);
         })}
         min={external?.min ?? 0.1}
-        max={external?.max ?? (isEasing() ? 2 : 1)}
+        max={external?.max ?? 5}
         step={external?.step ?? 0.05}
         unit="s"
       />

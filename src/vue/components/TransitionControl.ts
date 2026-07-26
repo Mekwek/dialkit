@@ -170,7 +170,7 @@ export const TransitionControl = defineComponent({
           label: 'Duration',
           value: props.durationControl?.value ?? (isEasing ? currentEasing.duration : currentSpring.visualDuration ?? 0.3),
           min: props.durationControl?.min ?? 0.1,
-          max: props.durationControl?.max ?? (isEasing ? 2 : 1),
+          max: props.durationControl?.max ?? 5,
           step: props.durationControl?.step ?? 0.05,
           unit: 's',
           onChange: props.durationControl?.onChange ?? ((next: number) => {

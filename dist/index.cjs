@@ -2566,7 +2566,7 @@ function TransitionControl({
         else handleSpringUpdate("visualDuration", next);
       }),
       min: durationControl?.min ?? 0.1,
-      max: durationControl?.max ?? (isEasing ? 2 : 1),
+      max: durationControl?.max ?? 5,
       step: durationControl?.step ?? 0.05,
       unit: "s"
     }

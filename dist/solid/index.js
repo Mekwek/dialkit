@@ -3902,7 +3902,7 @@ function TransitionControl(props) {
         return external?.min ?? 0.1;
       },
       get max() {
-        return external?.max ?? (isEasing() ? 2 : 1);
+        return external?.max ?? 5;
       },
       get step() {
         return external?.step ?? 0.05;
