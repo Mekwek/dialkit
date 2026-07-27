@@ -86,6 +86,13 @@ type TimelineClipBase = {
   duration?: number;
   transition?: TransitionConfig;
   loop?: boolean | TimelineClipLoop;
+  /**
+   * Display name for the clip's bar. Defaults to the config key, prettified.
+   * Set this when the key is an opaque identifier — keying clips by a stable
+   * record id keeps edits attached across renames and reordering, but that id
+   * is not something anyone wants to read on a timeline.
+   */
+  label?: string;
 };
 
 // The three clip shapes are mutually exclusive, encoded with optional-never
@@ -592,7 +599,10 @@ export function parseTimelineConfig(config: TimelineConfig): ParsedTimeline {
 
     clips.push({
       key: path,
-      label: formatLabel(childKey),
+      label:
+        typeof raw.label === 'string' && raw.label.trim()
+          ? raw.label.trim()
+          : formatLabel(childKey),
       color: TIMELINE_CLIP_COLORS[index % TIMELINE_CLIP_COLORS.length],
       loop: normalizeLoopMode(clip.loop),
       group,
@@ -604,7 +614,7 @@ export function parseTimelineConfig(config: TimelineConfig): ParsedTimeline {
   return { duration, dialConfig, clips };
 }
 
-const TRACK_RESERVED = new Set(['at', 'duration', 'loop', 'from', 'to', 'transition', 'delay']);
+const TRACK_RESERVED = new Set(['at', 'duration', 'loop', 'label', 'from', 'to', 'transition', 'delay']);
 
 // A scalar track value as a dial — wraps it in a single-key record so
 // tracks and clips share exactly one range-inference policy.

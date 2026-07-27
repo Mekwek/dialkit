@@ -450,6 +450,13 @@ type TimelineClipBase = {
     duration?: number;
     transition?: TransitionConfig;
     loop?: boolean | TimelineClipLoop;
+    /**
+     * Display name for the clip's bar. Defaults to the config key, prettified.
+     * Set this when the key is an opaque identifier — keying clips by a stable
+     * record id keeps edits attached across renames and reordering, but that id
+     * is not something anyone wants to read on a timeline.
+     */
+    label?: string;
 };
 type TimelineClipConfig = TimelineClipBase & ({
     from?: DialConfig;

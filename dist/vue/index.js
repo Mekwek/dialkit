@@ -1510,7 +1510,7 @@ function parseTimelineConfig(config) {
     setDialPath(dialConfig, path, clipDial);
     clips.push({
       key: path,
-      label: formatLabel(childKey),
+      label: typeof raw.label === "string" && raw.label.trim() ? raw.label.trim() : formatLabel(childKey),
       color: TIMELINE_CLIP_COLORS[index % TIMELINE_CLIP_COLORS.length],
       loop: normalizeLoopMode(clip.loop),
       group,
@@ -1520,7 +1520,7 @@ function parseTimelineConfig(config) {
   });
   return { duration, dialConfig, clips };
 }
-var TRACK_RESERVED = /* @__PURE__ */ new Set(["at", "duration", "loop", "from", "to", "transition", "delay"]);
+var TRACK_RESERVED = /* @__PURE__ */ new Set(["at", "duration", "loop", "label", "from", "to", "transition", "delay"]);
 function scalarDial(prop, value, counterpart) {
   const record = withFromToRanges(
     { [prop]: value },
