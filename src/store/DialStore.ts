@@ -574,6 +574,20 @@ class DialStoreClass {
 
       panel.values[path] = value;
       validUpdates[path] = value;
+
+      // A transition control renders from TWO keys: the config value and the
+      // `.__mode` sibling that picks which editor (easing/time/physics) is
+      // shown. A programmatic write that changes the config's type without
+      // updating the mode leaves the control rendering the OLD type's
+      // editors over the new value — so derive the mode from the value here,
+      // exactly as registration does in initTransitionModes.
+      if (control?.type === 'transition') {
+        const mode = this.transitionModeFor(value);
+        if (mode) {
+          panel.values[`${path}.__mode`] = mode;
+          validUpdates[`${path}.__mode`] = mode;
+        }
+      }
     }
 
     if (Object.keys(validUpdates).length === 0) {
@@ -1014,6 +1028,18 @@ class DialStoreClass {
     this.globalListeners.forEach(fn => fn());
   }
 
+  /** Editor mode implied by a transition config's shape — the same mapping
+   *  initTransitionModes applies to config defaults at registration. */
+  private transitionModeFor(value: DialValue): 'easing' | 'simple' | 'advanced' | null {
+    if (this.isEasingConfig(value)) return 'easing';
+    if (this.isSpringConfig(value)) {
+      const hasPhysics = value.stiffness !== undefined || value.damping !== undefined || value.mass !== undefined;
+      const hasTime = value.visualDuration !== undefined || value.bounce !== undefined;
+      return hasPhysics && !hasTime ? 'advanced' : 'simple';
+    }
+    return null;
+  }
+
   private initTransitionModes(config: DialConfig, prefix: string, values: Record<string, DialValue>): void {
     for (const [key, rawValue] of Object.entries(config)) {
       if (key === '_collapsed') continue;
@@ -1267,11 +1293,13 @@ class DialStoreClass {
       case 'text':
         return typeof existingValue === 'string' ? existingValue : defaultValue;
       case 'transition':
-        if (this.isSpringConfig(defaultValue)) {
-          return this.isSpringConfig(existingValue) ? existingValue : defaultValue;
-        }
-        if (this.isEasingConfig(defaultValue)) {
-          return this.isEasingConfig(existingValue) ? existingValue : defaultValue;
+        // Preserve any VALID transition, whatever its type. The type
+        // selector is a first-class control — matching the live value
+        // against the config default's type would silently revert every
+        // type switch (user or programmatic) on the next re-registration,
+        // since re-registrations happen on ordinary re-renders.
+        if (this.isSpringConfig(existingValue) || this.isEasingConfig(existingValue)) {
+          return existingValue;
         }
         return defaultValue;
       case 'action':

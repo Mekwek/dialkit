@@ -240,6 +240,9 @@ declare class DialStoreClass {
     private findControlByPath;
     private notify;
     private notifyGlobal;
+    /** Editor mode implied by a transition config's shape — the same mapping
+     *  initTransitionModes applies to config defaults at registration. */
+    private transitionModeFor;
     private initTransitionModes;
     private parseConfig;
     private flattenValues;

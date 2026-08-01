@@ -278,6 +278,13 @@ var DialStoreClass = class {
       }
       panel.values[path] = value;
       validUpdates[path] = value;
+      if (control?.type === "transition") {
+        const mode = this.transitionModeFor(value);
+        if (mode) {
+          panel.values[`${path}.__mode`] = mode;
+          validUpdates[`${path}.__mode`] = mode;
+        }
+      }
     }
     if (Object.keys(validUpdates).length === 0) {
       return;
@@ -609,6 +616,17 @@ var DialStoreClass = class {
     this.timelinePanelsSnapshot = this.panelsSnapshot.filter((panel) => panel.kind === "timeline");
     this.globalListeners.forEach((fn) => fn());
   }
+  /** Editor mode implied by a transition config's shape — the same mapping
+   *  initTransitionModes applies to config defaults at registration. */
+  transitionModeFor(value) {
+    if (this.isEasingConfig(value)) return "easing";
+    if (this.isSpringConfig(value)) {
+      const hasPhysics = value.stiffness !== void 0 || value.damping !== void 0 || value.mass !== void 0;
+      const hasTime = value.visualDuration !== void 0 || value.bounce !== void 0;
+      return hasPhysics && !hasTime ? "advanced" : "simple";
+    }
+    return null;
+  }
   initTransitionModes(config, prefix, values) {
     for (const [key, rawValue] of Object.entries(config)) {
       if (key === "_collapsed") continue;
@@ -788,11 +806,8 @@ var DialStoreClass = class {
       case "text":
         return typeof existingValue === "string" ? existingValue : defaultValue;
       case "transition":
-        if (this.isSpringConfig(defaultValue)) {
-          return this.isSpringConfig(existingValue) ? existingValue : defaultValue;
-        }
-        if (this.isEasingConfig(defaultValue)) {
-          return this.isEasingConfig(existingValue) ? existingValue : defaultValue;
+        if (this.isSpringConfig(existingValue) || this.isEasingConfig(existingValue)) {
+          return existingValue;
         }
         return defaultValue;
       case "action":
