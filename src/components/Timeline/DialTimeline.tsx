@@ -25,7 +25,7 @@ import type { TimelineClipLoop, TimelineStepStatic } from '../../timeline-core';
 import { clamp } from '../../transition-math';
 import { buildCopyInstruction } from '../../copy-instruction';
 import { isDevDefault } from '../../env';
-import { ICON_ADD_PRESET, ICON_CHEVRON, ICON_CHECK, ICON_CLIPBOARD, ICON_PAUSE, ICON_PLAY, ICON_REPLAY } from '../../icons';
+import { ICON_ADD_PRESET, ICON_CHEVRON, ICON_CHECK, ICON_CLIPBOARD, ICON_LOOP, ICON_PAUSE, ICON_PLAY, ICON_REPLAY } from '../../icons';
 import { findControl } from '../../shortcut-utils';
 import { ControlRenderer } from '../ControlRenderer';
 import { PresetManager } from '../PresetManager';
@@ -161,6 +161,29 @@ function DialTimelineDock({
     getTimelineVisibility
   );
 
+  // Publish the dock's consumed vertical space (dock height + its fixed
+  // bottom gap) as --dialkit-timeline-clearance on <html>, so host UIs can
+  // float above it with pure CSS instead of measuring this portal'd DOM.
+  // 0 while hidden or unmounted; the observer catches every height source
+  // (open/collapse, drag-resize, clip count).
+  useEffect(() => {
+    const dock = dockRef.current;
+    if (!dock) return;
+    const root = document.documentElement;
+    const publish = () => {
+      const rect = dock.getBoundingClientRect();
+      const clearance = rect.height > 0 ? Math.round(window.innerHeight - rect.top) : 0;
+      root.style.setProperty('--dialkit-timeline-clearance', `${Math.max(0, clearance)}px`);
+    };
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(dock);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty('--dialkit-timeline-clearance');
+    };
+  }, [dockVisible, timelines.length > 0, mounted]);
+
   if (!mounted || typeof window === 'undefined' || timelines.length === 0) {
     return null;
   }
@@ -268,6 +291,25 @@ function ReplayButton({ onReplay }: { onReplay: () => void }) {
     >
       <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
         {ICON_REPLAY.map((d, i) => <path key={i} d={d} fill="currentColor" />)}
+      </svg>
+    </motion.button>
+  );
+}
+
+function LoopButton({ id, loop }: { id: string; loop: boolean }) {
+  return (
+    <motion.button
+      className="dialkit-toolbar-add dialkit-timeline-toolbar-toggle"
+      onClick={() => TimelineStore.setLoop(id, !loop)}
+      title={loop ? 'Loop on' : 'Loop off'}
+      aria-label="Toggle loop"
+      aria-pressed={loop}
+      data-active={loop || undefined}
+      whileTap={{ scale: 0.9 }}
+      transition={{ type: 'spring', visualDuration: 0.15, bounce: 0.3 }}
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ opacity: loop ? 1 : 0.45 }}>
+        {ICON_LOOP.map((d, i) => <path key={i} d={d} />)}
       </svg>
     </motion.button>
   );
@@ -993,6 +1035,7 @@ const TimelineSection = memo(function TimelineSection({
         <div className="dialkit-timeline-actions">
           <PlayPauseButton id={meta.id} />
           <ReplayButton onReplay={handleReplay} />
+          <LoopButton id={meta.id} loop={meta.loop} />
           <motion.button
             className="dialkit-toolbar-add"
             onClick={handleAddPreset}

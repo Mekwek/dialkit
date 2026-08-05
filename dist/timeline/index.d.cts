@@ -142,6 +142,7 @@ declare class TimelineStoreClass {
     play(id: string): void;
     pause(id: string): void;
     replay(id: string): void;
+    setLoop(id: string, loop: boolean): void;
     seek(id: string, time: number): void;
     getTransport(id: string): TimelineTransport;
     getTimeline(id: string): TimelineMeta | undefined;

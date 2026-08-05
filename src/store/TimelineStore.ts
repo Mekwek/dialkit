@@ -153,6 +153,15 @@ class TimelineStoreClass {
     this.ensureLoop();
   }
 
+  setLoop(id: string, loop: boolean): void {
+    const meta = this.timelines.get(id);
+    if (!meta || meta.loop === loop) return;
+    this.timelines.set(id, { ...meta, loop });
+    this.listCache = null;
+    this.notify(id);
+    this.notifyGlobal();
+  }
+
   seek(id: string, time: number): void {
     const transport = this.transports.get(id);
     if (!transport || !Number.isFinite(time)) return;

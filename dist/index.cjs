@@ -1180,6 +1180,14 @@ var TimelineStoreClass = class {
     this.notify(id);
     this.ensureLoop();
   }
+  setLoop(id, loop) {
+    const meta = this.timelines.get(id);
+    if (!meta || meta.loop === loop) return;
+    this.timelines.set(id, { ...meta, loop });
+    this.listCache = null;
+    this.notify(id);
+    this.notifyGlobal();
+  }
   seek(id, time) {
     const transport = this.transports.get(id);
     if (!transport || !Number.isFinite(time)) return;
@@ -1273,6 +1281,12 @@ var ICON_PLAY = "M9.24394 2.36758C7.41419 1.18362 5 2.49701 5 4.67639V19.3238C5 
 var ICON_REPLAY = [
   "M12 2.5C17.2466 2.50016 21.5 6.7534 21.5 12C21.5 17.2466 17.2466 21.4998 12 21.5C7.52191 21.5 3.76987 18.4025 2.76465 14.2344C2.63517 13.6975 2.96508 13.1578 3.50195 13.0283C4.03883 12.8988 4.57851 13.2288 4.70801 13.7656C5.5016 17.0563 8.46701 19.5 12 19.5C16.142 19.4998 19.5 16.142 19.5 12C19.5 7.85796 16.142 4.50016 12 4.5C9.32981 4.5 6.98389 5.89541 5.6543 8H7.5C8.05228 8 8.5 8.44772 8.5 9C8.5 9.55228 8.05228 10 7.5 10H3.5C2.94772 10 2.5 9.55228 2.5 9V5C2.5 4.44772 2.94772 4 3.5 4C4.05228 4 4.5 4.44772 4.5 5V6.16797C6.2376 3.93677 8.95063 2.5 12 2.5Z",
   "M10 9.94043C10 9.33379 10.6826 8.97849 11.1797 9.32617L14.1221 11.3857C14.5486 11.6843 14.5486 12.3157 14.1221 12.6143L11.1797 14.6738C10.6826 15.0215 10 14.6662 10 14.0596V9.94043Z"
+];
+var ICON_LOOP = [
+  "M17 2L21 6L17 10",
+  "M3 11V10C3 7.79086 4.79086 6 7 6H21",
+  "M7 22L3 18L7 14",
+  "M21 13V14C21 16.2091 19.2091 18 17 18H3"
 ];
 var ICON_TIMELINE = [
   "M18.868 10C20.8517 10.0003 22.2886 11.8914 21.7577 13.8027L20.369 18.8027C20.0083 20.1012 18.826 20.9999 17.4784 21H6.51941C5.17179 21 3.98948 20.1012 3.62878 18.8027L2.24011 13.8027C1.7092 11.8913 3.14603 10.0003 5.12976 10H18.868Z",
@@ -4669,6 +4683,23 @@ function DialTimelineDock({
     getTimelineVisibility,
     getTimelineVisibility
   );
+  (0, import_react24.useEffect)(() => {
+    const dock = dockRef.current;
+    if (!dock) return;
+    const root = document.documentElement;
+    const publish = () => {
+      const rect = dock.getBoundingClientRect();
+      const clearance = rect.height > 0 ? Math.round(window.innerHeight - rect.top) : 0;
+      root.style.setProperty("--dialkit-timeline-clearance", `${Math.max(0, clearance)}px`);
+    };
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(dock);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty("--dialkit-timeline-clearance");
+    };
+  }, [dockVisible, timelines.length > 0, mounted]);
   if (!mounted || typeof window === "undefined" || timelines.length === 0) {
     return null;
   }
@@ -4766,6 +4797,22 @@ function ReplayButton({ onReplay }) {
       whileTap: { scale: 0.9 },
       transition: { type: "spring", visualDuration: 0.15, bounce: 0.3 },
       children: /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("svg", { viewBox: "0 0 24 24", fill: "none", "aria-hidden": "true", children: ICON_REPLAY.map((d, i) => /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("path", { d, fill: "currentColor" }, i)) })
+    }
+  );
+}
+function LoopButton({ id, loop }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+    import_react25.motion.button,
+    {
+      className: "dialkit-toolbar-add dialkit-timeline-toolbar-toggle",
+      onClick: () => TimelineStore.setLoop(id, !loop),
+      title: loop ? "Loop on" : "Loop off",
+      "aria-label": "Toggle loop",
+      "aria-pressed": loop,
+      "data-active": loop || void 0,
+      whileTap: { scale: 0.9 },
+      transition: { type: "spring", visualDuration: 0.15, bounce: 0.3 },
+      children: /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true", style: { opacity: loop ? 1 : 0.45 }, children: ICON_LOOP.map((d, i) => /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("path", { d }, i)) })
     }
   );
 }
@@ -5361,6 +5408,7 @@ var TimelineSection = (0, import_react24.memo)(function TimelineSection2({
       /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { className: "dialkit-timeline-actions", children: [
         /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(PlayPauseButton, { id: meta.id }),
         /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(ReplayButton, { onReplay: handleReplay }),
+        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(LoopButton, { id: meta.id, loop: meta.loop }),
         /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
           import_react25.motion.button,
           {
