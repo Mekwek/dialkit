@@ -762,10 +762,10 @@ const TimelineSection = memo(function TimelineSection({
   }, [meta.clips, meta.id, meta.name]);
 
   const handleAddPreset = useCallback(() => {
-    // Timeline presets are sequences, not versions — and unlike the panel
-    // (whose base row reads as "Version 1", so saved ones start at 2), the
-    // dock's base row is "Default", so sequences count from 1.
-    DialStore.savePreset(meta.id, `Sequence ${presets.length + 1}`);
+    // Timeline presets are sequences, not versions — same numbering idea as
+    // the panel: the base row counts as "Sequence 1" (hosts may relabel the
+    // dropdown row via CSS), so saved ones start at 2.
+    DialStore.savePreset(meta.id, `Sequence ${presets.length + 2}`);
   }, [meta.id, presets.length]);
 
   const closePopover = useCallback(() => setPopover(null), []);
