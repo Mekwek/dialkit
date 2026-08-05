@@ -3030,7 +3030,7 @@ var import_react16 = require("react");
 var import_react_dom2 = require("react-dom");
 var import_react17 = require("motion/react");
 var import_jsx_runtime14 = require("react/jsx-runtime");
-function PresetManager({ panelId, presets, activePresetId, onAdd }) {
+function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassName }) {
   const [isOpen, setIsOpen] = (0, import_react16.useState)(false);
   const triggerRef = (0, import_react16.useRef)(null);
   const dropdownRef = (0, import_react16.useRef)(null);
@@ -3115,7 +3115,7 @@ function PresetManager({ panelId, presets, activePresetId, onAdd }) {
         import_react17.motion.div,
         {
           ref: dropdownRef,
-          className: "dialkit-root dialkit-preset-dropdown",
+          className: `dialkit-root dialkit-preset-dropdown${dropdownClassName ? ` ${dropdownClassName}` : ""}`,
           style: {
             position: "fixed",
             left: pos.left,
@@ -5379,7 +5379,8 @@ var TimelineSection = (0, import_react24.memo)(function TimelineSection2({
             panelId: meta.id,
             presets,
             activePresetId,
-            onAdd: handleAddPreset
+            onAdd: handleAddPreset,
+            dropdownClassName: "dialkit-timeline-preset-dropdown"
           }
         ),
         /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(

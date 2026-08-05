@@ -1010,6 +1010,7 @@ const TimelineSection = memo(function TimelineSection({
             presets={presets}
             activePresetId={activePresetId}
             onAdd={handleAddPreset}
+            dropdownClassName="dialkit-timeline-preset-dropdown"
           />
           <motion.button
             className="dialkit-toolbar-add"

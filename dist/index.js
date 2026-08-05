@@ -2981,7 +2981,7 @@ import { useState as useState8, useRef as useRef11, useEffect as useEffect8, use
 import { createPortal as createPortal2 } from "react-dom";
 import { motion as motion5, AnimatePresence as AnimatePresence4 } from "motion/react";
 import { jsx as jsx14, jsxs as jsxs12 } from "react/jsx-runtime";
-function PresetManager({ panelId, presets, activePresetId, onAdd }) {
+function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassName }) {
   const [isOpen, setIsOpen] = useState8(false);
   const triggerRef = useRef11(null);
   const dropdownRef = useRef11(null);
@@ -3066,7 +3066,7 @@ function PresetManager({ panelId, presets, activePresetId, onAdd }) {
         motion5.div,
         {
           ref: dropdownRef,
-          className: "dialkit-root dialkit-preset-dropdown",
+          className: `dialkit-root dialkit-preset-dropdown${dropdownClassName ? ` ${dropdownClassName}` : ""}`,
           style: {
             position: "fixed",
             left: pos.left,
@@ -5330,7 +5330,8 @@ var TimelineSection = memo(function TimelineSection2({
             panelId: meta.id,
             presets,
             activePresetId,
-            onAdd: handleAddPreset
+            onAdd: handleAddPreset,
+            dropdownClassName: "dialkit-timeline-preset-dropdown"
           }
         ),
         /* @__PURE__ */ jsx18(

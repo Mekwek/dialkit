@@ -9,9 +9,12 @@ interface PresetManagerProps {
   presets: Preset[];
   activePresetId: string | null;
   onAdd: () => void;
+  /** Extra class for the portal'd dropdown — the portal escapes the host's DOM
+   *  context, so hosts (e.g. the timeline dock) need this to scope styling. */
+  dropdownClassName?: string;
 }
 
-export function PresetManager({ panelId, presets, activePresetId, onAdd }: PresetManagerProps) {
+export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassName }: PresetManagerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -110,7 +113,7 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd }: Prese
           {isOpen && (
             <motion.div
               ref={dropdownRef}
-              className="dialkit-root dialkit-preset-dropdown"
+              className={`dialkit-root dialkit-preset-dropdown${dropdownClassName ? ` ${dropdownClassName}` : ''}`}
               style={{
                 position: 'fixed',
                 left: pos.left,

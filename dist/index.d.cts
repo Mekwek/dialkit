@@ -762,8 +762,11 @@ interface PresetManagerProps {
     presets: Preset[];
     activePresetId: string | null;
     onAdd: () => void;
+    /** Extra class for the portal'd dropdown — the portal escapes the host's DOM
+     *  context, so hosts (e.g. the timeline dock) need this to scope styling. */
+    dropdownClassName?: string;
 }
-declare function PresetManager({ panelId, presets, activePresetId, onAdd }: PresetManagerProps): react_jsx_runtime.JSX.Element;
+declare function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassName }: PresetManagerProps): react_jsx_runtime.JSX.Element;
 
 interface ShortcutsMenuProps {
     panelId: string;
