@@ -5104,7 +5104,7 @@ var TimelineSection = memo(function TimelineSection2({
     setTimeout(() => setCopied(false), 1500);
   }, [meta.clips, meta.id, meta.name]);
   const handleAddPreset = useCallback14(() => {
-    DialStore.savePreset(meta.id, `Version ${presets.length + 2}`);
+    DialStore.savePreset(meta.id, `Sequence ${presets.length + 1}`);
   }, [meta.id, presets.length]);
   const closePopover = useCallback14(() => setPopover(null), []);
   const openClipPopover = useCallback14(

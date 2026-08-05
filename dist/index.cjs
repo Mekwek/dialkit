@@ -5153,7 +5153,7 @@ var TimelineSection = (0, import_react24.memo)(function TimelineSection2({
     setTimeout(() => setCopied(false), 1500);
   }, [meta.clips, meta.id, meta.name]);
   const handleAddPreset = (0, import_react24.useCallback)(() => {
-    DialStore.savePreset(meta.id, `Version ${presets.length + 2}`);
+    DialStore.savePreset(meta.id, `Sequence ${presets.length + 1}`);
   }, [meta.id, presets.length]);
   const closePopover = (0, import_react24.useCallback)(() => setPopover(null), []);
   const openClipPopover = (0, import_react24.useCallback)(
