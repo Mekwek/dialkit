@@ -135,7 +135,12 @@ export function resolveClipTransition(
   if (isPhysicsSpring(raw)) {
     return {
       transition: raw,
-      duration: springSettleDuration(springParams(raw)),
+      // An explicit stored duration wins — a host may deliberately reserve
+      // a bar LONGER than the spring's motion (e.g. covering a staggered
+      // wave's spread plus each particle's settle, so the bar's end means
+      // "everything at rest"). The spring's own settle time is only the
+      // default when no real duration was stored.
+      duration: clipDuration > 0 ? safeDuration : springSettleDuration(springParams(raw)),
       isPhysics: true,
     };
   }
