@@ -353,8 +353,10 @@ function defaultClipDuration(clip: TimelineClipConfig): number {
   const animating = Boolean(clip.transition || clip.from || clip.to);
   // Marker windows are allowed to be zero-length; actual animations are not.
   if (!animating) return nonNegativeFinite(clip.duration);
-  if (isPhysicsSpring(defaultCurve)) return transitionDefaultDuration(defaultCurve);
+  // Explicit duration wins even for physics springs — a host may reserve a
+  // bar LONGER than the motion (same rule as defaultStepDuration above).
   if (clip.duration !== undefined) return animatedDuration(clip.duration);
+  if (isPhysicsSpring(defaultCurve)) return transitionDefaultDuration(defaultCurve);
   if (isTransitionConfig(clip.transition)) return transitionDefaultDuration(clip.transition);
   // A from/to clip with neither duration nor transition animates with the
   // default spring, so its bar defaults to that spring's settle time instead

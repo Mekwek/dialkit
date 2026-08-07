@@ -365,8 +365,8 @@ function defaultClipDuration(clip) {
   }
   const animating = Boolean(clip.transition || clip.from || clip.to);
   if (!animating) return nonNegativeFinite(clip.duration);
-  if (isPhysicsSpring(defaultCurve)) return transitionDefaultDuration(defaultCurve);
   if (clip.duration !== void 0) return animatedDuration(clip.duration);
+  if (isPhysicsSpring(defaultCurve)) return transitionDefaultDuration(defaultCurve);
   if (isTransitionConfig(clip.transition)) return transitionDefaultDuration(clip.transition);
   return clip.from || clip.to ? transitionDefaultDuration(DEFAULT_CLIP_TRANSITION) : 0;
 }
