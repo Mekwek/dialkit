@@ -386,9 +386,9 @@ function transitionDefaultDuration(transition) {
   return animatedDuration(springSettleDuration(springParams(transition)));
 }
 function defaultStepDuration(step, inheritedTransition) {
+  if (step.duration !== void 0) return animatedDuration(step.duration);
   const curve = step.transition ?? inheritedTransition;
   if (curve && isPhysicsSpring(curve)) return transitionDefaultDuration(curve);
-  if (step.duration !== void 0) return animatedDuration(step.duration);
   if (step.transition) return transitionDefaultDuration(step.transition);
   return DEFAULT_STEP_DURATION;
 }
@@ -397,8 +397,8 @@ function defaultTrackDuration(track, inheritedTransition) {
   if (track.steps?.length) {
     return track.steps.reduce((sum, step) => sum + defaultStepDuration(step, curve), 0);
   }
-  if (curve && isPhysicsSpring(curve)) return transitionDefaultDuration(curve);
   if (track.duration !== void 0) return animatedDuration(track.duration);
+  if (curve && isPhysicsSpring(curve)) return transitionDefaultDuration(curve);
   if (track.transition) return transitionDefaultDuration(track.transition);
   return DEFAULT_STEP_DURATION;
 }

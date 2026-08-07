@@ -300,17 +300,21 @@ function transitionDefaultDuration(transition: TransitionConfig): number {
   return animatedDuration(springSettleDuration(springParams(transition)));
 }
 
-// Bar length defaults: physics always owns its emergent duration. Time-based
-// curves use an explicit bar duration first, then their own duration, then the
-// standard step duration. `inheritedTransition` matters for physics because a
-// step/track can inherit an advanced spring from its parent.
+// Bar length defaults: an explicit bar duration always wins — a host may
+// deliberately reserve a bar LONGER than the motion (e.g. theca's clip bars
+// cover image stagger + settle past the camera curve, so a bar's end means
+// "everything at rest"). Physics springs own their emergent duration only as
+// the DEFAULT when no explicit duration was provided; time-based curves then
+// fall back to their own duration, then the standard step duration.
+// `inheritedTransition` matters for physics because a step/track can inherit
+// an advanced spring from its parent.
 function defaultStepDuration(
   step: { duration?: number; transition?: TransitionConfig },
   inheritedTransition?: TransitionConfig
 ): number {
+  if (step.duration !== undefined) return animatedDuration(step.duration);
   const curve = step.transition ?? inheritedTransition;
   if (curve && isPhysicsSpring(curve)) return transitionDefaultDuration(curve);
-  if (step.duration !== undefined) return animatedDuration(step.duration);
   if (step.transition) return transitionDefaultDuration(step.transition);
   return DEFAULT_STEP_DURATION;
 }
@@ -323,8 +327,8 @@ function defaultTrackDuration(
   if (track.steps?.length) {
     return track.steps.reduce((sum, step) => sum + defaultStepDuration(step, curve), 0);
   }
-  if (curve && isPhysicsSpring(curve)) return transitionDefaultDuration(curve);
   if (track.duration !== undefined) return animatedDuration(track.duration);
+  if (curve && isPhysicsSpring(curve)) return transitionDefaultDuration(curve);
   if (track.transition) return transitionDefaultDuration(track.transition);
   return DEFAULT_STEP_DURATION;
 }
