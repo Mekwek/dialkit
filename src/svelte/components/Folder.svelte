@@ -13,7 +13,7 @@
     inline = false,
     onOpenChange,
     toolbar,
-    panelHeightOffset = 10,
+    panelHeightOffset = 0,
     children,
   } = $props<{
     title: string;

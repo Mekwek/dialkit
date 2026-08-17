@@ -14,7 +14,7 @@ interface FolderProps {
   panelHeightOffset?: number;
 }
 
-export function Folder({ title, children, defaultOpen = true, open, isRoot = false, inline = false, onOpenChange, toolbar, panelHeightOffset = 10 }: FolderProps) {
+export function Folder({ title, children, defaultOpen = true, open, isRoot = false, inline = false, onOpenChange, toolbar, panelHeightOffset = 0 }: FolderProps) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen);
   const isOpen = open ?? uncontrolledOpen;
   const contentRef = useRef<HTMLDivElement>(null);
