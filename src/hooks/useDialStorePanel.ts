@@ -7,7 +7,7 @@ export interface UseDialStorePanelOptions {
   persist?: DialKitPersistOptions;
   shortcuts?: Record<string, ShortcutConfig>;
   kind?: 'timeline';
-  collapsed?: boolean;
+  defaultCollapsed?: boolean;
 }
 
 // Serialize with a referential short-circuit: consumers can re-render at 60Hz
@@ -50,7 +50,7 @@ export function useDialStorePanel(
       retainOnUnmount: hasStableId,
       persist: optionsRef.current.persist,
       kind: optionsRef.current.kind,
-      collapsed: optionsRef.current.collapsed,
+      defaultCollapsed: optionsRef.current.defaultCollapsed,
     });
     return () => DialStore.unregisterPanel(panelId);
   }, [hasStableId, panelId, name]);

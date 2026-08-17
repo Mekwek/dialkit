@@ -129,7 +129,7 @@ export type DialStorePanelOptions = {
   retainOnUnmount?: boolean;
   persist?: DialKitPersistOptions;
   kind?: 'timeline';
-  collapsed?: boolean;
+  defaultCollapsed?: boolean;
 };
 
 type PersistConfig = {
@@ -322,7 +322,7 @@ class DialStoreClass {
   private registrationCounts: Map<string, number> = new Map();
   private retainedPanels: Set<string> = new Set();
   private persistConfigs: Map<string, PersistConfig> = new Map();
-  // Unset until a `collapsed` option or a host component seeds a default.
+  // Unset until a `defaultCollapsed` option or a host component seeds a default.
   private panelOpen: Map<string, boolean> = new Map();
 
   registerPanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, options: DialStorePanelOptions = {}): void {
@@ -334,8 +334,8 @@ class DialStoreClass {
       );
     }
     this.configurePanelRetention(id, options);
-    if (options.collapsed !== undefined) {
-      this.initPanelOpen(id, !options.collapsed);
+    if (options.defaultCollapsed !== undefined) {
+      this.initPanelOpen(id, !options.defaultCollapsed);
     }
     this.registrationCounts.set(id, (this.registrationCounts.get(id) ?? 0) + 1);
 
