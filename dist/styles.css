@@ -2069,6 +2069,138 @@
   right: 0;
 }
 
+/* ── Single track ──
+   Every clip shares one lane. Bars are the Hairline + Fill style: they rest
+   dim, the played part is bright, and butted pairs keep a 1px lane sliver
+   (the bar inset is applied in JS). Tails draw the settle window past each
+   bar as a fading outlined shell behind the following bars. */
+
+.dialkit-timeline-section[data-single-track] {
+  /* No label column — names live inside the bars. */
+  --dial-timeline-label-w: 0px;
+  --dial-timeline-bar-rest: #b9b9b9;
+  --dial-timeline-bar-played: #ffffff;
+  --dial-timeline-bar-text: rgba(0, 0, 0, 0.78);
+  --dial-timeline-tail-border: rgba(255, 255, 255, 0.75);
+  --dial-timeline-tail-fill: rgba(255, 255, 255, 0.05);
+  --dial-timeline-accent: #E30613;
+}
+
+.dialkit-root[data-theme="light"] .dialkit-timeline-section[data-single-track] {
+  --dial-timeline-bar-rest: #9e9e9e;
+  --dial-timeline-tail-border: rgba(0, 0, 0, 0.55);
+  --dial-timeline-tail-fill: rgba(0, 0, 0, 0.05);
+}
+
+@media (prefers-color-scheme: light) {
+  .dialkit-root[data-theme="system"] .dialkit-timeline-section[data-single-track] {
+    --dial-timeline-bar-rest: #9e9e9e;
+    --dial-timeline-tail-border: rgba(0, 0, 0, 0.55);
+    --dial-timeline-tail-fill: rgba(0, 0, 0, 0.05);
+  }
+}
+
+.dialkit-timeline-section[data-single-track] .dialkit-timeline-clip {
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--dial-timeline-bar-rest);
+  transition: box-shadow 0.15s, opacity 0.15s;
+}
+
+/* Hover and selected rings around the bar, in the accent red. */
+.dialkit-timeline-section[data-single-track] .dialkit-timeline-clip:hover {
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--dial-timeline-accent) 55%, transparent);
+}
+
+.dialkit-timeline-section[data-single-track] .dialkit-timeline-clip[data-selected] {
+  box-shadow: 0 0 0 2px var(--dial-timeline-accent);
+}
+
+.dialkit-timeline-section[data-single-track] .dialkit-timeline-clip[data-lifted] {
+  opacity: 0.3;
+}
+
+.dialkit-timeline-clip-fill {
+  position: absolute;
+  inset: 0;
+  width: 0;
+  background: var(--dial-timeline-bar-played, #ffffff);
+  pointer-events: none;
+}
+
+.dialkit-timeline-clip-name {
+  position: relative;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--dial-timeline-bar-text, rgba(0, 0, 0, 0.78));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+/* The duration text sits above the fill layer. */
+.dialkit-timeline-section[data-single-track] .dialkit-timeline-clip-duration {
+  position: relative;
+}
+
+.dialkit-timeline-clip-tail {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  border: 1px solid var(--dial-timeline-tail-border, rgba(255, 255, 255, 0.75));
+  border-left: none;
+  border-radius: 0 6px 6px 0;
+  background: var(--dial-timeline-tail-fill, rgba(255, 255, 255, 0.05));
+  -webkit-mask-image: linear-gradient(90deg, #000, transparent);
+  mask-image: linear-gradient(90deg, #000, transparent);
+  opacity: 0.45;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.dialkit-timeline-clip-tail[data-lit] {
+  opacity: 1;
+}
+
+/* Reorder insertion cue. */
+.dialkit-timeline-single-cue {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--dial-text-root);
+  z-index: 3;
+  pointer-events: none;
+}
+
+/* Resize grips: visible affordances on hover, one per edge. */
+.dialkit-timeline-section[data-single-track] .dialkit-timeline-clip-handle::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.22);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.dialkit-timeline-clip-handle[data-edge="start"]::after {
+  left: 3px;
+}
+
+.dialkit-timeline-clip-handle[data-edge="end"]::after {
+  right: 3px;
+}
+
+.dialkit-timeline-section[data-single-track] .dialkit-timeline-clip:hover .dialkit-timeline-clip-handle::after {
+  opacity: 1;
+}
+
 .dialkit-timeline-playhead-control {
   position: absolute;
   top: 0;

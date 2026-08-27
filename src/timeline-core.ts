@@ -87,6 +87,14 @@ type TimelineClipBase = {
   transition?: TransitionConfig;
   loop?: boolean | TimelineClipLoop;
   /**
+   * Settle window (seconds) past the bar's end — motion the host declares
+   * keeps running after the clip's own duration (e.g. staggered elements
+   * finishing their flight). Read-only: no dial, no popover control. The
+   * timeline's end covers `at + duration + tail`, and single-track mode
+   * draws it as a fading tail behind the following bars.
+   */
+  tail?: number;
+  /**
    * Display name for the clip's bar. Defaults to the config key, prettified.
    * Set this when the key is an opaque identifier — keying clips by a stable
    * record id keeps edits attached across renames and reordering, but that id
@@ -444,7 +452,10 @@ export function parseTimelineConfig(config: TimelineConfig): ParsedTimeline {
 
   let maxEnd = 0;
   for (const { clip } of entries) {
-    maxEnd = Math.max(maxEnd, nonNegativeFinite(clip.at) + defaultClipDuration(clip));
+    maxEnd = Math.max(
+      maxEnd,
+      nonNegativeFinite(clip.at) + defaultClipDuration(clip) + nonNegativeFinite(clip.tail)
+    );
   }
 
   // Exact fit: the window ends when the content does, so a looping timeline
@@ -614,6 +625,7 @@ export function parseTimelineConfig(config: TimelineConfig): ParsedTimeline {
       group,
       stepKeys,
       tracks,
+      ...(nonNegativeFinite(clip.tail) > 0 ? { tail: nonNegativeFinite(clip.tail) } : {}),
     });
   });
 
@@ -802,8 +814,11 @@ export function computeStaticTimeline(
   flatValues: Record<string, DialValue>
 ): TimelineStaticState {
   let clips = computeStaticClips(parsed, flatValues);
+  // Tails count into the end here exactly as they do at parse time, so a
+  // live edit (dragging the last bar) still leaves the settle window covered.
+  const tailByKey = new Map(parsed.clips.map((clip) => [clip.key, clip.tail ?? 0]));
   const maxEnd = clips.reduce(
-    (end, clip) => Math.max(end, clip.at + clip.duration),
+    (end, clip) => Math.max(end, clip.at + clip.duration + (tailByKey.get(clip.key) ?? 0)),
     parsed.duration
   );
   const duration = maxEnd > parsed.duration
@@ -1313,6 +1328,94 @@ export function clampClipResizeStart(
   duration: number
 ): { at: number; duration: number } {
   const clampedAt = clamp(round2(newAt), 0, at + duration - TIMELINE_MIN_CLIP_DURATION);
+  return { at: clampedAt, duration: round2(at + duration - clampedAt) };
+}
+
+// ── Single-track clamp policy ──
+// One lane, no overlap: moves and resizes cap against neighbors and never
+// push them. All pure, all in seconds, all unit-testable.
+
+export type SingleTrackClipSpan = {
+  key: string;
+  at: number;
+  duration: number;
+  /** Part of the moving block (the selection). */
+  selected: boolean;
+};
+
+/**
+ * Clamp a block move so no selected clip crosses an unselected neighbor.
+ * `clips` must be sorted by `at`. Selected clips move together by the
+ * returned delta; unselected clips never move.
+ */
+export function singleTrackMoveDelta(clips: SingleTrackClipSpan[], delta: number): number {
+  let lo = Number.NEGATIVE_INFINITY;
+  let hi = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < clips.length; i++) {
+    if (!clips[i].selected) continue;
+    const prev = clips[i - 1];
+    if (i === 0) lo = Math.max(lo, -clips[i].at);
+    else if (!prev.selected) lo = Math.max(lo, prev.at + prev.duration - clips[i].at);
+    const next = clips[i + 1];
+    if (next && !next.selected) hi = Math.min(hi, next.at - (clips[i].at + clips[i].duration));
+  }
+  if (lo > hi) return 0; // fully wedged — no room either way
+  return clamp(delta, lo, hi);
+}
+
+/**
+ * Reorder: the selected run lands at `slot` (an index among the UNSELECTED
+ * clips, 0..unselected.length), unselected clips keep their order, and the
+ * POSITIONAL gap pattern stays where it was — slot gaps, not per-clip gaps.
+ * `clips` must be sorted by `at`. Returns the new `at` per key.
+ */
+export function singleTrackReorderAts(
+  clips: SingleTrackClipSpan[],
+  slot: number
+): Record<string, number> {
+  // The gap before each SLOT, from the current arrangement.
+  const gaps = clips.map((clip, i) =>
+    i === 0 ? clip.at : clip.at - (clips[i - 1].at + clips[i - 1].duration)
+  );
+  const selectedRun = clips.filter((clip) => clip.selected);
+  const others = clips.filter((clip) => !clip.selected);
+  const boundedSlot = Math.max(0, Math.min(others.length, Math.round(slot)));
+  const nextOrder = [
+    ...others.slice(0, boundedSlot),
+    ...selectedRun,
+    ...others.slice(boundedSlot),
+  ];
+  const ats: Record<string, number> = {};
+  let cursor = 0;
+  nextOrder.forEach((clip, i) => {
+    const at = round2(cursor + gaps[i]);
+    ats[clip.key] = at;
+    cursor = at + clip.duration;
+  });
+  return ats;
+}
+
+/** End-edge resize: the end moves, neighbors stay put — growth caps when
+ * the gap to the next clip hits zero (butted). Last clip: unlimited. */
+export function clampSingleTrackResizeEnd(
+  duration: number,
+  at: number,
+  nextStart: number | undefined
+): number {
+  const max = nextStart === undefined ? Number.POSITIVE_INFINITY : Math.max(TIMELINE_MIN_CLIP_DURATION, nextStart - at);
+  return clamp(round2(duration), TIMELINE_MIN_CLIP_DURATION, max);
+}
+
+/** Start-edge resize: the start moves, the END stays fixed — capped at the
+ * previous clip's end (butted) and at the minimum clip length. */
+export function clampSingleTrackResizeStart(
+  newAt: number,
+  at: number,
+  duration: number,
+  prevEnd: number | undefined
+): { at: number; duration: number } {
+  const floor = Math.max(0, prevEnd ?? 0);
+  const clampedAt = clamp(round2(newAt), floor, at + duration - TIMELINE_MIN_CLIP_DURATION);
   return { at: clampedAt, duration: round2(at + duration - clampedAt) };
 }
 

@@ -62,8 +62,8 @@ export function useDialTimeline<T extends TimelineConfig>(
   const { start: loopStart } = resolveTimelineLoop(options?.loop);
 
   const buildMeta = useCallback(
-    () => buildTimelineMeta(panelId, name, timelineDuration, parsedRef.current, options?.loop),
-    [panelId, name, timelineDuration, options?.loop]
+    () => buildTimelineMeta(panelId, name, timelineDuration, parsedRef.current, options?.loop, options?.track),
+    [panelId, name, timelineDuration, options?.loop, options?.track]
   );
 
   // Transport registration mirrors the panel lifecycle: register on mount,

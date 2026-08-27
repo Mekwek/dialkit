@@ -21,6 +21,10 @@ export type TimelineClipMeta = {
   stepKeys?: string[];
   /** Independent property tracks of a props clip — full rows when expanded. */
   tracks?: TimelineClipTrackMeta[];
+  /** Read-only settle window (seconds) past the bar's end — motion the host
+   * says keeps running after the clip's own duration. Drawn as a fading
+   * tail in single-track mode and counted into the timeline's end. */
+  tail?: number;
 };
 
 export type TimelineMeta = {
@@ -32,6 +36,10 @@ export type TimelineMeta = {
    * (intro-then-idle). 0 loops the whole timeline. */
   loopStart: number;
   clips: TimelineClipMeta[]; // one row each
+  /** All clips share ONE lane: no overlap (drags clamp against neighbors),
+   * labels drawn inside the bars, tails rendered. Simple from/to clips
+   * only — groups/steps/props fall back to row rendering. */
+  singleTrack?: boolean;
 };
 
 export type TimelineTransport = {

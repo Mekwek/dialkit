@@ -20,6 +20,13 @@ export interface DialTimelineOptions {
    * play once and looping clips keep cycling forever. Defaults to false.
    */
   loop?: boolean | { from: number };
+  /**
+   * `'single'`: every clip shares ONE lane — no overlap (drags and resizes
+   * clamp against neighbors), labels drawn inside the bars, `tail` windows
+   * rendered. Simple from/to clips only. Defaults to `'rows'` (one lane per
+   * clip, the classic dock).
+   */
+  track?: 'rows' | 'single';
 }
 
 export type TimelineActions = {
@@ -47,7 +54,8 @@ export function buildTimelineMeta(
   name: string,
   duration: number,
   parsed: ParsedTimeline,
-  loop: DialTimelineOptions['loop']
+  loop: DialTimelineOptions['loop'],
+  track?: DialTimelineOptions['track']
 ): TimelineMeta {
   const resolvedLoop = resolveTimelineLoop(loop);
   return {
@@ -57,6 +65,7 @@ export function buildTimelineMeta(
     loop: resolvedLoop.enabled,
     loopStart: resolvedLoop.start,
     clips: parsed.clips,
+    ...(track === 'single' ? { singleTrack: true } : {}),
   };
 }
 

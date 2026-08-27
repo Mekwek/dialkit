@@ -374,6 +374,10 @@ type TimelineClipMeta = {
     stepKeys?: string[];
     /** Independent property tracks of a props clip — full rows when expanded. */
     tracks?: TimelineClipTrackMeta[];
+    /** Read-only settle window (seconds) past the bar's end — motion the host
+     * says keeps running after the clip's own duration. Drawn as a fading
+     * tail in single-track mode and counted into the timeline's end. */
+    tail?: number;
 };
 type TimelineMeta = {
     id: string;
@@ -384,6 +388,10 @@ type TimelineMeta = {
      * (intro-then-idle). 0 loops the whole timeline. */
     loopStart: number;
     clips: TimelineClipMeta[];
+    /** All clips share ONE lane: no overlap (drags clamp against neighbors),
+     * labels drawn inside the bars, tails rendered. Simple from/to clips
+     * only — groups/steps/props fall back to row rendering. */
+    singleTrack?: boolean;
 };
 type TimelineTransport = {
     time: number;
@@ -454,6 +462,14 @@ type TimelineClipBase = {
     duration?: number;
     transition?: TransitionConfig;
     loop?: boolean | TimelineClipLoop;
+    /**
+     * Settle window (seconds) past the bar's end — motion the host declares
+     * keeps running after the clip's own duration (e.g. staggered elements
+     * finishing their flight). Read-only: no dial, no popover control. The
+     * timeline's end covers `at + duration + tail`, and single-track mode
+     * draws it as a fading tail behind the following bars.
+     */
+    tail?: number;
     /**
      * Display name for the clip's bar. Defaults to the config key, prettified.
      * Set this when the key is an opaque identifier — keying clips by a stable
@@ -585,6 +601,13 @@ interface DialTimelineOptions {
     loop?: boolean | {
         from: number;
     };
+    /**
+     * `'single'`: every clip shares ONE lane — no overlap (drags and resizes
+     * clamp against neighbors), labels drawn inside the bars, `tail` windows
+     * rendered. Simple from/to clips only. Defaults to `'rows'` (one lane per
+     * clip, the classic dock).
+     */
+    track?: 'rows' | 'single';
 }
 
 type UseDialTimelineOptions = DialTimelineOptions;

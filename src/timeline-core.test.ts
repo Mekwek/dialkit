@@ -13,8 +13,12 @@ import {
   clampClipMove,
   clampClipResizeEnd,
   clampClipResizeStart,
+  clampSingleTrackResizeEnd,
+  clampSingleTrackResizeStart,
   clampStepResize,
   clampTrackDelay,
+  singleTrackMoveDelta,
+  singleTrackReorderAts,
   formatClock,
   formatStepLabel,
   normalizeLoopMode,
@@ -367,6 +371,66 @@ describe('edit clamps', () => {
     near(clampStepResize(10, 0, 1.6, 4.8), 3.2);
     assert.equal(clampTrackDelay(-1, 0, 1.2, 4.8), 0);
     assert.equal(clampTrackDelay(9, 0, 1.2, 4.8), 3.6);
+  });
+});
+
+describe('single track', () => {
+  // Scenario: A [0,2] butted by B [2,4], a 1.5s gap, then C [5.5,7.5].
+  const spans = (selected: string[]) =>
+    [
+      { key: 'a', at: 0, duration: 2, selected: selected.includes('a') },
+      { key: 'b', at: 2, duration: 2, selected: selected.includes('b') },
+      { key: 'c', at: 5.5, duration: 2, selected: selected.includes('c') },
+    ];
+
+  it('a move caps against neighbors and never pushes them', () => {
+    // C dragged left: only the 1.5s gap before it can close.
+    near(singleTrackMoveDelta(spans(['c']), -3), -1.5);
+    // B dragged left: butted against A already — no room.
+    near(singleTrackMoveDelta(spans(['b']), -1), 0);
+    // B dragged right: caps when it butts C.
+    near(singleTrackMoveDelta(spans(['b']), 9), 1.5);
+    // The last clip can always extend the timeline rightward.
+    near(singleTrackMoveDelta(spans(['c']), 9), 9);
+  });
+
+  it('a block moves as one, bounded by its unselected neighbors', () => {
+    // A+B together: left bound is the timeline start, right bound the gap to C.
+    near(singleTrackMoveDelta(spans(['a', 'b']), -1), 0);
+    near(singleTrackMoveDelta(spans(['a', 'b']), 9), 1.5);
+    // A and C selected around unselected B: A's cap wins for the whole block.
+    near(singleTrackMoveDelta(spans(['a', 'c']), 5), 0);
+  });
+
+  it('reorder permutes clips and keeps the slot gap pattern in place', () => {
+    // Move B before A: slot 0 among the unselected [A, C].
+    const ats = singleTrackReorderAts(spans(['b']), 0);
+    assert.deepEqual(ats, { b: 0, a: 2, c: 5.5 });
+    // Move A after C (slot 2): gaps stay [0, 0, 1.5] by position.
+    const after = singleTrackReorderAts(spans(['a']), 2);
+    assert.deepEqual(after, { b: 0, c: 2, a: 5.5 });
+  });
+
+  it('resize caps against neighbors, both edges', () => {
+    // A's end edge grows into butted B: capped at B's start.
+    near(clampSingleTrackResizeEnd(3, 0, 2), 2);
+    // C's end edge (last clip): unlimited growth.
+    near(clampSingleTrackResizeEnd(6, 5.5, undefined), 6);
+    // C's start edge dragged left: floors at B's end, end stays fixed.
+    assert.deepEqual(clampSingleTrackResizeStart(3, 5.5, 2, 4), { at: 4, duration: 3.5 });
+  });
+
+  it('tails extend the timeline end at parse and at live edit', () => {
+    const config = {
+      a: { at: 0, duration: 2, tail: 1.5, transition: { type: 'easing', ease: [0.4, 0, 0.2, 1], duration: 2 } },
+      b: { at: 2, duration: 2, tail: 0.6, transition: { type: 'easing', ease: [0.4, 0, 0.2, 1], duration: 2 } },
+    } as unknown as TimelineConfig;
+    const parsed = parseTimelineConfig(config);
+    near(parsed.duration, 4.6); // b ends at 4, tail 0.6
+    assert.equal(parsed.clips[0]?.tail, 1.5);
+    // Live edit: dragging b later grows the timeline to cover its tail.
+    const grown = computeStaticTimeline(parsed, { 'b.at': 3 } as never);
+    near(grown.duration, 5.6);
   });
 });
 

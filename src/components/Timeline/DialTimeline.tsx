@@ -11,6 +11,8 @@ import {
   clampClipMove,
   clampClipResizeEnd,
   clampClipResizeStart,
+  clampSingleTrackResizeEnd,
+  clampSingleTrackResizeStart,
   clampStepResize,
   clampTrackDelay,
   formatClock,
@@ -18,11 +20,13 @@ import {
   formatStepLabel,
   computeClipStaticFromValues,
   normalizeTimelineValuesForCopy,
+  singleTrackMoveDelta,
+  singleTrackReorderAts,
   TIMELINE_MIN_CLIP_DURATION,
   timelinePopoverDisplayValues,
 } from '../../timeline-core';
-import type { TimelineClipLoop, TimelineStepStatic } from '../../timeline-core';
-import { clamp } from '../../transition-math';
+import type { SingleTrackClipSpan, TimelineClipLoop, TimelineStepStatic } from '../../timeline-core';
+import { clamp, round2 } from '../../transition-math';
 import { buildCopyInstruction } from '../../copy-instruction';
 import { isDevDefault } from '../../env';
 import { ICON_ADD_PRESET, ICON_CHEVRON, ICON_CHECK, ICON_CLIPBOARD, ICON_LOOP, ICON_PAUSE, ICON_PLAY, ICON_REPLAY } from '../../icons';
@@ -32,6 +36,12 @@ import { PresetManager } from '../PresetManager';
 import type { DialTheme } from '../DialRoot';
 
 const DRAG_THRESHOLD_PX = 3;
+/** Vertical travel that turns a single-track move into the reorder gesture.
+ * Sticky: once lifted, the drag stays a reorder until the pointer drops. */
+const SINGLE_LIFT_PX = 12;
+/** Tails start tucked this far under the bar's rounded end (they render
+ * behind it), so they emerge from the pill surface with no notch. */
+const SINGLE_TAIL_TUCK_PX = 8;
 const MAJOR_TICK_TARGET_PX = 140;
 const MILLISECOND_STEP = 0.001;
 const SECOND_TICK_STEPS = [
@@ -435,6 +445,55 @@ function TimelinePlayheadFlag({
   );
 }
 
+/** Single-track bar fill: the played part of a clip, bright. Re-renders per
+ * frame only while the playhead is crossing this bar (0 and 1 are stable). */
+function ClipFill({ id, at, duration }: { id: string; at: number; duration: number }) {
+  const subscribe = useTransportSubscribe(id);
+  const getProgress = useCallback(() => {
+    const time = TimelineStore.getTransport(id).time;
+    if (duration <= 0) return time >= at ? 1 : 0;
+    return clamp((time - at) / duration, 0, 1);
+  }, [at, duration, id]);
+  const progress = useSyncExternalStore(subscribe, getProgress, getProgress);
+  return (
+    <span
+      className="dialkit-timeline-clip-fill"
+      style={{ width: `${progress * 100}%` }}
+      aria-hidden="true"
+    />
+  );
+}
+
+/** Single-track tail: the clip's settle window past its bar. Lit once the
+ * playhead reaches the clip (played stays lit — same rule as the fill), or
+ * while the bar is hovered/selected. Boolean snapshot: re-renders only when
+ * the played state flips. */
+function ClipTail({
+  id,
+  at,
+  left,
+  width,
+  lit,
+}: {
+  id: string;
+  at: number;
+  left: number;
+  width: number;
+  lit: boolean;
+}) {
+  const subscribe = useTransportSubscribe(id);
+  const getPlayed = useCallback(() => TimelineStore.getTransport(id).time >= at, [at, id]);
+  const played = useSyncExternalStore(subscribe, getPlayed, getPlayed);
+  return (
+    <span
+      className="dialkit-timeline-clip-tail"
+      data-lit={lit || played || undefined}
+      style={{ left, width }}
+      aria-hidden="true"
+    />
+  );
+}
+
 function TimelineOverview({
   id,
   duration,
@@ -553,6 +612,22 @@ const TimelineSection = memo(function TimelineSection({
   const [expandedTracks, setExpandedTracks] = useState<Set<string>>(() => new Set());
   const [zoom, setZoom] = useState(1);
   const [viewStart, setViewStart] = useState(0);
+
+  // ── Single-track state ──
+  // Simple from/to clips only — anything richer falls back to row rendering.
+  const singleTrack =
+    Boolean(meta.singleTrack) &&
+    meta.clips.every((clip) => !clip.stepKeys?.length && !clip.tracks?.length && !clip.group);
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => new Set());
+  const selectedKeysRef = useRef(selectedKeys);
+  selectedKeysRef.current = selectedKeys;
+  const [liftedKeys, setLiftedKeys] = useState<Set<string> | null>(null);
+  /** Reorder insertion cue, in timeline seconds (null = no cue). */
+  const [cueTime, setCueTime] = useState<number | null>(null);
+  const singleDragRef = useRef<{
+    spans: SingleTrackClipSpan[]; // at-sorted snapshot from pointer-down
+    slot: number | null; // reorder insertion slot among the unselected clips
+  } | null>(null);
 
   const subscribeValues = useCallback(
     (callback: () => void) => DialStore.subscribe(meta.id, callback),
@@ -767,6 +842,9 @@ const TimelineSection = memo(function TimelineSection({
     const target = e.target as HTMLElement;
     if (target.closest('.dialkit-timeline-label, button')) return;
     if (!e.shiftKey && target.closest('.dialkit-timeline-clip')) return;
+    // Single track: pressing empty lane clears the selection (clip presses
+    // never reach here — the bar stops propagation).
+    setSelectedKeys((prev) => (prev.size ? new Set<string>() : prev));
     const rect = laneAreaRef.current?.getBoundingClientRect();
     if (!rect) return;
     e.preventDefault();
@@ -869,6 +947,134 @@ const TimelineSection = memo(function TimelineSection({
     });
   }, []);
 
+  // ── Single-track gestures ──
+  // All the geometry math lives here (the section sees every clip); the bar
+  // component only owns pointer capture, thresholds, and the lift detection.
+  // Plain closures on purpose: they capture this render's pxPerSecond /
+  // viewStart, and TimelineClip is not memoized.
+
+  const snapshotSingleSpans = (selection: Set<string>): SingleTrackClipSpan[] =>
+    meta.clips
+      .map((clip) => {
+        const stat = computeClipStaticFromValues(DialStore.getValues(meta.id), clip, meta.duration);
+        return { key: clip.key, at: stat.at, duration: stat.duration, selected: selection.has(clip.key) };
+      })
+      .sort((a, b) => a.at - b.at);
+
+  const singlePress = (key: string, select: boolean) => {
+    let selection = selectedKeysRef.current;
+    if (select && !selection.has(key)) {
+      selection = new Set([key]);
+      setSelectedKeys(selection);
+    }
+    singleDragRef.current = { spans: snapshotSingleSpans(selection), slot: null };
+  };
+
+  const singleToggleSelect = (key: string) => {
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const singleMove = (dt: number) => {
+    const drag = singleDragRef.current;
+    if (!drag) return;
+    const delta = singleTrackMoveDelta(drag.spans, dt);
+    const writes: Record<string, DialValue> = {};
+    for (const span of drag.spans) {
+      if (span.selected) writes[`${span.key}.at`] = round2(span.at + delta);
+    }
+    DialStore.updateValues(meta.id, writes);
+  };
+
+  const singleLift = () => {
+    const drag = singleDragRef.current;
+    if (!drag) return;
+    // Entering reorder undoes any move already applied — the lift restores
+    // the pointer-down positions, then only the cue tracks the pointer.
+    const writes: Record<string, DialValue> = {};
+    for (const span of drag.spans) {
+      if (span.selected) writes[`${span.key}.at`] = span.at;
+    }
+    DialStore.updateValues(meta.id, writes);
+    setLiftedKeys(new Set(drag.spans.filter((span) => span.selected).map((span) => span.key)));
+  };
+
+  const singleReorderHover = (clientX: number) => {
+    const drag = singleDragRef.current;
+    const rect = laneAreaRef.current?.getBoundingClientRect();
+    if (!drag || !rect || pxPerSecond <= 0) return;
+    const xSec = safeViewStart + (clientX - rect.left) / pxPerSecond;
+    const others = drag.spans.filter((span) => !span.selected);
+    let slot = others.length;
+    for (let i = 0; i < others.length; i++) {
+      if (xSec < others[i].at + others[i].duration / 2) {
+        slot = i;
+        break;
+      }
+    }
+    drag.slot = slot;
+    setCueTime(
+      slot < others.length
+        ? others[slot].at
+        : others.length
+          ? others[others.length - 1].at + others[others.length - 1].duration
+          : 0
+    );
+  };
+
+  const singleReorderDrop = () => {
+    const drag = singleDragRef.current;
+    singleDragRef.current = null;
+    setLiftedKeys(null);
+    setCueTime(null);
+    if (!drag || drag.slot === null) return;
+    const ats = singleTrackReorderAts(drag.spans, drag.slot);
+    const writes: Record<string, DialValue> = {};
+    for (const [key, at] of Object.entries(ats)) writes[`${key}.at`] = at;
+    DialStore.updateValues(meta.id, writes);
+  };
+
+  const singleResizeEnd = (key: string, dt: number) => {
+    const drag = singleDragRef.current;
+    if (!drag) return;
+    const index = drag.spans.findIndex((span) => span.key === key);
+    if (index < 0) return;
+    const span = drag.spans[index];
+    const next = drag.spans[index + 1];
+    DialStore.updateValue(
+      meta.id,
+      `${key}.duration`,
+      clampSingleTrackResizeEnd(span.duration + dt, span.at, next?.at)
+    );
+  };
+
+  const singleResizeStart = (key: string, dt: number) => {
+    const drag = singleDragRef.current;
+    if (!drag) return;
+    const index = drag.spans.findIndex((span) => span.key === key);
+    if (index < 0) return;
+    const span = drag.spans[index];
+    const prev = drag.spans[index - 1];
+    const next = clampSingleTrackResizeStart(
+      span.at + dt,
+      span.at,
+      span.duration,
+      prev ? prev.at + prev.duration : 0
+    );
+    DialStore.updateValues(meta.id, {
+      [`${key}.at`]: next.at,
+      [`${key}.duration`]: next.duration,
+    });
+  };
+
+  const singleRelease = () => {
+    singleDragRef.current = null;
+  };
+
   // Ruler ticks
   const rawStep = pxPerSecond > 0 ? MAJOR_TICK_TARGET_PX / pxPerSecond : 1;
   const adaptiveMajorStep = SECOND_TICK_STEPS.find((step) => step >= rawStep) ?? SECOND_TICK_STEPS[SECOND_TICK_STEPS.length - 1];
@@ -891,10 +1097,59 @@ const TimelineSection = memo(function TimelineSection({
   }
 
   // Rows: clips in config order, grouped clips under a collapsible header,
-  // props clips expandable into full per-property track rows.
+  // props clips expandable into full per-property track rows. Single-track
+  // mode collapses everything into ONE lane instead.
   const rows: ReactNode[] = [];
+  if (singleTrack) {
+    rows.push(
+      <div key="single-track" className="dialkit-timeline-row dialkit-timeline-single-row">
+        <div className="dialkit-timeline-label" />
+        <div className="dialkit-timeline-lane">
+          {meta.clips.map((clip) => {
+            const stat = computeClipStaticFromValues(values, clip, meta.duration);
+            return (
+              <TimelineClip
+                key={clip.key}
+                timelineId={meta.id}
+                clip={clip}
+                at={stat.at}
+                duration={stat.duration}
+                loop={stat.loop}
+                fixedDuration={stat.isPhysics}
+                pxPerSecond={pxPerSecond}
+                viewStart={safeViewStart}
+                timelineDuration={meta.duration}
+                selected={selectedKeys.has(clip.key)}
+                onClick={handleBarClick}
+                onDrag={closePopover}
+                single={{
+                  tail: clip.tail ?? 0,
+                  lifted: liftedKeys?.has(clip.key) ?? false,
+                  onPress: singlePress,
+                  onToggleSelect: singleToggleSelect,
+                  onMove: singleMove,
+                  onLift: singleLift,
+                  onReorderHover: singleReorderHover,
+                  onReorderDrop: singleReorderDrop,
+                  onResizeEnd: singleResizeEnd,
+                  onResizeStart: singleResizeStart,
+                  onRelease: singleRelease,
+                }}
+              />
+            );
+          })}
+          {cueTime !== null && (
+            <div
+              className="dialkit-timeline-single-cue"
+              style={{ left: (cueTime - safeViewStart) * pxPerSecond }}
+            />
+          )}
+        </div>
+      </div>
+    );
+  }
   let lastGroup: string | undefined;
-  for (const clip of meta.clips) {
+  for (const clip of singleTrack ? [] : meta.clips) {
     if (clip.group !== lastGroup) {
       lastGroup = clip.group;
       if (clip.group) {
@@ -1018,7 +1273,7 @@ const TimelineSection = memo(function TimelineSection({
   }
 
   return (
-    <div className="dialkit-timeline-section">
+    <div className="dialkit-timeline-section" data-single-track={singleTrack || undefined}>
       <div className="dialkit-timeline-header" data-open={open || undefined}>
         <div className="dialkit-timeline-identity">
           <span className="dialkit-timeline-title">{meta.name}</span>
@@ -1414,11 +1669,32 @@ type DragState = {
   mode: 'move' | 'start' | 'end' | 'boundary';
   boundaryIndex?: number;
   pointerX: number;
+  pointerY?: number;
   at: number;
   duration: number;
   stepDurations?: number[];
   clickEl: HTMLElement | null;
   moved: boolean;
+  /** Single track: the move became a reorder (sticky until drop). */
+  lifted?: boolean;
+};
+
+/** Single-track wiring: the section owns selection and all geometry math
+ * (it sees every clip); the bar routes its gestures through these. */
+type SingleTrackClipProps = {
+  /** Settle window (seconds) past the bar — drawn as a fading tail. */
+  tail: number;
+  /** This clip is lifted by the in-progress reorder gesture. */
+  lifted: boolean;
+  onPress: (key: string, select: boolean) => void;
+  onToggleSelect: (key: string) => void;
+  onMove: (dt: number) => void;
+  onLift: () => void;
+  onReorderHover: (clientX: number) => void;
+  onReorderDrop: () => void;
+  onResizeEnd: (key: string, dt: number) => void;
+  onResizeStart: (key: string, dt: number) => void;
+  onRelease: () => void;
 };
 
 function TimelineClip({
@@ -1439,6 +1715,7 @@ function TimelineClip({
   selectedStepKey,
   onClick,
   onDrag,
+  single,
 }: {
   timelineId: string;
   clip: TimelineClipMeta;
@@ -1459,13 +1736,46 @@ function TimelineClip({
   selectedStepKey?: string;
   onClick: (clip: TimelineClipMeta, rect: DOMRect, stepKey?: string) => void;
   onDrag: () => void;
+  /** Present in single-track mode — gestures route to the section. */
+  single?: SingleTrackClipProps;
 }) {
   const dragRef = useRef<DragState | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [hovered, setHovered] = useState(false);
   const isSteps = Boolean(steps?.length);
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
+      if (single) {
+        e.stopPropagation();
+        const target = e.target as HTMLElement;
+        let mode: DragState['mode'] = 'move';
+        if (!fixedDuration) {
+          const edge = target.dataset?.edge as 'start' | 'end' | undefined;
+          if (edge) mode = edge;
+        }
+        // Shift-click toggles membership in the multi-selection — no drag,
+        // no popover.
+        if (e.shiftKey) {
+          if (mode === 'move') single.onToggleSelect(clip.key);
+          return;
+        }
+        // A plain press on an unselected bar selects it solo; an edge press
+        // never touches the selection. Either way the section snapshots the
+        // clip geometry for this drag.
+        single.onPress(clip.key, mode === 'move');
+        dragRef.current = {
+          mode,
+          pointerX: e.clientX,
+          pointerY: e.clientY,
+          at,
+          duration,
+          clickEl: null,
+          moved: false,
+        };
+        e.currentTarget.setPointerCapture(e.pointerId);
+        return;
+      }
       if (e.shiftKey) return;
       e.stopPropagation();
       const target = e.target as HTMLElement;
@@ -1491,13 +1801,40 @@ function TimelineClip({
       };
       e.currentTarget.setPointerCapture(e.pointerId);
     },
-    [at, duration, fixedDuration, steps]
+    [at, clip.key, duration, fixedDuration, single, steps]
   );
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       const drag = dragRef.current;
       if (!drag || pxPerSecond <= 0) return;
+
+      if (single) {
+        const sdx = e.clientX - drag.pointerX;
+        const sdy = e.clientY - (drag.pointerY ?? e.clientY);
+        if (!drag.moved) {
+          if (Math.abs(sdx) <= DRAG_THRESHOLD_PX && Math.abs(sdy) <= DRAG_THRESHOLD_PX) return;
+          drag.moved = true;
+          setDragging(true);
+          onDrag();
+        }
+        const sdt = sdx / pxPerSecond;
+        if (drag.mode === 'move') {
+          // Lifting past the threshold turns the move into a reorder —
+          // sticky until drop, so a wobbling hand can't half-apply both.
+          if (!drag.lifted && Math.abs(sdy) > SINGLE_LIFT_PX) {
+            drag.lifted = true;
+            single.onLift();
+          }
+          if (drag.lifted) single.onReorderHover(e.clientX);
+          else single.onMove(sdt);
+        } else if (drag.mode === 'end') {
+          single.onResizeEnd(clip.key, sdt);
+        } else {
+          single.onResizeStart(clip.key, sdt);
+        }
+        return;
+      }
 
       const dx = e.clientX - drag.pointerX;
       if (!drag.moved) {
@@ -1551,7 +1888,7 @@ function TimelineClip({
         });
       }
     },
-    [baseAt, clip.key, delayMode, onDrag, pxPerSecond, steps, timelineId, timelineDuration]
+    [baseAt, clip.key, delayMode, onDrag, pxPerSecond, single, steps, timelineId, timelineDuration]
   );
 
   const handlePointerUp = useCallback(
@@ -1559,19 +1896,33 @@ function TimelineClip({
       const drag = dragRef.current;
       dragRef.current = null;
       setDragging(false);
+      if (single) {
+        if (drag?.lifted) {
+          single.onReorderDrop();
+          return;
+        }
+        single.onRelease();
+        if (drag && !drag.moved) onClick(clip, e.currentTarget.getBoundingClientRect());
+        return;
+      }
       if (drag && !drag.moved) {
         const stepKey = drag.clickEl?.dataset?.step;
         const anchorEl = drag.clickEl ?? e.currentTarget;
         onClick(clip, anchorEl.getBoundingClientRect(), stepKey);
       }
     },
-    [clip, onClick]
+    [clip, onClick, single]
   );
 
   const handlePointerCancel = useCallback(() => {
+    const drag = dragRef.current;
     dragRef.current = null;
     setDragging(false);
-  }, []);
+    if (single) {
+      if (drag?.lifted) single.onReorderDrop();
+      else single.onRelease();
+    }
+  }, [single]);
 
   const width = Math.max(duration * pxPerSecond, 14);
   const resizable = duration > 0 && !fixedDuration && !composite;
@@ -1633,25 +1984,47 @@ function TimelineClip({
           </div>
         );
       })}
+      {single && single.tail > 0 && pxPerSecond > 0 && (
+        <ClipTail
+          id={timelineId}
+          at={at}
+          left={(at + duration - viewStart) * pxPerSecond - SINGLE_TAIL_TUCK_PX}
+          width={single.tail * pxPerSecond + SINGLE_TAIL_TUCK_PX}
+          lit={hovered || selected}
+        />
+      )}
       <div
         className="dialkit-timeline-clip"
         data-steps={isSteps || undefined}
         data-composite={composite || undefined}
         data-selected={selected || undefined}
         data-dragging={dragging || undefined}
+        data-lifted={single?.lifted || undefined}
         style={{
-          left: (at - viewStart) * pxPerSecond,
-          width,
-          background: composite ? `${clip.color}80` : clip.color,
+          // Hairline: single-track bars draw 1px short of their span on
+          // each side, so butted pairs keep a sliver of lane between them.
+          left: (at - viewStart) * pxPerSecond + (single ? 1 : 0),
+          width: single ? Math.max(width - 2, 12) : width,
+          ...(single ? {} : { background: composite ? `${clip.color}80` : clip.color }),
         }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
         onLostPointerCapture={handlePointerCancel}
+        onPointerEnter={single ? () => setHovered(true) : undefined}
+        onPointerLeave={single ? () => setHovered(false) : undefined}
         title={barTitle}
       >
-        {composite ? (
+        {single ? (
+          <>
+            <ClipFill id={timelineId} at={at} duration={duration} />
+            {resizable && <div className="dialkit-timeline-clip-handle" data-edge="start" />}
+            <span className="dialkit-timeline-clip-name">{clip.label}</span>
+            {width > 56 && <span className="dialkit-timeline-clip-duration">{durationText}</span>}
+            {resizable && <div className="dialkit-timeline-clip-handle" data-edge="end" />}
+          </>
+        ) : composite ? (
           <>{width > 56 && <span className="dialkit-timeline-clip-duration">{durationText}</span>}</>
         ) : isSteps ? (
           <>

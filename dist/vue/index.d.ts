@@ -340,6 +340,14 @@ type TimelineClipBase = {
     transition?: TransitionConfig;
     loop?: boolean | TimelineClipLoop;
     /**
+     * Settle window (seconds) past the bar's end — motion the host declares
+     * keeps running after the clip's own duration (e.g. staggered elements
+     * finishing their flight). Read-only: no dial, no popover control. The
+     * timeline's end covers `at + duration + tail`, and single-track mode
+     * draws it as a fading tail behind the following bars.
+     */
+    tail?: number;
+    /**
      * Display name for the clip's bar. Defaults to the config key, prettified.
      * Set this when the key is an opaque identifier — keying clips by a stable
      * record id keeps edits attached across renames and reordering, but that id
@@ -469,6 +477,13 @@ interface DialTimelineOptions {
     loop?: boolean | {
         from: number;
     };
+    /**
+     * `'single'`: every clip shares ONE lane — no overlap (drags and resizes
+     * clamp against neighbors), labels drawn inside the bars, `tail` windows
+     * rendered. Simple from/to clips only. Defaults to `'rows'` (one lane per
+     * clip, the classic dock).
+     */
+    track?: 'rows' | 'single';
 }
 
 type UseDialTimelineOptions = DialTimelineOptions;

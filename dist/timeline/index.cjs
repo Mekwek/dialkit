@@ -489,7 +489,10 @@ function parseTimelineConfig(config) {
   const entries = collectClipEntries(config);
   let maxEnd = 0;
   for (const { clip } of entries) {
-    maxEnd = Math.max(maxEnd, nonNegativeFinite(clip.at) + defaultClipDuration(clip));
+    maxEnd = Math.max(
+      maxEnd,
+      nonNegativeFinite(clip.at) + defaultClipDuration(clip) + nonNegativeFinite(clip.tail)
+    );
   }
   const duration = typeof config.duration === "number" && Number.isFinite(config.duration) && config.duration > 0 ? config.duration : maxEnd > 0 ? Math.ceil(maxEnd * 100 - 1e-4) / 100 : 1;
   const dialConfig = {};
@@ -617,7 +620,8 @@ function parseTimelineConfig(config) {
       loop: normalizeLoopMode(clip.loop),
       group,
       stepKeys,
-      tracks
+      tracks,
+      ...nonNegativeFinite(clip.tail) > 0 ? { tail: nonNegativeFinite(clip.tail) } : {}
     });
   });
   return { duration, dialConfig, clips };
@@ -701,8 +705,9 @@ function computeStaticClips(parsed, flatValues) {
 }
 function computeStaticTimeline(parsed, flatValues) {
   let clips = computeStaticClips(parsed, flatValues);
+  const tailByKey = new Map(parsed.clips.map((clip) => [clip.key, clip.tail ?? 0]));
   const maxEnd = clips.reduce(
-    (end, clip) => Math.max(end, clip.at + clip.duration),
+    (end, clip) => Math.max(end, clip.at + clip.duration + (tailByKey.get(clip.key) ?? 0)),
     parsed.duration
   );
   const duration = maxEnd > parsed.duration ? Math.ceil(maxEnd * 100 - 1e-4) / 100 : parsed.duration;
@@ -1140,7 +1145,7 @@ function resolveTimelineLoop(loop) {
   }
   return { enabled: Boolean(loop), start: 0 };
 }
-function buildTimelineMeta(id, name, duration, parsed, loop) {
+function buildTimelineMeta(id, name, duration, parsed, loop, track) {
   const resolvedLoop = resolveTimelineLoop(loop);
   return {
     id,
@@ -1148,7 +1153,8 @@ function buildTimelineMeta(id, name, duration, parsed, loop) {
     duration,
     loop: resolvedLoop.enabled,
     loopStart: resolvedLoop.start,
-    clips: parsed.clips
+    clips: parsed.clips,
+    ...track === "single" ? { singleTrack: true } : {}
   };
 }
 function buildTimelineValues(staticClips, transport, timelineDuration, loopStart, actions) {

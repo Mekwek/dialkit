@@ -3827,7 +3827,10 @@ function parseTimelineConfig(config) {
   const entries = collectClipEntries(config);
   let maxEnd = 0;
   for (const { clip } of entries) {
-    maxEnd = Math.max(maxEnd, nonNegativeFinite(clip.at) + defaultClipDuration(clip));
+    maxEnd = Math.max(
+      maxEnd,
+      nonNegativeFinite(clip.at) + defaultClipDuration(clip) + nonNegativeFinite(clip.tail)
+    );
   }
   const duration = typeof config.duration === "number" && Number.isFinite(config.duration) && config.duration > 0 ? config.duration : maxEnd > 0 ? Math.ceil(maxEnd * 100 - 1e-4) / 100 : 1;
   const dialConfig = {};
@@ -3955,7 +3958,8 @@ function parseTimelineConfig(config) {
       loop: normalizeLoopMode(clip.loop),
       group,
       stepKeys,
-      tracks
+      tracks,
+      ...nonNegativeFinite(clip.tail) > 0 ? { tail: nonNegativeFinite(clip.tail) } : {}
     });
   });
   return { duration, dialConfig, clips };
@@ -4039,8 +4043,9 @@ function computeStaticClips(parsed, flatValues) {
 }
 function computeStaticTimeline(parsed, flatValues) {
   let clips = computeStaticClips(parsed, flatValues);
+  const tailByKey = new Map(parsed.clips.map((clip) => [clip.key, clip.tail ?? 0]));
   const maxEnd = clips.reduce(
-    (end, clip) => Math.max(end, clip.at + clip.duration),
+    (end, clip) => Math.max(end, clip.at + clip.duration + (tailByKey.get(clip.key) ?? 0)),
     parsed.duration
   );
   const duration = maxEnd > parsed.duration ? Math.ceil(maxEnd * 100 - 1e-4) / 100 : parsed.duration;
@@ -4408,6 +4413,50 @@ function clampClipResizeStart(newAt, at, duration) {
   const clampedAt = clamp(round2(newAt), 0, at + duration - TIMELINE_MIN_CLIP_DURATION);
   return { at: clampedAt, duration: round2(at + duration - clampedAt) };
 }
+function singleTrackMoveDelta(clips, delta) {
+  let lo = Number.NEGATIVE_INFINITY;
+  let hi = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < clips.length; i++) {
+    if (!clips[i].selected) continue;
+    const prev = clips[i - 1];
+    if (i === 0) lo = Math.max(lo, -clips[i].at);
+    else if (!prev.selected) lo = Math.max(lo, prev.at + prev.duration - clips[i].at);
+    const next = clips[i + 1];
+    if (next && !next.selected) hi = Math.min(hi, next.at - (clips[i].at + clips[i].duration));
+  }
+  if (lo > hi) return 0;
+  return clamp(delta, lo, hi);
+}
+function singleTrackReorderAts(clips, slot) {
+  const gaps = clips.map(
+    (clip, i) => i === 0 ? clip.at : clip.at - (clips[i - 1].at + clips[i - 1].duration)
+  );
+  const selectedRun = clips.filter((clip) => clip.selected);
+  const others = clips.filter((clip) => !clip.selected);
+  const boundedSlot = Math.max(0, Math.min(others.length, Math.round(slot)));
+  const nextOrder = [
+    ...others.slice(0, boundedSlot),
+    ...selectedRun,
+    ...others.slice(boundedSlot)
+  ];
+  const ats = {};
+  let cursor = 0;
+  nextOrder.forEach((clip, i) => {
+    const at = round2(cursor + gaps[i]);
+    ats[clip.key] = at;
+    cursor = at + clip.duration;
+  });
+  return ats;
+}
+function clampSingleTrackResizeEnd(duration, at, nextStart) {
+  const max = nextStart === void 0 ? Number.POSITIVE_INFINITY : Math.max(TIMELINE_MIN_CLIP_DURATION, nextStart - at);
+  return clamp(round2(duration), TIMELINE_MIN_CLIP_DURATION, max);
+}
+function clampSingleTrackResizeStart(newAt, at, duration, prevEnd) {
+  const floor = Math.max(0, prevEnd ?? 0);
+  const clampedAt = clamp(round2(newAt), floor, at + duration - TIMELINE_MIN_CLIP_DURATION);
+  return { at: clampedAt, duration: round2(at + duration - clampedAt) };
+}
 function clampStepResize(duration, at, otherStepsTotal, timelineDuration) {
   const max = Math.max(TIMELINE_MIN_CLIP_DURATION, timelineDuration - at - otherStepsTotal);
   return clamp(round2(duration), TIMELINE_MIN_CLIP_DURATION, max);
@@ -4478,7 +4527,7 @@ function resolveTimelineLoop(loop) {
   }
   return { enabled: Boolean(loop), start: 0 };
 }
-function buildTimelineMeta(id, name, duration, parsed, loop) {
+function buildTimelineMeta(id, name, duration, parsed, loop, track) {
   const resolvedLoop = resolveTimelineLoop(loop);
   return {
     id,
@@ -4486,7 +4535,8 @@ function buildTimelineMeta(id, name, duration, parsed, loop) {
     duration,
     loop: resolvedLoop.enabled,
     loopStart: resolvedLoop.start,
-    clips: parsed.clips
+    clips: parsed.clips,
+    ...track === "single" ? { singleTrack: true } : {}
   };
 }
 function buildTimelineValues(staticClips, transport, timelineDuration, loopStart, actions) {
@@ -4532,8 +4582,8 @@ function useDialTimeline(name, config, options) {
   optionsRef.current = options;
   const { start: loopStart } = resolveTimelineLoop(options?.loop);
   const buildMeta = (0, import_react23.useCallback)(
-    () => buildTimelineMeta(panelId, name, timelineDuration, parsedRef.current, options?.loop),
-    [panelId, name, timelineDuration, options?.loop]
+    () => buildTimelineMeta(panelId, name, timelineDuration, parsedRef.current, options?.loop, options?.track),
+    [panelId, name, timelineDuration, options?.loop, options?.track]
   );
   const buildMetaRef = (0, import_react23.useRef)(buildMeta);
   buildMetaRef.current = buildMeta;
@@ -4576,6 +4626,8 @@ var import_react_dom4 = require("react-dom");
 var import_react25 = require("motion/react");
 var import_jsx_runtime18 = require("react/jsx-runtime");
 var DRAG_THRESHOLD_PX = 3;
+var SINGLE_LIFT_PX = 12;
+var SINGLE_TAIL_TUCK_PX = 8;
 var MAJOR_TICK_TARGET_PX = 140;
 var MILLISECOND_STEP = 1e-3;
 var SECOND_TICK_STEPS = [
@@ -4918,6 +4970,43 @@ function TimelinePlayheadFlag({
     }
   );
 }
+function ClipFill({ id, at, duration }) {
+  const subscribe = useTransportSubscribe(id);
+  const getProgress = (0, import_react24.useCallback)(() => {
+    const time = TimelineStore.getTransport(id).time;
+    if (duration <= 0) return time >= at ? 1 : 0;
+    return clamp((time - at) / duration, 0, 1);
+  }, [at, duration, id]);
+  const progress = (0, import_react24.useSyncExternalStore)(subscribe, getProgress, getProgress);
+  return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+    "span",
+    {
+      className: "dialkit-timeline-clip-fill",
+      style: { width: `${progress * 100}%` },
+      "aria-hidden": "true"
+    }
+  );
+}
+function ClipTail({
+  id,
+  at,
+  left,
+  width,
+  lit
+}) {
+  const subscribe = useTransportSubscribe(id);
+  const getPlayed = (0, import_react24.useCallback)(() => TimelineStore.getTransport(id).time >= at, [at, id]);
+  const played = (0, import_react24.useSyncExternalStore)(subscribe, getPlayed, getPlayed);
+  return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+    "span",
+    {
+      className: "dialkit-timeline-clip-tail",
+      "data-lit": lit || played || void 0,
+      style: { left, width },
+      "aria-hidden": "true"
+    }
+  );
+}
 function TimelineOverview({
   id,
   duration,
@@ -5002,6 +5091,13 @@ var TimelineSection = (0, import_react24.memo)(function TimelineSection2({
   const [expandedTracks, setExpandedTracks] = (0, import_react24.useState)(() => /* @__PURE__ */ new Set());
   const [zoom, setZoom] = (0, import_react24.useState)(1);
   const [viewStart, setViewStart] = (0, import_react24.useState)(0);
+  const singleTrack = Boolean(meta.singleTrack) && meta.clips.every((clip) => !clip.stepKeys?.length && !clip.tracks?.length && !clip.group);
+  const [selectedKeys, setSelectedKeys] = (0, import_react24.useState)(() => /* @__PURE__ */ new Set());
+  const selectedKeysRef = (0, import_react24.useRef)(selectedKeys);
+  selectedKeysRef.current = selectedKeys;
+  const [liftedKeys, setLiftedKeys] = (0, import_react24.useState)(null);
+  const [cueTime, setCueTime] = (0, import_react24.useState)(null);
+  const singleDragRef = (0, import_react24.useRef)(null);
   const subscribeValues = (0, import_react24.useCallback)(
     (callback) => DialStore.subscribe(meta.id, callback),
     [meta.id]
@@ -5172,6 +5268,7 @@ var TimelineSection = (0, import_react24.memo)(function TimelineSection2({
     const target = e.target;
     if (target.closest(".dialkit-timeline-label, button")) return;
     if (!e.shiftKey && target.closest(".dialkit-timeline-clip")) return;
+    setSelectedKeys((prev) => prev.size ? /* @__PURE__ */ new Set() : prev);
     const rect = laneAreaRef.current?.getBoundingClientRect();
     if (!rect) return;
     e.preventDefault();
@@ -5256,6 +5353,109 @@ var TimelineSection = (0, import_react24.memo)(function TimelineSection2({
       return next;
     });
   }, []);
+  const snapshotSingleSpans = (selection) => meta.clips.map((clip) => {
+    const stat = computeClipStaticFromValues(DialStore.getValues(meta.id), clip, meta.duration);
+    return { key: clip.key, at: stat.at, duration: stat.duration, selected: selection.has(clip.key) };
+  }).sort((a, b) => a.at - b.at);
+  const singlePress = (key, select) => {
+    let selection = selectedKeysRef.current;
+    if (select && !selection.has(key)) {
+      selection = /* @__PURE__ */ new Set([key]);
+      setSelectedKeys(selection);
+    }
+    singleDragRef.current = { spans: snapshotSingleSpans(selection), slot: null };
+  };
+  const singleToggleSelect = (key) => {
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+  const singleMove = (dt) => {
+    const drag = singleDragRef.current;
+    if (!drag) return;
+    const delta = singleTrackMoveDelta(drag.spans, dt);
+    const writes = {};
+    for (const span of drag.spans) {
+      if (span.selected) writes[`${span.key}.at`] = round2(span.at + delta);
+    }
+    DialStore.updateValues(meta.id, writes);
+  };
+  const singleLift = () => {
+    const drag = singleDragRef.current;
+    if (!drag) return;
+    const writes = {};
+    for (const span of drag.spans) {
+      if (span.selected) writes[`${span.key}.at`] = span.at;
+    }
+    DialStore.updateValues(meta.id, writes);
+    setLiftedKeys(new Set(drag.spans.filter((span) => span.selected).map((span) => span.key)));
+  };
+  const singleReorderHover = (clientX) => {
+    const drag = singleDragRef.current;
+    const rect = laneAreaRef.current?.getBoundingClientRect();
+    if (!drag || !rect || pxPerSecond <= 0) return;
+    const xSec = safeViewStart + (clientX - rect.left) / pxPerSecond;
+    const others = drag.spans.filter((span) => !span.selected);
+    let slot = others.length;
+    for (let i = 0; i < others.length; i++) {
+      if (xSec < others[i].at + others[i].duration / 2) {
+        slot = i;
+        break;
+      }
+    }
+    drag.slot = slot;
+    setCueTime(
+      slot < others.length ? others[slot].at : others.length ? others[others.length - 1].at + others[others.length - 1].duration : 0
+    );
+  };
+  const singleReorderDrop = () => {
+    const drag = singleDragRef.current;
+    singleDragRef.current = null;
+    setLiftedKeys(null);
+    setCueTime(null);
+    if (!drag || drag.slot === null) return;
+    const ats = singleTrackReorderAts(drag.spans, drag.slot);
+    const writes = {};
+    for (const [key, at] of Object.entries(ats)) writes[`${key}.at`] = at;
+    DialStore.updateValues(meta.id, writes);
+  };
+  const singleResizeEnd = (key, dt) => {
+    const drag = singleDragRef.current;
+    if (!drag) return;
+    const index = drag.spans.findIndex((span2) => span2.key === key);
+    if (index < 0) return;
+    const span = drag.spans[index];
+    const next = drag.spans[index + 1];
+    DialStore.updateValue(
+      meta.id,
+      `${key}.duration`,
+      clampSingleTrackResizeEnd(span.duration + dt, span.at, next?.at)
+    );
+  };
+  const singleResizeStart = (key, dt) => {
+    const drag = singleDragRef.current;
+    if (!drag) return;
+    const index = drag.spans.findIndex((span2) => span2.key === key);
+    if (index < 0) return;
+    const span = drag.spans[index];
+    const prev = drag.spans[index - 1];
+    const next = clampSingleTrackResizeStart(
+      span.at + dt,
+      span.at,
+      span.duration,
+      prev ? prev.at + prev.duration : 0
+    );
+    DialStore.updateValues(meta.id, {
+      [`${key}.at`]: next.at,
+      [`${key}.duration`]: next.duration
+    });
+  };
+  const singleRelease = () => {
+    singleDragRef.current = null;
+  };
   const rawStep = pxPerSecond > 0 ? MAJOR_TICK_TARGET_PX / pxPerSecond : 1;
   const adaptiveMajorStep = SECOND_TICK_STEPS.find((step) => step >= rawStep) ?? SECOND_TICK_STEPS[SECOND_TICK_STEPS.length - 1];
   const majorStep = zoom < 1.5 && meta.duration >= 1 ? Math.max(1, adaptiveMajorStep) : adaptiveMajorStep;
@@ -5276,8 +5476,58 @@ var TimelineSection = (0, import_react24.memo)(function TimelineSection2({
     else fineTicks.push(tick);
   }
   const rows = [];
+  if (singleTrack) {
+    rows.push(
+      /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { className: "dialkit-timeline-row dialkit-timeline-single-row", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { className: "dialkit-timeline-label" }),
+        /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { className: "dialkit-timeline-lane", children: [
+          meta.clips.map((clip) => {
+            const stat = computeClipStaticFromValues(values, clip, meta.duration);
+            return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+              TimelineClip,
+              {
+                timelineId: meta.id,
+                clip,
+                at: stat.at,
+                duration: stat.duration,
+                loop: stat.loop,
+                fixedDuration: stat.isPhysics,
+                pxPerSecond,
+                viewStart: safeViewStart,
+                timelineDuration: meta.duration,
+                selected: selectedKeys.has(clip.key),
+                onClick: handleBarClick,
+                onDrag: closePopover,
+                single: {
+                  tail: clip.tail ?? 0,
+                  lifted: liftedKeys?.has(clip.key) ?? false,
+                  onPress: singlePress,
+                  onToggleSelect: singleToggleSelect,
+                  onMove: singleMove,
+                  onLift: singleLift,
+                  onReorderHover: singleReorderHover,
+                  onReorderDrop: singleReorderDrop,
+                  onResizeEnd: singleResizeEnd,
+                  onResizeStart: singleResizeStart,
+                  onRelease: singleRelease
+                }
+              },
+              clip.key
+            );
+          }),
+          cueTime !== null && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+            "div",
+            {
+              className: "dialkit-timeline-single-cue",
+              style: { left: (cueTime - safeViewStart) * pxPerSecond }
+            }
+          )
+        ] })
+      ] }, "single-track")
+    );
+  }
   let lastGroup;
-  for (const clip of meta.clips) {
+  for (const clip of singleTrack ? [] : meta.clips) {
     if (clip.group !== lastGroup) {
       lastGroup = clip.group;
       if (clip.group) {
@@ -5397,7 +5647,7 @@ var TimelineSection = (0, import_react24.memo)(function TimelineSection2({
       }
     }
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { className: "dialkit-timeline-section", children: [
+  return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { className: "dialkit-timeline-section", "data-single-track": singleTrack || void 0, children: [
     /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { className: "dialkit-timeline-header", "data-open": open || void 0, children: [
       /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { className: "dialkit-timeline-identity", children: /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { className: "dialkit-timeline-title", children: meta.name }) }),
       !open && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
@@ -5753,13 +6003,40 @@ function TimelineClip({
   selected,
   selectedStepKey,
   onClick,
-  onDrag
+  onDrag,
+  single
 }) {
   const dragRef = (0, import_react24.useRef)(null);
   const [dragging, setDragging] = (0, import_react24.useState)(false);
+  const [hovered, setHovered] = (0, import_react24.useState)(false);
   const isSteps = Boolean(steps?.length);
   const handlePointerDown = (0, import_react24.useCallback)(
     (e) => {
+      if (single) {
+        e.stopPropagation();
+        const target2 = e.target;
+        let mode2 = "move";
+        if (!fixedDuration) {
+          const edge = target2.dataset?.edge;
+          if (edge) mode2 = edge;
+        }
+        if (e.shiftKey) {
+          if (mode2 === "move") single.onToggleSelect(clip.key);
+          return;
+        }
+        single.onPress(clip.key, mode2 === "move");
+        dragRef.current = {
+          mode: mode2,
+          pointerX: e.clientX,
+          pointerY: e.clientY,
+          at,
+          duration,
+          clickEl: null,
+          moved: false
+        };
+        e.currentTarget.setPointerCapture(e.pointerId);
+        return;
+      }
       if (e.shiftKey) return;
       e.stopPropagation();
       const target = e.target;
@@ -5785,12 +6062,36 @@ function TimelineClip({
       };
       e.currentTarget.setPointerCapture(e.pointerId);
     },
-    [at, duration, fixedDuration, steps]
+    [at, clip.key, duration, fixedDuration, single, steps]
   );
   const handlePointerMove = (0, import_react24.useCallback)(
     (e) => {
       const drag = dragRef.current;
       if (!drag || pxPerSecond <= 0) return;
+      if (single) {
+        const sdx = e.clientX - drag.pointerX;
+        const sdy = e.clientY - (drag.pointerY ?? e.clientY);
+        if (!drag.moved) {
+          if (Math.abs(sdx) <= DRAG_THRESHOLD_PX && Math.abs(sdy) <= DRAG_THRESHOLD_PX) return;
+          drag.moved = true;
+          setDragging(true);
+          onDrag();
+        }
+        const sdt = sdx / pxPerSecond;
+        if (drag.mode === "move") {
+          if (!drag.lifted && Math.abs(sdy) > SINGLE_LIFT_PX) {
+            drag.lifted = true;
+            single.onLift();
+          }
+          if (drag.lifted) single.onReorderHover(e.clientX);
+          else single.onMove(sdt);
+        } else if (drag.mode === "end") {
+          single.onResizeEnd(clip.key, sdt);
+        } else {
+          single.onResizeStart(clip.key, sdt);
+        }
+        return;
+      }
       const dx = e.clientX - drag.pointerX;
       if (!drag.moved) {
         if (Math.abs(dx) <= DRAG_THRESHOLD_PX) return;
@@ -5839,25 +6140,39 @@ function TimelineClip({
         });
       }
     },
-    [baseAt, clip.key, delayMode, onDrag, pxPerSecond, steps, timelineId, timelineDuration]
+    [baseAt, clip.key, delayMode, onDrag, pxPerSecond, single, steps, timelineId, timelineDuration]
   );
   const handlePointerUp = (0, import_react24.useCallback)(
     (e) => {
       const drag = dragRef.current;
       dragRef.current = null;
       setDragging(false);
+      if (single) {
+        if (drag?.lifted) {
+          single.onReorderDrop();
+          return;
+        }
+        single.onRelease();
+        if (drag && !drag.moved) onClick(clip, e.currentTarget.getBoundingClientRect());
+        return;
+      }
       if (drag && !drag.moved) {
         const stepKey = drag.clickEl?.dataset?.step;
         const anchorEl = drag.clickEl ?? e.currentTarget;
         onClick(clip, anchorEl.getBoundingClientRect(), stepKey);
       }
     },
-    [clip, onClick]
+    [clip, onClick, single]
   );
   const handlePointerCancel = (0, import_react24.useCallback)(() => {
+    const drag = dragRef.current;
     dragRef.current = null;
     setDragging(false);
-  }, []);
+    if (single) {
+      if (drag?.lifted) single.onReorderDrop();
+      else single.onRelease();
+    }
+  }, [single]);
   const width = Math.max(duration * pxPerSecond, 14);
   const resizable = duration > 0 && !fixedDuration && !composite;
   const durationText = `${fixedDuration && !composite ? "~" : ""}${formatSeconds(duration)}`;
@@ -5912,6 +6227,16 @@ function TimelineClip({
         `ghost:${cycle.index}`
       );
     }),
+    single && single.tail > 0 && pxPerSecond > 0 && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+      ClipTail,
+      {
+        id: timelineId,
+        at,
+        left: (at + duration - viewStart) * pxPerSecond - SINGLE_TAIL_TUCK_PX,
+        width: single.tail * pxPerSecond + SINGLE_TAIL_TUCK_PX,
+        lit: hovered || selected
+      }
+    ),
     /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
       "div",
       {
@@ -5920,18 +6245,29 @@ function TimelineClip({
         "data-composite": composite || void 0,
         "data-selected": selected || void 0,
         "data-dragging": dragging || void 0,
+        "data-lifted": single?.lifted || void 0,
         style: {
-          left: (at - viewStart) * pxPerSecond,
-          width,
-          background: composite ? `${clip.color}80` : clip.color
+          // Hairline: single-track bars draw 1px short of their span on
+          // each side, so butted pairs keep a sliver of lane between them.
+          left: (at - viewStart) * pxPerSecond + (single ? 1 : 0),
+          width: single ? Math.max(width - 2, 12) : width,
+          ...single ? {} : { background: composite ? `${clip.color}80` : clip.color }
         },
         onPointerDown: handlePointerDown,
         onPointerMove: handlePointerMove,
         onPointerUp: handlePointerUp,
         onPointerCancel: handlePointerCancel,
         onLostPointerCapture: handlePointerCancel,
+        onPointerEnter: single ? () => setHovered(true) : void 0,
+        onPointerLeave: single ? () => setHovered(false) : void 0,
         title: barTitle,
-        children: composite ? /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(import_jsx_runtime18.Fragment, { children: width > 56 && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { className: "dialkit-timeline-clip-duration", children: durationText }) }) : isSteps ? /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(import_jsx_runtime18.Fragment, { children: [
+        children: single ? /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(import_jsx_runtime18.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(ClipFill, { id: timelineId, at, duration }),
+          resizable && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { className: "dialkit-timeline-clip-handle", "data-edge": "start" }),
+          /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { className: "dialkit-timeline-clip-name", children: clip.label }),
+          width > 56 && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { className: "dialkit-timeline-clip-duration", children: durationText }),
+          resizable && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { className: "dialkit-timeline-clip-handle", "data-edge": "end" })
+        ] }) : composite ? /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(import_jsx_runtime18.Fragment, { children: width > 56 && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { className: "dialkit-timeline-clip-duration", children: durationText }) }) : isSteps ? /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(import_jsx_runtime18.Fragment, { children: [
           steps.map((step) => {
             const segmentWidth = step.duration * pxPerSecond;
             return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
