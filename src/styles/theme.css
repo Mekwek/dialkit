@@ -29,6 +29,11 @@
   --dial-glass-bg: #0d0d0d;
   --dial-dropdown-bg: #1a1a1a;
   --dial-backdrop-blur: 20px;
+
+  /* Transparency checkerboard — follows the theme, so it sits in the
+     surface it is on instead of glowing against it. */
+  --dial-checker-a: #262626;
+  --dial-checker-b: #333333;
   --dial-radius: 8px;
   --dial-row-height: 36px;
   --dial-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
@@ -1058,22 +1063,172 @@
 .dialkit-color-swatch {
   width: 20px;
   height: 20px;
+  padding: 0;
   border-radius: 4px;
   border: 1px solid var(--dial-border-hover);
   cursor: pointer;
+  overflow: hidden;
   transition: transform 0.15s;
+  background-color: var(--dial-checker-a);
+  background-image:
+    linear-gradient(45deg, var(--dial-checker-b) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--dial-checker-b) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--dial-checker-b) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--dial-checker-b) 75%);
+  background-size: 8px 8px;
+  background-position: 0 0, 0 4px, 4px -4px, -4px 0;
+  /* The border is semi-transparent, and a background paints under it by
+     default — stop at the border's inside edge so the checker cannot show
+     through it. */
+  background-clip: padding-box;
 }
 
-.dialkit-color-swatch:hover {
+.dialkit-color-swatch:hover,
+.dialkit-color-swatch[data-open='true'] {
   transform: scale(1.1);
 }
 
-.dialkit-color-picker-native {
-  position: absolute;
-  width: 0;
-  height: 0;
-  opacity: 0;
-  pointer-events: none;
+.dialkit-color-swatch-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Colour picker panel (portalled into .dialkit-root) */
+/* Matches the main panel surface (.dialkit-panel-inner) at 14px. Every
+   inner surface then takes what the formula leaves — inner radius = outer
+   radius minus the padding, so 14px with 8px of padding gives 6px. */
+.dialkit-color-panel {
+  z-index: 10000;
+  width: 216px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--dial-glass-bg);
+  border: 1px solid var(--dial-border);
+  border-radius: 14px;
+  box-shadow: var(--dial-shadow-dropdown);
+}
+
+.dialkit-color-panel .react-colorful {
+  width: 100%;
+  height: 180px;
+  gap: 8px;
+}
+
+.dialkit-color-panel .react-colorful__saturation {
+  border-radius: 6px;
+  border-bottom: none;
+  height: 140px;
+}
+
+.dialkit-color-panel .react-colorful__hue,
+.dialkit-color-panel .react-colorful__alpha {
+  height: 12px;
+  border-radius: 6px;
+}
+
+.dialkit-color-panel .react-colorful__last-control {
+  border-radius: 6px;
+}
+
+/* react-colorful paints a fixed white checkerboard here — swap in the
+   theme's own, at a smaller square that suits the strip's height. */
+.dialkit-color-panel .react-colorful__alpha,
+.dialkit-color-panel .react-colorful__alpha-pointer {
+  background-color: var(--dial-checker-a);
+  background-image:
+    linear-gradient(45deg, var(--dial-checker-b) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--dial-checker-b) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--dial-checker-b) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--dial-checker-b) 75%);
+  background-size: 6px 6px;
+  background-position: 0 0, 0 3px, 3px -3px, -3px 0;
+}
+
+.dialkit-color-panel .react-colorful__pointer {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+}
+
+.dialkit-color-panel-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dialkit-color-panel-hex {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: 'Geist Mono', monospace;
+  color: var(--dial-text-label);
+  background: transparent;
+  border: none;
+  padding: 0;
+  outline: none;
+  text-transform: uppercase;
+}
+
+.dialkit-color-panel-hex:focus {
+  color: var(--dial-text-focus);
+}
+
+.dialkit-color-panel-alpha {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: 'Geist Mono', monospace;
+  color: var(--dial-text-label);
+}
+
+.dialkit-color-panel-alpha-input {
+  width: 3ch;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: none;
+  padding: 0;
+  outline: none;
+  text-align: right;
+}
+
+.dialkit-color-panel-alpha-input:focus {
+  color: var(--dial-text-focus);
+}
+
+.dialkit-color-panel-alpha-unit {
+  opacity: 0.7;
+}
+
+.dialkit-color-eyedropper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: var(--dial-surface);
+  color: var(--dial-text-label);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.dialkit-color-eyedropper:hover {
+  background: var(--dial-surface-hover);
+  color: var(--dial-text-focus);
+}
+
+.dialkit-color-eyedropper svg {
+  width: 13px;
+  height: 13px;
 }
 
 /* Preset Manager */
@@ -1425,6 +1580,9 @@
   --dial-border: rgba(0, 0, 0, 0.1);
   --dial-border-hover: rgba(0, 0, 0, 0.15);
 
+  --dial-checker-a: #ffffff;
+  --dial-checker-b: #dcdcdc;
+
   --dial-glass-bg: #fafafa;
   --dial-dropdown-bg: #ffffff;
   --dial-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
@@ -1469,6 +1627,9 @@
 
     --dial-border: rgba(0, 0, 0, 0.1);
     --dial-border-hover: rgba(0, 0, 0, 0.15);
+
+    --dial-checker-a: #ffffff;
+    --dial-checker-b: #dcdcdc;
 
     --dial-glass-bg: #fafafa;
     --dial-dropdown-bg: #ffffff;
