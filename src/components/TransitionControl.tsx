@@ -1,4 +1,5 @@
 import { SpringConfig, EasingConfig, TransitionConfig, DialStore } from '../store/DialStore';
+import { springParams, springSettleDuration } from '../transition-math';
 import { Folder } from './Folder';
 import { Slider } from './Slider';
 import { SegmentedControl } from './SegmentedControl';
@@ -22,6 +23,18 @@ interface TransitionControlProps {
     max?: number;
     step?: number;
   };
+  /**
+   * Cap (seconds) on the settle time the PHYSICS values may produce — the
+   * physics sliders clamp at the value where the derived settle meets it.
+   * Evaluated against the CURRENT other two params on every move, so
+   * changing one param moves the others' stopping points automatically.
+   * The settle is not one-directional in every param (very low damping
+   * wobbles long, very high damping crawls long), so the clamp searches
+   * for the first crossing between the current value and the requested
+   * one instead of assuming a fixed maximum. A move that REDUCES an
+   * already-over settle is always allowed.
+   */
+  physicsSettleCap?: number;
 }
 
 type CurveMode = 'easing' | 'simple' | 'advanced';
@@ -34,6 +47,7 @@ export function TransitionControl({
   onChange,
   hideDuration = false,
   durationControl,
+  physicsSettleCap,
 }: TransitionControlProps) {
   const subscribe = useCallback(
     (callback: () => void) => DialStore.subscribe(panelId, callback),
@@ -89,7 +103,14 @@ export function TransitionControl({
       onChange({ ...rest, [key]: val });
     } else {
       const { visualDuration, bounce, ...rest } = spring;
-      onChange({ ...rest, [key]: val });
+      let next = val;
+      if (
+        physicsSettleCap !== undefined &&
+        (key === 'stiffness' || key === 'damping' || key === 'mass')
+      ) {
+        next = clampPhysicsParam(rest as SpringConfig, key, val, physicsSettleCap);
+      }
+      onChange({ ...rest, [key]: next });
     }
   };
 
@@ -157,6 +178,41 @@ export function TransitionControl({
       </div>
     </Folder>
   );
+}
+
+/**
+ * Clamp one physics param so the spring's derived settle time stays within
+ * `cap` seconds — the slider stops at the first value where the settle
+ * meets the cap, searched between the current value and the requested one
+ * (see TransitionControlProps.physicsSettleCap). Defaults are filled by
+ * springParams, the same function the bar derivation uses, so the clamp
+ * and the bar always agree.
+ */
+function clampPhysicsParam(
+  current: SpringConfig,
+  key: 'stiffness' | 'damping' | 'mass',
+  requested: number,
+  cap: number
+): number {
+  const settleWith = (v: number) =>
+    springSettleDuration(springParams({ ...current, [key]: v }));
+  if (settleWith(requested) <= cap) return requested;
+  const oldValue = springParams(current)[key];
+  // Already past the cap and the move reduces the settle — always allowed
+  // (it is the only way back under).
+  if (settleWith(requested) < settleWith(oldValue)) return requested;
+  // Already past the cap and the move makes it worse — hold position.
+  if (settleWith(oldValue) > cap) return oldValue;
+  // Bisect for the crossing between the in-cap current value and the
+  // out-of-cap request.
+  let good = oldValue;
+  let bad = requested;
+  for (let i = 0; i < 24; i++) {
+    const mid = (good + bad) / 2;
+    if (settleWith(mid) <= cap) good = mid;
+    else bad = mid;
+  }
+  return good;
 }
 
 function formatEase(ease: [number, number, number, number]): string {

@@ -637,6 +637,10 @@ interface ControlRendererProps {
         max?: number;
         step?: number;
     };
+    /** Cap (seconds) on the settle a physics spring's params may produce —
+     *  threaded into TransitionControl's physics sliders (see its
+     *  physicsSettleCap doc). */
+    physicsSettleCap?: number;
     /**
      * Opt-in enter/exit animation for each rendered control (used so
      * conditionally-visible controls animate in/out when their `visibleWhen`
@@ -653,7 +657,7 @@ interface ControlRendererProps {
     /** Fired when a depth-0 folder is toggled in accordion mode. Receives the folder's path and its requested next open state. */
     onAccordionToggle?: (path: string, next: boolean) => void;
 }
-declare function ControlRenderer({ panelId, controls, values, transitionDuration, animateControls, accordionOpenPath, onAccordionToggle, }: ControlRendererProps): react_jsx_runtime.JSX.Element;
+declare function ControlRenderer({ panelId, controls, values, transitionDuration, physicsSettleCap, animateControls, accordionOpenPath, onAccordionToggle, }: ControlRendererProps): react_jsx_runtime.JSX.Element;
 
 interface SliderProps {
     label: string;
@@ -746,8 +750,20 @@ interface TransitionControlProps {
         max?: number;
         step?: number;
     };
+    /**
+     * Cap (seconds) on the settle time the PHYSICS values may produce — the
+     * physics sliders clamp at the value where the derived settle meets it.
+     * Evaluated against the CURRENT other two params on every move, so
+     * changing one param moves the others' stopping points automatically.
+     * The settle is not one-directional in every param (very low damping
+     * wobbles long, very high damping crawls long), so the clamp searches
+     * for the first crossing between the current value and the requested
+     * one instead of assuming a fixed maximum. A move that REDUCES an
+     * already-over settle is always allowed.
+     */
+    physicsSettleCap?: number;
 }
-declare function TransitionControl({ panelId, path, label, value, onChange, hideDuration, durationControl, }: TransitionControlProps): react_jsx_runtime.JSX.Element;
+declare function TransitionControl({ panelId, path, label, value, onChange, hideDuration, durationControl, physicsSettleCap, }: TransitionControlProps): react_jsx_runtime.JSX.Element;
 
 interface EasingVisualizationProps {
     easing: EasingConfig;

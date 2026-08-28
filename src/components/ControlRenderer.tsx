@@ -24,6 +24,10 @@ interface ControlRendererProps {
     max?: number;
     step?: number;
   };
+  /** Cap (seconds) on the settle a physics spring's params may produce —
+   *  threaded into TransitionControl's physics sliders (see its
+   *  physicsSettleCap doc). */
+  physicsSettleCap?: number;
   /**
    * Opt-in enter/exit animation for each rendered control (used so
    * conditionally-visible controls animate in/out when their `visibleWhen`
@@ -48,6 +52,7 @@ export function ControlRenderer({
   controls,
   values,
   transitionDuration,
+  physicsSettleCap,
   animateControls = false,
   accordionOpenPath,
   onAccordionToggle,
@@ -107,6 +112,7 @@ export function ControlRenderer({
             value={value as TransitionConfig}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
             durationControl={transitionDuration}
+            physicsSettleCap={physicsSettleCap}
           />
         );
 

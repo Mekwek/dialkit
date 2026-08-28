@@ -2490,7 +2490,8 @@ function TransitionControl({
   value,
   onChange,
   hideDuration = false,
-  durationControl
+  durationControl,
+  physicsSettleCap
 }) {
   const subscribe = useCallback7(
     (callback) => DialStore.subscribe(panelId, callback),
@@ -2533,7 +2534,11 @@ function TransitionControl({
       onChange({ ...rest, [key]: val });
     } else {
       const { visualDuration, bounce, ...rest } = spring;
-      onChange({ ...rest, [key]: val });
+      let next = val;
+      if (physicsSettleCap !== void 0 && (key === "stiffness" || key === "damping" || key === "mass")) {
+        next = clampPhysicsParam(rest, key, val, physicsSettleCap);
+      }
+      onChange({ ...rest, [key]: next });
     }
   };
   const updateEase = (index, val) => {
@@ -2586,6 +2591,21 @@ function TransitionControl({
     ] }),
     durationSlider
   ] }) });
+}
+function clampPhysicsParam(current, key, requested, cap) {
+  const settleWith = (v) => springSettleDuration(springParams({ ...current, [key]: v }));
+  if (settleWith(requested) <= cap) return requested;
+  const oldValue = springParams(current)[key];
+  if (settleWith(requested) < settleWith(oldValue)) return requested;
+  if (settleWith(oldValue) > cap) return oldValue;
+  let good = oldValue;
+  let bad = requested;
+  for (let i = 0; i < 24; i++) {
+    const mid = (good + bad) / 2;
+    if (settleWith(mid) <= cap) good = mid;
+    else bad = mid;
+  }
+  return good;
 }
 function formatEase(ease) {
   return ease.map((v) => parseFloat(v.toFixed(2))).join(", ");
@@ -2868,6 +2888,7 @@ function ControlRenderer({
   controls,
   values,
   transitionDuration,
+  physicsSettleCap,
   animateControls = false,
   accordionOpenPath,
   onAccordionToggle
@@ -2924,7 +2945,8 @@ function ControlRenderer({
             label: control.label,
             value,
             onChange: (v) => DialStore.updateValue(panelId, control.path, v),
-            durationControl: transitionDuration
+            durationControl: transitionDuration,
+            physicsSettleCap
           },
           control.path
         );
@@ -5917,7 +5939,8 @@ function ClipPopover({
               panelId,
               controls,
               values: displayValues,
-              transitionDuration
+              transitionDuration,
+              physicsSettleCap: maxClipDuration
             }
           ) })
         ]

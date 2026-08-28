@@ -1641,6 +1641,7 @@ function ClipPopover({
             controls={controls}
             values={displayValues}
             transitionDuration={transitionDuration}
+            physicsSettleCap={maxClipDuration}
           />
         </div>
       </div>
