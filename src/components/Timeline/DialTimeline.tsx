@@ -1445,6 +1445,11 @@ const TimelineSection = memo(function TimelineSection({
           popover={popover}
           values={values}
           theme={theme}
+          maxClipDuration={
+            singleTrack && !popover.stepKey
+              ? singleTrackNeighborCap(meta, values, popover.clip.key)
+              : undefined
+          }
           onClose={closePopover}
         />
       )}
@@ -1463,12 +1468,16 @@ function ClipPopover({
   popover,
   values,
   theme,
+  maxClipDuration,
   onClose,
 }: {
   panelId: string;
   popover: PopoverState;
   values: Record<string, DialValue>;
   theme: DialTheme;
+  /** Neighbor cap for the duration field (single track) — see
+   *  singleTrackNeighborCap. Undefined = uncapped. */
+  maxClipDuration?: number;
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -1554,12 +1563,21 @@ function ClipPopover({
   const targetPath = stepKey ? `${clip.key}.${stepKey}` : clip.key;
   const durationMeta = getControlAt(panelId, `${targetPath}.duration`);
   const durationValue = durationMeta ? values[durationMeta.path] : undefined;
+  const durationMin = Math.max(TIMELINE_MIN_CLIP_DURATION, durationMeta?.min ?? 0);
+  const durationMax = maxClipDuration !== undefined
+    ? Math.min(durationMeta?.max ?? Number.POSITIVE_INFINITY, maxClipDuration)
+    : durationMeta?.max;
   const transitionDuration = durationMeta?.type === 'slider' && typeof durationValue === 'number'
     ? {
         value: durationValue,
-        onChange: (next: number) => DialStore.updateValue(panelId, durationMeta.path, next),
-        min: Math.max(TIMELINE_MIN_CLIP_DURATION, durationMeta.min ?? 0),
-        max: durationMeta.max,
+        // Clamp here too — a typed value bypasses the slider's own bounds.
+        onChange: (next: number) => DialStore.updateValue(
+          panelId,
+          durationMeta.path,
+          clamp(next, durationMin, durationMax ?? Number.POSITIVE_INFINITY)
+        ),
+        min: durationMin,
+        max: durationMax,
         step: durationMeta.step,
       }
     : undefined;
@@ -1629,6 +1647,28 @@ function ClipPopover({
     </div>,
     document.body
   );
+}
+
+// The popover's duration field must honor the same neighbor cap the bar's
+// end-edge resize enforces (clampSingleTrackResizeEnd): growth stops when
+// the gap to the next clip hits zero. Single track only — undefined means
+// uncapped (last clip, or multi-track).
+function singleTrackNeighborCap(
+  meta: TimelineMeta,
+  values: Record<string, DialValue>,
+  clipKey: string
+): number | undefined {
+  const spans = meta.clips
+    .map((clip) => ({
+      key: clip.key,
+      at: computeClipStaticFromValues(values, clip, meta.duration).at,
+    }))
+    .sort((a, b) => a.at - b.at);
+  const index = spans.findIndex((span) => span.key === clipKey);
+  if (index < 0) return undefined;
+  const next = spans[index + 1];
+  if (!next) return undefined;
+  return Math.max(TIMELINE_MIN_CLIP_DURATION, next.at - spans[index].at);
 }
 
 // A clip-level popover hides its step folders (each leg has its own popover)

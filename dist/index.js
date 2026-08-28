@@ -5769,6 +5769,7 @@ var TimelineSection = memo(function TimelineSection2({
         popover,
         values,
         theme,
+        maxClipDuration: singleTrack && !popover.stepKey ? singleTrackNeighborCap(meta, values, popover.clip.key) : void 0,
         onClose: closePopover
       }
     )
@@ -5779,6 +5780,7 @@ function ClipPopover({
   popover,
   values,
   theme,
+  maxClipDuration,
   onClose
 }) {
   const ref = useRef14(null);
@@ -5854,11 +5856,18 @@ function ClipPopover({
   const targetPath = stepKey ? `${clip.key}.${stepKey}` : clip.key;
   const durationMeta = getControlAt(panelId, `${targetPath}.duration`);
   const durationValue = durationMeta ? values[durationMeta.path] : void 0;
+  const durationMin = Math.max(TIMELINE_MIN_CLIP_DURATION, durationMeta?.min ?? 0);
+  const durationMax = maxClipDuration !== void 0 ? Math.min(durationMeta?.max ?? Number.POSITIVE_INFINITY, maxClipDuration) : durationMeta?.max;
   const transitionDuration = durationMeta?.type === "slider" && typeof durationValue === "number" ? {
     value: durationValue,
-    onChange: (next) => DialStore.updateValue(panelId, durationMeta.path, next),
-    min: Math.max(TIMELINE_MIN_CLIP_DURATION, durationMeta.min ?? 0),
-    max: durationMeta.max,
+    // Clamp here too — a typed value bypasses the slider's own bounds.
+    onChange: (next) => DialStore.updateValue(
+      panelId,
+      durationMeta.path,
+      clamp(next, durationMin, durationMax ?? Number.POSITIVE_INFINITY)
+    ),
+    min: durationMin,
+    max: durationMax,
     step: durationMeta.step
   } : void 0;
   const displayValues = timelinePopoverDisplayValues(values, clip.key, clip.stepKeys, stepKey);
@@ -5916,6 +5925,17 @@ function ClipPopover({
     ) }),
     document.body
   );
+}
+function singleTrackNeighborCap(meta, values, clipKey) {
+  const spans = meta.clips.map((clip) => ({
+    key: clip.key,
+    at: computeClipStaticFromValues(values, clip, meta.duration).at
+  })).sort((a, b) => a.at - b.at);
+  const index = spans.findIndex((span) => span.key === clipKey);
+  if (index < 0) return void 0;
+  const next = spans[index + 1];
+  if (!next) return void 0;
+  return Math.max(TIMELINE_MIN_CLIP_DURATION, next.at - spans[index].at);
 }
 function clipPopoverExclusions(clip) {
   return /* @__PURE__ */ new Set([
