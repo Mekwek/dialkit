@@ -392,6 +392,14 @@ type TimelineMeta = {
      * labels drawn inside the bars, tails rendered. Simple from/to clips
      * only — groups/steps/props fall back to row rendering. */
     singleTrack?: boolean;
+    /**
+     * Single track: the bar that OPENS the timeline holds its start. It
+     * cannot be dragged along the lane and has no start handle, so the
+     * timeline can never begin with a lead gap. Its end handle still works,
+     * so its length stays editable, and reordering still works — whichever
+     * bar ends up first inherits the pin.
+     */
+    pinStart?: boolean;
 };
 type TimelineTransport = {
     time: number;
@@ -608,6 +616,14 @@ interface DialTimelineOptions {
      * clip, the classic dock).
      */
     track?: 'rows' | 'single';
+    /**
+     * Single track only: hold the opening bar's start at wherever it begins.
+     * That bar cannot be dragged along the lane and loses its start handle,
+     * so the timeline can never open with a lead gap. Its end handle still
+     * resizes it, and reordering still works — whichever bar ends up first
+     * inherits the pin. Defaults to false.
+     */
+    pinStart?: boolean;
 }
 
 type UseDialTimelineOptions = DialTimelineOptions;

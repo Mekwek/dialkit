@@ -4947,7 +4947,7 @@ function resolveTimelineLoop(loop) {
   }
   return { enabled: Boolean(loop), start: 0 };
 }
-function buildTimelineMeta(id, name, duration, parsed, loop, track) {
+function buildTimelineMeta(id, name, duration, parsed, loop, track, pinStart) {
   const resolvedLoop = resolveTimelineLoop(loop);
   return {
     id,
@@ -4956,7 +4956,8 @@ function buildTimelineMeta(id, name, duration, parsed, loop, track) {
     loop: resolvedLoop.enabled,
     loopStart: resolvedLoop.start,
     clips: parsed.clips,
-    ...track === "single" ? { singleTrack: true } : {}
+    ...track === "single" ? { singleTrack: true } : {},
+    ...track === "single" && pinStart ? { pinStart: true } : {}
   };
 }
 function buildTimelineValues(staticClips, transport, timelineDuration, loopStart, actions) {
@@ -5002,8 +5003,16 @@ function useDialTimeline(name, config, options) {
   optionsRef.current = options;
   const { start: loopStart } = resolveTimelineLoop(options?.loop);
   const buildMeta = (0, import_react25.useCallback)(
-    () => buildTimelineMeta(panelId, name, timelineDuration, parsedRef.current, options?.loop, options?.track),
-    [panelId, name, timelineDuration, options?.loop, options?.track]
+    () => buildTimelineMeta(
+      panelId,
+      name,
+      timelineDuration,
+      parsedRef.current,
+      options?.loop,
+      options?.track,
+      options?.pinStart
+    ),
+    [panelId, name, timelineDuration, options?.loop, options?.track, options?.pinStart]
   );
   const buildMetaRef = (0, import_react25.useRef)(buildMeta);
   buildMetaRef.current = buildMeta;
@@ -5901,9 +5910,13 @@ var TimelineSection = (0, import_react26.memo)(function TimelineSection2({
       /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { className: "dialkit-timeline-row dialkit-timeline-single-row", children: [
         /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { className: "dialkit-timeline-label" }),
         /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { className: "dialkit-timeline-lane", children: [
-          meta.clips.map((clip) => {
-            const stat = computeClipStaticFromValues(values, clip, meta.duration);
-            return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+          (() => {
+            const stats = meta.clips.map((clip) => ({
+              clip,
+              stat: computeClipStaticFromValues(values, clip, meta.duration)
+            }));
+            const pinnedKey = meta.pinStart && stats.length ? stats.reduce((a2, b2) => b2.stat.at < a2.stat.at ? b2 : a2).clip.key : null;
+            return stats.map(({ clip, stat }) => /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
               TimelineClip,
               {
                 timelineId: meta.id,
@@ -5921,6 +5934,7 @@ var TimelineSection = (0, import_react26.memo)(function TimelineSection2({
                 single: {
                   tail: clip.tail ?? 0,
                   lifted: liftedKeys?.has(clip.key) ?? false,
+                  pinned: clip.key === pinnedKey,
                   onPress: singlePress,
                   onToggleSelect: singleToggleSelect,
                   onMove: singleMove,
@@ -5933,8 +5947,8 @@ var TimelineSection = (0, import_react26.memo)(function TimelineSection2({
                 }
               },
               clip.key
-            );
-          }),
+            ));
+          })(),
           cueTime !== null && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
             "div",
             {
@@ -6473,7 +6487,8 @@ function TimelineClip({
           at,
           duration,
           clickEl: null,
-          moved: false
+          moved: false,
+          locked: single.pinned && mode2 === "move"
         };
         e2.currentTarget.setPointerCapture(e2.pointerId);
         return;
@@ -6510,6 +6525,7 @@ function TimelineClip({
       const drag = dragRef.current;
       if (!drag || pxPerSecond <= 0) return;
       if (single) {
+        if (drag.locked) return;
         const sdx = e2.clientX - drag.pointerX;
         const sdy = e2.clientY - (drag.pointerY ?? e2.clientY);
         if (!drag.moved) {
@@ -6687,6 +6703,7 @@ function TimelineClip({
         "data-selected": selected || void 0,
         "data-dragging": dragging || void 0,
         "data-lifted": single?.lifted || void 0,
+        "data-pinned": single?.pinned || void 0,
         style: {
           // Hairline: single-track bars draw 1px short of their span on
           // each side, so butted pairs keep a sliver of lane between them.
@@ -6704,7 +6721,7 @@ function TimelineClip({
         title: barTitle,
         children: single ? /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(import_jsx_runtime18.Fragment, { children: [
           /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(ClipFill, { id: timelineId, at, duration }),
-          resizable && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { className: "dialkit-timeline-clip-handle", "data-edge": "start" }),
+          resizable && !single.pinned && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { className: "dialkit-timeline-clip-handle", "data-edge": "start" }),
           /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { className: "dialkit-timeline-clip-name", children: clip.label }),
           width > 56 && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { className: "dialkit-timeline-clip-duration", children: durationText }),
           resizable && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { className: "dialkit-timeline-clip-handle", "data-edge": "end" })

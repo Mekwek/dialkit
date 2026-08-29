@@ -1105,9 +1105,19 @@ const TimelineSection = memo(function TimelineSection({
       <div key="single-track" className="dialkit-timeline-row dialkit-timeline-single-row">
         <div className="dialkit-timeline-label" />
         <div className="dialkit-timeline-lane">
-          {meta.clips.map((clip) => {
-            const stat = computeClipStaticFromValues(values, clip, meta.duration);
-            return (
+          {(() => {
+            // Which bar OPENS the timeline — the earliest `at`, not the
+            // config order, so a reorder hands the pin to whoever is now
+            // first. Only computed when the host asked for the pin.
+            const stats = meta.clips.map((clip) => ({
+              clip,
+              stat: computeClipStaticFromValues(values, clip, meta.duration),
+            }));
+            const pinnedKey =
+              meta.pinStart && stats.length
+                ? stats.reduce((a, b) => (b.stat.at < a.stat.at ? b : a)).clip.key
+                : null;
+            return stats.map(({ clip, stat }) => (
               <TimelineClip
                 key={clip.key}
                 timelineId={meta.id}
@@ -1125,6 +1135,7 @@ const TimelineSection = memo(function TimelineSection({
                 single={{
                   tail: clip.tail ?? 0,
                   lifted: liftedKeys?.has(clip.key) ?? false,
+                  pinned: clip.key === pinnedKey,
                   onPress: singlePress,
                   onToggleSelect: singleToggleSelect,
                   onMove: singleMove,
@@ -1136,8 +1147,8 @@ const TimelineSection = memo(function TimelineSection({
                   onRelease: singleRelease,
                 }}
               />
-            );
-          })}
+            ));
+          })()}
           {cueTime !== null && (
             <div
               className="dialkit-timeline-single-cue"
@@ -1718,6 +1729,9 @@ type DragState = {
   moved: boolean;
   /** Single track: the move became a reorder (sticky until drop). */
   lifted?: boolean;
+  /** Single track: a pinned bar's press — the bar holds still, but the
+   *  press still counts as a click so its popover opens on release. */
+  locked?: boolean;
 };
 
 /** Single-track wiring: the section owns selection and all geometry math
@@ -1727,6 +1741,10 @@ type SingleTrackClipProps = {
   tail: number;
   /** This clip is lifted by the in-progress reorder gesture. */
   lifted: boolean;
+  /** This bar opens the timeline and the host asked to hold its start
+   *  (`pinStart`): it does not slide along the lane and has no start
+   *  handle, so the timeline can never begin with a lead gap. */
+  pinned: boolean;
   onPress: (key: string, select: boolean) => void;
   onToggleSelect: (key: string) => void;
   onMove: (dt: number) => void;
@@ -1813,6 +1831,7 @@ function TimelineClip({
           duration,
           clickEl: null,
           moved: false,
+          locked: single.pinned && mode === 'move',
         };
         e.currentTarget.setPointerCapture(e.pointerId);
         return;
@@ -1851,6 +1870,7 @@ function TimelineClip({
       if (!drag || pxPerSecond <= 0) return;
 
       if (single) {
+        if (drag.locked) return;
         const sdx = e.clientX - drag.pointerX;
         const sdy = e.clientY - (drag.pointerY ?? e.clientY);
         if (!drag.moved) {
@@ -2041,6 +2061,7 @@ function TimelineClip({
         data-selected={selected || undefined}
         data-dragging={dragging || undefined}
         data-lifted={single?.lifted || undefined}
+        data-pinned={single?.pinned || undefined}
         style={{
           // Hairline: single-track bars draw 1px short of their span on
           // each side, so butted pairs keep a sliver of lane between them.
@@ -2060,7 +2081,9 @@ function TimelineClip({
         {single ? (
           <>
             <ClipFill id={timelineId} at={at} duration={duration} />
-            {resizable && <div className="dialkit-timeline-clip-handle" data-edge="start" />}
+            {resizable && !single.pinned && (
+              <div className="dialkit-timeline-clip-handle" data-edge="start" />
+            )}
             <span className="dialkit-timeline-clip-name">{clip.label}</span>
             {width > 56 && <span className="dialkit-timeline-clip-duration">{durationText}</span>}
             {resizable && <div className="dialkit-timeline-clip-handle" data-edge="end" />}

@@ -2071,7 +2071,7 @@ function resolveTimelineLoop(loop) {
   }
   return { enabled: Boolean(loop), start: 0 };
 }
-function buildTimelineMeta(id, name, duration, parsed, loop, track) {
+function buildTimelineMeta(id, name, duration, parsed, loop, track, pinStart) {
   const resolvedLoop = resolveTimelineLoop(loop);
   return {
     id,
@@ -2080,7 +2080,8 @@ function buildTimelineMeta(id, name, duration, parsed, loop, track) {
     loop: resolvedLoop.enabled,
     loopStart: resolvedLoop.start,
     clips: parsed.clips,
-    ...track === "single" ? { singleTrack: true } : {}
+    ...track === "single" ? { singleTrack: true } : {},
+    ...track === "single" && pinStart ? { pinStart: true } : {}
   };
 }
 function buildTimelineValues(staticClips, transport, timelineDuration, loopStart, actions) {

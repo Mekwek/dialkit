@@ -27,6 +27,14 @@ export interface DialTimelineOptions {
    * clip, the classic dock).
    */
   track?: 'rows' | 'single';
+  /**
+   * Single track only: hold the opening bar's start at wherever it begins.
+   * That bar cannot be dragged along the lane and loses its start handle,
+   * so the timeline can never open with a lead gap. Its end handle still
+   * resizes it, and reordering still works — whichever bar ends up first
+   * inherits the pin. Defaults to false.
+   */
+  pinStart?: boolean;
 }
 
 export type TimelineActions = {
@@ -55,7 +63,8 @@ export function buildTimelineMeta(
   duration: number,
   parsed: ParsedTimeline,
   loop: DialTimelineOptions['loop'],
-  track?: DialTimelineOptions['track']
+  track?: DialTimelineOptions['track'],
+  pinStart?: DialTimelineOptions['pinStart']
 ): TimelineMeta {
   const resolvedLoop = resolveTimelineLoop(loop);
   return {
@@ -66,6 +75,7 @@ export function buildTimelineMeta(
     loopStart: resolvedLoop.start,
     clips: parsed.clips,
     ...(track === 'single' ? { singleTrack: true } : {}),
+    ...(track === 'single' && pinStart ? { pinStart: true } : {}),
   };
 }
 
