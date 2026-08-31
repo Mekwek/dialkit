@@ -120,6 +120,15 @@ type TimelineMeta = {
      * bar ends up first inherits the pin.
      */
     pinStart?: boolean;
+    /**
+     * Single track: the key of the clip the HOST is currently editing, or
+     * null. It is not the selection and not the playhead — it says which
+     * version the panel is pointed at, which can be a different bar from
+     * the one under the playhead. Set it with `setHighlight`, never through
+     * the timeline config: it changes while the timeline runs, and the
+     * config is rebuilt whenever the clip list changes.
+     */
+    highlightedClip?: string | null;
 };
 type TimelineTransport = {
     time: number;
@@ -159,6 +168,11 @@ declare class TimelineStoreClass {
     pause(id: string): void;
     replay(id: string): void;
     setLoop(id: string, loop: boolean): void;
+    /**
+     * Name the clip the host is editing, or pass null to clear it. Store
+     * state, not config state — `applyMeta` carries it across rebuilds.
+     */
+    setHighlight(id: string, clipKey: string | null): void;
     seek(id: string, time: number): void;
     getTransport(id: string): TimelineTransport;
     getTimeline(id: string): TimelineMeta | undefined;

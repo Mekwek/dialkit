@@ -124,6 +124,18 @@ var TimelineStoreClass = class {
     this.notify(id);
     this.notifyGlobal();
   }
+  /**
+   * Name the clip the host is editing, or pass null to clear it. Store
+   * state, not config state — `applyMeta` carries it across rebuilds.
+   */
+  setHighlight(id, clipKey) {
+    const meta = this.timelines.get(id);
+    if (!meta || (meta.highlightedClip ?? null) === clipKey) return;
+    this.timelines.set(id, { ...meta, highlightedClip: clipKey });
+    this.listCache = null;
+    this.notify(id);
+    this.notifyGlobal();
+  }
   seek(id, time) {
     const transport = this.transports.get(id);
     if (!transport || !Number.isFinite(time)) return;
@@ -165,7 +177,9 @@ var TimelineStoreClass = class {
   applyMeta(meta, autoplay) {
     const duration = Number.isFinite(meta.duration) ? Math.max(0, meta.duration) : 0;
     const loopStart = Number.isFinite(meta.loopStart) ? Math.min(duration, Math.max(0, meta.loopStart)) : 0;
-    const safeMeta = { ...meta, duration, loopStart };
+    const previous = this.timelines.get(meta.id);
+    const highlightedClip = meta.highlightedClip !== void 0 ? meta.highlightedClip : previous?.highlightedClip ?? null;
+    const safeMeta = { ...meta, duration, loopStart, highlightedClip };
     this.timelines.set(meta.id, safeMeta);
     const existing = this.transports.get(meta.id);
     if (existing) {

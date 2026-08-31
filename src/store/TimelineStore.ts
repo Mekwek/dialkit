@@ -48,6 +48,15 @@ export type TimelineMeta = {
    * bar ends up first inherits the pin.
    */
   pinStart?: boolean;
+  /**
+   * Single track: the key of the clip the HOST is currently editing, or
+   * null. It is not the selection and not the playhead — it says which
+   * version the panel is pointed at, which can be a different bar from
+   * the one under the playhead. Set it with `setHighlight`, never through
+   * the timeline config: it changes while the timeline runs, and the
+   * config is rebuilt whenever the clip list changes.
+   */
+  highlightedClip?: string | null;
 };
 
 export type TimelineTransport = {
@@ -178,6 +187,19 @@ class TimelineStoreClass {
     this.notifyGlobal();
   }
 
+  /**
+   * Name the clip the host is editing, or pass null to clear it. Store
+   * state, not config state — `applyMeta` carries it across rebuilds.
+   */
+  setHighlight(id: string, clipKey: string | null): void {
+    const meta = this.timelines.get(id);
+    if (!meta || (meta.highlightedClip ?? null) === clipKey) return;
+    this.timelines.set(id, { ...meta, highlightedClip: clipKey });
+    this.listCache = null;
+    this.notify(id);
+    this.notifyGlobal();
+  }
+
   seek(id: string, time: number): void {
     const transport = this.transports.get(id);
     if (!transport || !Number.isFinite(time)) return;
@@ -228,7 +250,15 @@ class TimelineStoreClass {
     const loopStart = Number.isFinite(meta.loopStart)
       ? Math.min(duration, Math.max(0, meta.loopStart))
       : 0;
-    const safeMeta = { ...meta, duration, loopStart };
+    // The highlight is set through `setHighlight`, never through the
+    // config, so a rebuild must not drop it. The incoming meta wins only
+    // if it names one explicitly.
+    const previous = this.timelines.get(meta.id);
+    const highlightedClip =
+      meta.highlightedClip !== undefined
+        ? meta.highlightedClip
+        : (previous?.highlightedClip ?? null);
+    const safeMeta = { ...meta, duration, loopStart, highlightedClip };
     this.timelines.set(meta.id, safeMeta);
 
     const existing = this.transports.get(meta.id);

@@ -1198,6 +1198,18 @@ var TimelineStoreClass = class {
     this.notify(id);
     this.notifyGlobal();
   }
+  /**
+   * Name the clip the host is editing, or pass null to clear it. Store
+   * state, not config state — `applyMeta` carries it across rebuilds.
+   */
+  setHighlight(id, clipKey) {
+    const meta = this.timelines.get(id);
+    if (!meta || (meta.highlightedClip ?? null) === clipKey) return;
+    this.timelines.set(id, { ...meta, highlightedClip: clipKey });
+    this.listCache = null;
+    this.notify(id);
+    this.notifyGlobal();
+  }
   seek(id, time) {
     const transport = this.transports.get(id);
     if (!transport || !Number.isFinite(time)) return;
@@ -1239,7 +1251,9 @@ var TimelineStoreClass = class {
   applyMeta(meta, autoplay) {
     const duration = Number.isFinite(meta.duration) ? Math.max(0, meta.duration) : 0;
     const loopStart = Number.isFinite(meta.loopStart) ? Math.min(duration, Math.max(0, meta.loopStart)) : 0;
-    const safeMeta = { ...meta, duration, loopStart };
+    const previous = this.timelines.get(meta.id);
+    const highlightedClip = meta.highlightedClip !== void 0 ? meta.highlightedClip : previous?.highlightedClip ?? null;
+    const safeMeta = { ...meta, duration, loopStart, highlightedClip };
     this.timelines.set(meta.id, safeMeta);
     const existing = this.transports.get(meta.id);
     if (existing) {
@@ -5081,7 +5095,7 @@ var SECOND_TICK_STEPS = [
   600
 ];
 var MIN_TIMELINE_MAX_ZOOM = 8;
-var PLAYHEAD_FLAG_WIDTH = 52;
+var PLAYHEAD_FLAG_WIDTH = 38;
 var PLAYHEAD_FLAG_EDGE_OVERHANG = 1;
 var POPOVER_WIDTH = 280;
 var ZOOM_DRAG_DISTANCE = 180;
@@ -5573,6 +5587,20 @@ var TimelineSection = (0, import_react26.memo)(function TimelineSection2({
   (0, import_react26.useEffect)(() => {
     if (!dockVisible) setPopover(null);
   }, [dockVisible]);
+  (0, import_react26.useEffect)(() => {
+    if (!singleTrack) return;
+    const onPointerDown = (e2) => {
+      const target = e2.target;
+      if (!target) return;
+      if (target.closest(".dialkit-timeline-clip") || target.closest(".dialkit-timeline-popover")) {
+        return;
+      }
+      setSelectedKeys((prev) => prev.size ? /* @__PURE__ */ new Set() : prev);
+      setPopover(null);
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => document.removeEventListener("pointerdown", onPointerDown, true);
+  }, [singleTrack]);
   const centerViewAt = (0, import_react26.useCallback)((time) => {
     if (zoom <= 1 || meta.duration <= 0) return;
     const windowDuration = meta.duration / zoom;
@@ -5929,6 +5957,7 @@ var TimelineSection = (0, import_react26.memo)(function TimelineSection2({
                 viewStart: safeViewStart,
                 timelineDuration: meta.duration,
                 selected: selectedKeys.has(clip.key),
+                highlighted: clip.key === meta.highlightedClip,
                 onClick: handleBarClick,
                 onDrag: closePopover,
                 single: {
@@ -6083,7 +6112,11 @@ var TimelineSection = (0, import_react26.memo)(function TimelineSection2({
   }
   return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { className: "dialkit-timeline-section", "data-single-track": singleTrack || void 0, children: [
     /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { className: "dialkit-timeline-header", "data-open": open || void 0, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { className: "dialkit-timeline-identity", children: /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { className: "dialkit-timeline-title", children: meta.name }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { className: "dialkit-timeline-transport", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(PlayPauseButton, { id: meta.id }),
+        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(ReplayButton, { onReplay: handleReplay }),
+        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(LoopButton, { id: meta.id, loop: meta.loop })
+      ] }),
       !open && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
         TimelineOverview,
         {
@@ -6095,9 +6128,6 @@ var TimelineSection = (0, import_react26.memo)(function TimelineSection2({
         }
       ),
       /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { className: "dialkit-timeline-actions", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(PlayPauseButton, { id: meta.id }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(ReplayButton, { onReplay: handleReplay }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(LoopButton, { id: meta.id, loop: meta.loop }),
         /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
           import_react27.motion.button,
           {
@@ -6209,7 +6239,16 @@ var TimelineSection = (0, import_react26.memo)(function TimelineSection2({
                   children: [
                     fineTicks.map((t2) => /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { className: "dialkit-timeline-tick dialkit-timeline-tick-fine", style: { left: (t2 - safeViewStart) * pxPerSecond } }, `fine:${t2}`)),
                     mediumTicks.map((t2) => /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { className: "dialkit-timeline-tick dialkit-timeline-tick-medium", style: { left: (t2 - safeViewStart) * pxPerSecond } }, `medium:${t2}`)),
-                    majorTicks.map((t2) => /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { className: "dialkit-timeline-tick", style: { left: (t2 - safeViewStart) * pxPerSecond }, children: /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { className: "dialkit-timeline-tick-label", children: formatRulerSeconds(t2, majorStep) }) }, t2))
+                    majorTicks.map((t2) => /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { className: "dialkit-timeline-tick", style: { left: (t2 - safeViewStart) * pxPerSecond } }, t2)),
+                    majorTicks.map((t2) => /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+                      "span",
+                      {
+                        className: "dialkit-timeline-tick-label",
+                        style: { left: (t2 - safeViewStart) * pxPerSecond },
+                        children: formatRulerSeconds(t2, majorStep)
+                      },
+                      `label:${t2}`
+                    ))
                   ]
                 }
               )
@@ -6457,6 +6496,7 @@ function TimelineClip({
   timelineDuration,
   selected,
   selectedStepKey,
+  highlighted = false,
   onClick,
   onDrag,
   single
@@ -6701,6 +6741,7 @@ function TimelineClip({
         "data-steps": isSteps || void 0,
         "data-composite": composite || void 0,
         "data-selected": selected || void 0,
+        "data-highlighted": single && highlighted || void 0,
         "data-dragging": dragging || void 0,
         "data-lifted": single?.lifted || void 0,
         "data-pinned": single?.pinned || void 0,
@@ -6724,7 +6765,8 @@ function TimelineClip({
           resizable && !single.pinned && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { className: "dialkit-timeline-clip-handle", "data-edge": "start" }),
           /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { className: "dialkit-timeline-clip-name", children: clip.label }),
           width > 56 && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { className: "dialkit-timeline-clip-duration", children: durationText }),
-          resizable && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { className: "dialkit-timeline-clip-handle", "data-edge": "end" })
+          resizable && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { className: "dialkit-timeline-clip-handle", "data-edge": "end" }),
+          highlighted && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("svg", { className: "dialkit-timeline-clip-ants", "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("rect", { rx: "4.5", ry: "4.5" }) })
         ] }) : composite ? /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(import_jsx_runtime18.Fragment, { children: width > 56 && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { className: "dialkit-timeline-clip-duration", children: durationText }) }) : isSteps ? /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(import_jsx_runtime18.Fragment, { children: [
           steps.map((step) => {
             const segmentWidth = step.duration * pxPerSecond;

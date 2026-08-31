@@ -51,7 +51,11 @@ const SECOND_TICK_STEPS = [
   1, 2, 5, 10, 15, 30, 60, 120, 300, 600,
 ];
 const MIN_TIMELINE_MAX_ZOOM = 8;
-const PLAYHEAD_FLAG_WIDTH = 52;
+/* The chip sizes to its digits now, so this is only what the edge clamp
+   assumes when it keeps the chip inside the dock. 38px is the widest the
+   chip gets — five characters of 9.5px Geist Mono plus its padding and
+   border — so the clamp is never short. */
+const PLAYHEAD_FLAG_WIDTH = 38;
 const PLAYHEAD_FLAG_EDGE_OVERHANG = 1;
 const POPOVER_WIDTH = 280;
 const ZOOM_DRAG_DISTANCE = 180;
@@ -686,6 +690,30 @@ const TimelineSection = memo(function TimelineSection({
     if (!dockVisible) setPopover(null);
   }, [dockVisible]);
 
+  // Single track: a press anywhere that is not a bar and not the popover
+  // drops the selection. Pressing the empty lane already did this, but a
+  // press on the header, the ruler, or the page outside the dock left a
+  // bar selected with nothing to say why.
+  useEffect(() => {
+    if (!singleTrack) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      if (
+        target.closest('.dialkit-timeline-clip') ||
+        target.closest('.dialkit-timeline-popover')
+      ) {
+        return;
+      }
+      setSelectedKeys((prev) => (prev.size ? new Set<string>() : prev));
+      setPopover(null);
+    };
+    // Capture: a bar stops propagation on its own press, so a bubbling
+    // listener would never hear the presses that must NOT clear.
+    document.addEventListener('pointerdown', onPointerDown, true);
+    return () => document.removeEventListener('pointerdown', onPointerDown, true);
+  }, [singleTrack]);
+
   const centerViewAt = useCallback((time: number) => {
     if (zoom <= 1 || meta.duration <= 0) return;
     const windowDuration = meta.duration / zoom;
@@ -1130,6 +1158,7 @@ const TimelineSection = memo(function TimelineSection({
                 viewStart={safeViewStart}
                 timelineDuration={meta.duration}
                 selected={selectedKeys.has(clip.key)}
+                highlighted={clip.key === meta.highlightedClip}
                 onClick={handleBarClick}
                 onDrag={closePopover}
                 single={{
@@ -1286,8 +1315,13 @@ const TimelineSection = memo(function TimelineSection({
   return (
     <div className="dialkit-timeline-section" data-single-track={singleTrack || undefined}>
       <div className="dialkit-timeline-header" data-open={open || undefined}>
-        <div className="dialkit-timeline-identity">
-          <span className="dialkit-timeline-title">{meta.name}</span>
+        {/* Play, replay and loop sit where the timeline's name used to. The
+            name is dropped: the version dropdown on the right already says
+            which sequence this is. */}
+        <div className="dialkit-timeline-transport">
+          <PlayPauseButton id={meta.id} />
+          <ReplayButton onReplay={handleReplay} />
+          <LoopButton id={meta.id} loop={meta.loop} />
         </div>
         {!open && (
           <TimelineOverview
@@ -1299,9 +1333,6 @@ const TimelineSection = memo(function TimelineSection({
           />
         )}
         <div className="dialkit-timeline-actions">
-          <PlayPauseButton id={meta.id} />
-          <ReplayButton onReplay={handleReplay} />
-          <LoopButton id={meta.id} loop={meta.loop} />
           <motion.button
             className="dialkit-toolbar-add"
             onClick={handleAddPreset}
@@ -1413,9 +1444,16 @@ const TimelineSection = memo(function TimelineSection({
                   <div key={`medium:${t}`} className="dialkit-timeline-tick dialkit-timeline-tick-medium" style={{ left: (t - safeViewStart) * pxPerSecond }} />
                 ))}
                 {majorTicks.map((t) => (
-                  <div key={t} className="dialkit-timeline-tick" style={{ left: (t - safeViewStart) * pxPerSecond }}>
-                    <span className="dialkit-timeline-tick-label">{formatRulerSeconds(t, majorStep)}</span>
-                  </div>
+                  <div key={t} className="dialkit-timeline-tick" style={{ left: (t - safeViewStart) * pxPerSecond }} />
+                ))}
+                {majorTicks.map((t) => (
+                  <span
+                    key={`label:${t}`}
+                    className="dialkit-timeline-tick-label"
+                    style={{ left: (t - safeViewStart) * pxPerSecond }}
+                  >
+                    {formatRulerSeconds(t, majorStep)}
+                  </span>
                 ))}
               </div>
             </div>
@@ -1772,6 +1810,7 @@ function TimelineClip({
   timelineDuration,
   selected,
   selectedStepKey,
+  highlighted = false,
   onClick,
   onDrag,
   single,
@@ -1793,6 +1832,9 @@ function TimelineClip({
   timelineDuration: number;
   selected: boolean;
   selectedStepKey?: string;
+  /** Single track: this is the clip the HOST says it is editing. Not the
+   * selection and not the playhead — see TimelineStore.setHighlight. */
+  highlighted?: boolean;
   onClick: (clip: TimelineClipMeta, rect: DOMRect, stepKey?: string) => void;
   onDrag: () => void;
   /** Present in single-track mode — gestures route to the section. */
@@ -2059,6 +2101,7 @@ function TimelineClip({
         data-steps={isSteps || undefined}
         data-composite={composite || undefined}
         data-selected={selected || undefined}
+        data-highlighted={(single && highlighted) || undefined}
         data-dragging={dragging || undefined}
         data-lifted={single?.lifted || undefined}
         data-pinned={single?.pinned || undefined}
@@ -2087,6 +2130,11 @@ function TimelineClip({
             <span className="dialkit-timeline-clip-name">{clip.label}</span>
             {width > 56 && <span className="dialkit-timeline-clip-duration">{durationText}</span>}
             {resizable && <div className="dialkit-timeline-clip-handle" data-edge="end" />}
+            {highlighted && (
+              <svg className="dialkit-timeline-clip-ants" aria-hidden="true">
+                <rect rx="4.5" ry="4.5" />
+              </svg>
+            )}
           </>
         ) : composite ? (
           <>{width > 56 && <span className="dialkit-timeline-clip-duration">{durationText}</span>}</>

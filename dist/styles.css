@@ -27,6 +27,19 @@
 
   /* Glassmorphic panel */
   --dial-glass-bg: #0d0d0d;
+
+  /* Ruler ticks and their labels. The label grey reads on either ground,
+     so it is the one value both themes share. */
+  --dial-timeline-tick-major: rgba(255, 255, 255, 0.4);
+  --dial-timeline-tick-medium: rgba(255, 255, 255, 0.28);
+  --dial-timeline-tick-fine: rgba(255, 255, 255, 0.18);
+  --dial-timeline-tick-text: #71717b;
+
+  /* The playhead's time chip. These were hard-coded white, which vanished
+     on a light dock. */
+  --dial-timeline-flag-bg: #f3f3f3;
+  --dial-timeline-flag-text: #414141;
+  --dial-timeline-flag-border: rgba(255, 255, 255, 0.75);
   --dial-dropdown-bg: #1a1a1a;
   --dial-backdrop-blur: 20px;
 
@@ -1585,6 +1598,15 @@
 
   --dial-glass-bg: #fafafa;
   --dial-dropdown-bg: #ffffff;
+
+  --dial-timeline-tick-major: rgba(0, 0, 0, 0.45);
+  --dial-timeline-tick-medium: rgba(0, 0, 0, 0.32);
+  --dial-timeline-tick-fine: rgba(0, 0, 0, 0.2);
+  --dial-timeline-tick-text: #71717b;
+
+  --dial-timeline-flag-bg: #2e2e2e;
+  --dial-timeline-flag-text: #f3f3f3;
+  --dial-timeline-flag-border: rgba(0, 0, 0, 0.35);
   --dial-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   --dial-shadow-collapsed: 0 2px 10px rgba(0, 0, 0, 0.06);
   --dial-shadow-dropdown: 0 4px 16px rgba(0, 0, 0, 0.08);
@@ -1633,6 +1655,15 @@
 
     --dial-glass-bg: #fafafa;
     --dial-dropdown-bg: #ffffff;
+
+    --dial-timeline-tick-major: rgba(0, 0, 0, 0.45);
+    --dial-timeline-tick-medium: rgba(0, 0, 0, 0.32);
+    --dial-timeline-tick-fine: rgba(0, 0, 0, 0.2);
+    --dial-timeline-tick-text: #71717b;
+
+    --dial-timeline-flag-bg: #2e2e2e;
+    --dial-timeline-flag-text: #f3f3f3;
+    --dial-timeline-flag-border: rgba(0, 0, 0, 0.35);
     --dial-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
     --dial-shadow-collapsed: 0 2px 10px rgba(0, 0, 0, 0.06);
     --dial-shadow-dropdown: 0 4px 16px rgba(0, 0, 0, 0.08);
@@ -1677,7 +1708,9 @@
   border-radius: 14px;
   backdrop-filter: blur(var(--dial-backdrop-blur));
   -webkit-backdrop-filter: blur(var(--dial-backdrop-blur));
-  padding: 0 12px 10px;
+  /* An even 12px ring. The dock shipped `0 12px 10px` — nothing above
+     the buttons, and a bottom 2px short of the sides. */
+  padding: 12px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -1715,7 +1748,9 @@
 .dialkit-timeline-section {
   --dial-timeline-label-w: 96px;
   --dial-timeline-actions-w: 284px;
-  --dial-timeline-header-h: calc(var(--dial-row-height) + 4px);
+  /* Exactly one button tall. The header used to add 4px of its own above
+     the buttons; the dock's top padding does that job now. */
+  --dial-timeline-header-h: var(--dial-row-height);
 }
 
 .dialkit-timeline-section + .dialkit-timeline-section {
@@ -1733,7 +1768,7 @@
   z-index: 7;
   box-sizing: border-box;
   height: var(--dial-timeline-header-h);
-  padding: 4px 0 0;
+  padding: 0;
   margin: 0;
   background: var(--dial-glass-bg);
   backdrop-filter: blur(var(--dial-backdrop-blur));
@@ -1745,9 +1780,12 @@
   gap: 12px;
 }
 
+/* Collapsed: transport, then the mini overview, then the actions. The
+   first column is auto because the transport sizes itself — the label
+   width is 0 in single track and would squash it. */
 .dialkit-timeline-header:not([data-open]) {
-  grid-template-columns: var(--dial-timeline-label-w) minmax(0, 1fr) auto;
-  gap: 0;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
 }
 
 .dialkit-timeline-header:not([data-open]) .dialkit-timeline-identity {
@@ -1851,10 +1889,19 @@
   pointer-events: none;
 }
 
+/* Play, replay and loop sit at the dock's left edge, where the timeline's
+   name used to be. Everything else stays on the right. Both groups space
+   their buttons the same way. */
+.dialkit-timeline-transport {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .dialkit-timeline-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .dialkit-timeline-header[data-open] .dialkit-timeline-actions {
@@ -1872,7 +1919,8 @@
 .dialkit-timeline-chevron {
   background: none;
   border: none;
-  width: 20px;
+  /* Square, like every other button in the row. */
+  width: var(--dial-row-height);
   height: var(--dial-row-height);
   padding: 2px;
   cursor: pointer;
@@ -1899,7 +1947,8 @@
 }
 
 .dialkit-timeline-body {
-  margin-top: 0;
+  /* The same 6px the ruler and the lane already have between them. */
+  margin-top: 6px;
   overflow: visible;
 }
 
@@ -1974,10 +2023,13 @@
   -webkit-user-select: none;
 }
 
+/* The ruler's look follows the ultramock.io timeline: a shorter row, ticks
+   hung from the bottom so their feet line up, and the labels along the top.
+   The tick STEPS are untouched — see MAJOR_TICK_TARGET_PX in DialTimeline. */
 .dialkit-timeline-ruler {
   position: relative;
   min-width: 0;
-  height: 28px;
+  height: 22px;
   cursor: col-resize;
   touch-action: none;
   overflow: visible;
@@ -1986,49 +2038,49 @@
   z-index: 5;
 }
 
-.dialkit-timeline-ruler-row {
+/* Two class names, so this beats the plain `.dialkit-timeline-row` height
+   further down the sheet — same specificity would lose to it on order. */
+.dialkit-timeline-row.dialkit-timeline-ruler-row {
   position: sticky;
   top: var(--dial-timeline-header-h);
   z-index: 6;
-  height: 28px;
+  height: 22px;
   background: var(--dial-glass-bg);
   backdrop-filter: blur(var(--dial-backdrop-blur));
   -webkit-backdrop-filter: blur(var(--dial-backdrop-blur));
 }
 
+/* Three tick weights, all hung from the ruler's foot: the major carries a
+   label, the medium marks every fifth subdivision, the fine the rest. */
 .dialkit-timeline-tick {
   position: absolute;
-  top: 50%;
+  bottom: 0;
   width: 1px;
-  height: 100%;
-  background: var(--dial-text-tertiary);
-  transform: translateY(-50%);
+  height: 8px;
+  background: var(--dial-timeline-tick-major);
   pointer-events: none;
 }
 
 .dialkit-timeline-tick-medium {
-  height: 16px;
-  background: var(--dial-border-hover);
+  height: 6px;
+  background: var(--dial-timeline-tick-medium);
 }
 
 .dialkit-timeline-tick-fine {
-  height: 8px;
-  background: var(--dial-border);
+  height: 4px;
+  background: var(--dial-timeline-tick-fine);
 }
 
+/* The label sits along the top with its left edge on its tick. */
 .dialkit-timeline-tick-label {
   position: absolute;
-  top: 50%;
-  left: 4px;
-  display: flex;
-  align-items: center;
-  height: 18px;
-  transform: translateY(-50%);
+  top: 0;
   font-family: 'Geist Mono', ui-monospace, monospace;
-  font-size: 9.5px;
-  line-height: 18px;
+  font-size: 8.5px;
+  line-height: 12.75px;
+  letter-spacing: 0.04em;
   font-variant-numeric: tabular-nums;
-  color: var(--dial-text-tertiary);
+  color: var(--dial-timeline-tick-text);
   white-space: nowrap;
 }
 
@@ -2239,42 +2291,138 @@
 .dialkit-timeline-section[data-single-track] {
   /* No label column — names live inside the bars. */
   --dial-timeline-label-w: 0px;
-  --dial-timeline-bar-rest: #b9b9b9;
-  --dial-timeline-bar-played: #ffffff;
-  --dial-timeline-bar-text: rgba(0, 0, 0, 0.78);
-  --dial-timeline-tail-border: rgba(255, 255, 255, 0.75);
+
+  /* A bar reads by its FILL, not an outline: rest, then the part the
+     playhead has crossed, then a step up again on hover. Selection is the
+     light bar the dock used to wear by default, so it needs no ring. */
+  --dial-timeline-bar-rest: #2c2c2c;
+  --dial-timeline-bar-played: #484848;
+  --dial-timeline-bar-rest-hover: #3a3a3a;
+  --dial-timeline-bar-played-hover: #575757;
+  --dial-timeline-bar-outline: transparent;
+  --dial-timeline-bar-text: rgba(255, 255, 255, 0.92);
+  /* The grip is a wash, not a colour, so it lands one small step above
+     whichever grey it sits on — the bar or the crossed part. */
+  --dial-timeline-bar-grip: rgba(255, 255, 255, 0.11);
+  --dial-timeline-bar-grip-hover: rgba(255, 255, 255, 0.22);
+
+  --dial-timeline-sel-bar: #b9b9b9;
+  --dial-timeline-sel-bar-hover: #cacaca;
+  --dial-timeline-sel-played: #ffffff;
+  --dial-timeline-sel-text: rgba(0, 0, 0, 0.78);
+  --dial-timeline-sel-dur: rgba(0, 0, 0, 0.55);
+  /* On a light bar the grip goes darker, not brighter, to read at all. */
+  --dial-timeline-sel-grip: rgba(0, 0, 0, 0.16);
+  --dial-timeline-sel-grip-hover: rgba(0, 0, 0, 0.3);
+
+  --dial-timeline-tail-border: rgba(255, 255, 255, 0.35);
   --dial-timeline-tail-fill: rgba(255, 255, 255, 0.05);
+  /* The mark that says which clip the panel is editing. */
+  --dial-timeline-highlight: rgba(255, 255, 255, 0.35);
   --dial-timeline-accent: #E30613;
 }
 
-.dialkit-root[data-theme="light"] .dialkit-timeline-section[data-single-track] {
-  --dial-timeline-bar-rest: #9e9e9e;
-  --dial-timeline-tail-border: rgba(0, 0, 0, 0.55);
+/* Light mode mirrors the relationships, not the values: the ground is
+   light, so a bar sits BELOW it and the crossed part below that again,
+   and a selected bar goes dark with light text. */
+.dialkit-root[data-theme="light"] .dialkit-timeline-section[data-single-track],
+.dialkit-root[data-theme="system"] .dialkit-timeline-section[data-single-track][data-light] {
+  --dial-timeline-bar-rest: #d1d1d1;
+  --dial-timeline-bar-played: #b3b3b3;
+  --dial-timeline-bar-rest-hover: #c2c2c2;
+  --dial-timeline-bar-played-hover: #a4a4a4;
+  --dial-timeline-bar-text: rgba(0, 0, 0, 0.85);
+  --dial-timeline-bar-grip: rgba(0, 0, 0, 0.13);
+  --dial-timeline-bar-grip-hover: rgba(0, 0, 0, 0.26);
+
+  --dial-timeline-sel-bar: #6b6b6b;
+  --dial-timeline-sel-bar-hover: #5a5a5a;
+  --dial-timeline-sel-played: #2c2c2c;
+  --dial-timeline-sel-text: rgba(255, 255, 255, 0.92);
+  --dial-timeline-sel-dur: rgba(255, 255, 255, 0.7);
+  --dial-timeline-sel-grip: rgba(255, 255, 255, 0.3);
+  --dial-timeline-sel-grip-hover: rgba(255, 255, 255, 0.5);
+
+  --dial-timeline-tail-border: rgba(0, 0, 0, 0.3);
   --dial-timeline-tail-fill: rgba(0, 0, 0, 0.05);
+  --dial-timeline-highlight: rgba(0, 0, 0, 0.45);
 }
 
 @media (prefers-color-scheme: light) {
   .dialkit-root[data-theme="system"] .dialkit-timeline-section[data-single-track] {
-    --dial-timeline-bar-rest: #9e9e9e;
-    --dial-timeline-tail-border: rgba(0, 0, 0, 0.55);
+    --dial-timeline-bar-rest: #d1d1d1;
+    --dial-timeline-bar-played: #b3b3b3;
+    --dial-timeline-bar-rest-hover: #c2c2c2;
+    --dial-timeline-bar-played-hover: #a4a4a4;
+    --dial-timeline-bar-text: rgba(0, 0, 0, 0.85);
+    --dial-timeline-bar-grip: rgba(0, 0, 0, 0.13);
+    --dial-timeline-bar-grip-hover: rgba(0, 0, 0, 0.26);
+
+    --dial-timeline-sel-bar: #6b6b6b;
+    --dial-timeline-sel-bar-hover: #5a5a5a;
+    --dial-timeline-sel-played: #2c2c2c;
+    --dial-timeline-sel-text: rgba(255, 255, 255, 0.92);
+    --dial-timeline-sel-dur: rgba(255, 255, 255, 0.7);
+    --dial-timeline-sel-grip: rgba(255, 255, 255, 0.3);
+    --dial-timeline-sel-grip-hover: rgba(255, 255, 255, 0.5);
+
+    --dial-timeline-tail-border: rgba(0, 0, 0, 0.3);
     --dial-timeline-tail-fill: rgba(0, 0, 0, 0.05);
+    --dial-timeline-highlight: rgba(0, 0, 0, 0.45);
   }
+}
+
+/* A single-track lane is 34px so its bar is 28px, up from 22px. The ruler
+   row keeps its own height, set above. */
+.dialkit-timeline-section[data-single-track] .dialkit-timeline-row:not(.dialkit-timeline-ruler-row) {
+  height: 34px;
 }
 
 .dialkit-timeline-section[data-single-track] .dialkit-timeline-clip {
   justify-content: space-between;
+  /* 14px, not 9px, so the name and the time clear the grips. */
   gap: 8px;
+  padding: 0 14px;
+  border: 1px solid var(--dial-timeline-bar-outline);
   background: var(--dial-timeline-bar-rest);
-  transition: box-shadow 0.15s, opacity 0.15s;
+  transition: background 0.15s, box-shadow 0.15s, opacity 0.15s;
 }
 
-/* Hover and selected rings around the bar, in the accent red. */
+/* Hover lifts whichever grey the pointer is over — the plain bar, or the
+   part the playhead has crossed. No ring: the fill answers instead. */
 .dialkit-timeline-section[data-single-track] .dialkit-timeline-clip:hover {
-  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--dial-timeline-accent) 55%, transparent);
+  background: var(--dial-timeline-bar-rest-hover);
 }
 
+.dialkit-timeline-section[data-single-track] .dialkit-timeline-clip:hover .dialkit-timeline-clip-fill {
+  background: var(--dial-timeline-bar-played-hover);
+}
+
+/* A selected bar wears the light look the dock used to wear by default. It
+   reads as selected on its own, so it needs no ring either. */
 .dialkit-timeline-section[data-single-track] .dialkit-timeline-clip[data-selected] {
-  box-shadow: 0 0 0 2px var(--dial-timeline-accent);
+  background: var(--dial-timeline-sel-bar);
+  border-color: transparent;
+  /* Clears the white ring the multi-track rule draws further up. The light
+     fill says "selected" on its own here. */
+  box-shadow: none;
+}
+
+.dialkit-timeline-section[data-single-track] .dialkit-timeline-clip[data-selected]:hover {
+  background: var(--dial-timeline-sel-bar-hover);
+}
+
+.dialkit-timeline-section[data-single-track] .dialkit-timeline-clip[data-selected] .dialkit-timeline-clip-fill,
+.dialkit-timeline-section[data-single-track] .dialkit-timeline-clip[data-selected]:hover .dialkit-timeline-clip-fill {
+  background: var(--dial-timeline-sel-played);
+}
+
+.dialkit-timeline-section[data-single-track] .dialkit-timeline-clip[data-selected] .dialkit-timeline-clip-name {
+  color: var(--dial-timeline-sel-text);
+}
+
+.dialkit-timeline-section[data-single-track] .dialkit-timeline-clip[data-selected] .dialkit-timeline-clip-duration {
+  color: var(--dial-timeline-sel-dur);
 }
 
 .dialkit-timeline-section[data-single-track] .dialkit-timeline-clip[data-lifted] {
@@ -2286,12 +2434,13 @@
   inset: 0;
   width: 0;
   background: var(--dial-timeline-bar-played, #ffffff);
+  transition: background 0.15s;
   pointer-events: none;
 }
 
 .dialkit-timeline-clip-name {
   position: relative;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--dial-timeline-bar-text, rgba(0, 0, 0, 0.78));
   white-space: nowrap;
@@ -2303,6 +2452,8 @@
 /* The duration text sits above the fill layer. */
 .dialkit-timeline-section[data-single-track] .dialkit-timeline-clip-duration {
   position: relative;
+  font-size: 10.5px;
+  color: var(--dial-timeline-bar-text);
 }
 
 .dialkit-timeline-clip-tail {
@@ -2322,6 +2473,9 @@
   z-index: 0;
 }
 
+/* A tail lights once the playhead reaches its bar. DialTimeline also
+   passes `lit` when the bar is hovered or selected, so selecting a clip
+   lights its tail the same way. */
 .dialkit-timeline-clip-tail[data-lit] {
   opacity: 1;
 }
@@ -2338,17 +2492,43 @@
   pointer-events: none;
 }
 
-/* Resize grips: visible affordances on hover, one per edge. */
+/* Resize grips, one per edge. They used to appear only on hover; they now
+   stay on, so the handle is always findable. */
 .dialkit-timeline-section[data-single-track] .dialkit-timeline-clip-handle::after {
   content: '';
   position: absolute;
-  top: 6px;
-  bottom: 6px;
-  width: 3px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
   border-radius: 2px;
-  background: rgba(0, 0, 0, 0.22);
-  opacity: 0;
-  transition: opacity 0.15s;
+  background: var(--dial-timeline-bar-grip);
+  transform: scaleY(1);
+  transition: background 0.15s, transform 0.15s;
+}
+
+.dialkit-timeline-section[data-single-track] .dialkit-timeline-clip[data-selected] .dialkit-timeline-clip-handle::after {
+  background: var(--dial-timeline-sel-grip);
+}
+
+/* Under the pointer the grip brightens and grows a little taller, so the
+   mark and the resize cursor agree. The hit zone is 8px wide against a 2px
+   mark, so both land the moment the cursor turns. */
+.dialkit-timeline-section[data-single-track] .dialkit-timeline-clip-handle:hover::after {
+  background: var(--dial-timeline-bar-grip-hover);
+  transform: scaleY(1.25);
+}
+
+.dialkit-timeline-section[data-single-track] .dialkit-timeline-clip[data-selected] .dialkit-timeline-clip-handle:hover::after {
+  background: var(--dial-timeline-sel-grip-hover);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialkit-timeline-section[data-single-track] .dialkit-timeline-clip-handle::after {
+    transition: background 0.15s;
+  }
+  .dialkit-timeline-section[data-single-track] .dialkit-timeline-clip-handle:hover::after {
+    transform: scaleY(1);
+  }
 }
 
 .dialkit-timeline-clip-handle[data-edge="start"]::after {
@@ -2359,8 +2539,50 @@
   right: 3px;
 }
 
-.dialkit-timeline-section[data-single-track] .dialkit-timeline-clip:hover .dialkit-timeline-clip-handle::after {
-  opacity: 1;
+/* ── The edit highlight ──────────────────────────────────────────
+   One bar says "this is the version the panel is editing". The host names
+   it with TimelineStore.setHighlight; DialTimeline marks that bar.
+
+   A travelling dashed ring, drawn as an SVG so the dashes can move. An
+   <svg> is a replaced element, so it needs an explicit width and height —
+   inset alone leaves it at its default 300x150 and only its top-left
+   corner shows through the bar. */
+.dialkit-timeline-clip-ants {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.dialkit-timeline-clip-ants rect {
+  x: 0.5px;
+  y: 0.5px;
+  width: calc(100% - 1px);
+  height: calc(100% - 1px);
+  fill: none;
+  stroke: var(--dial-timeline-highlight);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+  animation: dialkit-timeline-ants 1s linear infinite;
+}
+
+/* dasharray 4 + 4 is an 8px period, so one loop of -8 repeats seamlessly. */
+@keyframes dialkit-timeline-ants {
+  to {
+    stroke-dashoffset: -8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialkit-timeline-clip-ants rect {
+    animation: none;
+  }
+}
+
+.dialkit-timeline-section[data-single-track] .dialkit-timeline-clip[data-highlighted] {
+  z-index: 2;
 }
 
 .dialkit-timeline-playhead-control {
@@ -2373,22 +2595,26 @@
   touch-action: none;
 }
 
+/* The flag centres on the ruler row. That row is 22px tall and now starts
+   6px below the header, so its middle is 6 + 11 = 17px down. */
 .dialkit-timeline-playhead-anchor {
   position: sticky;
-  top: calc(var(--dial-timeline-header-h) + 14px);
+  top: calc(var(--dial-timeline-header-h) + 17px);
   z-index: 8;
   width: 0;
   height: 0;
   margin-left: 6px;
 }
 
+/* From the flag's middle down to the ruler's foot, with 1px of overlap so
+   it meets the stem: 22 - 11 + 1 = 12. */
 .dialkit-timeline-playhead-anchor::before {
   content: '';
   position: absolute;
   top: 0;
-  left: -1px;
-  width: 2px;
-  height: 15px;
+  left: 0;
+  width: 1px;
+  height: 12px;
   background: var(--dial-text-root);
   pointer-events: none;
 }
@@ -2396,16 +2622,18 @@
 .dialkit-timeline-playhead-flag {
   position: absolute;
   top: 0;
-  left: calc(var(--dial-timeline-playhead-flag-offset, 0px) - 26px);
+  /* The chip hugs its digits — 4px either side instead of a fixed 52px
+     box — so it centres on the playhead with a transform rather than a
+     half-width offset. */
+  left: var(--dial-timeline-playhead-flag-offset, 0px);
   z-index: 1;
-  width: 52px;
   height: 18px;
-  padding: 0 7px;
+  padding: 0 4px;
   box-sizing: border-box;
-  border: 1px solid rgba(255, 255, 255, 0.75);
+  border: 1px solid var(--dial-timeline-flag-border);
   border-radius: 6px;
-  background: #f3f3f3;
-  color: #414141;
+  background: var(--dial-timeline-flag-bg);
+  color: var(--dial-timeline-flag-text);
   font-family: 'Geist Mono', ui-monospace, monospace;
   font-size: 9.5px;
   font-weight: 600;
@@ -2414,18 +2642,20 @@
   line-height: 16px;
   text-align: center;
   white-space: nowrap;
-  transform: translateY(-50%);
+  transform: translate(-50%, -50%);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.28);
   transition: top 0.12s ease;
 }
 
+/* Starts 1px inside the ruler's 22px foot so it meets the flag's tail, and
+   runs to the lane's bottom. */
 .dialkit-timeline-playhead-stem {
   position: absolute;
-  top: 27px;
+  top: 21px;
   bottom: 0;
-  left: 5px;
+  left: 6px;
   z-index: 5;
-  width: 2px;
+  width: 1px;
   background: var(--dial-text-root);
   pointer-events: none;
 }
