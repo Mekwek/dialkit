@@ -30,7 +30,7 @@ function TimelineHarness({
 }
 
 describe('useDialTimeline (React)', () => {
-  it('extends the registered transport when a live physics edit grows the final clip', () => {
+  it('keeps the registered transport when a live edit swaps in a physics spring', () => {
     const id = 'react-timeline-live-duration';
     const config = {
       dismiss: {
@@ -60,10 +60,12 @@ describe('useDialTimeline (React)', () => {
         });
       });
 
-      assert.equal(latest!.dismiss.duration, 0.42);
-      assert.equal(latest!.duration, 2.22);
-      assert.equal(TimelineStore.getTimeline(id)?.duration, 2.22);
-      assert.equal(TimelineStore.getTransport(id).duration, 2.22);
+      // The spring would settle at 0.42s, but the authored 0.35s wins, so
+      // the bar, the timeline and the transport all hold their lengths.
+      assert.equal(latest!.dismiss.duration, 0.35);
+      assert.equal(latest!.duration, 2.15);
+      assert.equal(TimelineStore.getTimeline(id)?.duration, 2.15);
+      assert.equal(TimelineStore.getTransport(id).duration, 2.15);
     } finally {
       act(() => renderer?.unmount());
     }

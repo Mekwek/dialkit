@@ -564,7 +564,11 @@ describe('duration defaults', () => {
     assert.equal(marker.duration, 0);
   });
 
-  it('uses physics settle time consistently even when an explicit duration is present', () => {
+  // A host can size a bar on purpose, independently of the motion it
+  // carries. So an explicit duration wins, and a physics spring's settle
+  // time is only the fallback — see the test above, where a clip with no
+  // duration does fall back to it.
+  it('an explicit duration wins over a physics spring\'s settle time', () => {
     const p = parseTimelineConfig({
       a: {
         at: 0,
@@ -576,12 +580,13 @@ describe('duration defaults', () => {
     } as unknown as TimelineConfig);
     const [clip] = computeStaticClips(p, {});
 
-    assert.equal(p.duration, 1.06);
-    assert.equal(clip.duration, 1.06);
-    assert.equal(((p.dialConfig.a as Record<string, unknown>).duration as number[])[0], 1.06);
+    // The spring settles at 1.06s, and the bar ignores that.
+    assert.equal(p.duration, 0.1);
+    assert.equal(clip.duration, 0.1);
+    assert.equal(((p.dialConfig.a as Record<string, unknown>).duration as number[])[0], 0.1);
   });
 
-  it('extends a live timeline when an edited physics spring outgrows its authored window', () => {
+  it('an authored bar length survives a live edit to a physics spring', () => {
     const p = parseTimelineConfig({
       dismiss: {
         at: 1.8,
@@ -595,10 +600,12 @@ describe('duration defaults', () => {
       'dismiss.transition': { type: 'spring', stiffness: 200, damping: 25, mass: 1 },
     });
 
+    // The spring would settle at 0.42s. The authored 0.35s still wins, so
+    // swapping the curve never moves the bar or the timeline's end.
     assert.equal(p.duration, 2.15);
-    assert.equal(resolved.clips[0].duration, 0.42);
-    assert.equal(resolved.duration, 2.22);
-    assert.equal(resolved.clips[0].end, 2.22);
+    assert.equal(resolved.clips[0].duration, 0.35);
+    assert.equal(resolved.duration, 2.15);
+    assert.equal(resolved.clips[0].end, 2.15);
   });
 
   it('enforces the minimum duration for animated clips while markers may remain instant', () => {
