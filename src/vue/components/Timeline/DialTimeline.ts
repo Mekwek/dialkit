@@ -778,7 +778,7 @@ const TimelineSection = defineComponent({
           h('div', {
             ref: laneAreaRef,
             class: 'dialkit-timeline-ruler',
-            title: 'Drag to seek · Option-drag to zoom · Shift-drag to reset zoom',
+            title: 'Drag to seek · Option-drag to zoom · Shift-click to reset zoom',
             onPointerdown: (event: PointerEvent) => {
               event.preventDefault();
               event.stopPropagation();

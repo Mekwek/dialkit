@@ -894,7 +894,7 @@ function TimelineSection(props: {
                 onPointerUp={finishRuler}
                 onPointerCancel={finishRuler}
                 onLostPointerCapture={finishRuler}
-                title="Drag to seek · Option-drag to zoom · Shift-drag to reset zoom"
+                title="Drag to seek · Option-drag to zoom · Shift-click to reset zoom"
               >
                 <For each={ticks().fine}>{(time) => <div class="dialkit-timeline-tick dialkit-timeline-tick-fine" style={{ left: `${(time - safeViewStart()) * pxPerSecond()}px` }} />}</For>
                 <For each={ticks().medium}>{(time) => <div class="dialkit-timeline-tick dialkit-timeline-tick-medium" style={{ left: `${(time - safeViewStart()) * pxPerSecond()}px` }} />}</For>

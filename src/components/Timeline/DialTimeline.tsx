@@ -59,6 +59,9 @@ const PLAYHEAD_FLAG_WIDTH = 38;
 const PLAYHEAD_FLAG_EDGE_OVERHANG = 1;
 const POPOVER_WIDTH = 280;
 const ZOOM_DRAG_DISTANCE = 180;
+/* Wheel pixels per e-fold of zoom for Option-scroll on the dock — a notch
+   of a mouse wheel (~100px) is a clear step, a trackpad flick a smooth one. */
+const ZOOM_WHEEL_DISTANCE = 240;
 const DEFAULT_DOCK_MAX_HEIGHT = 400;
 const MIN_DOCK_MAX_HEIGHT = 120;
 
@@ -739,7 +742,43 @@ const TimelineSection = memo(function TimelineSection({
     ));
   }, [meta.duration, pxPerSecond, visibleDuration]);
 
-  const handleTimelineWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+  /** Zoom to `nextZoom` keeping the time under `anchorRatio` (0..1 across
+   *  the lane) where it is — shared by Option-drag and Option-scroll. */
+  const applyAnchoredZoom = useCallback((nextZoom: number, anchorRatio: number, anchorTime: number) => {
+    const nextVisibleDuration = meta.duration / nextZoom;
+    setZoom(nextZoom);
+    setViewStart(clampViewStart(
+      anchorTime - anchorRatio * nextVisibleDuration,
+      meta.duration,
+      nextVisibleDuration
+    ));
+  }, [meta.duration]);
+
+  // Wheel over the open dock. Option-scroll zooms around the pointer;
+  // otherwise a sideways scroll (or Shift-scroll) pans a zoomed view.
+  // Attached natively with `passive: false`: React registers `wheel` as a
+  // passive root listener, so `preventDefault` inside `onWheel` is a no-op
+  // and the page would scroll along with the dock.
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const wheelHandlerRef = useRef<(e: WheelEvent) => void>(() => {});
+  wheelHandlerRef.current = (e: WheelEvent) => {
+    if (e.altKey) {
+      const lane = laneAreaRef.current;
+      if (!lane || meta.duration <= 0) return;
+      const rect = lane.getBoundingClientRect();
+      const anchorRatio = rect.width > 0 ? clamp((e.clientX - rect.left) / rect.width, 0, 1) : 0.5;
+      const anchorTime = safeViewStart + anchorRatio * visibleDuration;
+      // deltaMode 1 = lines (Firefox with a mouse wheel); ~16px per line.
+      const delta = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+      if (delta === 0) return;
+      e.preventDefault();
+      applyAnchoredZoom(
+        clamp(zoom * Math.exp(-delta / ZOOM_WHEEL_DISTANCE), 1, maxZoom),
+        anchorRatio,
+        anchorTime
+      );
+      return;
+    }
     const scroller = horizontalScrollRef.current;
     if (!scroller || zoom <= 1) return;
     const horizontalDelta = Math.abs(e.deltaX) > Math.abs(e.deltaY)
@@ -750,10 +789,17 @@ const TimelineSection = memo(function TimelineSection({
     if (horizontalDelta === 0) return;
     e.preventDefault();
     scroller.scrollLeft += horizontalDelta;
-  }, [zoom]);
+  };
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!open || !body) return;
+    const onWheel = (e: WheelEvent) => wheelHandlerRef.current(e);
+    body.addEventListener('wheel', onWheel, { passive: false });
+    return () => body.removeEventListener('wheel', onWheel);
+  }, [open]);
 
   // Dragging scrubs. Option/Alt-drag preserves detailed zooming, while
-  // Shift-drag first restores the full 1x range.
+  // Shift-click first restores the full 1x range.
   const zoomDragRef = useRef<ZoomDragState | null>(null);
   const rulerScrubRef = useRef<{
     wasPlaying: boolean;
@@ -824,16 +870,12 @@ const TimelineSection = memo(function TimelineSection({
     if (!drag.moved && Math.abs(dx) <= DRAG_THRESHOLD_PX) return;
     drag.moved = true;
 
-    const nextZoom = clamp(drag.zoom * Math.exp(dx / ZOOM_DRAG_DISTANCE), 1, maxZoom);
-    const nextVisibleDuration = meta.duration / nextZoom;
-    const nextStart = clampViewStart(
-      drag.anchorTime - drag.anchorRatio * nextVisibleDuration,
-      meta.duration,
-      nextVisibleDuration
+    applyAnchoredZoom(
+      clamp(drag.zoom * Math.exp(dx / ZOOM_DRAG_DISTANCE), 1, maxZoom),
+      drag.anchorRatio,
+      drag.anchorTime
     );
-    setZoom(nextZoom);
-    setViewStart(nextStart);
-  }, [maxZoom, meta.duration, seekRulerFromClientX]);
+  }, [applyAnchoredZoom, maxZoom, meta.duration, seekRulerFromClientX]);
 
   const handleRulerPointerUp = useCallback(() => {
     if (rulerScrubRef.current?.wasPlaying) TimelineStore.play(meta.id);
@@ -869,6 +911,8 @@ const TimelineSection = memo(function TimelineSection({
   const handleTrackPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
     if (target.closest('.dialkit-timeline-label, button')) return;
+    // The pan bar lives inside the body too; a press on it pans, never seeks.
+    if (target.closest('.dialkit-timeline-scroll-row')) return;
     if (!e.shiftKey && target.closest('.dialkit-timeline-clip')) return;
     // Single track: pressing empty lane clears the selection (clip presses
     // never reach here — the bar stops propagation).
@@ -1416,8 +1460,8 @@ const TimelineSection = memo(function TimelineSection({
 
       {open && (
         <div
+          ref={bodyRef}
           className="dialkit-timeline-body"
-          onWheel={handleTimelineWheel}
           onPointerDown={handleTrackPointerDown}
           onPointerMove={handleTrackPointerMove}
           onPointerUp={finishTrackScrub}
@@ -1435,7 +1479,7 @@ const TimelineSection = memo(function TimelineSection({
                 onPointerUp={handleRulerPointerUp}
                 onPointerCancel={handleRulerPointerCancel}
                 onLostPointerCapture={handleRulerPointerCancel}
-                title="Drag to seek · Option-drag to zoom · Shift-drag to reset zoom"
+                title="Drag to seek · Option-drag or Option-scroll to zoom · Shift-click to reset zoom"
               >
                 {fineTicks.map((t) => (
                   <div key={`fine:${t}`} className="dialkit-timeline-tick dialkit-timeline-tick-fine" style={{ left: (t - safeViewStart) * pxPerSecond }} />

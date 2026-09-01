@@ -5040,6 +5040,7 @@ var PLAYHEAD_FLAG_WIDTH = 38;
 var PLAYHEAD_FLAG_EDGE_OVERHANG = 1;
 var POPOVER_WIDTH = 280;
 var ZOOM_DRAG_DISTANCE = 180;
+var ZOOM_WHEEL_DISTANCE = 240;
 var DEFAULT_DOCK_MAX_HEIGHT = 400;
 var MIN_DOCK_MAX_HEIGHT = 120;
 var subscribeGlobalTimelines = (callback) => TimelineStore.subscribeGlobal(callback);
@@ -5563,14 +5564,49 @@ var TimelineSection = memo(function TimelineSection2({
       visibleDuration
     ));
   }, [meta.duration, pxPerSecond, visibleDuration]);
-  const handleTimelineWheel = useCallback15((e2) => {
+  const applyAnchoredZoom = useCallback15((nextZoom, anchorRatio, anchorTime) => {
+    const nextVisibleDuration = meta.duration / nextZoom;
+    setZoom(nextZoom);
+    setViewStart(clampViewStart(
+      anchorTime - anchorRatio * nextVisibleDuration,
+      meta.duration,
+      nextVisibleDuration
+    ));
+  }, [meta.duration]);
+  const bodyRef = useRef14(null);
+  const wheelHandlerRef = useRef14(() => {
+  });
+  wheelHandlerRef.current = (e2) => {
+    if (e2.altKey) {
+      const lane = laneAreaRef.current;
+      if (!lane || meta.duration <= 0) return;
+      const rect = lane.getBoundingClientRect();
+      const anchorRatio = rect.width > 0 ? clamp((e2.clientX - rect.left) / rect.width, 0, 1) : 0.5;
+      const anchorTime = safeViewStart + anchorRatio * visibleDuration;
+      const delta = e2.deltaMode === 1 ? e2.deltaY * 16 : e2.deltaY;
+      if (delta === 0) return;
+      e2.preventDefault();
+      applyAnchoredZoom(
+        clamp(zoom * Math.exp(-delta / ZOOM_WHEEL_DISTANCE), 1, maxZoom),
+        anchorRatio,
+        anchorTime
+      );
+      return;
+    }
     const scroller = horizontalScrollRef.current;
     if (!scroller || zoom <= 1) return;
     const horizontalDelta = Math.abs(e2.deltaX) > Math.abs(e2.deltaY) ? e2.deltaX : e2.shiftKey ? e2.deltaY : 0;
     if (horizontalDelta === 0) return;
     e2.preventDefault();
     scroller.scrollLeft += horizontalDelta;
-  }, [zoom]);
+  };
+  useEffect11(() => {
+    const body = bodyRef.current;
+    if (!open || !body) return;
+    const onWheel = (e2) => wheelHandlerRef.current(e2);
+    body.addEventListener("wheel", onWheel, { passive: false });
+    return () => body.removeEventListener("wheel", onWheel);
+  }, [open]);
   const zoomDragRef = useRef14(null);
   const rulerScrubRef = useRef14(null);
   const seekRulerFromClientX = useCallback15((clientX) => {
@@ -5630,16 +5666,12 @@ var TimelineSection = memo(function TimelineSection2({
     const dx = e2.clientX - drag.pointerX;
     if (!drag.moved && Math.abs(dx) <= DRAG_THRESHOLD_PX) return;
     drag.moved = true;
-    const nextZoom = clamp(drag.zoom * Math.exp(dx / ZOOM_DRAG_DISTANCE), 1, maxZoom);
-    const nextVisibleDuration = meta.duration / nextZoom;
-    const nextStart = clampViewStart(
-      drag.anchorTime - drag.anchorRatio * nextVisibleDuration,
-      meta.duration,
-      nextVisibleDuration
+    applyAnchoredZoom(
+      clamp(drag.zoom * Math.exp(dx / ZOOM_DRAG_DISTANCE), 1, maxZoom),
+      drag.anchorRatio,
+      drag.anchorTime
     );
-    setZoom(nextZoom);
-    setViewStart(nextStart);
-  }, [maxZoom, meta.duration, seekRulerFromClientX]);
+  }, [applyAnchoredZoom, maxZoom, meta.duration, seekRulerFromClientX]);
   const handleRulerPointerUp = useCallback15(() => {
     if (rulerScrubRef.current?.wasPlaying) TimelineStore.play(meta.id);
     rulerScrubRef.current = null;
@@ -5665,6 +5697,7 @@ var TimelineSection = memo(function TimelineSection2({
   const handleTrackPointerDown = useCallback15((e2) => {
     const target = e2.target;
     if (target.closest(".dialkit-timeline-label, button")) return;
+    if (target.closest(".dialkit-timeline-scroll-row")) return;
     if (!e2.shiftKey && target.closest(".dialkit-timeline-clip")) return;
     setSelectedKeys((prev) => prev.size ? /* @__PURE__ */ new Set() : prev);
     const rect = laneAreaRef.current?.getBoundingClientRect();
@@ -6155,8 +6188,8 @@ var TimelineSection = memo(function TimelineSection2({
     open && /* @__PURE__ */ jsxs14(
       "div",
       {
+        ref: bodyRef,
         className: "dialkit-timeline-body",
-        onWheel: handleTimelineWheel,
         onPointerDown: handleTrackPointerDown,
         onPointerMove: handleTrackPointerMove,
         onPointerUp: finishTrackScrub,
@@ -6176,7 +6209,7 @@ var TimelineSection = memo(function TimelineSection2({
                   onPointerUp: handleRulerPointerUp,
                   onPointerCancel: handleRulerPointerCancel,
                   onLostPointerCapture: handleRulerPointerCancel,
-                  title: "Drag to seek \xB7 Option-drag to zoom \xB7 Shift-drag to reset zoom",
+                  title: "Drag to seek \xB7 Option-drag or Option-scroll to zoom \xB7 Shift-click to reset zoom",
                   children: [
                     fineTicks.map((t2) => /* @__PURE__ */ jsx18("div", { className: "dialkit-timeline-tick dialkit-timeline-tick-fine", style: { left: (t2 - safeViewStart) * pxPerSecond } }, `fine:${t2}`)),
                     mediumTicks.map((t2) => /* @__PURE__ */ jsx18("div", { className: "dialkit-timeline-tick dialkit-timeline-tick-medium", style: { left: (t2 - safeViewStart) * pxPerSecond } }, `medium:${t2}`)),

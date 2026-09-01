@@ -649,7 +649,7 @@
             onpointerup={finishRuler}
             onpointercancel={finishRuler}
             onlostpointercapture={finishRuler}
-            title="Drag to seek · Option-drag to zoom · Shift-drag to reset zoom"
+            title="Drag to seek · Option-drag to zoom · Shift-click to reset zoom"
             role="slider"
             tabindex="0"
             aria-label="Timeline ruler"

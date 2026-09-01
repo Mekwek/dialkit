@@ -21,6 +21,9 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   --dial-text-primary: rgba(255, 255, 255, 0.95);
   --dial-text-secondary: rgba(255, 255, 255, 0.6);
   --dial-text-tertiary: rgba(255, 255, 255, 0.4);
+  /* The timeline pan bar's thumb — quieter than text so it reads as a
+     position marker, not a control demanding attention. */
+  --dial-timeline-scroll-thumb: rgba(255, 255, 255, 0.16);
 
   /* Borders */
   --dial-border: rgba(255, 255, 255, 0.06);
@@ -1590,6 +1593,9 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   --dial-text-primary: rgba(0, 0, 0, 0.9);
   --dial-text-secondary: rgba(0, 0, 0, 0.55);
   --dial-text-tertiary: rgba(0, 0, 0, 0.35);
+  /* The timeline pan bar's thumb — quieter than text so it reads as a
+     position marker, not a control demanding attention. */
+  --dial-timeline-scroll-thumb: rgba(0, 0, 0, 0.14);
 
   --dial-border: rgba(0, 0, 0, 0.1);
   --dial-border-hover: rgba(0, 0, 0, 0.15);
@@ -1647,6 +1653,9 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
     --dial-text-primary: rgba(0, 0, 0, 0.9);
     --dial-text-secondary: rgba(0, 0, 0, 0.55);
     --dial-text-tertiary: rgba(0, 0, 0, 0.35);
+    /* The timeline pan bar's thumb — quieter than text so it reads as a
+       position marker, not a control demanding attention. */
+    --dial-timeline-scroll-thumb: rgba(0, 0, 0, 0.14);
 
     --dial-border: rgba(0, 0, 0, 0.1);
     --dial-border-hover: rgba(0, 0, 0, 0.15);
@@ -1954,26 +1963,31 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 }
 
 .dialkit-timeline-scroll-row {
+  /* Zero layout height: the pan bar only mounts while zoomed, and the
+     dock must not grow when it does. The bar itself hangs 2px below
+     this row, inside the dock's 12px bottom padding (8px tall, so 2px
+     of air on each side). Sticky at 0 keeps it in view when the dock
+     scrolls vertically — the dock is the scroll container, and sticky
+     measures from its content edge (inside the 12px padding), so the
+     bar hanging below the row lands in that padding either way. With
+     content shorter than the dock the row never moves. */
   position: sticky;
-  bottom: -10px;
+  bottom: 0;
   z-index: 6;
   display: grid;
   grid-template-columns: var(--dial-timeline-label-w) minmax(0, 1fr);
-  margin-top: 6px;
-  margin-bottom: -10px;
-  padding: 4px 0 10px;
-  background: var(--dial-glass-bg);
-  backdrop-filter: blur(var(--dial-backdrop-blur));
-  -webkit-backdrop-filter: blur(var(--dial-backdrop-blur));
+  height: 0;
+  overflow: visible;
 }
 
 .dialkit-timeline-horizontal-scroll {
   min-width: 0;
-  height: 10px;
+  height: 8px;
+  margin-top: 2px;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: thin;
-  scrollbar-color: var(--dial-text-tertiary) transparent;
+  scrollbar-color: var(--dial-timeline-scroll-thumb) transparent;
   overscroll-behavior-x: contain;
 }
 
@@ -1991,7 +2005,7 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 
 .dialkit-timeline-horizontal-scroll::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: var(--dial-text-tertiary);
+  background: var(--dial-timeline-scroll-thumb);
 }
 
 .dialkit-timeline-grid {
