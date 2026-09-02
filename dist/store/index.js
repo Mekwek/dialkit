@@ -152,7 +152,7 @@ var DialStoreClass = class {
     const baseValues = this.reconcileValues(defaultValues, previousBaseValues, controlsByPath);
     this.allControls.set(id, allControls);
     const controls = this.filterByVisibility(allControls, values);
-    this.panels.set(id, { id, name, controls, values, shortcuts: shortcuts ?? {}, kind: options.kind, group: options.group, defaultOpen: options.defaultOpen, presetsEditable: options.presetsEditable });
+    this.panels.set(id, { id, name, controls, values, shortcuts: shortcuts ?? {}, kind: options.kind, group: options.group, defaultOpen: options.defaultOpen, presetsEditable: options.presetsEditable, presetsLockable: options.presetsLockable });
     this.snapshots.set(id, { ...values });
     this.baseValues.set(id, baseValues);
     this.defaultValues.set(id, { ...defaultValues });
@@ -190,7 +190,8 @@ var DialStoreClass = class {
       kind: options.kind ?? existing.kind,
       group: options.group ?? existing.group,
       defaultOpen: options.defaultOpen ?? existing.defaultOpen,
-      presetsEditable: options.presetsEditable ?? existing.presetsEditable
+      presetsEditable: options.presetsEditable ?? existing.presetsEditable,
+      presetsLockable: options.presetsLockable ?? existing.presetsLockable
     };
     this.panels.set(id, nextPanel);
     this.snapshots.set(id, { ...nextValues });
@@ -438,6 +439,18 @@ var DialStoreClass = class {
     this.persistPanel(panelId);
     this.notify(panelId);
   }
+  setPresetLocked(panelId, presetId, locked) {
+    const presets = this.presets.get(panelId) ?? [];
+    const preset = presets.find((p) => p.id === presetId);
+    if (!preset || !!preset.locked === locked) return;
+    this.presets.set(panelId, presets.map((p) => p.id === presetId ? { ...p, locked } : p));
+    const panel = this.panels.get(panelId);
+    if (panel) {
+      this.snapshots.set(panelId, { ...panel.values });
+    }
+    this.persistPanel(panelId);
+    this.notify(panelId);
+  }
   reorderPresets(panelId, orderedIds) {
     const presets = this.presets.get(panelId) ?? [];
     if (presets.length === 0) return;
@@ -471,6 +484,9 @@ var DialStoreClass = class {
   }
   isPresetsEditable(panelId) {
     return this.panels.get(panelId)?.presetsEditable ?? true;
+  }
+  isPresetsLockable(panelId) {
+    return this.panels.get(panelId)?.presetsLockable ?? false;
   }
   clearActivePreset(panelId) {
     const panel = this.panels.get(panelId);

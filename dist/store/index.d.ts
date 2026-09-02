@@ -149,6 +149,11 @@ type PanelConfig = {
      * Default `true`.
      */
     presetsEditable?: boolean;
+    /**
+     * `true` shows a lock toggle on each preset row (left of the trash). Off
+     * by default; the host opts in per panel.
+     */
+    presetsLockable?: boolean;
 };
 type Listener = () => void;
 type ActionListener = (action: string) => void;
@@ -156,6 +161,12 @@ type Preset = {
     id: string;
     name: string;
     values: Record<string, DialValue>;
+    /**
+     * Host-defined: the host decides what a locked preset refuses (theca: no
+     * auto-save into it). The dropdown only shows the state, hides delete,
+     * and toggles it.
+     */
+    locked?: boolean;
 };
 type DialKitPersistOptions = boolean | {
     key?: string;
@@ -180,6 +191,11 @@ type DialStorePanelOptions = {
      * Default `true`.
      */
     presetsEditable?: boolean;
+    /**
+     * `true` shows a lock toggle on each preset row (left of the trash). Off
+     * by default; the host opts in per panel.
+     */
+    presetsLockable?: boolean;
 };
 declare function resolveDialValues<T extends DialConfig>(config: T, flatValues: Record<string, DialValue>): ResolvedValues<T>;
 declare function flattenDialValueUpdates<T extends DialConfig>(config: T, updates: DialKitValueUpdates<T>): Record<string, DialValue>;
@@ -235,10 +251,12 @@ declare class DialStoreClass {
     loadPreset(panelId: string, presetId: string): void;
     deletePreset(panelId: string, presetId: string): void;
     renamePreset(panelId: string, presetId: string, name: string): void;
+    setPresetLocked(panelId: string, presetId: string, locked: boolean): void;
     reorderPresets(panelId: string, orderedIds: string[]): void;
     getPresets(panelId: string): Preset[];
     getActivePresetId(panelId: string): string | null;
     isPresetsEditable(panelId: string): boolean;
+    isPresetsLockable(panelId: string): boolean;
     clearActivePreset(panelId: string): void;
     resolveShortcutTarget(key: string, modifier?: 'alt' | 'shift' | 'meta'): {
         panelId: string;

@@ -1349,6 +1349,7 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 }
 
 .dialkit-preset-rename,
+.dialkit-preset-lock,
 .dialkit-preset-delete {
   display: flex;
   align-items: center;
@@ -1365,21 +1366,30 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 }
 
 .dialkit-preset-item:hover .dialkit-preset-rename,
+.dialkit-preset-item:hover .dialkit-preset-lock,
 .dialkit-preset-item:hover .dialkit-preset-delete {
   opacity: 0.6;
 }
 
 .dialkit-preset-rename:hover,
+.dialkit-preset-lock:hover,
 .dialkit-preset-delete:hover {
   opacity: 1 !important;
 }
 
 .dialkit-preset-rename svg,
+.dialkit-preset-lock svg,
 .dialkit-preset-delete svg {
   width: 14px;
   height: 14px;
   color: var(--dial-text-focus);
   pointer-events: none;
+}
+
+/* A locked row always shows its closed lock, even without hover — at the
+   same quiet level the row's icons have on hover, not brighter. */
+.dialkit-preset-lock[data-locked="true"] {
+  opacity: 0.6;
 }
 
 .dialkit-preset-item[data-dragging="true"] {

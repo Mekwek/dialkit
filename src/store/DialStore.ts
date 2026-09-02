@@ -200,6 +200,11 @@ export type PanelConfig = {
    * Default `true`.
    */
   presetsEditable?: boolean;
+  /**
+   * `true` shows a lock toggle on each preset row (left of the trash). Off
+   * by default; the host opts in per panel.
+   */
+  presetsLockable?: boolean;
 };
 
 type Listener = () => void;
@@ -209,6 +214,12 @@ export type Preset = {
   id: string;
   name: string;
   values: Record<string, DialValue>;
+  /**
+   * Host-defined: the host decides what a locked preset refuses (theca: no
+   * auto-save into it). The dropdown only shows the state, hides delete,
+   * and toggles it.
+   */
+  locked?: boolean;
 };
 
 export type DialKitPersistOptions = boolean | {
@@ -235,6 +246,11 @@ export type DialStorePanelOptions = {
    * Default `true`.
    */
   presetsEditable?: boolean;
+  /**
+   * `true` shows a lock toggle on each preset row (left of the trash). Off
+   * by default; the host opts in per panel.
+   */
+  presetsLockable?: boolean;
 };
 
 type PersistConfig = {
@@ -467,7 +483,7 @@ class DialStoreClass {
     this.allControls.set(id, allControls);
     const controls = this.filterByVisibility(allControls, values);
 
-    this.panels.set(id, { id, name, controls, values, shortcuts: shortcuts ?? {}, kind: options.kind, group: options.group, defaultOpen: options.defaultOpen, presetsEditable: options.presetsEditable });
+    this.panels.set(id, { id, name, controls, values, shortcuts: shortcuts ?? {}, kind: options.kind, group: options.group, defaultOpen: options.defaultOpen, presetsEditable: options.presetsEditable, presetsLockable: options.presetsLockable });
     this.snapshots.set(id, { ...values });
     this.baseValues.set(id, baseValues);
     this.defaultValues.set(id, { ...defaultValues });
@@ -513,6 +529,7 @@ class DialStoreClass {
       group: options.group ?? existing.group,
       defaultOpen: options.defaultOpen ?? existing.defaultOpen,
       presetsEditable: options.presetsEditable ?? existing.presetsEditable,
+      presetsLockable: options.presetsLockable ?? existing.presetsLockable,
     };
     this.panels.set(id, nextPanel);
     this.snapshots.set(id, { ...nextValues });
@@ -845,6 +862,22 @@ class DialStoreClass {
     this.notify(panelId);
   }
 
+  setPresetLocked(panelId: string, presetId: string, locked: boolean): void {
+    const presets = this.presets.get(panelId) ?? [];
+    const preset = presets.find(p => p.id === presetId);
+    if (!preset || !!preset.locked === locked) return;
+
+    this.presets.set(panelId, presets.map(p => (p.id === presetId ? { ...p, locked } : p)));
+
+    // Force re-render by creating new snapshot reference
+    const panel = this.panels.get(panelId);
+    if (panel) {
+      this.snapshots.set(panelId, { ...panel.values });
+    }
+    this.persistPanel(panelId);
+    this.notify(panelId);
+  }
+
   reorderPresets(panelId: string, orderedIds: string[]): void {
     const presets = this.presets.get(panelId) ?? [];
     if (presets.length === 0) return;
@@ -887,6 +920,10 @@ class DialStoreClass {
 
   isPresetsEditable(panelId: string): boolean {
     return this.panels.get(panelId)?.presetsEditable ?? true;
+  }
+
+  isPresetsLockable(panelId: string): boolean {
+    return this.panels.get(panelId)?.presetsLockable ?? false;
   }
 
   clearActivePreset(panelId: string): void {

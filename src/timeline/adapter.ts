@@ -41,6 +41,11 @@ export interface DialTimelineOptions {
    * Default `true`.
    */
   presetsEditable?: boolean;
+  /**
+   * `true` shows a lock toggle on each preset row (left of the trash). Off
+   * by default; the host opts in per panel.
+   */
+  presetsLockable?: boolean;
 }
 
 export type TimelineActions = {

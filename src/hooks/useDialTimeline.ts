@@ -43,6 +43,7 @@ export function useDialTimeline<T extends TimelineConfig>(
     persist: options?.persist,
     kind: 'timeline',
     presetsEditable: options?.presetsEditable,
+    presetsLockable: options?.presetsLockable,
   });
 
   // Edit-time pass: resolve all stored values and let live, emergent durations

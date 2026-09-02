@@ -22,6 +22,11 @@ export interface UseDialStorePanelOptions {
    * Default `true`.
    */
   presetsEditable?: boolean;
+  /**
+   * `true` shows a lock toggle on each preset row (left of the trash). Off
+   * by default; the host opts in per panel.
+   */
+  presetsLockable?: boolean;
 }
 
 // Serialize with a referential short-circuit: consumers can re-render at 60Hz
@@ -67,6 +72,7 @@ export function useDialStorePanel(
       group: optionsRef.current.group,
       defaultOpen: optionsRef.current.defaultOpen,
       presetsEditable: optionsRef.current.presetsEditable,
+      presetsLockable: optionsRef.current.presetsLockable,
     });
     return () => DialStore.unregisterPanel(panelId);
   }, [hasStableId, panelId, name]);
@@ -85,9 +91,10 @@ export function useDialStorePanel(
       group: optionsRef.current.group,
       defaultOpen: optionsRef.current.defaultOpen,
       presetsEditable: optionsRef.current.presetsEditable,
+      presetsLockable: optionsRef.current.presetsLockable,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasStableId, panelId, name, serializedConfig, serializedShortcuts, serializedPersist, options.group, options.defaultOpen, options.presetsEditable]);
+  }, [hasStableId, panelId, name, serializedConfig, serializedShortcuts, serializedPersist, options.group, options.defaultOpen, options.presetsEditable, options.presetsLockable]);
 
   const subscribe = useCallback(
     (callback: () => void) => DialStore.subscribe(panelId, callback),

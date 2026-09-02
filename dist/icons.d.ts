@@ -13,6 +13,8 @@ declare const ICON_CLIPBOARD: {
 declare const ICON_ADD_PRESET: string[];
 declare const ICON_PENCIL: string[];
 declare const ICON_TRASH: string[];
+declare const ICON_LOCK: string[];
+declare const ICON_LOCK_OPEN: string[];
 declare const ICON_PANEL: {
     path: string;
     circles: {
@@ -22,4 +24,4 @@ declare const ICON_PANEL: {
     }[];
 };
 
-export { ICON_ADD_PRESET, ICON_CHECK, ICON_CHEVRON, ICON_CLIPBOARD, ICON_LOOP, ICON_PANEL, ICON_PAUSE, ICON_PENCIL, ICON_PLAY, ICON_REPLAY, ICON_TIMELINE, ICON_TRASH };
+export { ICON_ADD_PRESET, ICON_CHECK, ICON_CHEVRON, ICON_CLIPBOARD, ICON_LOCK, ICON_LOCK_OPEN, ICON_LOOP, ICON_PANEL, ICON_PAUSE, ICON_PENCIL, ICON_PLAY, ICON_REPLAY, ICON_TIMELINE, ICON_TRASH };

@@ -67,4 +67,45 @@ describe('DialStore presets', () => {
     // Unknown panel id also defaults to true.
     assert.equal(DialStore.isPresetsEditable('never-registered-panel'), true);
   });
+
+  it('isPresetsLockable defaults to false and reflects the presetsLockable panel option', () => {
+    const panelId = 'preset-lockable-default-panel';
+    DialStore.registerPanel(panelId, 'Lockable Default Panel', config);
+    assert.equal(DialStore.isPresetsLockable(panelId), false);
+    DialStore.unregisterPanel(panelId);
+
+    const lockablePanelId = 'preset-lockable-panel';
+    DialStore.registerPanel(lockablePanelId, 'Lockable Panel', config, undefined, { presetsLockable: true });
+    assert.equal(DialStore.isPresetsLockable(lockablePanelId), true);
+    DialStore.unregisterPanel(lockablePanelId);
+
+    // Unknown panel id also defaults to false.
+    assert.equal(DialStore.isPresetsLockable('never-registered-panel'), false);
+  });
+
+  it('setPresetLocked sets the flag, no-ops when unchanged, and ignores unknown ids', () => {
+    const panelId = 'preset-lock-panel';
+    DialStore.registerPanel(panelId, 'Lock Panel', config);
+    const id = DialStore.savePreset(panelId, 'Original');
+
+    const before = DialStore.getPresets(panelId);
+    assert.equal(before[0].locked, undefined);
+
+    DialStore.setPresetLocked(panelId, id, true);
+    const afterLock = DialStore.getPresets(panelId);
+    assert.notEqual(before, afterLock, 'setPresetLocked should produce a new presets array reference');
+    assert.equal(afterLock[0].locked, true);
+
+    // Setting to the same value is a no-op — array reference stays identical.
+    DialStore.setPresetLocked(panelId, id, true);
+    assert.equal(DialStore.getPresets(panelId), afterLock, 'unchanged lock state should not produce a new array reference');
+
+    DialStore.setPresetLocked(panelId, id, false);
+    assert.equal(DialStore.getPresets(panelId)[0].locked, false);
+
+    // Missing preset is a no-op, not a throw.
+    assert.doesNotThrow(() => DialStore.setPresetLocked(panelId, 'nonexistent', true));
+
+    DialStore.unregisterPanel(panelId);
+  });
 });

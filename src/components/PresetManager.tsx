@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { DialStore, Preset } from '../store/DialStore';
-import { ICON_CHEVRON, ICON_PENCIL, ICON_TRASH } from '../icons';
+import { ICON_CHEVRON, ICON_PENCIL, ICON_TRASH, ICON_LOCK, ICON_LOCK_OPEN } from '../icons';
 
 interface PresetManagerProps {
   panelId: string;
@@ -40,6 +40,7 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdow
   const suppressClickRef = useRef(false);
 
   const editable = DialStore.isPresetsEditable(panelId);
+  const lockable = editable && DialStore.isPresetsLockable(panelId);
 
   const hasPresets = presets.length > 0;
   const activePreset = presets.find((p) => p.id === activePresetId);
@@ -255,6 +256,7 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdow
                     className="dialkit-preset-item"
                     data-active={String(preset.id === activePresetId)}
                     data-preset-id={preset.id}
+                    data-locked={preset.locked ? 'true' : undefined}
                     data-dragging={draggingId === preset.id ? 'true' : undefined}
                     onClick={() => {
                       if (isEditing) return;
@@ -321,19 +323,40 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdow
                             </svg>
                           </button>
                         )}
-                        <button
-                          className="dialkit-preset-delete"
-                          onClick={(e) => handleDelete(e, preset.id)}
-                          onMouseDown={(e) => e.stopPropagation()}
-                          onPointerDown={(e) => e.stopPropagation()}
-                          title="Delete preset"
-                        >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            {ICON_TRASH.map((d, i) => (
-                              <path key={i} d={d} />
-                            ))}
-                          </svg>
-                        </button>
+                        {lockable && (
+                          <button
+                            className="dialkit-preset-lock"
+                            data-locked={String(!!preset.locked)}
+                            title={preset.locked ? 'Unlock preset' : 'Lock preset'}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              DialStore.setPresetLocked(panelId, preset.id, !preset.locked);
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onPointerDown={(e) => e.stopPropagation()}
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              {(preset.locked ? ICON_LOCK : ICON_LOCK_OPEN).map((d, i) => (
+                                <path key={i} d={d} />
+                              ))}
+                            </svg>
+                          </button>
+                        )}
+                        {!preset.locked && (
+                          <button
+                            className="dialkit-preset-delete"
+                            onClick={(e) => handleDelete(e, preset.id)}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            title="Delete preset"
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              {ICON_TRASH.map((d, i) => (
+                                <path key={i} d={d} />
+                              ))}
+                            </svg>
+                          </button>
+                        )}
                       </>
                     )}
                   </div>

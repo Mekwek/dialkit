@@ -33,6 +33,11 @@ export interface UseDialOptions {
    * Default `true`.
    */
   presetsEditable?: boolean;
+  /**
+   * `true` shows a lock toggle on each preset row (left of the trash). Off
+   * by default; the host opts in per panel.
+   */
+  presetsLockable?: boolean;
 }
 
 export interface DialKitController<T extends DialConfig> {
@@ -63,6 +68,7 @@ export function useDialKitController<T extends DialConfig>(
     group: options?.group,
     defaultOpen: options?.defaultOpen,
     presetsEditable: options?.presetsEditable,
+    presetsLockable: options?.presetsLockable,
   });
 
   const configRef = useRef(config);

@@ -157,7 +157,7 @@ var DialStoreClass = class {
     const baseValues = this.reconcileValues(defaultValues, previousBaseValues, controlsByPath);
     this.allControls.set(id, allControls);
     const controls = this.filterByVisibility(allControls, values);
-    this.panels.set(id, { id, name, controls, values, shortcuts: shortcuts ?? {}, kind: options.kind, group: options.group, defaultOpen: options.defaultOpen, presetsEditable: options.presetsEditable });
+    this.panels.set(id, { id, name, controls, values, shortcuts: shortcuts ?? {}, kind: options.kind, group: options.group, defaultOpen: options.defaultOpen, presetsEditable: options.presetsEditable, presetsLockable: options.presetsLockable });
     this.snapshots.set(id, { ...values });
     this.baseValues.set(id, baseValues);
     this.defaultValues.set(id, { ...defaultValues });
@@ -195,7 +195,8 @@ var DialStoreClass = class {
       kind: options.kind ?? existing.kind,
       group: options.group ?? existing.group,
       defaultOpen: options.defaultOpen ?? existing.defaultOpen,
-      presetsEditable: options.presetsEditable ?? existing.presetsEditable
+      presetsEditable: options.presetsEditable ?? existing.presetsEditable,
+      presetsLockable: options.presetsLockable ?? existing.presetsLockable
     };
     this.panels.set(id, nextPanel);
     this.snapshots.set(id, { ...nextValues });
@@ -443,6 +444,18 @@ var DialStoreClass = class {
     this.persistPanel(panelId);
     this.notify(panelId);
   }
+  setPresetLocked(panelId, presetId, locked) {
+    const presets = this.presets.get(panelId) ?? [];
+    const preset = presets.find((p2) => p2.id === presetId);
+    if (!preset || !!preset.locked === locked) return;
+    this.presets.set(panelId, presets.map((p2) => p2.id === presetId ? { ...p2, locked } : p2));
+    const panel = this.panels.get(panelId);
+    if (panel) {
+      this.snapshots.set(panelId, { ...panel.values });
+    }
+    this.persistPanel(panelId);
+    this.notify(panelId);
+  }
   reorderPresets(panelId, orderedIds) {
     const presets = this.presets.get(panelId) ?? [];
     if (presets.length === 0) return;
@@ -476,6 +489,9 @@ var DialStoreClass = class {
   }
   isPresetsEditable(panelId) {
     return this.panels.get(panelId)?.presetsEditable ?? true;
+  }
+  isPresetsLockable(panelId) {
+    return this.panels.get(panelId)?.presetsLockable ?? false;
   }
   clearActivePreset(panelId) {
     const panel = this.panels.get(panelId);
@@ -970,7 +986,8 @@ function useDialStorePanel(name, config, options = {}) {
       kind: optionsRef.current.kind,
       group: optionsRef.current.group,
       defaultOpen: optionsRef.current.defaultOpen,
-      presetsEditable: optionsRef.current.presetsEditable
+      presetsEditable: optionsRef.current.presetsEditable,
+      presetsLockable: optionsRef.current.presetsLockable
     });
     return () => DialStore.unregisterPanel(panelId);
   }, [hasStableId, panelId, name]);
@@ -986,9 +1003,10 @@ function useDialStorePanel(name, config, options = {}) {
       kind: optionsRef.current.kind,
       group: optionsRef.current.group,
       defaultOpen: optionsRef.current.defaultOpen,
-      presetsEditable: optionsRef.current.presetsEditable
+      presetsEditable: optionsRef.current.presetsEditable,
+      presetsLockable: optionsRef.current.presetsLockable
     });
-  }, [hasStableId, panelId, name, serializedConfig, serializedShortcuts, serializedPersist, options.group, options.defaultOpen, options.presetsEditable]);
+  }, [hasStableId, panelId, name, serializedConfig, serializedShortcuts, serializedPersist, options.group, options.defaultOpen, options.presetsEditable, options.presetsLockable]);
   const subscribe = useCallback(
     (callback) => DialStore.subscribe(panelId, callback),
     [panelId]
@@ -1009,7 +1027,8 @@ function useDialKitController(name, config, options) {
     shortcuts: options?.shortcuts,
     group: options?.group,
     defaultOpen: options?.defaultOpen,
-    presetsEditable: options?.presetsEditable
+    presetsEditable: options?.presetsEditable,
+    presetsLockable: options?.presetsLockable
   });
   const configRef = useRef2(config);
   configRef.current = config;
@@ -1326,6 +1345,14 @@ var ICON_TRASH = [
   "M14 11V16",
   "M3.5 6H20.5",
   "M8.07092 5.74621C8.42348 3.89745 10.0485 2.5 12 2.5C13.9515 2.5 15.5765 3.89745 15.9291 5.74621"
+];
+var ICON_LOCK = [
+  "M6 11h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1Z",
+  "M7 11V7a5 5 0 0 1 10 0v4"
+];
+var ICON_LOCK_OPEN = [
+  "M6 11h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1Z",
+  "M7 11V7a5 5 0 0 1 9.9-1"
 ];
 var ICON_PANEL = {
   path: "M6.84766 11.75C6.78583 11.9899 6.75 12.2408 6.75 12.5C6.75 12.7592 6.78583 13.0101 6.84766 13.25H2C1.58579 13.25 1.25 12.9142 1.25 12.5C1.25 12.0858 1.58579 11.75 2 11.75H6.84766ZM14 11.75C14.4142 11.75 14.75 12.0858 14.75 12.5C14.75 12.9142 14.4142 13.25 14 13.25H12.6523C12.7142 13.0101 12.75 12.7592 12.75 12.5C12.75 12.2408 12.7142 11.9899 12.6523 11.75H14ZM3.09766 7.25C3.03583 7.48994 3 7.74075 3 8C3 8.25925 3.03583 8.51006 3.09766 8.75H2C1.58579 8.75 1.25 8.41421 1.25 8C1.25 7.58579 1.58579 7.25 2 7.25H3.09766ZM14 7.25C14.4142 7.25 14.75 7.58579 14.75 8C14.75 8.41421 14.4142 8.75 14 8.75H8.90234C8.96417 8.51006 9 8.25925 9 8C9 7.74075 8.96417 7.48994 8.90234 7.25H14ZM7.59766 2.75C7.53583 2.98994 7.5 3.24075 7.5 3.5C7.5 3.75925 7.53583 4.01006 7.59766 4.25H2C1.58579 4.25 1.25 3.91421 1.25 3.5C1.25 3.08579 1.58579 2.75 2 2.75H7.59766ZM14 2.75C14.4142 2.75 14.75 3.08579 14.75 3.5C14.75 3.91421 14.4142 4.25 14 4.25H13.4023C13.4642 4.01006 13.5 3.75925 13.5 3.5C13.5 3.24075 13.4642 2.98994 13.4023 2.75H14Z",
@@ -3489,6 +3516,7 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassN
   const dragRef = useRef11(null);
   const suppressClickRef = useRef11(false);
   const editable = DialStore.isPresetsEditable(panelId);
+  const lockable = editable && DialStore.isPresetsLockable(panelId);
   const hasPresets = presets.length > 0;
   const activePreset = presets.find((p2) => p2.id === activePresetId);
   const open = useCallback10(() => {
@@ -3672,6 +3700,7 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassN
                   className: "dialkit-preset-item",
                   "data-active": String(preset.id === activePresetId),
                   "data-preset-id": preset.id,
+                  "data-locked": preset.locked ? "true" : void 0,
                   "data-dragging": draggingId === preset.id ? "true" : void 0,
                   onClick: () => {
                     if (isEditing) return;
@@ -3731,7 +3760,22 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassN
                           children: /* @__PURE__ */ jsx14("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", children: ICON_PENCIL.map((d2, i2) => /* @__PURE__ */ jsx14("path", { d: d2 }, i2)) })
                         }
                       ),
-                      /* @__PURE__ */ jsx14(
+                      lockable && /* @__PURE__ */ jsx14(
+                        "button",
+                        {
+                          className: "dialkit-preset-lock",
+                          "data-locked": String(!!preset.locked),
+                          title: preset.locked ? "Unlock preset" : "Lock preset",
+                          onClick: (e2) => {
+                            e2.stopPropagation();
+                            DialStore.setPresetLocked(panelId, preset.id, !preset.locked);
+                          },
+                          onMouseDown: (e2) => e2.stopPropagation(),
+                          onPointerDown: (e2) => e2.stopPropagation(),
+                          children: /* @__PURE__ */ jsx14("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", children: (preset.locked ? ICON_LOCK : ICON_LOCK_OPEN).map((d2, i2) => /* @__PURE__ */ jsx14("path", { d: d2 }, i2)) })
+                        }
+                      ),
+                      !preset.locked && /* @__PURE__ */ jsx14(
                         "button",
                         {
                           className: "dialkit-preset-delete",
@@ -5213,7 +5257,8 @@ function useDialTimeline(name, config, options) {
     id: options?.id,
     persist: options?.persist,
     kind: "timeline",
-    presetsEditable: options?.presetsEditable
+    presetsEditable: options?.presetsEditable,
+    presetsLockable: options?.presetsLockable
   });
   const staticTimeline = useMemo3(
     () => computeStaticTimeline(parsed, flatValues),
