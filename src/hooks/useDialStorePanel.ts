@@ -16,6 +16,12 @@ export interface UseDialStorePanelOptions {
    * Initial open state for this panel's folder. Defaults to open.
    */
   defaultOpen?: boolean;
+  /**
+   * `false` hides the rename control and disables drag reorder in the
+   * preset dropdown (a read-only host such as a share-link viewer).
+   * Default `true`.
+   */
+  presetsEditable?: boolean;
 }
 
 // Serialize with a referential short-circuit: consumers can re-render at 60Hz
@@ -60,6 +66,7 @@ export function useDialStorePanel(
       kind: optionsRef.current.kind,
       group: optionsRef.current.group,
       defaultOpen: optionsRef.current.defaultOpen,
+      presetsEditable: optionsRef.current.presetsEditable,
     });
     return () => DialStore.unregisterPanel(panelId);
   }, [hasStableId, panelId, name]);
@@ -77,9 +84,10 @@ export function useDialStorePanel(
       kind: optionsRef.current.kind,
       group: optionsRef.current.group,
       defaultOpen: optionsRef.current.defaultOpen,
+      presetsEditable: optionsRef.current.presetsEditable,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasStableId, panelId, name, serializedConfig, serializedShortcuts, serializedPersist, options.group, options.defaultOpen]);
+  }, [hasStableId, panelId, name, serializedConfig, serializedShortcuts, serializedPersist, options.group, options.defaultOpen, options.presetsEditable]);
 
   const subscribe = useCallback(
     (callback: () => void) => DialStore.subscribe(panelId, callback),

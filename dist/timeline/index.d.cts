@@ -483,6 +483,12 @@ interface DialTimelineOptions {
      * inherits the pin. Defaults to false.
      */
     pinStart?: boolean;
+    /**
+     * `false` hides the rename control and disables drag reorder in the
+     * preset dropdown (a read-only host such as a share-link viewer).
+     * Default `true`.
+     */
+    presetsEditable?: boolean;
 }
 type TimelineActions = {
     play: () => void;

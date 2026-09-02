@@ -194,6 +194,12 @@ export type PanelConfig = {
    * merged shell (e.g. a secondary settings section). `undefined` ⇒ open.
    */
   defaultOpen?: boolean;
+  /**
+   * `false` hides the rename control and disables drag reorder in the
+   * preset dropdown (a read-only host such as a share-link viewer).
+   * Default `true`.
+   */
+  presetsEditable?: boolean;
 };
 
 type Listener = () => void;
@@ -223,6 +229,12 @@ export type DialStorePanelOptions = {
    * Initial open state for this panel's folder. See {@link PanelConfig.defaultOpen}.
    */
   defaultOpen?: boolean;
+  /**
+   * `false` hides the rename control and disables drag reorder in the
+   * preset dropdown (a read-only host such as a share-link viewer).
+   * Default `true`.
+   */
+  presetsEditable?: boolean;
 };
 
 type PersistConfig = {
@@ -455,7 +467,7 @@ class DialStoreClass {
     this.allControls.set(id, allControls);
     const controls = this.filterByVisibility(allControls, values);
 
-    this.panels.set(id, { id, name, controls, values, shortcuts: shortcuts ?? {}, kind: options.kind, group: options.group, defaultOpen: options.defaultOpen });
+    this.panels.set(id, { id, name, controls, values, shortcuts: shortcuts ?? {}, kind: options.kind, group: options.group, defaultOpen: options.defaultOpen, presetsEditable: options.presetsEditable });
     this.snapshots.set(id, { ...values });
     this.baseValues.set(id, baseValues);
     this.defaultValues.set(id, { ...defaultValues });
@@ -500,6 +512,7 @@ class DialStoreClass {
       kind: options.kind ?? existing.kind,
       group: options.group ?? existing.group,
       defaultOpen: options.defaultOpen ?? existing.defaultOpen,
+      presetsEditable: options.presetsEditable ?? existing.presetsEditable,
     };
     this.panels.set(id, nextPanel);
     this.snapshots.set(id, { ...nextValues });
@@ -813,12 +826,67 @@ class DialStoreClass {
     this.notify(panelId);
   }
 
+  renamePreset(panelId: string, presetId: string, name: string): void {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+
+    const presets = this.presets.get(panelId) ?? [];
+    const preset = presets.find(p => p.id === presetId);
+    if (!preset) return;
+
+    this.presets.set(panelId, presets.map(p => (p.id === presetId ? { ...p, name: trimmed } : p)));
+
+    // Force re-render by creating new snapshot reference
+    const panel = this.panels.get(panelId);
+    if (panel) {
+      this.snapshots.set(panelId, { ...panel.values });
+    }
+    this.persistPanel(panelId);
+    this.notify(panelId);
+  }
+
+  reorderPresets(panelId: string, orderedIds: string[]): void {
+    const presets = this.presets.get(panelId) ?? [];
+    if (presets.length === 0) return;
+
+    const byId = new Map(presets.map(p => [p.id, p]));
+    const ordered: Preset[] = [];
+    for (const id of orderedIds) {
+      const preset = byId.get(id);
+      if (preset) {
+        ordered.push(preset);
+        byId.delete(id);
+      }
+    }
+    // Any preset not listed keeps its relative order and is appended at the end.
+    for (const preset of presets) {
+      if (byId.has(preset.id)) ordered.push(preset);
+    }
+
+    const unchanged = ordered.length === presets.length && ordered.every((p, i) => p.id === presets[i].id);
+    if (unchanged) return;
+
+    this.presets.set(panelId, ordered);
+
+    // Force re-render by creating new snapshot reference
+    const panel = this.panels.get(panelId);
+    if (panel) {
+      this.snapshots.set(panelId, { ...panel.values });
+    }
+    this.persistPanel(panelId);
+    this.notify(panelId);
+  }
+
   getPresets(panelId: string): Preset[] {
     return this.presets.get(panelId) ?? [];
   }
 
   getActivePresetId(panelId: string): string | null {
     return this.activePreset.get(panelId) ?? null;
+  }
+
+  isPresetsEditable(panelId: string): boolean {
+    return this.panels.get(panelId)?.presetsEditable ?? true;
   }
 
   clearActivePreset(panelId: string): void {

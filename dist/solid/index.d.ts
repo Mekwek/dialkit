@@ -146,6 +146,12 @@ type PanelConfig = {
      * merged shell (e.g. a secondary settings section). `undefined` ⇒ open.
      */
     defaultOpen?: boolean;
+    /**
+     * `false` hides the rename control and disables drag reorder in the
+     * preset dropdown (a read-only host such as a share-link viewer).
+     * Default `true`.
+     */
+    presetsEditable?: boolean;
 };
 type Listener = () => void;
 type ActionListener = (action: string) => void;
@@ -171,6 +177,12 @@ type DialStorePanelOptions = {
      * Initial open state for this panel's folder. See {@link PanelConfig.defaultOpen}.
      */
     defaultOpen?: boolean;
+    /**
+     * `false` hides the rename control and disables drag reorder in the
+     * preset dropdown (a read-only host such as a share-link viewer).
+     * Default `true`.
+     */
+    presetsEditable?: boolean;
 };
 declare class DialStoreClass {
     private panels;
@@ -216,8 +228,11 @@ declare class DialStoreClass {
     savePreset(panelId: string, name: string): string;
     loadPreset(panelId: string, presetId: string): void;
     deletePreset(panelId: string, presetId: string): void;
+    renamePreset(panelId: string, presetId: string, name: string): void;
+    reorderPresets(panelId: string, orderedIds: string[]): void;
     getPresets(panelId: string): Preset[];
     getActivePresetId(panelId: string): string | null;
+    isPresetsEditable(panelId: string): boolean;
     clearActivePreset(panelId: string): void;
     resolveShortcutTarget(key: string, modifier?: 'alt' | 'shift' | 'meta'): {
         panelId: string;
@@ -492,6 +507,12 @@ interface DialTimelineOptions {
      * inherits the pin. Defaults to false.
      */
     pinStart?: boolean;
+    /**
+     * `false` hides the rename control and disables drag reorder in the
+     * preset dropdown (a read-only host such as a share-link viewer).
+     * Default `true`.
+     */
+    presetsEditable?: boolean;
 }
 
 type CreateDialTimelineOptions = DialTimelineOptions;

@@ -157,7 +157,7 @@ var DialStoreClass = class {
     const baseValues = this.reconcileValues(defaultValues, previousBaseValues, controlsByPath);
     this.allControls.set(id, allControls);
     const controls = this.filterByVisibility(allControls, values);
-    this.panels.set(id, { id, name, controls, values, shortcuts: shortcuts ?? {}, kind: options.kind, group: options.group, defaultOpen: options.defaultOpen });
+    this.panels.set(id, { id, name, controls, values, shortcuts: shortcuts ?? {}, kind: options.kind, group: options.group, defaultOpen: options.defaultOpen, presetsEditable: options.presetsEditable });
     this.snapshots.set(id, { ...values });
     this.baseValues.set(id, baseValues);
     this.defaultValues.set(id, { ...defaultValues });
@@ -194,7 +194,8 @@ var DialStoreClass = class {
       shortcuts: shortcuts ?? existing.shortcuts,
       kind: options.kind ?? existing.kind,
       group: options.group ?? existing.group,
-      defaultOpen: options.defaultOpen ?? existing.defaultOpen
+      defaultOpen: options.defaultOpen ?? existing.defaultOpen,
+      presetsEditable: options.presetsEditable ?? existing.presetsEditable
     };
     this.panels.set(id, nextPanel);
     this.snapshots.set(id, { ...nextValues });
@@ -428,11 +429,53 @@ var DialStoreClass = class {
     this.persistPanel(panelId);
     this.notify(panelId);
   }
+  renamePreset(panelId, presetId, name) {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const presets = this.presets.get(panelId) ?? [];
+    const preset = presets.find((p2) => p2.id === presetId);
+    if (!preset) return;
+    this.presets.set(panelId, presets.map((p2) => p2.id === presetId ? { ...p2, name: trimmed } : p2));
+    const panel = this.panels.get(panelId);
+    if (panel) {
+      this.snapshots.set(panelId, { ...panel.values });
+    }
+    this.persistPanel(panelId);
+    this.notify(panelId);
+  }
+  reorderPresets(panelId, orderedIds) {
+    const presets = this.presets.get(panelId) ?? [];
+    if (presets.length === 0) return;
+    const byId = new Map(presets.map((p2) => [p2.id, p2]));
+    const ordered = [];
+    for (const id of orderedIds) {
+      const preset = byId.get(id);
+      if (preset) {
+        ordered.push(preset);
+        byId.delete(id);
+      }
+    }
+    for (const preset of presets) {
+      if (byId.has(preset.id)) ordered.push(preset);
+    }
+    const unchanged = ordered.length === presets.length && ordered.every((p2, i2) => p2.id === presets[i2].id);
+    if (unchanged) return;
+    this.presets.set(panelId, ordered);
+    const panel = this.panels.get(panelId);
+    if (panel) {
+      this.snapshots.set(panelId, { ...panel.values });
+    }
+    this.persistPanel(panelId);
+    this.notify(panelId);
+  }
   getPresets(panelId) {
     return this.presets.get(panelId) ?? [];
   }
   getActivePresetId(panelId) {
     return this.activePreset.get(panelId) ?? null;
+  }
+  isPresetsEditable(panelId) {
+    return this.panels.get(panelId)?.presetsEditable ?? true;
   }
   clearActivePreset(panelId) {
     const panel = this.panels.get(panelId);
@@ -926,7 +969,8 @@ function useDialStorePanel(name, config, options = {}) {
       persist: optionsRef.current.persist,
       kind: optionsRef.current.kind,
       group: optionsRef.current.group,
-      defaultOpen: optionsRef.current.defaultOpen
+      defaultOpen: optionsRef.current.defaultOpen,
+      presetsEditable: optionsRef.current.presetsEditable
     });
     return () => DialStore.unregisterPanel(panelId);
   }, [hasStableId, panelId, name]);
@@ -941,9 +985,10 @@ function useDialStorePanel(name, config, options = {}) {
       persist: optionsRef.current.persist,
       kind: optionsRef.current.kind,
       group: optionsRef.current.group,
-      defaultOpen: optionsRef.current.defaultOpen
+      defaultOpen: optionsRef.current.defaultOpen,
+      presetsEditable: optionsRef.current.presetsEditable
     });
-  }, [hasStableId, panelId, name, serializedConfig, serializedShortcuts, serializedPersist, options.group, options.defaultOpen]);
+  }, [hasStableId, panelId, name, serializedConfig, serializedShortcuts, serializedPersist, options.group, options.defaultOpen, options.presetsEditable]);
   const subscribe = useCallback(
     (callback) => DialStore.subscribe(panelId, callback),
     [panelId]
@@ -963,7 +1008,8 @@ function useDialKitController(name, config, options) {
     persist: options?.persist,
     shortcuts: options?.shortcuts,
     group: options?.group,
-    defaultOpen: options?.defaultOpen
+    defaultOpen: options?.defaultOpen,
+    presetsEditable: options?.presetsEditable
   });
   const configRef = useRef2(config);
   configRef.current = config;
@@ -1269,6 +1315,10 @@ var ICON_ADD_PRESET = [
   "M15 15L21 15",
   "M18 12V18",
   "M4 18H10"
+];
+var ICON_PENCIL = [
+  "M12 20h9",
+  "M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"
 ];
 var ICON_TRASH = [
   "M5 6.5L5.80734 18.2064C5.91582 19.7794 7.22348 21 8.80023 21H15.1998C16.7765 21 18.0842 19.7794 18.1927 18.2064L19 6.5",
@@ -3423,12 +3473,21 @@ function ControlRenderer({
 import { useState as useState8, useRef as useRef11, useEffect as useEffect8, useCallback as useCallback10 } from "react";
 import { createPortal as createPortal3 } from "react-dom";
 import { motion as motion6, AnimatePresence as AnimatePresence5 } from "motion/react";
-import { jsx as jsx14, jsxs as jsxs12 } from "react/jsx-runtime";
+import { Fragment as Fragment4, jsx as jsx14, jsxs as jsxs12 } from "react/jsx-runtime";
+var DRAG_LIFT_PX = 4;
 function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassName }) {
   const [isOpen, setIsOpen] = useState8(false);
   const triggerRef = useRef11(null);
   const dropdownRef = useRef11(null);
   const [pos, setPos] = useState8({ top: 0, left: 0, width: 0, above: false });
+  const [editingId, setEditingId] = useState8(null);
+  const [draft, setDraft] = useState8("");
+  const cancelledRef = useRef11(false);
+  const [draggingId, setDraggingId] = useState8(null);
+  const [cueTop, setCueTop] = useState8(null);
+  const dragRef = useRef11(null);
+  const suppressClickRef = useRef11(false);
+  const editable = DialStore.isPresetsEditable(panelId);
   const hasPresets = presets.length > 0;
   const activePreset = presets.find((p2) => p2.id === activePresetId);
   const open = useCallback10(() => {
@@ -3447,7 +3506,10 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassN
     }
     setIsOpen(true);
   }, [hasPresets, presets.length]);
-  const close = useCallback10(() => setIsOpen(false), []);
+  const close = useCallback10(() => {
+    setIsOpen(false);
+    setEditingId(null);
+  }, []);
   const toggle = useCallback10(() => {
     if (isOpen) close();
     else open();
@@ -3473,6 +3535,71 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassN
   const handleDelete = (e2, presetId) => {
     e2.stopPropagation();
     DialStore.deletePreset(panelId, presetId);
+  };
+  const startEdit = (preset) => {
+    cancelledRef.current = false;
+    setEditingId(preset.id);
+    setDraft(preset.name);
+  };
+  const commitEdit = () => {
+    if (!editingId) return;
+    DialStore.renamePreset(panelId, editingId, draft);
+    setEditingId(null);
+  };
+  const cancelEdit = () => {
+    cancelledRef.current = true;
+    setEditingId(null);
+  };
+  const handleRowPointerDown = (e2, preset) => {
+    if (!editable) return;
+    if (editingId === preset.id) return;
+    if (e2.button !== 0) return;
+    dragRef.current = { id: preset.id, startY: e2.clientY, lifted: false, slot: null };
+    e2.currentTarget.setPointerCapture(e2.pointerId);
+  };
+  const handleRowPointerMove = (e2, preset) => {
+    const drag = dragRef.current;
+    if (!drag || drag.id !== preset.id) return;
+    if (!drag.lifted) {
+      if (Math.abs(e2.clientY - drag.startY) <= DRAG_LIFT_PX) return;
+      drag.lifted = true;
+      setDraggingId(drag.id);
+    }
+    const dropdownEl = dropdownRef.current;
+    if (!dropdownEl) return;
+    const rows = Array.from(dropdownEl.querySelectorAll(".dialkit-preset-item[data-preset-id]"));
+    if (rows.length === 0) return;
+    const dropdownRect = dropdownEl.getBoundingClientRect();
+    let slot = rows.length;
+    for (let i2 = 0; i2 < rows.length; i2++) {
+      const r2 = rows[i2].getBoundingClientRect();
+      if (e2.clientY < r2.top + r2.height / 2) {
+        slot = i2;
+        break;
+      }
+    }
+    drag.slot = slot;
+    const top = slot < rows.length ? rows[slot].getBoundingClientRect().top - dropdownRect.top : rows[rows.length - 1].getBoundingClientRect().bottom - dropdownRect.top;
+    setCueTop(top);
+  };
+  const handleRowPointerEnd = (e2, preset) => {
+    const drag = dragRef.current;
+    dragRef.current = null;
+    if (!drag || drag.id !== preset.id) return;
+    if (drag.lifted && drag.slot !== null) {
+      const currentIds = presets.map((p2) => p2.id);
+      const idx = currentIds.indexOf(drag.id);
+      const withoutDragged = currentIds.filter((id) => id !== drag.id);
+      const adjustedSlot = idx >= 0 && drag.slot > idx ? drag.slot - 1 : drag.slot;
+      withoutDragged.splice(adjustedSlot, 0, drag.id);
+      DialStore.reorderPresets(panelId, withoutDragged);
+      suppressClickRef.current = true;
+      setTimeout(() => {
+        suppressClickRef.current = false;
+      }, 0);
+    }
+    setDraggingId(null);
+    setCueTop(null);
   };
   return /* @__PURE__ */ jsxs12("div", { className: "dialkit-preset-manager", children: [
     /* @__PURE__ */ jsxs12(
@@ -3510,6 +3637,7 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassN
         {
           ref: dropdownRef,
           className: `dialkit-root dialkit-preset-dropdown${dropdownClassName ? ` ${dropdownClassName}` : ""}`,
+          "data-dragging": draggingId ? "true" : void 0,
           style: {
             position: "fixed",
             left: pos.left,
@@ -3530,27 +3658,91 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassN
                 children: /* @__PURE__ */ jsx14("span", { className: "dialkit-preset-name", children: "Version 1" })
               }
             ),
-            presets.map((preset) => /* @__PURE__ */ jsxs12(
-              "div",
-              {
-                className: "dialkit-preset-item",
-                "data-active": String(preset.id === activePresetId),
-                onClick: () => handleSelect(preset.id),
-                children: [
-                  /* @__PURE__ */ jsx14("span", { className: "dialkit-preset-name", children: preset.name }),
-                  /* @__PURE__ */ jsx14(
-                    "button",
-                    {
-                      className: "dialkit-preset-delete",
-                      onClick: (e2) => handleDelete(e2, preset.id),
-                      title: "Delete preset",
-                      children: /* @__PURE__ */ jsx14("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", children: ICON_TRASH.map((d2, i2) => /* @__PURE__ */ jsx14("path", { d: d2 }, i2)) })
+            presets.map((preset) => {
+              const isEditing = editingId === preset.id;
+              return /* @__PURE__ */ jsxs12(
+                "div",
+                {
+                  className: "dialkit-preset-item",
+                  "data-active": String(preset.id === activePresetId),
+                  "data-preset-id": preset.id,
+                  "data-dragging": draggingId === preset.id ? "true" : void 0,
+                  onClick: () => {
+                    if (isEditing) return;
+                    if (suppressClickRef.current) {
+                      suppressClickRef.current = false;
+                      return;
                     }
-                  )
-                ]
-              },
-              preset.id
-            ))
+                    handleSelect(preset.id);
+                  },
+                  onPointerDown: (e2) => handleRowPointerDown(e2, preset),
+                  onPointerMove: (e2) => handleRowPointerMove(e2, preset),
+                  onPointerUp: (e2) => handleRowPointerEnd(e2, preset),
+                  onPointerCancel: (e2) => handleRowPointerEnd(e2, preset),
+                  onLostPointerCapture: (e2) => handleRowPointerEnd(e2, preset),
+                  children: [
+                    isEditing ? /* @__PURE__ */ jsx14(
+                      "input",
+                      {
+                        className: "dialkit-preset-input",
+                        value: draft,
+                        autoFocus: true,
+                        onFocus: (e2) => e2.target.select(),
+                        onChange: (e2) => setDraft(e2.target.value),
+                        onKeyDown: (e2) => {
+                          if (e2.key === "Enter") {
+                            e2.preventDefault();
+                            commitEdit();
+                          } else if (e2.key === "Escape") {
+                            e2.preventDefault();
+                            cancelEdit();
+                          }
+                        },
+                        onBlur: () => {
+                          if (cancelledRef.current) {
+                            cancelledRef.current = false;
+                            return;
+                          }
+                          commitEdit();
+                        },
+                        onClick: (e2) => e2.stopPropagation(),
+                        onMouseDown: (e2) => e2.stopPropagation(),
+                        onPointerDown: (e2) => e2.stopPropagation()
+                      }
+                    ) : /* @__PURE__ */ jsx14("span", { className: "dialkit-preset-name", children: preset.name }),
+                    !isEditing && /* @__PURE__ */ jsxs12(Fragment4, { children: [
+                      editable && /* @__PURE__ */ jsx14(
+                        "button",
+                        {
+                          className: "dialkit-preset-rename",
+                          title: "Rename preset",
+                          onClick: (e2) => {
+                            e2.stopPropagation();
+                            startEdit(preset);
+                          },
+                          onMouseDown: (e2) => e2.stopPropagation(),
+                          onPointerDown: (e2) => e2.stopPropagation(),
+                          children: /* @__PURE__ */ jsx14("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", children: ICON_PENCIL.map((d2, i2) => /* @__PURE__ */ jsx14("path", { d: d2 }, i2)) })
+                        }
+                      ),
+                      /* @__PURE__ */ jsx14(
+                        "button",
+                        {
+                          className: "dialkit-preset-delete",
+                          onClick: (e2) => handleDelete(e2, preset.id),
+                          onMouseDown: (e2) => e2.stopPropagation(),
+                          onPointerDown: (e2) => e2.stopPropagation(),
+                          title: "Delete preset",
+                          children: /* @__PURE__ */ jsx14("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", children: ICON_TRASH.map((d2, i2) => /* @__PURE__ */ jsx14("path", { d: d2 }, i2)) })
+                        }
+                      )
+                    ] })
+                  ]
+                },
+                preset.id
+              );
+            }),
+            draggingId && cueTop !== null && /* @__PURE__ */ jsx14("div", { className: "dialkit-preset-drop-cue", style: { top: cueTop } })
           ]
         }
       ) }),
@@ -3560,7 +3752,7 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassN
 }
 
 // src/components/Panel.tsx
-import { Fragment as Fragment4, jsx as jsx15, jsxs as jsxs13 } from "react/jsx-runtime";
+import { Fragment as Fragment5, jsx as jsx15, jsxs as jsxs13 } from "react/jsx-runtime";
 function Panel({ panel, defaultOpen = true, inline = false, folderMode = "independent", onOpenChange, variant = "root", toolbarExtra }) {
   const [copied, setCopied] = useState9(false);
   const [isPanelOpen, setIsPanelOpen] = useState9(defaultOpen);
@@ -3613,7 +3805,7 @@ function Panel({ panel, defaultOpen = true, inline = false, folderMode = "indepe
     }
   );
   const iconTransition = { type: "spring", visualDuration: 0.4, bounce: 0.1 };
-  const toolbar = /* @__PURE__ */ jsxs13(Fragment4, { children: [
+  const toolbar = /* @__PURE__ */ jsxs13(Fragment5, { children: [
     /* @__PURE__ */ jsx15(
       motion7.button,
       {
@@ -5014,7 +5206,8 @@ function useDialTimeline(name, config, options) {
   const { panelId, flatValues } = useDialStorePanel(name, parsed.dialConfig, {
     id: options?.id,
     persist: options?.persist,
-    kind: "timeline"
+    kind: "timeline",
+    presetsEditable: options?.presetsEditable
   });
   const staticTimeline = useMemo3(
     () => computeStaticTimeline(parsed, flatValues),
@@ -5078,7 +5271,7 @@ function useDialTimeline(name, config, options) {
 import { memo, useCallback as useCallback15, useEffect as useEffect11, useLayoutEffect as useLayoutEffect2, useRef as useRef14, useState as useState11, useSyncExternalStore as useSyncExternalStore7 } from "react";
 import { createPortal as createPortal5 } from "react-dom";
 import { AnimatePresence as AnimatePresence7, motion as motion9 } from "motion/react";
-import { Fragment as Fragment5, jsx as jsx18, jsxs as jsxs14 } from "react/jsx-runtime";
+import { Fragment as Fragment6, jsx as jsx18, jsxs as jsxs14 } from "react/jsx-runtime";
 var DRAG_THRESHOLD_PX = 3;
 var SINGLE_LIFT_PX = 12;
 var SINGLE_TAIL_TUCK_PX = 8;
@@ -6749,7 +6942,7 @@ function TimelineClip({
     }
   }
   const barTitle = composite ? `${clip.label} \u2014 composite of its property tracks${looping ? " \xB7 repeats through timeline" : ""} \xB7 click to expand` : `${clip.label} \u2014 ${formatSeconds(at)} for ${durationText}${fixedDuration ? " (duration set by spring physics)" : ""}${looping ? " \xB7 repeats through timeline" : ""}${delayMode ? " \xB7 drag to phase-shift" : ""}`;
-  return /* @__PURE__ */ jsxs14(Fragment5, { children: [
+  return /* @__PURE__ */ jsxs14(Fragment6, { children: [
     ghostCycles.map((cycle) => {
       const ghostWidth = Math.max(1, cycle.duration * pxPerSecond - 2);
       return /* @__PURE__ */ jsx18(
@@ -6811,14 +7004,14 @@ function TimelineClip({
         onPointerEnter: single ? () => setHovered(true) : void 0,
         onPointerLeave: single ? () => setHovered(false) : void 0,
         title: barTitle,
-        children: single ? /* @__PURE__ */ jsxs14(Fragment5, { children: [
+        children: single ? /* @__PURE__ */ jsxs14(Fragment6, { children: [
           /* @__PURE__ */ jsx18(ClipFill, { id: timelineId, at, duration }),
           resizable && !single.pinned && /* @__PURE__ */ jsx18("div", { className: "dialkit-timeline-clip-handle", "data-edge": "start" }),
           /* @__PURE__ */ jsx18("span", { className: "dialkit-timeline-clip-name", children: clip.label }),
           width > 56 && /* @__PURE__ */ jsx18("span", { className: "dialkit-timeline-clip-duration", children: durationText }),
           resizable && /* @__PURE__ */ jsx18("div", { className: "dialkit-timeline-clip-handle", "data-edge": "end" }),
           highlighted && /* @__PURE__ */ jsx18("svg", { className: "dialkit-timeline-clip-ants", "aria-hidden": "true", children: /* @__PURE__ */ jsx18("rect", { rx: "4.5", ry: "4.5" }) })
-        ] }) : composite ? /* @__PURE__ */ jsx18(Fragment5, { children: width > 56 && /* @__PURE__ */ jsx18("span", { className: "dialkit-timeline-clip-duration", children: durationText }) }) : isSteps ? /* @__PURE__ */ jsxs14(Fragment5, { children: [
+        ] }) : composite ? /* @__PURE__ */ jsx18(Fragment6, { children: width > 56 && /* @__PURE__ */ jsx18("span", { className: "dialkit-timeline-clip-duration", children: durationText }) }) : isSteps ? /* @__PURE__ */ jsxs14(Fragment6, { children: [
           steps.map((step) => {
             const segmentWidth = step.duration * pxPerSecond;
             return /* @__PURE__ */ jsx18(
@@ -6845,7 +7038,7 @@ function TimelineClip({
             )
           ),
           !steps[0].isPhysics && /* @__PURE__ */ jsx18("div", { className: "dialkit-timeline-clip-handle", "data-edge": "start" })
-        ] }) : /* @__PURE__ */ jsxs14(Fragment5, { children: [
+        ] }) : /* @__PURE__ */ jsxs14(Fragment6, { children: [
           resizable && /* @__PURE__ */ jsx18("div", { className: "dialkit-timeline-clip-handle", "data-edge": "start" }),
           width > 56 && /* @__PURE__ */ jsx18("span", { className: "dialkit-timeline-clip-duration", children: durationText }),
           resizable && /* @__PURE__ */ jsx18("div", { className: "dialkit-timeline-clip-handle", "data-edge": "end" })
@@ -6874,7 +7067,7 @@ function ButtonGroup({ buttons }) {
 import { useState as useState12, useRef as useRef15, useEffect as useEffect12, useCallback as useCallback16 } from "react";
 import { createPortal as createPortal6 } from "react-dom";
 import { motion as motion10, AnimatePresence as AnimatePresence8 } from "motion/react";
-import { Fragment as Fragment6, jsx as jsx20, jsxs as jsxs15 } from "react/jsx-runtime";
+import { Fragment as Fragment7, jsx as jsx20, jsxs as jsxs15 } from "react/jsx-runtime";
 function formatShortcutKey(sc) {
   if (!sc.key) return "\u2014";
   const mod = sc.modifier === "alt" ? "\u2325" : sc.modifier === "shift" ? "\u21E7" : sc.modifier === "meta" ? "\u2318" : "";
@@ -6941,7 +7134,7 @@ function ShortcutsMenu({ panelId }) {
       label: findLabel(panel.controls)
     };
   });
-  return /* @__PURE__ */ jsxs15(Fragment6, { children: [
+  return /* @__PURE__ */ jsxs15(Fragment7, { children: [
     /* @__PURE__ */ jsx20(
       motion10.button,
       {

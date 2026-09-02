@@ -27,6 +27,12 @@ export interface UseDialOptions {
    * merged shell.
    */
   defaultOpen?: boolean;
+  /**
+   * `false` hides the rename control and disables drag reorder in the
+   * preset dropdown (a read-only host such as a share-link viewer).
+   * Default `true`.
+   */
+  presetsEditable?: boolean;
 }
 
 export interface DialKitController<T extends DialConfig> {
@@ -56,6 +62,7 @@ export function useDialKitController<T extends DialConfig>(
     shortcuts: options?.shortcuts,
     group: options?.group,
     defaultOpen: options?.defaultOpen,
+    presetsEditable: options?.presetsEditable,
   });
 
   const configRef = useRef(config);

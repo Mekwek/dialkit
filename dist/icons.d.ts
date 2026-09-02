@@ -11,6 +11,7 @@ declare const ICON_CLIPBOARD: {
     body: string;
 };
 declare const ICON_ADD_PRESET: string[];
+declare const ICON_PENCIL: string[];
 declare const ICON_TRASH: string[];
 declare const ICON_PANEL: {
     path: string;
@@ -21,4 +22,4 @@ declare const ICON_PANEL: {
     }[];
 };
 
-export { ICON_ADD_PRESET, ICON_CHECK, ICON_CHEVRON, ICON_CLIPBOARD, ICON_LOOP, ICON_PANEL, ICON_PAUSE, ICON_PLAY, ICON_REPLAY, ICON_TIMELINE, ICON_TRASH };
+export { ICON_ADD_PRESET, ICON_CHECK, ICON_CHEVRON, ICON_CLIPBOARD, ICON_LOOP, ICON_PANEL, ICON_PAUSE, ICON_PENCIL, ICON_PLAY, ICON_REPLAY, ICON_TIMELINE, ICON_TRASH };

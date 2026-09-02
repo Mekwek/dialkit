@@ -1334,6 +1334,8 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 }
 
 .dialkit-preset-name {
+  flex: 1;
+  min-width: 0;
   font-size: 13px;
   font-weight: 500;
   color: var(--dial-text-label);
@@ -1346,6 +1348,7 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   color: var(--dial-text-primary);
 }
 
+.dialkit-preset-rename,
 .dialkit-preset-delete {
   display: flex;
   align-items: center;
@@ -1361,19 +1364,42 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   flex-shrink: 0;
 }
 
+.dialkit-preset-item:hover .dialkit-preset-rename,
 .dialkit-preset-item:hover .dialkit-preset-delete {
   opacity: 0.6;
 }
 
+.dialkit-preset-rename:hover,
 .dialkit-preset-delete:hover {
   opacity: 1 !important;
 }
 
+.dialkit-preset-rename svg,
 .dialkit-preset-delete svg {
   width: 14px;
   height: 14px;
   color: var(--dial-text-focus);
   pointer-events: none;
+}
+
+.dialkit-preset-item[data-dragging="true"] {
+  opacity: 0.5;
+}
+
+.dialkit-preset-dropdown[data-dragging="true"] {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.dialkit-preset-drop-cue {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--dial-text-root);
+  pointer-events: none;
+  z-index: 3;
 }
 
 .dialkit-preset-save-btn {
@@ -1414,8 +1440,9 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 .dialkit-preset-input {
   flex: 1;
   min-width: 0;
-  padding: 6px 8px;
+  padding: 3px 6px;
   font-family: inherit;
+  font-weight: 500;
   font-size: 13px;
   color: var(--dial-text-primary);
   background: var(--dial-surface);

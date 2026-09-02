@@ -152,7 +152,7 @@ var DialStoreClass = class {
     const baseValues = this.reconcileValues(defaultValues, previousBaseValues, controlsByPath);
     this.allControls.set(id, allControls);
     const controls = this.filterByVisibility(allControls, values);
-    this.panels.set(id, { id, name, controls, values, shortcuts: shortcuts ?? {}, kind: options.kind, group: options.group, defaultOpen: options.defaultOpen });
+    this.panels.set(id, { id, name, controls, values, shortcuts: shortcuts ?? {}, kind: options.kind, group: options.group, defaultOpen: options.defaultOpen, presetsEditable: options.presetsEditable });
     this.snapshots.set(id, { ...values });
     this.baseValues.set(id, baseValues);
     this.defaultValues.set(id, { ...defaultValues });
@@ -189,7 +189,8 @@ var DialStoreClass = class {
       shortcuts: shortcuts ?? existing.shortcuts,
       kind: options.kind ?? existing.kind,
       group: options.group ?? existing.group,
-      defaultOpen: options.defaultOpen ?? existing.defaultOpen
+      defaultOpen: options.defaultOpen ?? existing.defaultOpen,
+      presetsEditable: options.presetsEditable ?? existing.presetsEditable
     };
     this.panels.set(id, nextPanel);
     this.snapshots.set(id, { ...nextValues });
@@ -423,11 +424,53 @@ var DialStoreClass = class {
     this.persistPanel(panelId);
     this.notify(panelId);
   }
+  renamePreset(panelId, presetId, name) {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const presets = this.presets.get(panelId) ?? [];
+    const preset = presets.find((p) => p.id === presetId);
+    if (!preset) return;
+    this.presets.set(panelId, presets.map((p) => p.id === presetId ? { ...p, name: trimmed } : p));
+    const panel = this.panels.get(panelId);
+    if (panel) {
+      this.snapshots.set(panelId, { ...panel.values });
+    }
+    this.persistPanel(panelId);
+    this.notify(panelId);
+  }
+  reorderPresets(panelId, orderedIds) {
+    const presets = this.presets.get(panelId) ?? [];
+    if (presets.length === 0) return;
+    const byId = new Map(presets.map((p) => [p.id, p]));
+    const ordered = [];
+    for (const id of orderedIds) {
+      const preset = byId.get(id);
+      if (preset) {
+        ordered.push(preset);
+        byId.delete(id);
+      }
+    }
+    for (const preset of presets) {
+      if (byId.has(preset.id)) ordered.push(preset);
+    }
+    const unchanged = ordered.length === presets.length && ordered.every((p, i) => p.id === presets[i].id);
+    if (unchanged) return;
+    this.presets.set(panelId, ordered);
+    const panel = this.panels.get(panelId);
+    if (panel) {
+      this.snapshots.set(panelId, { ...panel.values });
+    }
+    this.persistPanel(panelId);
+    this.notify(panelId);
+  }
   getPresets(panelId) {
     return this.presets.get(panelId) ?? [];
   }
   getActivePresetId(panelId) {
     return this.activePreset.get(panelId) ?? null;
+  }
+  isPresetsEditable(panelId) {
+    return this.panels.get(panelId)?.presetsEditable ?? true;
   }
   clearActivePreset(panelId) {
     const panel = this.panels.get(panelId);

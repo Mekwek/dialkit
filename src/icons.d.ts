@@ -11,6 +11,7 @@ export declare const ICON_CLIPBOARD: {
     body: string;
 };
 export declare const ICON_ADD_PRESET: string[];
+export declare const ICON_PENCIL: string[];
 export declare const ICON_TRASH: string[];
 export declare const ICON_PANEL: {
     path: string;
