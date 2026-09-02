@@ -4788,7 +4788,7 @@ function clampClipResizeStart(newAt, at, duration) {
   const clampedAt = clamp(round2(newAt), 0, at + duration - TIMELINE_MIN_CLIP_DURATION);
   return { at: clampedAt, duration: round2(at + duration - clampedAt) };
 }
-function singleTrackMoveDelta(clips, delta) {
+function singleTrackMoveBounds(clips) {
   let lo = Number.NEGATIVE_INFINITY;
   let hi = Number.POSITIVE_INFINITY;
   for (let i2 = 0; i2 < clips.length; i2++) {
@@ -4799,8 +4799,78 @@ function singleTrackMoveDelta(clips, delta) {
     const next = clips[i2 + 1];
     if (next && !next.selected) hi = Math.min(hi, next.at - (clips[i2].at + clips[i2].duration));
   }
+  return { lo, hi };
+}
+function singleTrackMoveDelta(clips, delta) {
+  const { lo, hi } = singleTrackMoveBounds(clips);
   if (lo > hi) return 0;
   return clamp(delta, lo, hi);
+}
+var SNAP_EPS = 1e-9;
+function singleTrackSnapTargets(clips, playhead) {
+  const out = /* @__PURE__ */ new Set();
+  for (const clip of clips) {
+    if (clip.selected) continue;
+    out.add(round2(clip.at));
+    out.add(round2(clip.at + clip.duration));
+    if ((clip.tail ?? 0) > 0) out.add(round2(clip.at + clip.duration + (clip.tail ?? 0)));
+  }
+  if (playhead !== void 0) out.add(round2(playhead));
+  return [...out].sort((a2, b2) => a2 - b2);
+}
+function singleTrackBlockPoints(clips) {
+  let start = Number.POSITIVE_INFINITY;
+  let end = Number.NEGATIVE_INFINITY;
+  let tailEnd = Number.NEGATIVE_INFINITY;
+  for (const clip of clips) {
+    if (!clip.selected) continue;
+    start = Math.min(start, clip.at);
+    end = Math.max(end, clip.at + clip.duration);
+    if ((clip.tail ?? 0) > 0) tailEnd = Math.max(tailEnd, clip.at + clip.duration + (clip.tail ?? 0));
+  }
+  if (!Number.isFinite(start)) return [];
+  const points = [start, end];
+  if (tailEnd > end + SNAP_EPS) points.push(tailEnd);
+  return points;
+}
+function singleTrackSteppedMoveDelta(clips, delta, targets) {
+  const { lo, hi } = singleTrackMoveBounds(clips);
+  if (lo > hi) return 0;
+  let best = null;
+  for (const point of singleTrackBlockPoints(clips)) {
+    for (const target of targets) {
+      const d2 = target - point;
+      if (d2 < lo - SNAP_EPS || d2 > hi + SNAP_EPS) continue;
+      if (best === null || Math.abs(d2 - delta) < Math.abs(best - delta)) best = d2;
+    }
+  }
+  return best === null ? singleTrackMoveDelta(clips, delta) : round2(clamp(best, lo, hi));
+}
+function singleTrackSteppedResizeEnd(span, nextStart, delta, targets) {
+  const wanted = span.duration + delta;
+  const max = nextStart === void 0 ? Number.POSITIVE_INFINITY : nextStart - span.at;
+  const tail = span.tail ?? 0;
+  let best = null;
+  for (const target of targets) {
+    const candidates = [target - span.at];
+    if (tail > 0) candidates.push(target - span.at - tail);
+    for (const d2 of candidates) {
+      if (d2 < TIMELINE_MIN_CLIP_DURATION - SNAP_EPS || d2 > max + SNAP_EPS) continue;
+      if (best === null || Math.abs(d2 - wanted) < Math.abs(best - wanted)) best = d2;
+    }
+  }
+  return best === null ? clampSingleTrackResizeEnd(wanted, span.at, nextStart) : clampSingleTrackResizeEnd(best, span.at, nextStart);
+}
+function singleTrackSteppedResizeStart(span, prevEnd, delta, targets) {
+  const wanted = span.at + delta;
+  const floor = Math.max(0, prevEnd ?? 0);
+  const ceil = span.at + span.duration - TIMELINE_MIN_CLIP_DURATION;
+  let best = null;
+  for (const target of targets) {
+    if (target < floor - SNAP_EPS || target > ceil + SNAP_EPS) continue;
+    if (best === null || Math.abs(target - wanted) < Math.abs(best - wanted)) best = target;
+  }
+  return clampSingleTrackResizeStart(best ?? wanted, span.at, span.duration, prevEnd);
 }
 function singleTrackReorderAts(clips, slot) {
   const gaps = clips.map(
@@ -5786,8 +5856,18 @@ var TimelineSection = memo(function TimelineSection2({
   }, []);
   const snapshotSingleSpans = (selection) => meta.clips.map((clip) => {
     const stat = computeClipStaticFromValues(DialStore.getValues(meta.id), clip, meta.duration);
-    return { key: clip.key, at: stat.at, duration: stat.duration, selected: selection.has(clip.key) };
+    return {
+      key: clip.key,
+      at: stat.at,
+      duration: stat.duration,
+      selected: selection.has(clip.key),
+      tail: clip.tail ?? 0
+    };
   }).sort((a2, b2) => a2.at - b2.at);
+  const singleSnapTargets = (spans) => {
+    const transport = TimelineStore.getTransport(meta.id);
+    return singleTrackSnapTargets(spans, transport.playing ? void 0 : transport.time);
+  };
   const singlePress = (key, select) => {
     let selection = selectedKeysRef.current;
     if (select && !selection.has(key)) {
@@ -5804,10 +5884,10 @@ var TimelineSection = memo(function TimelineSection2({
       return next;
     });
   };
-  const singleMove = (dt) => {
+  const singleMove = (dt, stepped) => {
     const drag = singleDragRef.current;
     if (!drag) return;
-    const delta = singleTrackMoveDelta(drag.spans, dt);
+    const delta = stepped ? singleTrackSteppedMoveDelta(drag.spans, dt, singleSnapTargets(drag.spans)) : singleTrackMoveDelta(drag.spans, dt);
     const writes = {};
     for (const span of drag.spans) {
       if (span.selected) writes[`${span.key}.at`] = round2(span.at + delta);
@@ -5853,7 +5933,7 @@ var TimelineSection = memo(function TimelineSection2({
     for (const [key, at] of Object.entries(ats)) writes[`${key}.at`] = at;
     DialStore.updateValues(meta.id, writes);
   };
-  const singleResizeEnd = (key, dt) => {
+  const singleResizeEnd = (key, dt, stepped) => {
     const drag = singleDragRef.current;
     if (!drag) return;
     const index = drag.spans.findIndex((span2) => span2.key === key);
@@ -5863,22 +5943,18 @@ var TimelineSection = memo(function TimelineSection2({
     DialStore.updateValue(
       meta.id,
       `${key}.duration`,
-      clampSingleTrackResizeEnd(span.duration + dt, span.at, next?.at)
+      stepped ? singleTrackSteppedResizeEnd(span, next?.at, dt, singleSnapTargets(drag.spans)) : clampSingleTrackResizeEnd(span.duration + dt, span.at, next?.at)
     );
   };
-  const singleResizeStart = (key, dt) => {
+  const singleResizeStart = (key, dt, stepped) => {
     const drag = singleDragRef.current;
     if (!drag) return;
     const index = drag.spans.findIndex((span2) => span2.key === key);
     if (index < 0) return;
     const span = drag.spans[index];
     const prev = drag.spans[index - 1];
-    const next = clampSingleTrackResizeStart(
-      span.at + dt,
-      span.at,
-      span.duration,
-      prev ? prev.at + prev.duration : 0
-    );
+    const prevEnd = prev ? prev.at + prev.duration : 0;
+    const next = stepped ? singleTrackSteppedResizeStart(span, prevEnd, dt, singleSnapTargets(drag.spans)) : clampSingleTrackResizeStart(span.at + dt, span.at, span.duration, prevEnd);
     DialStore.updateValues(meta.id, {
       [`${key}.at`]: next.at,
       [`${key}.duration`]: next.duration
@@ -6549,17 +6625,18 @@ function TimelineClip({
           onDrag();
         }
         const sdt = sdx / pxPerSecond;
+        const stepped = e2.metaKey || e2.ctrlKey;
         if (drag.mode === "move") {
           if (!drag.lifted && Math.abs(sdy) > SINGLE_LIFT_PX) {
             drag.lifted = true;
             single.onLift();
           }
           if (drag.lifted) single.onReorderHover(e2.clientX);
-          else single.onMove(sdt);
+          else single.onMove(sdt, stepped);
         } else if (drag.mode === "end") {
-          single.onResizeEnd(clip.key, sdt);
+          single.onResizeEnd(clip.key, sdt, stepped);
         } else {
-          single.onResizeStart(clip.key, sdt);
+          single.onResizeStart(clip.key, sdt, stepped);
         }
         return;
       }

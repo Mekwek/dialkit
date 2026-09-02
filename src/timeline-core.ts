@@ -1341,14 +1341,14 @@ export type SingleTrackClipSpan = {
   duration: number;
   /** Part of the moving block (the selection). */
   selected: boolean;
+  /** Seconds the clip keeps acting past its bar end (0 or absent = none).
+   *  Only the stepped drag reads it. */
+  tail?: number;
 };
 
-/**
- * Clamp a block move so no selected clip crosses an unselected neighbor.
- * `clips` must be sorted by `at`. Selected clips move together by the
- * returned delta; unselected clips never move.
- */
-export function singleTrackMoveDelta(clips: SingleTrackClipSpan[], delta: number): number {
+/** The room a block move has: `lo`..`hi` seconds before a selected clip
+ *  would cross an unselected neighbor. `lo > hi` means fully wedged. */
+function singleTrackMoveBounds(clips: SingleTrackClipSpan[]): { lo: number; hi: number } {
   let lo = Number.NEGATIVE_INFINITY;
   let hi = Number.POSITIVE_INFINITY;
   for (let i = 0; i < clips.length; i++) {
@@ -1359,8 +1359,132 @@ export function singleTrackMoveDelta(clips: SingleTrackClipSpan[], delta: number
     const next = clips[i + 1];
     if (next && !next.selected) hi = Math.min(hi, next.at - (clips[i].at + clips[i].duration));
   }
+  return { lo, hi };
+}
+
+/**
+ * Clamp a block move so no selected clip crosses an unselected neighbor.
+ * `clips` must be sorted by `at`. Selected clips move together by the
+ * returned delta; unselected clips never move.
+ */
+export function singleTrackMoveDelta(clips: SingleTrackClipSpan[], delta: number): number {
+  const { lo, hi } = singleTrackMoveBounds(clips);
   if (lo > hi) return 0; // fully wedged — no room either way
   return clamp(delta, lo, hi);
+}
+
+// ── Single-track stepped drag ──
+// With the step key held the dragged points can only LAND ON targets: every
+// other clip's start, bar end, and tail end (when the tail reaches past the
+// bar), plus the playhead when the caller passes one (it should not while
+// playing — nobody lines up to a moving mark). There is no pull distance:
+// each frame picks the reachable landing closest to where the pointer would
+// put the clip. With no reachable landing the drag falls back to the free
+// (clamped) move, so the gesture never dead-ends.
+
+const SNAP_EPS = 1e-9;
+
+/** The times a stepped drag can land on. Sorted, deduplicated. */
+export function singleTrackSnapTargets(
+  clips: SingleTrackClipSpan[],
+  playhead?: number
+): number[] {
+  const out = new Set<number>();
+  for (const clip of clips) {
+    if (clip.selected) continue;
+    out.add(round2(clip.at));
+    out.add(round2(clip.at + clip.duration));
+    if ((clip.tail ?? 0) > 0) out.add(round2(clip.at + clip.duration + (clip.tail ?? 0)));
+  }
+  if (playhead !== undefined) out.add(round2(playhead));
+  return [...out].sort((a, b) => a - b);
+}
+
+/** The block's landing points at its pointer-down place: its first start,
+ *  its last bar end, and its last tail end — the tail end only when some
+ *  selected tail reaches past the block's bar end, or it would be the same
+ *  point twice. */
+function singleTrackBlockPoints(clips: SingleTrackClipSpan[]): number[] {
+  let start = Number.POSITIVE_INFINITY;
+  let end = Number.NEGATIVE_INFINITY;
+  let tailEnd = Number.NEGATIVE_INFINITY;
+  for (const clip of clips) {
+    if (!clip.selected) continue;
+    start = Math.min(start, clip.at);
+    end = Math.max(end, clip.at + clip.duration);
+    if ((clip.tail ?? 0) > 0) tailEnd = Math.max(tailEnd, clip.at + clip.duration + (clip.tail ?? 0));
+  }
+  if (!Number.isFinite(start)) return [];
+  const points = [start, end];
+  if (tailEnd > end + SNAP_EPS) points.push(tailEnd);
+  return points;
+}
+
+/** Stepped block move: the delta that lands one of the block's points on
+ *  the target closest to the pointer's own delta, within the neighbor
+ *  bounds. Falls back to `singleTrackMoveDelta` when nothing is reachable. */
+export function singleTrackSteppedMoveDelta(
+  clips: SingleTrackClipSpan[],
+  delta: number,
+  targets: number[]
+): number {
+  const { lo, hi } = singleTrackMoveBounds(clips);
+  if (lo > hi) return 0;
+  let best: number | null = null;
+  for (const point of singleTrackBlockPoints(clips)) {
+    for (const target of targets) {
+      const d = target - point;
+      if (d < lo - SNAP_EPS || d > hi + SNAP_EPS) continue;
+      if (best === null || Math.abs(d - delta) < Math.abs(best - delta)) best = d;
+    }
+  }
+  return best === null ? singleTrackMoveDelta(clips, delta) : round2(clamp(best, lo, hi));
+}
+
+/** Stepped end-edge resize: the bar end, or the tail end riding on it,
+ *  lands on the reachable target closest to the pointer. Returns the new
+ *  duration; falls back to `clampSingleTrackResizeEnd`. */
+export function singleTrackSteppedResizeEnd(
+  span: SingleTrackClipSpan,
+  nextStart: number | undefined,
+  delta: number,
+  targets: number[]
+): number {
+  const wanted = span.duration + delta;
+  const max = nextStart === undefined ? Number.POSITIVE_INFINITY : nextStart - span.at;
+  const tail = span.tail ?? 0;
+  let best: number | null = null;
+  for (const target of targets) {
+    const candidates = [target - span.at];
+    if (tail > 0) candidates.push(target - span.at - tail);
+    for (const d of candidates) {
+      if (d < TIMELINE_MIN_CLIP_DURATION - SNAP_EPS || d > max + SNAP_EPS) continue;
+      if (best === null || Math.abs(d - wanted) < Math.abs(best - wanted)) best = d;
+    }
+  }
+  return best === null
+    ? clampSingleTrackResizeEnd(wanted, span.at, nextStart)
+    : clampSingleTrackResizeEnd(best, span.at, nextStart);
+}
+
+/** Stepped start-edge resize: the start lands on the reachable target
+ *  closest to the pointer, the end stays fixed. Falls back to
+ *  `clampSingleTrackResizeStart`. */
+export function singleTrackSteppedResizeStart(
+  span: SingleTrackClipSpan,
+  prevEnd: number | undefined,
+  delta: number,
+  targets: number[]
+): { at: number; duration: number } {
+  const wanted = span.at + delta;
+  const floor = Math.max(0, prevEnd ?? 0);
+  const ceil = span.at + span.duration - TIMELINE_MIN_CLIP_DURATION;
+  let best: number | null = null;
+  for (const target of targets) {
+    if (target < floor - SNAP_EPS || target > ceil + SNAP_EPS) continue;
+    if (best === null || Math.abs(target - wanted) < Math.abs(best - wanted)) best = target;
+  }
+  return clampSingleTrackResizeStart(best ?? wanted, span.at, span.duration, prevEnd);
 }
 
 /**

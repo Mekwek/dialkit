@@ -19,6 +19,10 @@ import {
   clampTrackDelay,
   singleTrackMoveDelta,
   singleTrackReorderAts,
+  singleTrackSnapTargets,
+  singleTrackSteppedMoveDelta,
+  singleTrackSteppedResizeEnd,
+  singleTrackSteppedResizeStart,
   formatClock,
   formatStepLabel,
   normalizeLoopMode,
@@ -631,5 +635,49 @@ describe('formatting', () => {
     assert.equal(formatClock(63.25, true), '01:03.3');
     assert.equal(formatClock(5), '00:05');
     assert.equal(formatStepLabel('step2'), 'Step 2');
+  });
+});
+
+describe('single-track stepped drag (step key held)', () => {
+  // A [0,2) · B [3,5) with a 1s tail (tail end 6) · C [8,10) no tail.
+  const lane = (selected: string[]) =>
+    [
+      { key: 'a', at: 0, duration: 2, tail: 0 },
+      { key: 'b', at: 3, duration: 2, tail: 1 },
+      { key: 'c', at: 8, duration: 2, tail: 0 },
+    ].map((c) => ({ ...c, selected: selected.includes(c.key) }));
+
+  it('targets are the other clips\' edges, tails only when they reach past the bar', () => {
+    assert.deepEqual(singleTrackSnapTargets(lane(['b'])), [0, 2, 8, 10]);
+    assert.deepEqual(singleTrackSnapTargets(lane(['a'])), [3, 5, 6, 8, 10]);
+    // The playhead joins when given (the caller leaves it out while playing).
+    assert.deepEqual(singleTrackSnapTargets(lane(['b']), 4.5), [0, 2, 4.5, 8, 10]);
+  });
+
+  it('a move lands the closest block point on the closest reachable target', () => {
+    // C dragged left by 1.7: its start lands on B's tail end (6), not on B's bar end.
+    near(singleTrackSteppedMoveDelta(lane(['c']), -1.7, singleTrackSnapTargets(lane(['c']))), -2);
+    // B dragged right by 1.8: its TAIL end lands on C's start (8) — bar end at 5+2=7.
+    near(singleTrackSteppedMoveDelta(lane(['b']), 1.8, singleTrackSnapTargets(lane(['b']))), 2);
+    // A target the neighbor clamp rules out is skipped: B cannot reach A's start.
+    near(singleTrackSteppedMoveDelta(lane(['b']), -5, singleTrackSnapTargets(lane(['b']))), -1);
+  });
+
+  it('with no reachable target the move is the free, clamped move', () => {
+    near(singleTrackSteppedMoveDelta(lane(['b']), 0.5, []), singleTrackMoveDelta(lane(['b']), 0.5));
+  });
+
+  it('the end handle lands the bar end or the tail end on a target', () => {
+    const b = lane(['b'])[1];
+    // Wanted 3.3s: the tail end on the playhead-free target 8 needs 4s, the bar end 5s.
+    near(singleTrackSteppedResizeEnd(b, 8, 1.3, [8, 10, 4.5]), 4);
+    // Nothing reachable: same as the plain clamp.
+    near(singleTrackSteppedResizeEnd(b, 8, 1.3, [20]), clampSingleTrackResizeEnd(3.3, 3, 8));
+  });
+
+  it('the start handle lands the start on a target, the end stays fixed', () => {
+    const b = lane(['b'])[1];
+    assert.deepEqual(singleTrackSteppedResizeStart(b, 2, -0.6, [2, 4.5, 8]), { at: 2, duration: 3 });
+    assert.deepEqual(singleTrackSteppedResizeStart(b, 2, -0.6, [8]), clampSingleTrackResizeStart(2.4, 3, 2, 2));
   });
 });

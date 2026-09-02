@@ -21,6 +21,10 @@ import {
   computeClipStaticFromValues,
   normalizeTimelineValuesForCopy,
   singleTrackMoveDelta,
+  singleTrackSnapTargets,
+  singleTrackSteppedMoveDelta,
+  singleTrackSteppedResizeEnd,
+  singleTrackSteppedResizeStart,
   singleTrackReorderAts,
   TIMELINE_MIN_CLIP_DURATION,
   timelinePopoverDisplayValues,
@@ -1029,9 +1033,22 @@ const TimelineSection = memo(function TimelineSection({
     meta.clips
       .map((clip) => {
         const stat = computeClipStaticFromValues(DialStore.getValues(meta.id), clip, meta.duration);
-        return { key: clip.key, at: stat.at, duration: stat.duration, selected: selection.has(clip.key) };
+        return {
+          key: clip.key,
+          at: stat.at,
+          duration: stat.duration,
+          selected: selection.has(clip.key),
+          tail: clip.tail ?? 0,
+        };
       })
       .sort((a, b) => a.at - b.at);
+
+  // Stepped drag (Cmd/Ctrl held): the landing marks are the other clips'
+  // edges and, while paused, the playhead. Playing, the playhead is left out.
+  const singleSnapTargets = (spans: SingleTrackClipSpan[]): number[] => {
+    const transport = TimelineStore.getTransport(meta.id);
+    return singleTrackSnapTargets(spans, transport.playing ? undefined : transport.time);
+  };
 
   const singlePress = (key: string, select: boolean) => {
     let selection = selectedKeysRef.current;
@@ -1051,10 +1068,12 @@ const TimelineSection = memo(function TimelineSection({
     });
   };
 
-  const singleMove = (dt: number) => {
+  const singleMove = (dt: number, stepped: boolean) => {
     const drag = singleDragRef.current;
     if (!drag) return;
-    const delta = singleTrackMoveDelta(drag.spans, dt);
+    const delta = stepped
+      ? singleTrackSteppedMoveDelta(drag.spans, dt, singleSnapTargets(drag.spans))
+      : singleTrackMoveDelta(drag.spans, dt);
     const writes: Record<string, DialValue> = {};
     for (const span of drag.spans) {
       if (span.selected) writes[`${span.key}.at`] = round2(span.at + delta);
@@ -1110,7 +1129,7 @@ const TimelineSection = memo(function TimelineSection({
     DialStore.updateValues(meta.id, writes);
   };
 
-  const singleResizeEnd = (key: string, dt: number) => {
+  const singleResizeEnd = (key: string, dt: number, stepped: boolean) => {
     const drag = singleDragRef.current;
     if (!drag) return;
     const index = drag.spans.findIndex((span) => span.key === key);
@@ -1120,23 +1139,23 @@ const TimelineSection = memo(function TimelineSection({
     DialStore.updateValue(
       meta.id,
       `${key}.duration`,
-      clampSingleTrackResizeEnd(span.duration + dt, span.at, next?.at)
+      stepped
+        ? singleTrackSteppedResizeEnd(span, next?.at, dt, singleSnapTargets(drag.spans))
+        : clampSingleTrackResizeEnd(span.duration + dt, span.at, next?.at)
     );
   };
 
-  const singleResizeStart = (key: string, dt: number) => {
+  const singleResizeStart = (key: string, dt: number, stepped: boolean) => {
     const drag = singleDragRef.current;
     if (!drag) return;
     const index = drag.spans.findIndex((span) => span.key === key);
     if (index < 0) return;
     const span = drag.spans[index];
     const prev = drag.spans[index - 1];
-    const next = clampSingleTrackResizeStart(
-      span.at + dt,
-      span.at,
-      span.duration,
-      prev ? prev.at + prev.duration : 0
-    );
+    const prevEnd = prev ? prev.at + prev.duration : 0;
+    const next = stepped
+      ? singleTrackSteppedResizeStart(span, prevEnd, dt, singleSnapTargets(drag.spans))
+      : clampSingleTrackResizeStart(span.at + dt, span.at, span.duration, prevEnd);
     DialStore.updateValues(meta.id, {
       [`${key}.at`]: next.at,
       [`${key}.duration`]: next.duration,
@@ -1829,12 +1848,13 @@ type SingleTrackClipProps = {
   pinned: boolean;
   onPress: (key: string, select: boolean) => void;
   onToggleSelect: (key: string) => void;
-  onMove: (dt: number) => void;
+  /** `stepped` = the step key (Cmd/Ctrl) is held: land only on targets. */
+  onMove: (dt: number, stepped: boolean) => void;
   onLift: () => void;
   onReorderHover: (clientX: number) => void;
   onReorderDrop: () => void;
-  onResizeEnd: (key: string, dt: number) => void;
-  onResizeStart: (key: string, dt: number) => void;
+  onResizeEnd: (key: string, dt: number, stepped: boolean) => void;
+  onResizeStart: (key: string, dt: number, stepped: boolean) => void;
   onRelease: () => void;
 };
 
@@ -1966,6 +1986,10 @@ function TimelineClip({
           onDrag();
         }
         const sdt = sdx / pxPerSecond;
+        // Cmd (Ctrl elsewhere) makes the drag stepped: the bar only lands on
+        // the other clips' edges and, while paused, the playhead. Read per
+        // frame so the key can be pressed or released mid-drag.
+        const stepped = e.metaKey || e.ctrlKey;
         if (drag.mode === 'move') {
           // Lifting past the threshold turns the move into a reorder —
           // sticky until drop, so a wobbling hand can't half-apply both.
@@ -1974,11 +1998,11 @@ function TimelineClip({
             single.onLift();
           }
           if (drag.lifted) single.onReorderHover(e.clientX);
-          else single.onMove(sdt);
+          else single.onMove(sdt, stepped);
         } else if (drag.mode === 'end') {
-          single.onResizeEnd(clip.key, sdt);
+          single.onResizeEnd(clip.key, sdt, stepped);
         } else {
-          single.onResizeStart(clip.key, sdt);
+          single.onResizeStart(clip.key, sdt, stepped);
         }
         return;
       }
