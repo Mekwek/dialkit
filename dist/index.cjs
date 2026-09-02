@@ -3534,6 +3534,7 @@ var import_react_dom3 = require("react-dom");
 var import_react19 = require("motion/react");
 var import_jsx_runtime14 = require("react/jsx-runtime");
 var DRAG_LIFT_PX = 4;
+var PRESET_DROPDOWN_MAX_WIDTH = 280;
 function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassName }) {
   const [isOpen, setIsOpen] = (0, import_react18.useState)(false);
   const triggerRef = (0, import_react18.useRef)(null);
@@ -3701,6 +3702,11 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassN
             position: "fixed",
             left: pos.left,
             minWidth: pos.width,
+            // Grow for long names, but never past the viewport's right
+            // edge or a sane cap — a long name truncates (ellipsis on
+            // .dialkit-preset-name) instead of pushing the icons off
+            // screen where the rename control can't be reached.
+            maxWidth: Math.max(pos.width, Math.min(PRESET_DROPDOWN_MAX_WIDTH, window.innerWidth - pos.left - 8)),
             ...pos.above ? { bottom: window.innerHeight - pos.top, transformOrigin: "bottom" } : { top: pos.top, transformOrigin: "top" }
           },
           initial: { opacity: 0, y: pos.above ? 8 : -8, scale: 0.97 },

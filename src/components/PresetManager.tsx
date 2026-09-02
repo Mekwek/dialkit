@@ -19,6 +19,8 @@ type RowDrag = { id: string; startY: number; lifted: boolean; slot: number | nul
 // Minimum pointer travel (px) before a press on a row turns into a reorder
 // drag rather than a click-to-select.
 const DRAG_LIFT_PX = 4;
+// Widest a preset dropdown gets before names truncate.
+const PRESET_DROPDOWN_MAX_WIDTH = 280;
 
 export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassName }: PresetManagerProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -223,6 +225,11 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdow
                 position: 'fixed',
                 left: pos.left,
                 minWidth: pos.width,
+                // Grow for long names, but never past the viewport's right
+                // edge or a sane cap — a long name truncates (ellipsis on
+                // .dialkit-preset-name) instead of pushing the icons off
+                // screen where the rename control can't be reached.
+                maxWidth: Math.max(pos.width, Math.min(PRESET_DROPDOWN_MAX_WIDTH, window.innerWidth - pos.left - 8)),
                 ...(pos.above
                   ? { bottom: window.innerHeight - pos.top, transformOrigin: 'bottom' }
                   : { top: pos.top, transformOrigin: 'top' }),
