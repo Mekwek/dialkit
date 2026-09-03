@@ -14,6 +14,7 @@ export interface UseDialOptions {
   persist?: DialKitPersistOptions;
   onAction?: (action: string) => void;
   shortcuts?: Record<string, ShortcutConfig>;
+  defaultCollapsed?: boolean;
 }
 
 export interface DialKitController<T extends DialConfig> {
@@ -58,6 +59,7 @@ export function useDialKitController<T extends DialConfig>(
     DialStore.registerPanel(panelId, name, configRef.value, shortcutsRef.value, {
       retainOnUnmount: hasStableId,
       persist: persistRef.value,
+      defaultCollapsed: options?.defaultCollapsed,
     });
     flatValues.value = DialStore.getValues(panelId);
 

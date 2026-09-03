@@ -16,6 +16,7 @@ export interface CreateDialOptions {
   persist?: DialKitPersistOptions;
   onAction?: (action: string) => void;
   shortcuts?: Record<string, ShortcutConfig>;
+  defaultCollapsed?: boolean;
 }
 
 export interface DialKitController<T extends DialConfig> {
@@ -63,6 +64,7 @@ export function createDialKitController<T extends DialConfig>(
     DialStore.registerPanel(panelId, name, config, options?.shortcuts, {
       retainOnUnmount: hasStableId,
       persist: options?.persist,
+      defaultCollapsed: options?.defaultCollapsed,
     });
 
     const unsubActions = options?.onAction
