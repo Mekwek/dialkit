@@ -113,7 +113,7 @@ export const Slider = defineComponent({
 
     const rightThreshold = () => {
       const HANDLE_BUFFER = 8;
-      const VALUE_CSS_RIGHT = 10;
+      const VALUE_CSS_RIGHT = 12;
       const trackWidth = wrapperRef.value?.offsetWidth;
       if (trackWidth && valueSpanRef.value) {
         return ((trackWidth - VALUE_CSS_RIGHT - valueSpanRef.value.offsetWidth - HANDLE_BUFFER) / trackWidth) * 100;

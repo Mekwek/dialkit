@@ -14,6 +14,7 @@ import { TransitionControl } from './TransitionControl';
 import { TextControl } from './TextControl';
 import { SelectControl } from './SelectControl';
 import { ColorControl } from './ColorControl';
+import { ImageControl } from './ImageControl';
 import { PresetManager } from './PresetManager';
 
 interface PanelProps {
@@ -212,6 +213,16 @@ export function Panel(props: PanelProps) {
       case 'color':
         return (
           <ColorControl
+            label={control.label}
+            value={value() as string}
+            onChange={(v) => DialStore.updateValue(props.panel.id, control.path, v)}
+          />
+        );
+
+      case 'image':
+        return (
+          <ImageControl
+            options={control.options}
             label={control.label}
             value={value() as string}
             onChange={(v) => DialStore.updateValue(props.panel.id, control.path, v)}

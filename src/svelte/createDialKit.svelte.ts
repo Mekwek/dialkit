@@ -149,6 +149,7 @@ function isLeafConfigValue(value: unknown): boolean {
     isActionConfig(value) ||
     isSelectConfig(value) ||
     isColorConfig(value) ||
+    hasType(value, 'image') ||
     isTextConfig(value)
   );
 }

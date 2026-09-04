@@ -9,6 +9,7 @@ import type {
 import { useShortcutContext } from './ShortcutListener';
 import { ButtonGroup } from './ButtonGroup';
 import { ColorControl } from './ColorControl';
+import { ImageControl } from './ImageControl';
 import { Folder } from './Folder';
 import { SelectControl } from './SelectControl';
 import { Slider } from './Slider';
@@ -101,6 +102,15 @@ export function ControlRenderer(props: ControlRendererProps) {
       case 'color':
         return (
           <ColorControl
+            label={control.label}
+            value={value() as string}
+            onChange={(next) => DialStore.updateValue(props.panelId, control.path, next)}
+          />
+        );
+      case 'image':
+        return (
+          <ImageControl
+            options={control.options}
             label={control.label}
             value={value() as string}
             onChange={(next) => DialStore.updateValue(props.panelId, control.path, next)}

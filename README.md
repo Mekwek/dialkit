@@ -286,6 +286,8 @@ subtitle: { type: 'text', default: '', placeholder: 'Enter subtitle...' }
 
 Non-hex strings are auto-detected as text inputs. Use the explicit form for a placeholder or to set a default.
 
+Text inputs start at one row and smoothly grow as text wraps or you add line breaks, up to five lines. Longer text scrolls within the field. Enter adds a new line; Tab moves to the next control. The height shrinks again when text is removed, and respects reduced-motion preferences in all four frameworks.
+
 **Returns:** `string`
 
 ### Color
@@ -308,6 +310,32 @@ The hue strip previews the field's current lightness and saturation across the h
 Use the color field, sliders, and text input with the keyboard. Click outside to dismiss; Escape closes the picker and returns focus to its swatch. Pickers follow their controls during scrolling and stay within the viewport, including inside an inline scrolling container. They share the current DialKit theme in React, Solid, Svelte, and Vue.
 
 **Returns:** `string` (CSS color)
+
+### Image
+
+```tsx
+const values = useDialKit('Profile', {
+  cover: {
+    type: 'image',
+    options: [
+      { value: '/images/coast.jpg', label: 'Coast' },
+      { value: '/images/mountains.jpg', label: 'Mountains' },
+    ],
+  },
+  avatar: { type: 'image' }, // Start empty and upload an image
+});
+
+<img src={values.cover} alt="Cover" />
+<img src={values.avatar || '/images/default-avatar.png'} alt="Avatar" />
+```
+
+The row's thumbnail opens a popover with a larger preview, a grid of images, and an upload button. Selecting or uploading an image updates the returned string immediately. The preview contains the full image; grid thumbnails crop to fit. Options accept URL strings or `{ value, label }` objects. `default` selects an initial URL; without it, the first option is selected, or `''` when there are no options. **Remove** returns `''`.
+
+Upload or drop an image up to 10 MB. Files are read locally as data URLs, ready to use as an image `src` or CSS background. DialKit does not upload them to a server. Uploaded choices remain available while the control is mounted. Selected image values work with presets, resets, and optional persistence; persistent uploads are subject to browser storage limits.
+
+Arrow keys move through the image grid, Enter/Space selects, and Escape closes the popover. Tab moves to upload and back into the panel's normal tab order. The control follows the current theme and is available in React, Solid, Svelte, and Vue.
+
+**Returns:** `string` (image URL or uploaded data URL)
 
 ### Select
 
@@ -1389,6 +1417,8 @@ import type {
   ActionConfig,
   SelectConfig,
   ColorConfig,
+  ImageConfig,
+  ImageOption,
   TextConfig,
   ShortcutConfig,
   ShortcutMode,

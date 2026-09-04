@@ -2,6 +2,7 @@ import { Fragment, defineComponent, h, type PropType } from 'vue';
 import { DialStore } from '../../store/DialStore';
 import type { ControlMeta, DialValue, SpringConfig, TransitionConfig } from '../../store/DialStore';
 import { ColorControl } from './ColorControl';
+import { ImageControl } from './ImageControl';
 import { Folder } from './Folder';
 import { SelectControl } from './SelectControl';
 import { ShortcutKey } from './ShortcutListener';
@@ -90,6 +91,14 @@ export const ControlRenderer = defineComponent({
         case 'color':
           return h(ColorControl, {
             key: control.path,
+            label: control.label,
+            value: value as string,
+            onChange: (next: string) => DialStore.updateValue(props.panelId, control.path, next),
+          });
+        case 'image':
+          return h(ImageControl, {
+            key: control.path,
+            options: control.options,
             label: control.label,
             value: value as string,
             onChange: (next: string) => DialStore.updateValue(props.panelId, control.path, next),

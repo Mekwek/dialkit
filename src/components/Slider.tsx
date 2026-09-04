@@ -314,7 +314,7 @@ export function Slider({
   // Value dodge: fade when handle overlaps label (left) or value (right)
   const HANDLE_BUFFER = 8;
   const LABEL_CSS_LEFT = 10;
-  const VALUE_CSS_RIGHT = 10;
+  const VALUE_CSS_RIGHT = 12;
   let leftThreshold = 30;
   let rightThreshold = 78;
   const trackWidth = wrapperRef.current?.offsetWidth;

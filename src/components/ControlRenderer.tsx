@@ -9,6 +9,7 @@ import { TransitionControl } from './TransitionControl';
 import { TextControl } from './TextControl';
 import { SelectControl } from './SelectControl';
 import { ColorControl } from './ColorControl';
+import { ImageControl } from './ImageControl';
 
 interface ControlRendererProps {
   panelId: string;
@@ -118,6 +119,17 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration 
         return (
           <ColorControl
             key={control.path}
+            label={control.label}
+            value={value as string}
+            onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
+          />
+        );
+
+      case 'image':
+        return (
+          <ImageControl
+            key={control.path}
+            options={control.options}
             label={control.label}
             value={value as string}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}

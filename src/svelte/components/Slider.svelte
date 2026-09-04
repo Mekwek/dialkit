@@ -34,7 +34,7 @@
   const MAX_STRETCH = 8;
   const HANDLE_BUFFER = 8;
   const LABEL_CSS_LEFT = 10;
-  const VALUE_CSS_RIGHT = 10;
+  const VALUE_CSS_RIGHT = 12;
 
   let wrapperRef: HTMLDivElement | undefined;
   let labelRef: HTMLSpanElement | undefined;

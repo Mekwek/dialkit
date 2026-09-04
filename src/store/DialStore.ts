@@ -35,13 +35,23 @@ export type ColorConfig = {
   default?: string;
 };
 
+export type ImageOption = string | { value: string; label: string };
+
+export type ImageConfig = {
+  type: 'image';
+  /** Image URLs, optionally paired with display labels. */
+  options?: ImageOption[];
+  /** Defaults to the first option, or an empty string for upload-only controls. */
+  default?: string;
+};
+
 export type TextConfig = {
   type: 'text';
   default?: string;
   placeholder?: string;
 };
 
-export type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | TextConfig;
+export type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig;
 
 export type DialConfig = {
   [key: string]: DialValue | [number, number, number, number?] | DialConfig;
@@ -56,7 +66,7 @@ export type ResolvedValues<T extends DialConfig> = {
         ? TransitionConfig
         : T[K] extends SelectConfig
           ? string
-          : T[K] extends ColorConfig
+          : T[K] extends ColorConfig | ImageConfig
             ? string
             : T[K] extends TextConfig
               ? string
@@ -72,7 +82,7 @@ export type DialKitValueUpdates<T extends DialConfig> = {
       ? TransitionConfig
       : T[K] extends ActionConfig
         ? never
-        : T[K] extends SelectConfig | ColorConfig | TextConfig
+        : T[K] extends SelectConfig | ColorConfig | ImageConfig | TextConfig
           ? string
           : T[K] extends DialConfig
             ? DialKitValueUpdates<T[K]>
@@ -90,7 +100,7 @@ export type ShortcutConfig = {
 };
 
 export type ControlMeta = {
-  type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'text';
+  type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'image' | 'text';
   path: string;
   label: string;
   min?: number;
@@ -193,6 +203,8 @@ function resolveConfigValues(
       result[key] = flatValues[path] ?? defaultValue;
     } else if (isColorConfigValue(configValue)) {
       result[key] = flatValues[path] ?? configValue.default ?? '#000000';
+    } else if (isImageConfigValue(configValue)) {
+      result[key] = flatValues[path] ?? configValue.default ?? getFirstOptionValue(configValue.options ?? []);
     } else if (isTextConfigValue(configValue)) {
       result[key] = flatValues[path] ?? configValue.default ?? '';
     } else if (typeof configValue === 'object' && configValue !== null) {
@@ -249,6 +261,7 @@ function isLeafConfigValue(value: unknown): boolean {
     isActionConfigValue(value) ||
     isSelectConfigValue(value) ||
     isColorConfigValue(value) ||
+    isImageConfigValue(value) ||
     isTextConfigValue(value)
   );
 }
@@ -296,6 +309,10 @@ function isSelectConfigValue(value: unknown): value is SelectConfig {
 
 function isColorConfigValue(value: unknown): value is ColorConfig {
   return hasType(value, 'color');
+}
+
+function isImageConfigValue(value: unknown): value is ImageConfig {
+  return hasType(value, 'image');
 }
 
 function isTextConfigValue(value: unknown): value is TextConfig {
@@ -899,7 +916,7 @@ class DialStoreClass {
         const hasPhysics = value.stiffness !== undefined || value.damping !== undefined || value.mass !== undefined;
         const hasTime = value.visualDuration !== undefined || value.bounce !== undefined;
         values[`${path}.__mode`] = hasPhysics && !hasTime ? 'advanced' : 'simple';
-      } else if (typeof value === 'object' && value !== null && !Array.isArray(value) && !this.isActionConfig(value) && !this.isSelectConfig(value) && !this.isColorConfig(value) && !this.isTextConfig(value)) {
+      } else if (typeof value === 'object' && value !== null && !Array.isArray(value) && !this.isActionConfig(value) && !this.isSelectConfig(value) && !this.isColorConfig(value) && !isImageConfigValue(value) && !this.isTextConfig(value)) {
         this.initTransitionModes(value as DialConfig, path, values);
       }
     }
@@ -939,6 +956,8 @@ class DialStoreClass {
         controls.push({ type: 'select', path, label, options: value.options });
       } else if (this.isColorConfig(value)) {
         controls.push({ type: 'color', path, label });
+      } else if (isImageConfigValue(value)) {
+        controls.push({ type: 'image', path, label, options: value.options });
       } else if (this.isTextConfig(value)) {
         controls.push({ type: 'text', path, label, placeholder: value.placeholder });
       } else if (typeof value === 'string') {
@@ -988,6 +1007,8 @@ class DialStoreClass {
         values[path] = value.default ?? firstValue;
       } else if (this.isColorConfig(value)) {
         values[path] = value.default ?? '#000000';
+      } else if (isImageConfigValue(value)) {
+        values[path] = value.default ?? getFirstOptionValue(value.options ?? []);
       } else if (this.isTextConfig(value)) {
         values[path] = value.default ?? '';
       } else if (typeof value === 'object' && value !== null) {
@@ -1118,6 +1139,7 @@ class DialStoreClass {
         return validValues.has(existingValue) ? existingValue : defaultValue;
       }
       case 'color':
+      case 'image':
       case 'text':
         return typeof existingValue === 'string' ? existingValue : defaultValue;
       case 'transition':

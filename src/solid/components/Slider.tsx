@@ -299,7 +299,7 @@ export function Slider(props: SliderProps) {
   // Value dodge: fade handle when it overlaps label or value text
   const HANDLE_BUFFER = 8;
   const LABEL_CSS_LEFT = 10;
-  const VALUE_CSS_RIGHT = 10;
+  const VALUE_CSS_RIGHT = 12;
 
   const leftThreshold = () => {
     const trackWidth = wrapperRef?.offsetWidth;

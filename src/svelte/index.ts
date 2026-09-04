@@ -42,6 +42,7 @@ export { default as EasingVisualization } from './components/EasingVisualization
 export { default as TextControl } from './components/TextControl.svelte';
 export { default as SelectControl } from './components/SelectControl.svelte';
 export { default as ColorControl } from './components/ColorControl.svelte';
+export { default as ImageControl } from './components/ImageControl.svelte';
 export { default as PresetManager } from './components/PresetManager.svelte';
 export { default as DialTimeline } from './components/Timeline/DialTimeline.svelte';
 
@@ -54,6 +55,8 @@ export type {
   ActionConfig,
   SelectConfig,
   ColorConfig,
+  ImageConfig,
+  ImageOption,
   TextConfig,
   ShortcutConfig,
   Preset,

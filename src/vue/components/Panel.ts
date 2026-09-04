@@ -11,6 +11,7 @@ import { TransitionControl } from './TransitionControl';
 import { TextControl } from './TextControl';
 import { SelectControl } from './SelectControl';
 import { ColorControl } from './ColorControl';
+import { ImageControl } from './ImageControl';
 import { PresetManager } from './PresetManager';
 import { useShortcutContext } from './ShortcutListener';
 import { ShortcutsMenu } from './ShortcutsMenu';
@@ -169,6 +170,14 @@ export const Panel = defineComponent({
         case 'color':
           return h(ColorControl, {
             key: control.path,
+            label: control.label,
+            value: value as string,
+            onChange: (next: string) => DialStore.updateValue(props.panel.id, control.path, next),
+          });
+        case 'image':
+          return h(ImageControl, {
+            key: control.path,
+            options: control.options,
             label: control.label,
             value: value as string,
             onChange: (next: string) => DialStore.updateValue(props.panel.id, control.path, next),

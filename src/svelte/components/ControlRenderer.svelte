@@ -10,6 +10,7 @@
   import TextControl from './TextControl.svelte';
   import SelectControl from './SelectControl.svelte';
   import ColorControl from './ColorControl.svelte';
+  import ImageControl from './ImageControl.svelte';
   import ControlRenderer from './ControlRenderer.svelte';
   import { SHORTCUT_CTX } from './ShortcutListener.svelte';
   import type { ShortcutContextValue } from './ShortcutListener.svelte';
@@ -88,6 +89,13 @@
   />
 {:else if control.type === 'color'}
   <ColorControl
+    label={control.label}
+    value={controlValue as string}
+    onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
+  />
+{:else if control.type === 'image'}
+  <ImageControl
+    options={control.options}
     label={control.label}
     value={controlValue as string}
     onChange={(v) => DialStore.updateValue(panelId, control.path, v)}

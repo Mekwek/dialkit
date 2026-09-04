@@ -47,6 +47,7 @@ export { EasingVisualization } from './components/EasingVisualization';
 export { TextControl } from './components/TextControl';
 export { SelectControl } from './components/SelectControl';
 export { ColorControl } from './components/ColorControl';
+export { ImageControl } from './components/ImageControl';
 export { PresetManager } from './components/PresetManager';
 export { ShortcutsMenu } from './components/ShortcutsMenu';
 
@@ -59,6 +60,8 @@ export type {
   ActionConfig,
   SelectConfig,
   ColorConfig,
+  ImageConfig,
+  ImageOption,
   TextConfig,
   DialKitPersistOptions,
   ShortcutConfig,
