@@ -1,3 +1,4 @@
+import { measurePanelHeight } from '../../panel-size';
 import { createSignal, createEffect, on, onCleanup, untrack, Show, JSX } from 'solid-js';
 import { isServer } from 'solid-js/web';
 import { animate } from 'motion';
@@ -27,21 +28,16 @@ export function RootPanel(props: RootPanelProps) {
   // configuration (DialRoot never changes mode at runtime).
   const inline = props.inline ?? false;
 
-  const [isOpen, setIsOpen] = createSignal(props.open ?? props.defaultOpen ?? true);
+  const [localOpen, setIsOpen] = createSignal(props.defaultOpen ?? true);
+  const isOpen = () => props.open ?? localOpen();
   const [contentHeight, setContentHeight] = createSignal<number | undefined>(undefined);
   const [windowHeight, setWindowHeight] = createSignal(isServer ? 800 : window.innerHeight);
   let folderRef: HTMLDivElement | undefined;
 
-  // Controlled mode: the parent owns the state, so mirror it into the morph.
-  createEffect(() => {
-    const controlled = props.open;
-    if (controlled !== undefined) setIsOpen(controlled);
-  });
-
   const handleToggle = () => {
     if (inline) return;
     const next = !isOpen();
-    if (props.open === undefined) setIsOpen(next);
+    setIsOpen(next);
     props.onOpenChange?.(next);
   };
 
@@ -112,7 +108,7 @@ export function RootPanel(props: RootPanelProps) {
     const el = folderRef;
     if (!el) return;
     const ro = new ResizeObserver(() => {
-      const h = el.offsetHeight;
+      const h = measurePanelHeight(el);
       setContentHeight((prev) => (prev === h ? prev : h));
     });
     ro.observe(el);

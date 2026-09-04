@@ -198,15 +198,32 @@ function Card() {
 
 Controller methods:
 
-| Method                  | Description                                                       |
-| ----------------------- | ----------------------------------------------------------------- |
-| `values`                | The same live resolved values returned by `useDialKit`            |
-| `setValue(path, value)` | Updates one control by dot path, like `'shadow.radius'`           |
-| `setValues(values)`     | Updates multiple controls with a typed nested partial object      |
-| `resetValues()`         | Restores the current config defaults and clears the active preset |
-| `getValues()`           | Reads the latest resolved values outside render callbacks         |
+| Method | Description |
+|--------|-------------|
+| `values` | The same live resolved values returned by `useDialKit` |
+| `setValue(path, value)` | Updates one control by dot path, like `'shadow.radius'` |
+| `setValues(values)` | Updates multiple controls with a typed nested partial object |
+| `resetValues()` | Restores the current config defaults and clears the active preset |
+| `getValues()` | Reads the latest resolved values outside render callbacks |
+| `setOpen(open)` | Opens or collapses this panel; opening also reveals a collapsed containing toolkit |
+| `getOpen()` | Reads the panel open state; `undefined` means it still uses the root default |
 
 Programmatic updates use the same state as panel edits. If a saved preset is active, updates are saved into that preset; otherwise they update the base "Version 1" values. Action controls are triggers, so they are not set by `setValues`.
+
+### Panel collapse state
+
+```tsx
+const dial = useDialKitController('Card', {
+  radius: [16, 0, 64],
+}, { id: 'card', defaultCollapsed: true });
+
+dial.setOpen(true);
+dial.setOpen(false);
+```
+
+The same options and methods are available on `createDialKitController` in Solid and Svelte, and `useDialKitController` in Vue. `defaultCollapsed` is an initialization option; use `setOpen` for later changes. With a stable `id`, the panel keeps its open state across unmounts in the current session. Collapse state is separate from parameter values and presets and is not written by `persist`.
+
+For code that only has a panel ID, use `DialStore.setPanelOpen(id, open)` and `DialStore.getPanelOpen(id)`. The exported `Folder` component also accepts controlled `open` with `onOpenChange` (Vue: `@open-change`), while `defaultOpen` remains the uncontrolled initial value.
 
 ---
 
@@ -274,13 +291,23 @@ Non-hex strings are auto-detected as text inputs. Use the explicit form for a pl
 ### Color
 
 ```tsx
-color: '#ff5500'                           // auto-detected from hex string
-bg: { type: 'color', default: '#000' }     // explicit
+color: '#ff5500'                                     // hex, including alpha
+accent: 'oklch(0.7 0.2 145 / 0.8)'                    // wide-gamut OKLCH
+highlight: 'color(display-p3 1 0.35 0.15)'             // Display P3
+bg: { type: 'color', default: 'rgb(24 24 27 / 90%)' }  // explicit
 ```
 
-Hex strings (`#RGB`, `#RRGGBB`, `#RRGGBBAA`) are auto-detected as color pickers. Each color control has a text display (click to edit the hex value), and a swatch button that opens the native color picker.
+Hex (`#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA`), RGB, HSL, OKLCH, and Display P3 strings are auto-detected. Text fields accept those absolute CSS color formats. Use `{ type: 'text', default: '...' }` to keep a color-looking string as a text control.
 
-**Returns:** `string` (hex color)
+The swatch opens a custom picker and highlights its control row. Choose **Hex**, **OKLCH**, or **Display P3** at the top. The color field runs from neutral to fully saturated at each lightness, with hue and opacity sliders and one editable CSS color value below. Hex uses an sRGB field; OKLCH and Display P3 use a Display P3 field. Conversion into a smaller gamut reduces chroma while preserving lightness and hue. OKLCH text input also retains colors beyond Display P3.
+
+Opacity is preserved when editing or switching formats. Hex output quantizes alpha to 8 bits. RGB/HSL text input is accepted as entered; subsequent picker adjustments use hex. Named colors, variables, relative colors, and `calc()` expressions are not parsed. Use an explicit color config for `transparent`.
+
+The hue strip previews the field's current lightness and saturation across the hue range. Changing hue preserves the field position; move vertically in the field to adjust lightness.
+
+Use the color field, sliders, and text input with the keyboard. Click outside to dismiss; Escape closes the picker and returns focus to its swatch. Pickers follow their controls during scrolling and stay within the viewport, including inside an inline scrolling container. They share the current DialKit theme in React, Solid, Svelte, and Vue.
+
+**Returns:** `string` (CSS color)
 
 ### Select
 
@@ -491,7 +518,7 @@ DialKit is automatically hidden in production builds. To enable it in production
 
 ### Draggable panel
 
-In popover mode, the collapsed panel bubble can be dragged to any position on the screen. When you click to open the panel, it snaps to the nearest side — top-left if the bubble is on the left half of the screen, top-right if on the right half. When the panel is closed again, it returns to where you last dragged it.
+In popover mode, the collapsed panel bubble can be dragged to any position on the screen. Opening it snaps the panel to the corner of the bubble's current quadrant: top-left, top-right, bottom-left, or bottom-right. Its animation uses the same corner as its origin. When the panel is closed again, it returns to where you last dragged it. Before dragging, the configured `position` supplies both the corner and animation origin. This behavior is shared by React, Solid, Vue, and Svelte.
 
 ### Inline mode
 

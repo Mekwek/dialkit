@@ -7,7 +7,7 @@ import { Folder } from './Folder';
 import { Panel } from './Panel';
 import { ShortcutListener } from './ShortcutListener';
 import { TimelineToggleButton } from './Timeline/TimelineToggleButton';
-import { blockPanelDragClick, getPanelDragHandle, getPanelDragOffset, getPanelDragStart, getPanelOriginX, hasPanelDragMoved } from '../panel-drag';
+import { blockPanelDragClick, getPanelCorner, getPanelDragHandle, getPanelDragOffset, getPanelDragStart, getPanelOriginX, getPanelOriginY, hasPanelDragMoved } from '../panel-drag';
 
 export type DialPosition = 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
 export type DialMode = 'popover' | 'inline';
@@ -28,6 +28,7 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
   const [timelineCount, setTimelineCount] = useState(0);
   const [mounted, setMounted] = useState(false);
   const inline = mode === 'inline';
+  const [shellOpen, setShellOpen] = useState(inline || defaultOpen);
 
   // Drag state
   const panelRef = useRef<HTMLDivElement>(null);
@@ -38,6 +39,7 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
   const dragStartRef = useRef<{ pointerX: number; pointerY: number; elX: number; elY: number } | null>(null);
   const didDragRef = useRef(false);
   const dragTargetRef = useRef<HTMLElement | null>(null);
+  const panelOpenStatesRef = useRef<Map<string, boolean>>(new Map());
   const rootOpenRef = useRef<boolean | null>(null);
 
   // Subscribe to registered editing surfaces. Timeline-backed panels render
@@ -62,7 +64,12 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
 
   useEffect(() => {
     const fallbackOpen = inline || defaultOpen;
-    rootOpenRef.current = panels.some((panel) => DialStore.getPanelOpen(panel.id) ?? fallbackOpen);
+    const nextStates = new Map<string, boolean>();
+    for (const panel of panels) {
+      nextStates.set(panel.id, panelOpenStatesRef.current.get(panel.id) ?? DialStore.getPanelOpen(panel.id) ?? fallbackOpen);
+    }
+    panelOpenStatesRef.current = nextStates;
+    rootOpenRef.current = Array.from(nextStates.values()).some(Boolean);
   }, [defaultOpen, inline, panels]);
 
   // Watch for panel open/close — snap to corner on open, restore drag position on close
@@ -80,9 +87,7 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
         // Opening — save drag position, determine corner, snap
         if (currentDragOffset) {
           lastDragOffset.current = currentDragOffset;
-          const bubbleCenterX = currentDragOffset.x + 21;
-          const midX = window.innerWidth / 2;
-          setActivePosition(bubbleCenterX < midX ? 'top-left' : 'top-right');
+          setActivePosition(getPanelCorner(position, currentDragOffset));
         } else {
           setActivePosition(position);
         }
@@ -139,17 +144,30 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
     dragTargetRef.current = null;
   }, []);
 
+  const handlePanelOpenChange = useCallback((panelId: string, open: boolean) => {
+    panelOpenStatesRef.current.set(panelId, open);
+    const fallbackOpen = inline || defaultOpen;
+    const nextRootOpen = panels.some((panel) => (
+      panelOpenStatesRef.current.get(panel.id) ?? fallbackOpen
+    ));
+
+    if (rootOpenRef.current === nextRootOpen) return;
+    rootOpenRef.current = nextRootOpen;
+    onOpenChange?.(nextRootOpen);
+  }, [defaultOpen, inline, onOpenChange, panels]);
+
   const handleRootOpenChange = useCallback((open: boolean) => {
+    setShellOpen(open);
     if (rootOpenRef.current === open) return;
     rootOpenRef.current = open;
     onOpenChange?.(open);
   }, [onOpenChange]);
 
-  // Sections write their own state to the store, so re-derive from it.
-  const handleSectionOpenChange = useCallback(() => {
-    const fallbackOpen = inline || defaultOpen;
-    handleRootOpenChange(panels.some((panel) => DialStore.getPanelOpen(panel.id) ?? fallbackOpen));
-  }, [defaultOpen, handleRootOpenChange, inline, panels]);
+  useEffect(() => DialStore.subscribePanelOpen((id, open) => {
+    if (!panels.some(panel => panel.id === id)) return;
+    if (panels.length > 1 && open) handleRootOpenChange(true);
+    else if (panels.length === 1) handlePanelOpenChange(id, open);
+  }), [panels, handleRootOpenChange, handlePanelOpenChange]);
 
   // Don't render on server
   if (!mounted || typeof window === 'undefined') {
@@ -168,6 +186,7 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
     bottom: 'auto' as const,
   } : undefined;
   const originX = getPanelOriginX(activePosition, dragOffset);
+  const originY = getPanelOriginY(activePosition, dragOffset);
   const hasMultiplePanels = panels.length > 1;
   const timelineToggle = timelineCount > 0 ? <TimelineToggleButton /> : null;
 
@@ -179,6 +198,7 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
         className="dialkit-panel"
         data-position={inline ? undefined : (dragOffset ? undefined : activePosition)}
         data-origin-x={inline ? undefined : originX}
+        data-origin-y={inline ? undefined : originY}
         data-mode={mode}
         data-multiple={hasMultiplePanels ? 'true' : undefined}
         style={dragStyle}
@@ -191,12 +211,12 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
           <div className="dialkit-panel-wrapper">
             <Folder
               title="DialKit"
+              open={shellOpen}
               defaultOpen={inline || defaultOpen}
               isRoot={true}
               inline={inline}
               onOpenChange={handleRootOpenChange}
               toolbar={timelineToggle}
-              panelHeightOffset={2}
             >
               <div className="dialkit-timeline-toolkit-only">Timeline</div>
             </Folder>
@@ -205,12 +225,12 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
           <div className="dialkit-panel-wrapper">
             <Folder
               title="DialKit"
+              open={shellOpen}
               defaultOpen={inline || defaultOpen}
               isRoot={true}
               inline={inline}
               onOpenChange={handleRootOpenChange}
               toolbar={timelineToggle}
-              panelHeightOffset={2}
             >
               {panels.map((panel) => (
                 <Panel
@@ -218,7 +238,6 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
                   panel={panel}
                   defaultOpen={true}
                   variant="section"
-                  onOpenChange={handleSectionOpenChange}
                 />
               ))}
             </Folder>
@@ -231,7 +250,7 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
               defaultOpen={inline || defaultOpen}
               inline={inline}
               toolbarExtra={timelineToggle}
-              onOpenChange={handleRootOpenChange}
+              onOpenChange={(open) => handlePanelOpenChange(panel.id, open)}
             />
           ))
         )}

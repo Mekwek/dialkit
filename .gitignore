@@ -18,6 +18,11 @@ example/src/TimelineTest1.tsx
 example/src/TimelineTest2.tsx
 example/public/
 
+# Local controls preview
+example/controls.html
+example/src/Controls.tsx
+example/src/controls.css
+
 # IDE
 .vscode/
 .idea/

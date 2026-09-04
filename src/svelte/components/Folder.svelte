@@ -1,5 +1,8 @@
 <script lang="ts">
+  import { measurePanelHeight } from '../../panel-size';
+
   import { Spring } from 'svelte/motion';
+  import { untrack } from 'svelte';
   import { slide } from 'svelte/transition';
 
   import type { Snippet } from 'svelte';
@@ -18,7 +21,7 @@
   } = $props<{
     title: string;
     defaultOpen?: boolean;
-      open?: boolean;
+    open?: boolean;
     isRoot?: boolean;
     inline?: boolean;
     onOpenChange?: (isOpen: boolean) => void;
@@ -27,12 +30,12 @@
     children?: Snippet;
   }>();
 
-  const initialOpen = open ?? defaultOpen;
-  let uncontrolledOpen = $state(defaultOpen);
-  const isOpen = $derived(open ?? uncontrolledOpen);
+  const initiallyOpen = untrack(() => open ?? defaultOpen);
+  let localOpen = $state(initiallyOpen);
+  const isOpen = $derived(open ?? localOpen);
   const isCollapsed = $derived(!isOpen);
   let contentHeight = $state<number | undefined>(undefined);
-  let hasInitializedRootSize = $state(!isRoot || !initialOpen);
+  let hasInitializedRootSize = $state(!isRoot || !initiallyOpen);
 
   let contentRef: HTMLDivElement | undefined;
   let panelRef: HTMLDivElement | undefined;
@@ -45,10 +48,10 @@
     return () => window.removeEventListener('resize', onResize);
   });
 
-  const chevronRotation = new Spring(initialOpen ? 0 : 180, { stiffness: 0.2, damping: 0.6 });
-  const panelWidth = new Spring(initialOpen ? 280 : 42, { stiffness: 0.2, damping: 0.62 });
-  const panelHeight = new Spring(initialOpen ? 220 : 42, { stiffness: 0.2, damping: 0.62 });
-  const panelRadius = new Spring(initialOpen ? 14 : 21, { stiffness: 0.2, damping: 0.62 });
+  const chevronRotation = new Spring(initiallyOpen ? 0 : 180, { stiffness: 0.2, damping: 0.6 });
+  const panelWidth = new Spring(initiallyOpen ? 280 : 42, { stiffness: 0.2, damping: 0.62 });
+  const panelHeight = new Spring(initiallyOpen ? 220 : 42, { stiffness: 0.2, damping: 0.62 });
+  const panelRadius = new Spring(initiallyOpen ? 14 : 21, { stiffness: 0.2, damping: 0.62 });
   const panelScale = new Spring(1, { stiffness: 0.25, damping: 0.7 });
 
   $effect(() => {
@@ -56,15 +59,15 @@
 
     const ro = new ResizeObserver(() => {
       if (!isOpen) return;
-      const next = contentRef?.offsetHeight;
+      const next = contentRef ? measurePanelHeight(contentRef) : 0;
       if (!next) return;
       contentHeight = next;
     });
 
     ro.observe(contentRef);
 
-    if (contentRef.offsetHeight > 0) {
-      contentHeight = contentRef.offsetHeight;
+    if (measurePanelHeight(contentRef) > 0) {
+      contentHeight = measurePanelHeight(contentRef);
     }
 
     return () => {
@@ -88,7 +91,7 @@
     panelHeight.set(nextHeight, springOptions);
     panelRadius.set(isOpen ? 14 : 21, springOptions);
 
-    if (isOpen || !initialOpen) {
+    if (isOpen || !initiallyOpen) {
       hasInitializedRootSize = true;
     }
   });
@@ -96,7 +99,7 @@
   const handleToggle = () => {
     if (inline && isRoot) return;
     const next = !isOpen;
-    if (open === undefined) uncontrolledOpen = next;
+    localOpen = next;
     onOpenChange?.(next);
   };
 
@@ -137,11 +140,13 @@
         {/if}
       </div>
 
+      {#if isOpen}
       <div class="dialkit-folder-content">
         <div class="dialkit-folder-inner">
           {#if children}{@render children()}{/if}
         </div>
       </div>
+      {/if}
     </div>
   </div>
 {:else if isRoot}

@@ -62,7 +62,7 @@
   ],
   "scripts": {
     "build": "rm -rf dist && tsup && npm run build:svelte",
-    "build:svelte": "node scripts/gen-theme-css.js && svelte-package -i src/svelte -o dist/svelte && rm -rf .svelte-kit src/store/DialStore.d.ts src/store/DialStore.d.ts.map src/store/TimelineStore.d.ts src/store/TimelineStore.d.ts.map src/store/TimelineUiStore.d.ts src/store/TimelineUiStore.d.ts.map src/timeline/adapter.d.ts src/timeline/adapter.d.ts.map src/timeline/index.d.ts src/timeline/index.d.ts.map src/timeline-core.d.ts src/timeline-core.d.ts.map src/transition-math.d.ts src/transition-math.d.ts.map src/copy-instruction.d.ts src/copy-instruction.d.ts.map src/env.d.ts src/env.d.ts.map src/dropdown-position.d.ts src/dropdown-position.d.ts.map src/panel-drag.d.ts src/panel-drag.d.ts.map",
+    "build:svelte": "node scripts/gen-theme-css.js && svelte-package -i src/svelte -o dist/svelte && rm -rf .svelte-kit src/store/DialStore.d.ts src/store/DialStore.d.ts.map src/store/TimelineStore.d.ts src/store/TimelineStore.d.ts.map src/store/TimelineUiStore.d.ts src/store/TimelineUiStore.d.ts.map src/timeline/adapter.d.ts src/timeline/adapter.d.ts.map src/timeline/index.d.ts src/timeline/index.d.ts.map src/timeline-core.d.ts src/timeline-core.d.ts.map src/transition-math.d.ts src/transition-math.d.ts.map src/copy-instruction.d.ts src/copy-instruction.d.ts.map src/env.d.ts src/env.d.ts.map src/dropdown-position.d.ts src/dropdown-position.d.ts.map src/panel-drag.d.ts src/panel-drag.d.ts.map src/panel-size.d.ts src/panel-size.d.ts.map src/color.d.ts src/color.d.ts.map src/color-control.d.ts src/color-control.d.ts.map",
     "dev": "tsup --watch",
     "prepack": "npm run build",
     "prepublishOnly": "npm test && npm run typecheck",

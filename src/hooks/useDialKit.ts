@@ -12,10 +12,10 @@ import { useDialStorePanel } from './useDialStorePanel';
 
 export interface UseDialOptions {
   id?: string;
+  defaultCollapsed?: boolean;
   persist?: DialKitPersistOptions;
   onAction?: (action: string) => void;
   shortcuts?: Record<string, ShortcutConfig>;
-  defaultCollapsed?: boolean;
 }
 
 export interface DialKitController<T extends DialConfig> {
@@ -23,6 +23,8 @@ export interface DialKitController<T extends DialConfig> {
   setValue: (path: string, value: DialValue) => void;
   setValues: (values: DialKitValueUpdates<T>) => void;
   resetValues: () => void;
+  setOpen: (open: boolean) => void;
+  getOpen: () => boolean | undefined;
   getValues: () => ResolvedValues<T>;
 }
 
@@ -42,8 +44,8 @@ export function useDialKitController<T extends DialConfig>(
   const { panelId, flatValues, serializedConfig } = useDialStorePanel(name, config, {
     id: options?.id,
     persist: options?.persist,
-    shortcuts: options?.shortcuts,
     defaultCollapsed: options?.defaultCollapsed,
+    shortcuts: options?.shortcuts,
   });
 
   const configRef = useRef(config);
@@ -87,6 +89,9 @@ export function useDialKitController<T extends DialConfig>(
     [panelId]
   );
 
+  const setOpen = useCallback((open: boolean) => DialStore.setPanelOpen(panelId, open), [panelId]);
+  const getOpen = useCallback(() => DialStore.getPanelOpen(panelId), [panelId]);
+
   return useMemo(
     () => ({
       values,
@@ -94,7 +99,9 @@ export function useDialKitController<T extends DialConfig>(
       setValues,
       resetValues,
       getValues,
+      setOpen,
+      getOpen,
     }),
-    [getValues, resetValues, setValue, setValues, values]
+    [getValues, getOpen, setOpen, resetValues, setValue, setValues, values]
   );
 }

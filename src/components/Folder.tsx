@@ -1,3 +1,4 @@
+import { measurePanelHeight } from '../panel-size';
 import { useState, useRef, useEffect, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ICON_PANEL, ICON_CHEVRON } from '../icons';
@@ -14,9 +15,10 @@ interface FolderProps {
   panelHeightOffset?: number;
 }
 
-export function Folder({ title, children, defaultOpen = true, open, isRoot = false, inline = false, onOpenChange, toolbar, panelHeightOffset = 0 }: FolderProps) {
-  const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen);
-  const isOpen = open ?? uncontrolledOpen;
+export function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, panelHeightOffset = 0 }: FolderProps) {
+  const [localOpen, setIsOpen] = useState(defaultOpen);
+  const isOpen = open ?? localOpen;
+  const isCollapsed = !isOpen;
   const contentRef = useRef<HTMLDivElement>(null);
   const [contentHeight, setContentHeight] = useState<number | undefined>(undefined);
   const [windowHeight, setWindowHeight] = useState(typeof window !== 'undefined' ? window.innerHeight : 800);
@@ -34,7 +36,7 @@ export function Folder({ title, children, defaultOpen = true, open, isRoot = fal
     if (!el) return;
     const ro = new ResizeObserver(() => {
       if (isOpen) {
-        const h = el.offsetHeight;
+        const h = measurePanelHeight(el);
         setContentHeight(prev => prev === h ? prev : h);
       }
     });
@@ -45,7 +47,7 @@ export function Folder({ title, children, defaultOpen = true, open, isRoot = fal
   const handleToggle = () => {
     if (inline && isRoot) return;
     const next = !isOpen;
-    if (open === undefined) setUncontrolledOpen(next);
+    setIsOpen(next);
     onOpenChange?.(next);
   };
 
@@ -144,7 +146,7 @@ export function Folder({ title, children, defaultOpen = true, open, isRoot = fal
         className="dialkit-panel-inner"
         style={panelStyle}
         onClick={!isOpen ? handleToggle : undefined}
-        data-collapsed={!isOpen}
+        data-collapsed={isCollapsed}
         whileTap={!isOpen ? { scale: 0.9 } : undefined}
         transition={{ type: 'spring', visualDuration: 0.15, bounce: 0.3 }}
       >

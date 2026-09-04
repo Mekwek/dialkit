@@ -1,3 +1,5 @@
+import { parseColor } from '../color';
+
 // Lightweight state store with subscriptions for dialkit
 
 export type SpringConfig = {
@@ -126,10 +128,10 @@ export type DialKitPersistOptions = boolean | {
 };
 
 export type DialStorePanelOptions = {
+  defaultCollapsed?: boolean;
   retainOnUnmount?: boolean;
   persist?: DialKitPersistOptions;
   kind?: 'timeline';
-  defaultCollapsed?: boolean;
 };
 
 type PersistConfig = {
@@ -307,6 +309,8 @@ function getFirstOptionValue(options: (string | { value: string; label: string }
 }
 
 class DialStoreClass {
+  private panelOpenListeners = new Set<(panelId: string, open: boolean) => void>();
+  private panelOpenStates = new Map<string, boolean>();
   private panels: Map<string, PanelConfig> = new Map();
   private panelsSnapshot: PanelConfig[] = [];
   private standardPanelsSnapshot: PanelConfig[] = [];
@@ -322,10 +326,11 @@ class DialStoreClass {
   private registrationCounts: Map<string, number> = new Map();
   private retainedPanels: Set<string> = new Set();
   private persistConfigs: Map<string, PersistConfig> = new Map();
-  // Unset until a `defaultCollapsed` option or a host component seeds a default.
-  private panelOpen: Map<string, boolean> = new Map();
 
   registerPanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, options: DialStorePanelOptions = {}): void {
+    if (!this.panelOpenStates.has(id) && options.defaultCollapsed !== undefined) {
+      this.panelOpenStates.set(id, !options.defaultCollapsed);
+    }
     const existingPanel = this.panels.get(id);
     if (existingPanel && existingPanel.kind !== options.kind) {
       console.warn(
@@ -334,9 +339,6 @@ class DialStoreClass {
       );
     }
     this.configurePanelRetention(id, options);
-    if (options.defaultCollapsed !== undefined) {
-      this.initPanelOpen(id, !options.defaultCollapsed);
-    }
     this.registrationCounts.set(id, (this.registrationCounts.get(id) ?? 0) + 1);
 
     const controls = this.parseConfig(config, '', shortcuts);
@@ -423,7 +425,7 @@ class DialStoreClass {
     if (this.actionListeners.get(id)?.size === 0) this.actionListeners.delete(id);
 
     if (!this.retainedPanels.has(id)) {
-      this.panelOpen.delete(id);
+      this.panelOpenStates.delete(id);
       this.snapshots.delete(id);
       this.baseValues.delete(id);
       this.defaultValues.delete(id);
@@ -433,6 +435,42 @@ class DialStoreClass {
     }
 
     this.notifyGlobal();
+  }
+
+  /** Undefined delegates the initial state to DialRoot.defaultOpen. */
+  getPanelOpen(panelId: string): boolean | undefined {
+    return this.panelOpenStates.get(panelId);
+  }
+
+  isPanelOpen(panelId: string): boolean {
+    return this.panelOpenStates.get(panelId) ?? true;
+  }
+
+  togglePanelOpen(panelId: string): void {
+    this.setPanelOpen(panelId, !this.isPanelOpen(panelId));
+  }
+
+  /** Applies a host component's own default; no-op once the panel has state. */
+  initPanelOpen(panelId: string, open: boolean): void {
+    if (this.panelOpenStates.has(panelId)) return;
+    this.panelOpenStates.set(panelId, open);
+    this.notify(panelId);
+  }
+
+  /** Observe open requests so a containing toolkit can reveal its requested panel. */
+  subscribePanelOpen(listener: (panelId: string, open: boolean) => void): () => void {
+    this.panelOpenListeners.add(listener);
+    return () => { this.panelOpenListeners.delete(listener); };
+  }
+
+  setPanelOpen(panelId: string, open: boolean): void {
+    if (!this.panels.has(panelId)) return;
+    if (this.panelOpenStates.get(panelId) !== open) {
+      this.panelOpenStates.set(panelId, open);
+      this.notify(panelId);
+    }
+    // Repeated open requests still reveal a collapsed containing toolkit.
+    this.panelOpenListeners.forEach(listener => listener(panelId, open));
   }
 
   updateValue(panelId: string, path: string, value: DialValue): void {
@@ -536,31 +574,6 @@ class DialStoreClass {
     // Return the snapshot for useSyncExternalStore compatibility
     // Use stable EMPTY_VALUES to avoid infinite loop in React 19
     return this.snapshots.get(panelId) ?? EMPTY_VALUES;
-  }
-
-  setPanelOpen(panelId: string, open: boolean): void {
-    if (this.panelOpen.get(panelId) === open) return;
-    this.panelOpen.set(panelId, open);
-    this.notify(panelId);
-  }
-
-  togglePanelOpen(panelId: string): void {
-    this.setPanelOpen(panelId, !this.isPanelOpen(panelId));
-  }
-
-  isPanelOpen(panelId: string): boolean {
-    return this.panelOpen.get(panelId) ?? true;
-  }
-
-  getPanelOpen(panelId: string): boolean | undefined {
-    return this.panelOpen.get(panelId);
-  }
-
-  /** Applies a host component's own default; no-op once the panel has state. */
-  initPanelOpen(panelId: string, open: boolean): void {
-    if (this.panelOpen.has(panelId)) return;
-    this.panelOpen.set(panelId, open);
-    this.notify(panelId);
   }
 
   getPanels(kind?: 'panel' | 'timeline'): PanelConfig[] {
@@ -930,7 +943,7 @@ class DialStoreClass {
         controls.push({ type: 'text', path, label, placeholder: value.placeholder });
       } else if (typeof value === 'string') {
         // Auto-detect: hex color vs text
-        if (this.isHexColor(value)) {
+        if (parseColor(value) && value !== 'transparent') {
           controls.push({ type: 'color', path, label });
         } else {
           controls.push({ type: 'text', path, label });

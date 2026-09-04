@@ -13,10 +13,10 @@ import type {
 
 export interface CreateDialOptions {
   id?: string;
+  defaultCollapsed?: boolean;
   persist?: DialKitPersistOptions;
   onAction?: (action: string) => void;
   shortcuts?: Record<string, ShortcutConfig>;
-  defaultCollapsed?: boolean;
 }
 
 export interface DialKitController<T extends DialConfig> {
@@ -24,6 +24,8 @@ export interface DialKitController<T extends DialConfig> {
   setValue: (path: string, value: DialValue) => void;
   setValues: (values: DialKitValueUpdates<T>) => void;
   resetValues: () => void;
+  setOpen: (open: boolean) => void;
+  getOpen: () => boolean | undefined;
   getValues: () => ResolvedValues<T>;
 }
 
@@ -79,6 +81,8 @@ export function createDialKitController<T extends DialConfig>(
 
   return {
     values: () => values,
+    setOpen(open) { DialStore.setPanelOpen(panelId, open); },
+    getOpen() { return DialStore.getPanelOpen(panelId); },
     setValue(path, value) {
       DialStore.updateValue(panelId, path, value);
     },

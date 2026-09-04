@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { getDialKitPortalRoot, getDropdownPosition } from '../dropdown-position';
+import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition, type DropdownPosition } from '../dropdown-position';
 import { ICON_CHEVRON } from '../icons';
 
 type SelectOption = string | { value: string; label: string };
@@ -28,7 +28,7 @@ export function SelectControl({ label, value, options, onChange }: SelectControl
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
-  const [pos, setPos] = useState<{ top: number; left: number; width: number; above: boolean } | null>(null);
+  const [pos, setPos] = useState<DropdownPosition | null>(null);
   const normalized = normalizeOptions(options);
   const selectedOption = normalized.find((o) => o.value === value);
 
@@ -36,8 +36,8 @@ export function SelectControl({ label, value, options, onChange }: SelectControl
     const el = triggerRef.current;
     if (!el || !portalTarget) return;
     // Estimate dropdown height: 8px padding + 36px per option
-    const dropdownHeight = 8 + normalized.length * 36;
-    setPos(getDropdownPosition(el, portalTarget, { dropdownHeight }));
+    const dropdownHeight = dropdownRef.current ? dropdownRef.current.scrollHeight + 2 : 10 + normalized.length * 36;
+    setPos(getDropdownPosition(el, portalTarget, { dropdownHeight, fixed: true }));
   }, [normalized.length, portalTarget]);
 
   // Resolve portal target (closest .dialkit-root)
@@ -48,7 +48,8 @@ export function SelectControl({ label, value, options, onChange }: SelectControl
   // Position dropdown when opening
   useEffect(() => {
     if (!isOpen) return;
-    updatePos();
+    if (!triggerRef.current) return;
+    return observeDropdownPosition(triggerRef.current, updatePos, () => dropdownRef.current);
   }, [isOpen, updatePos]);
 
   // Close on click outside
@@ -107,10 +108,11 @@ export function SelectControl({ label, value, options, onChange }: SelectControl
               exit={{ opacity: 0, y: pos.above ? 8 : -8, scale: 0.95 }}
               transition={{ type: 'spring', visualDuration: 0.15, bounce: 0 }}
               style={{
-                position: 'absolute',
+                position: 'fixed',
                 left: pos.left,
                 top: pos.top,
                 width: pos.width,
+                maxHeight: pos.maxHeight,
                 transformOrigin: pos.above ? 'bottom' : 'top',
               }}
             >

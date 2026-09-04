@@ -4,10 +4,10 @@ import type { DialConfig, DialKitPersistOptions, DialValue, ShortcutConfig } fro
 
 export interface UseDialStorePanelOptions {
   id?: string;
+  defaultCollapsed?: boolean;
   persist?: DialKitPersistOptions;
   shortcuts?: Record<string, ShortcutConfig>;
   kind?: 'timeline';
-  defaultCollapsed?: boolean;
 }
 
 // Serialize with a referential short-circuit: consumers can re-render at 60Hz
@@ -49,8 +49,8 @@ export function useDialStorePanel(
     DialStore.registerPanel(panelId, name, configRef.current, optionsRef.current.shortcuts, {
       retainOnUnmount: hasStableId,
       persist: optionsRef.current.persist,
-      kind: optionsRef.current.kind,
       defaultCollapsed: optionsRef.current.defaultCollapsed,
+      kind: optionsRef.current.kind,
     });
     return () => DialStore.unregisterPanel(panelId);
   }, [hasStableId, panelId, name]);
@@ -65,6 +65,7 @@ export function useDialStorePanel(
     DialStore.updatePanel(panelId, name, configRef.current, optionsRef.current.shortcuts, {
       retainOnUnmount: hasStableId,
       persist: optionsRef.current.persist,
+      defaultCollapsed: optionsRef.current.defaultCollapsed,
       kind: optionsRef.current.kind,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps

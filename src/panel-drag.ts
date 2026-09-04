@@ -11,6 +11,8 @@ export type PanelDragStart = {
 };
 
 export type PanelDragOriginX = 'left' | 'right';
+export type PanelDragOriginY = 'top' | 'bottom';
+export type PanelCorner = `${PanelDragOriginY}-${PanelDragOriginX}`;
 
 const PANEL_DRAG_THRESHOLD = 8;
 const COLLAPSED_PANEL_SIZE = 42;
@@ -78,6 +80,28 @@ export function getPanelOriginX(
   }
 
   return position.endsWith('left') ? 'left' : 'right';
+}
+
+export function getPanelOriginY(
+  position: string,
+  offset: PanelDragOffset | null,
+  viewportHeight = typeof window !== 'undefined' ? window.innerHeight : undefined
+): PanelDragOriginY {
+  if (offset && viewportHeight) {
+    return offset.y + COLLAPSED_PANEL_SIZE / 2 < viewportHeight / 2 ? 'top' : 'bottom';
+  }
+
+  return position.startsWith('bottom') ? 'bottom' : 'top';
+}
+
+/** Use the bubble's center for both the snap destination and animation origin. */
+export function getPanelCorner(
+  position: string,
+  offset: PanelDragOffset | null,
+  viewportWidth = typeof window !== 'undefined' ? window.innerWidth : undefined,
+  viewportHeight = typeof window !== 'undefined' ? window.innerHeight : undefined
+): PanelCorner {
+  return `${getPanelOriginY(position, offset, viewportHeight)}-${getPanelOriginX(position, offset, viewportWidth)}`;
 }
 
 export function blockPanelDragClick(handle: HTMLElement) {

@@ -1,6 +1,6 @@
 import { Teleport, defineComponent, h, onMounted, ref, watch, type PropType } from 'vue';
 import { AnimatePresence, motion } from 'motion-v';
-import { getDialKitPortalRoot, getDropdownPosition } from '../../dropdown-position';
+import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition, type DropdownPosition } from '../../dropdown-position';
 
 type SelectOption = string | { value: string; label: string };
 
@@ -27,7 +27,7 @@ export const SelectControl = defineComponent({
   emits: ['change'],
   setup(props, { emit }) {
     const isOpen = ref(false);
-    const pos = ref<{ top: number; left: number; width: number; above: boolean } | null>(null);
+    const pos = ref<DropdownPosition | null>(null);
     const portalTarget = ref<HTMLElement | null>(null);
 
     const triggerRef = ref<HTMLElement | null>(null);
@@ -38,8 +38,8 @@ export const SelectControl = defineComponent({
 
     const updatePos = () => {
       if (!triggerRef.value || !portalTarget.value) return;
-      const dropdownHeight = 8 + normalizedOptions().length * 36;
-      pos.value = getDropdownPosition(triggerRef.value, portalTarget.value, { dropdownHeight });
+      const dropdownHeight = dropdownRef.value ? dropdownRef.value.scrollHeight + 2 : 10 + normalizedOptions().length * 36;
+      pos.value = getDropdownPosition(triggerRef.value, portalTarget.value, { dropdownHeight, fixed: true });
     };
 
     const openDropdown = () => {
@@ -81,12 +81,13 @@ export const SelectControl = defineComponent({
         closeDropdown();
       };
 
-      updatePos();
+      const stopPosition = observeDropdownPosition(triggerRef.value!, updatePos, () => dropdownRef.value);
       document.addEventListener('mousedown', handleDocumentClick);
       window.addEventListener('resize', handleViewportChange);
       window.addEventListener('scroll', handleViewportChange, true);
 
       onCleanup(() => {
+        stopPosition();
         document.removeEventListener('mousedown', handleDocumentClick);
         window.removeEventListener('resize', handleViewportChange);
         window.removeEventListener('scroll', handleViewportChange, true);
@@ -133,10 +134,11 @@ export const SelectControl = defineComponent({
                 exit: { opacity: 0, y: pos.value.above ? 8 : -8, scale: 0.95 },
                 transition: { type: 'spring', visualDuration: 0.15, bounce: 0 },
                 style: {
-                  position: 'absolute',
+                  position: 'fixed',
                   left: `${pos.value.left}px`,
                   top: `${pos.value.top}px`,
                   width: `${pos.value.width}px`,
+                  maxHeight: `${pos.value.maxHeight}px`,
                   transformOrigin: pos.value.above ? 'bottom' : 'top',
                 },
               }, normalizedOptions().map((option) => h('button', {

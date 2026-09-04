@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { DialStore } from 'dialkit/store';
   import type { PanelConfig } from 'dialkit/store';
   import { TimelineStore } from 'dialkit/timeline';
@@ -11,10 +12,12 @@
   import ShortcutListener from './ShortcutListener.svelte';
   import {
     blockPanelDragClick,
+    getPanelCorner,
     getPanelDragHandle,
     getPanelDragOffset,
     getPanelDragStart,
     getPanelOriginX,
+    getPanelOriginY,
     hasPanelDragMoved,
     type PanelDragOffset,
     type PanelDragStart,
@@ -42,6 +45,7 @@
   }>();
 
   const inline = $derived(mode === 'inline');
+  let shellOpen = $state(untrack(() => mode === 'inline' || defaultOpen));
 
   let panels = $state<PanelConfig[]>([]);
   let timelines = $state<TimelineMeta[]>([]);
@@ -54,6 +58,7 @@
   let dragStart: PanelDragStart | null = null;
   let didDrag = false;
   let dragTarget: HTMLElement | null = null;
+  let panelOpenStates = new Map<string, boolean>();
   let rootOpen: boolean | undefined;
 
   const dragStyle = $derived(
@@ -62,6 +67,7 @@
       : undefined
   );
   const originX = $derived(inline ? undefined : getPanelOriginX(activePosition, dragOffset));
+  const originY = $derived(inline ? undefined : getPanelOriginY(activePosition, dragOffset));
 
   $effect(() => {
     if (typeof document === 'undefined') return;
@@ -84,6 +90,11 @@
     const unsubscribePanels = DialStore.subscribeGlobal(() => {
       panels = DialStore.getPanels('panel');
     });
+    const unsubscribeOpen = DialStore.subscribePanelOpen((id, open) => {
+      if (!panels.some(panel => panel.id === id)) return;
+      if (panels.length > 1 && open) handleRootOpenChange(true);
+      else if (panels.length === 1) handlePanelOpenChange(id, open);
+    });
     const unsubscribeTimelines = TimelineStore.subscribeGlobal(() => {
       timelines = TimelineStore.getTimelines();
     });
@@ -91,12 +102,18 @@
     return () => {
       unsubscribePanels();
       unsubscribeTimelines();
+      unsubscribeOpen();
     };
   });
 
   $effect(() => {
     const fallbackOpen = inline || defaultOpen;
-    rootOpen = panels.some((panel) => DialStore.getPanelOpen(panel.id) ?? fallbackOpen);
+    const nextStates = new Map<string, boolean>();
+    for (const panel of panels) {
+      nextStates.set(panel.id, panelOpenStates.get(panel.id) ?? DialStore.getPanelOpen(panel.id) ?? fallbackOpen);
+    }
+    panelOpenStates = nextStates;
+    rootOpen = Array.from(nextStates.values()).some(Boolean);
   });
 
   $effect(() => {
@@ -110,8 +127,7 @@
       if (!collapsed) {
         if (dragOffset) {
           lastDragOffset = dragOffset;
-          const bubbleCenterX = dragOffset.x + 21;
-          activePosition = bubbleCenterX < window.innerWidth / 2 ? 'top-left' : 'top-right';
+          activePosition = getPanelCorner(position, dragOffset);
         } else {
           activePosition = position;
         }
@@ -168,13 +184,20 @@
     dragTarget = null;
   }
 
-  // Sections write their own state to the store, so re-derive from it.
-  function handleSectionOpenChange() {
+  function handlePanelOpenChange(panelId: string, open: boolean) {
+    panelOpenStates.set(panelId, open);
     const fallbackOpen = inline || defaultOpen;
-    handleRootOpenChange(panels.some((panel) => DialStore.getPanelOpen(panel.id) ?? fallbackOpen));
+    const nextRootOpen = panels.some((panel) => (
+      panelOpenStates.get(panel.id) ?? fallbackOpen
+    ));
+
+    if (rootOpen === nextRootOpen) return;
+    rootOpen = nextRootOpen;
+    onOpenChange?.(nextRootOpen);
   }
 
   function handleRootOpenChange(open: boolean) {
+    shellOpen = open;
     if (rootOpen === open) return;
     rootOpen = open;
     onOpenChange?.(open);
@@ -198,6 +221,7 @@
           data-mode={mode}
           data-position={inline ? undefined : (dragOffset ? undefined : activePosition)}
           data-origin-x={originX}
+          data-origin-y={originY}
           data-multiple={panels.length > 1 ? 'true' : undefined}
           style={dragStyle}
           onpointerdown={!inline ? handlePointerDown : undefined}
@@ -209,11 +233,11 @@
             <div class="dialkit-panel-wrapper">
               <Folder
                 title="DialKit"
+                open={shellOpen}
                 defaultOpen={inline || defaultOpen}
                 isRoot={true}
                 {inline}
                 onOpenChange={handleRootOpenChange}
-                panelHeightOffset={2}
               >
                 {#snippet toolbar()}
                   {@render timelineToolbar()}
@@ -225,11 +249,11 @@
             <div class="dialkit-panel-wrapper">
               <Folder
                 title="DialKit"
+                open={shellOpen}
                 defaultOpen={inline || defaultOpen}
                 isRoot={true}
                 {inline}
                 onOpenChange={handleRootOpenChange}
-                panelHeightOffset={2}
               >
                 {#snippet toolbar()}
                   {@render timelineToolbar()}
@@ -250,7 +274,7 @@
                 defaultOpen={inline || defaultOpen}
                 {inline}
                 toolbarExtra={timelineToolbar}
-                onOpenChange={handleSectionOpenChange}
+                onOpenChange={(open) => handlePanelOpenChange(panel.id, open)}
               />
             {/each}
           {/if}

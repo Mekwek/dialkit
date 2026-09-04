@@ -1,4 +1,4 @@
-import { createSignal, createEffect, on, onCleanup, untrack, Show, JSX } from 'solid-js';
+import { createSignal, createEffect, on, onCleanup, Show, JSX } from 'solid-js';
 import { animate } from 'motion';
 import { ICON_CHEVRON } from '../../icons';
 import type { AnimationHandle } from '../primitives';
@@ -29,10 +29,10 @@ export function Folder(props: FolderProps) {
     return <RootPanel {...props} />;
   }
 
-  const initialOpen = props.open ?? props.defaultOpen ?? true;
-  const [isOpen, setIsOpen] = createSignal(initialOpen);
-  const [contentMounted, setContentMounted] = createSignal(initialOpen);
-  let skipFirstAnim = initialOpen;
+  const [localOpen, setIsOpen] = createSignal(props.defaultOpen ?? true);
+  const isOpen = () => props.open ?? localOpen();
+  const [contentMounted, setContentMounted] = createSignal(props.open ?? props.defaultOpen ?? true);
+  let skipFirstAnim = props.open ?? props.defaultOpen ?? true;
   let sectionContentRef: HTMLDivElement | undefined;
   let sectionAnim: AnimationHandle | null = null;
   let chevronRef: SVGSVGElement | undefined;
@@ -54,8 +54,7 @@ export function Folder(props: FolderProps) {
     );
   }, { defer: true }));
 
-  const applyOpen = (next: boolean) => {
-    setIsOpen(next);
+  createEffect(on(isOpen, (next) => {
     if (next) {
       sectionAnim?.stop();
       sectionAnim = null;
@@ -94,17 +93,11 @@ export function Folder(props: FolderProps) {
     } else {
       setContentMounted(false);
     }
-  };
-
-  // Controlled mode: the parent owns the state, so mirror it into the animation.
-  createEffect(() => {
-    const controlled = props.open;
-    if (controlled !== undefined && controlled !== untrack(isOpen)) applyOpen(controlled);
-  });
+  }, { defer: true }));
 
   const handleToggle = () => {
     const next = !isOpen();
-    if (props.open === undefined) applyOpen(next);
+    setIsOpen(next);
     props.onOpenChange?.(next);
   };
 
@@ -125,7 +118,7 @@ export function Folder(props: FolderProps) {
             stroke-width="2.5"
             stroke-linecap="round"
             stroke-linejoin="round"
-            style={{ transform: `rotate(${initialOpen ? 0 : 180}deg)` }}
+            style={{ transform: `rotate(${(props.open ?? props.defaultOpen ?? true) ? 0 : 180}deg)` }}
           >
             <path d={ICON_CHEVRON} />
           </svg>

@@ -1,7 +1,7 @@
 import { createSignal, createEffect, on, onMount, onCleanup, Show, For } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import { animate } from 'motion';
-import { getDialKitPortalRoot, getDropdownPosition } from '../../dropdown-position';
+import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition, type DropdownPosition } from '../../dropdown-position';
 import { ICON_CHEVRON } from '../../icons';
 import { createDropdownDismiss, createDropdownPresence, type AnimationHandle } from '../primitives';
 
@@ -25,9 +25,10 @@ function normalizeOptions(options: SelectOption[]): { value: string; label: stri
 }
 
 export function SelectControl(props: SelectControlProps) {
-  const [pos, setPos] = createSignal<{ top: number; left: number; width: number; above: boolean } | null>(null);
+  const [pos, setPos] = createSignal<DropdownPosition | null>(null);
   const [portalTarget, setPortalTarget] = createSignal<HTMLElement | null>(null);
   let triggerRef!: HTMLButtonElement;
+  let dropdownRef: HTMLDivElement | undefined;
   let chevronRef!: SVGSVGElement;
   let chevronAnim: AnimationHandle | null = null;
 
@@ -61,9 +62,14 @@ export function SelectControl(props: SelectControlProps) {
   const updatePos = () => {
     const root = portalTarget();
     if (!triggerRef || !root) return;
-    const dropdownHeight = 8 + normalized().length * 36;
-    setPos(getDropdownPosition(triggerRef, root, { dropdownHeight }));
+    const dropdownHeight = dropdownRef?.isConnected ? dropdownRef.scrollHeight + 2 : 10 + normalized().length * 36;
+    setPos(getDropdownPosition(triggerRef, root, { dropdownHeight, fixed: true }));
   };
+
+  createEffect(() => {
+    if (!dropdown.isOpen() || !triggerRef) return;
+    onCleanup(observeDropdownPosition(triggerRef, updatePos, () => dropdownRef));
+  });
 
   const openDropdown = () => {
     updatePos();
@@ -81,10 +87,11 @@ export function SelectControl(props: SelectControlProps) {
     const p = pos();
     if (!p) return {};
     return {
-      position: 'absolute' as const,
+      position: 'fixed' as const,
       left: `${p.left}px`,
       top: `${p.top}px`,
       width: `${p.width}px`,
+      'max-height': `${p.maxHeight}px`,
       'transform-origin': p.above ? 'bottom' : 'top',
     };
   };
@@ -120,6 +127,7 @@ export function SelectControl(props: SelectControlProps) {
           <Show when={dropdown.mounted() && pos()}>
             <div
               ref={(el) => {
+                dropdownRef = el;
                 dropdown.setRef(el);
                 const above = pos()?.above ?? false;
                 animate(

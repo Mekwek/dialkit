@@ -38,6 +38,8 @@ export default defineConfig([
       icons: 'src/icons.ts',
       'dropdown-position': 'src/dropdown-position.ts',
       'panel-drag': 'src/panel-drag.ts',
+      'panel-size': 'src/panel-size.ts',
+      'color-control': 'src/color-control.ts',
       'shortcut-utils': 'src/shortcut-utils.ts',
     },
     format: ['esm'],
