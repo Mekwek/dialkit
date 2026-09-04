@@ -56,6 +56,7 @@ export function isInputFocused(): boolean {
   if (!el) return false;
   const tag = el.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA') return true;
+  if (el.closest('select, button, [role="slider"], [role="radio"], [role="listbox"], [role="menu"], [role="menuitem"], [role="menuitemradio"], [role="button"]')) return true;
   if ((el as HTMLElement).contentEditable === 'true') return true;
   return false;
 }

@@ -7,7 +7,7 @@ import { Folder } from './Folder';
 import { Panel } from './Panel';
 import { ShortcutListener } from './ShortcutListener';
 import { TimelineToggleButton } from './Timeline/TimelineToggleButton';
-import { blockPanelDragClick, getPanelCorner, getPanelDragHandle, getPanelDragOffset, getPanelDragStart, getPanelOriginX, getPanelOriginY, hasPanelDragMoved } from '../panel-drag';
+import { blockPanelDragClick, capturePanelPointer, releasePanelPointer, getPanelCorner, getPanelDragHandle, getPanelDragOffset, getPanelDragStart, getPanelOriginX, getPanelOriginY, hasPanelDragMoved } from '../panel-drag';
 
 export type DialPosition = 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
 export type DialMode = 'popover' | 'inline';
@@ -112,7 +112,7 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
     dragStartRef.current = getPanelDragStart(e.clientX, e.clientY, panel);
     didDragRef.current = false;
     draggingRef.current = true;
-    handle.setPointerCapture(e.pointerId);
+    capturePanelPointer(handle, e.pointerId);
   }, []);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
@@ -131,7 +131,7 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
     const dragTarget = dragTargetRef.current;
 
     if (dragTarget?.hasPointerCapture(e.pointerId)) {
-      dragTarget.releasePointerCapture(e.pointerId);
+      releasePanelPointer(dragTarget, e.pointerId);
     }
 
     // If we actually dragged, prevent the click from opening the panel

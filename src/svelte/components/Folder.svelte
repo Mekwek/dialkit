@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { activateOnKey } from '../../control-keyboard';
+
   import { measurePanelHeight } from '../../panel-size';
 
   import { Spring } from 'svelte/motion';
@@ -163,7 +165,7 @@
   >
     <div bind:this={contentRef} class="dialkit-folder dialkit-folder-root" data-open={String(isOpen)}>
       <div class="dialkit-folder-header dialkit-panel-header" onclick={(e) => { e.stopPropagation(); handleToggle(); }}>
-        <div class="dialkit-folder-header-top">
+        <div class="dialkit-folder-header-top" role="button" tabindex="0" aria-label={title} aria-expanded={isOpen} onkeydown={(e) => activateOnKey(e, handleToggle)}>
           {#if isOpen}
             <div class="dialkit-folder-title-row">
               <span class="dialkit-folder-title dialkit-folder-title-root">{title}</span>
@@ -201,7 +203,7 @@
 {:else}
   <div class="dialkit-folder" data-open={String(isOpen)}>
     <div class="dialkit-folder-header" onclick={handleToggle}>
-      <div class="dialkit-folder-header-top">
+      <div class="dialkit-folder-header-top" role="button" tabindex="0" aria-label={title} aria-expanded={isOpen} onkeydown={(e) => activateOnKey(e, handleToggle)}>
         <div class="dialkit-folder-title-row">
           <span class="dialkit-folder-title">{title}</span>
         </div>

@@ -563,6 +563,19 @@ When the panel is open, the toolbar provides:
 
 ## Keyboard Shortcuts
 
+All controls also work directly from the keyboard, without configuring shortcuts:
+
+| Control | Keys |
+| --- | --- |
+| Panel or folder header | Tab to focus; Enter or Space to expand or collapse |
+| Slider | Arrow keys adjust by one step; Shift + Arrow or Page Up/Down adjusts by ten steps; Home/End selects the minimum/maximum |
+| Slider value | Enter opens the numeric editor; Enter commits, Escape cancels, and Tab commits and advances |
+| Select or version menu | Enter, Space, or Up/Down opens; arrows, Home/End, and typing navigate; Enter/Space selects; Escape cancels |
+| Segmented control | Tab reaches the selected segment; arrows move and select; Home/End selects the first/last segment |
+| Color picker | Tab moves between the format, color field, hue, opacity, and CSS value; arrows adjust the focused control; Escape closes |
+
+Dropdowns return focus to their trigger when selected or dismissed with Escape. Tab and Shift + Tab leave the dropdown in the owning panel's normal order. Keyboard focus uses the current theme and stays inside control edges to avoid clipping in scrolling panels.
+
 Assign keyboard shortcuts to controls so you can adjust values without touching the panel. Pass a `shortcuts` map in the options object:
 
 ```tsx

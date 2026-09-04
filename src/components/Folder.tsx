@@ -1,3 +1,4 @@
+import { activateOnKey } from '../control-keyboard';
 import { measurePanelHeight } from '../panel-size';
 import { useState, useRef, useEffect, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -58,7 +59,7 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
       data-open={String(isOpen)}
     >
       <div className={`dialkit-folder-header ${isRoot ? 'dialkit-panel-header' : ''}`} onClick={handleToggle}>
-        <div className="dialkit-folder-header-top">
+        <div className="dialkit-folder-header-top" role={inline && isRoot ? undefined : "button"} tabIndex={inline && isRoot ? undefined : 0} aria-label={title} aria-expanded={isOpen} onKeyDown={(e) => activateOnKey(e, handleToggle)}>
           {isRoot ? (
             isOpen && (
               <div className="dialkit-folder-title-row">
@@ -144,6 +145,7 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
     return (
       <motion.div
         className="dialkit-panel-inner"
+        tabIndex={-1}
         style={panelStyle}
         onClick={!isOpen ? handleToggle : undefined}
         data-collapsed={isCollapsed}

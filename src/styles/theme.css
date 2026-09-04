@@ -24,6 +24,7 @@
   /* Borders */
   --dial-border: rgba(255, 255, 255, 0.1);
   --dial-border-hover: rgba(255, 255, 255, 0.15);
+  --dial-focus-ring: rgba(255, 255, 255, 0.6);
 
   /* Timeline clips are light by default; light themes add a dark tint so
      their shape stays distinct from the lane without replacing custom hues. */
@@ -1078,7 +1079,6 @@
 .dialkit-color-format:hover { color: var(--dial-text-primary); }
 .dialkit-color-css-input { display: block; width: 100%; height: var(--dial-row-height); padding: 0 12px; border: 0; border-radius: var(--dial-radius); background: var(--dial-surface); outline: none; color: var(--dial-text-label); font: 500 13px 'Geist Mono', monospace; }
 .dialkit-color-css-input:focus { color: var(--dial-text-focus); }
-.dialkit-color-popover :focus-visible:not(.dialkit-color-css-input), .dialkit-color-swatch:focus-visible { outline: 2px solid var(--dial-text-secondary); outline-offset: 3px; }
 .dialkit-color-popover input[aria-invalid="true"], .dialkit-color-value[aria-invalid="true"] { color: #ef7777; }
 @keyframes dialkit-color-enter { from { opacity: 0; transform: translateY(3px) scale(0.98); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
@@ -1134,6 +1134,10 @@
 
 
 .dialkit-preset-dropdown {
+  margin: 0;
+  inset: auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   width: max-content;
   background: var(--dial-dropdown-bg);
   border: 1px solid var(--dial-border);
@@ -1172,6 +1176,15 @@
 }
 
 .dialkit-preset-name {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
   font-size: 13px;
   font-weight: 500;
   color: var(--dial-text-label);
@@ -1202,6 +1215,9 @@
 .dialkit-preset-item:hover .dialkit-preset-delete {
   opacity: 0.6;
 }
+
+.dialkit-preset-item:focus-within .dialkit-preset-delete { opacity: 0.6; }
+.dialkit-preset-item:focus-within { background: var(--dial-surface-hover); }
 
 .dialkit-preset-delete:hover {
   opacity: 1 !important;
@@ -1434,6 +1450,7 @@
 
   --dial-border: rgba(0, 0, 0, 0.1);
   --dial-border-hover: rgba(0, 0, 0, 0.15);
+  --dial-focus-ring: rgba(0, 0, 0, 0.55);
 
   --dial-timeline-clip-overlay: rgba(0, 0, 0, 0.28);
 
@@ -1481,6 +1498,7 @@
 
     --dial-border: rgba(0, 0, 0, 0.1);
     --dial-border-hover: rgba(0, 0, 0, 0.15);
+    --dial-focus-ring: rgba(0, 0, 0, 0.55);
 
     --dial-timeline-clip-overlay: rgba(0, 0, 0, 0.28);
 
@@ -2280,4 +2298,27 @@
   .dialkit-timeline-grid {
     min-width: 0;
   }
+}
+
+/* Keyboard focus stays inside each control so scrolling never clips its edge. */
+.dialkit-root :where(button, input, textarea, [tabindex]):focus {
+  outline: none;
+}
+.dialkit-root :where(button, [role="slider"], [role="button"], .dialkit-color-plane):focus-visible {
+  outline: 2px solid var(--dial-focus-ring);
+  outline-offset: -2px;
+}
+.dialkit-folder-header-top[role="button"] { border-radius: 5px; }
+.dialkit-panel-inner[data-collapsed="true"] .dialkit-folder-header-top { border-radius: 50%; }
+.dialkit-slider:focus-visible .dialkit-slider-value,
+.dialkit-slider:focus-within .dialkit-slider-value { color: var(--dial-text-focus); }
+.dialkit-slider:focus-visible .dialkit-slider-fill { background: var(--dial-border-hover); }
+.dialkit-select-option:focus-visible { background: var(--dial-surface-hover); color: var(--dial-text-focus); }
+.dialkit-root :where(.dialkit-text-input, .dialkit-slider-input, .dialkit-color-value, .dialkit-preset-input):focus-visible {
+  box-shadow: inset 0 -1px var(--dial-focus-ring);
+}
+.dialkit-color-css-input:focus-visible { outline: none; }
+.dialkit-shortcuts-dropdown { margin: 0; inset: auto; overflow-y: auto; }
+@media (forced-colors: active) {
+  .dialkit-root { --dial-focus-ring: Highlight; }
 }

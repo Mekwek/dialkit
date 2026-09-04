@@ -9,6 +9,8 @@ import { Panel } from './Panel';
 import { TimelineToggleButton } from './Timeline/TimelineToggleButton';
 import {
   blockPanelDragClick,
+  capturePanelPointer,
+  releasePanelPointer,
   getPanelCorner,
   getPanelDragHandle,
   getPanelDragOffset,
@@ -162,7 +164,7 @@ function DialRootInner(props: DialRootProps) {
     dragStart = getPanelDragStart(event.clientX, event.clientY, panel);
     didDrag = false;
     dragging = true;
-    handle.setPointerCapture(event.pointerId);
+    capturePanelPointer(handle, event.pointerId);
   };
 
   const handlePointerMove = (event: PointerEvent) => {
@@ -181,7 +183,7 @@ function DialRootInner(props: DialRootProps) {
     const handle = dragTarget;
 
     if (handle?.hasPointerCapture(event.pointerId)) {
-      handle.releasePointerCapture(event.pointerId);
+      releasePanelPointer(handle, event.pointerId);
     }
 
     if (didDrag) {

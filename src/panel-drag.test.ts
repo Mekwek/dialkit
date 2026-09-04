@@ -1,8 +1,19 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { getPanelCorner, getPanelOriginX, getPanelOriginY } from './panel-drag';
+import { getPanelCorner, getPanelOriginX, getPanelOriginY, capturePanelPointer, releasePanelPointer } from './panel-drag';
 
 describe('panel snap corner and animation origin', () => {
+  it('handles a pointer ending while the drag handle is being replaced', () => {
+    const handle = {
+      setPointerCapture() { throw new DOMException('Pointer ended', 'NotFoundError'); },
+      hasPointerCapture() { return true; },
+      releasePointerCapture() { throw new DOMException('Handle detached', 'InvalidStateError'); },
+    } as unknown as HTMLElement;
+    assert.doesNotThrow(() => capturePanelPointer(handle, 1));
+    assert.doesNotThrow(() => releasePanelPointer(handle, 1));
+    const broken = { setPointerCapture() { throw new Error('Unexpected'); } } as unknown as HTMLElement;
+    assert.throws(() => capturePanelPointer(broken, 1), /Unexpected/);
+  });
   it('uses the configured corner before the bubble is dragged', () => {
     for (const corner of ['top-left', 'top-right', 'bottom-left', 'bottom-right'] as const) {
       assert.equal(getPanelCorner(corner, null, 1000, 800), corner);

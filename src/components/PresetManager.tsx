@@ -1,3 +1,5 @@
+import { observeDropdownKeyboard } from '../dropdown-keyboard';
+import { openDropdownOnKey } from '../control-keyboard';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
@@ -49,8 +51,9 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd }: Prese
       close();
     };
 
+    const stopKeyboard = observeDropdownKeyboard(triggerRef.current!, () => dropdownRef.current, close, 'presets');
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    return () => { stopKeyboard(); document.removeEventListener('mousedown', handler); };
   }, [isOpen, close]);
 
   const handleSelect = (presetId: string | null) => {
@@ -76,6 +79,8 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd }: Prese
         data-open={String(isOpen)}
         data-has-preset={String(!!activePreset)}
         data-disabled={String(!hasPresets)}
+        type="button" aria-haspopup="menu" aria-expanded={isOpen} disabled={!hasPresets}
+        aria-label="Versions" onKeyDown={(e) => openDropdownOnKey(e, open)}
       >
         <span className="dialkit-preset-label">
           {activePreset ? activePreset.name : 'Version 1'}
@@ -112,7 +117,7 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd }: Prese
                 data-active={String(!activePresetId)}
                 onClick={() => handleSelect(null)}
               >
-                <span className="dialkit-preset-name">Version 1</span>
+                <button type="button" className="dialkit-preset-name">Version 1</button>
               </div>
 
               {presets.map((preset) => (
@@ -122,11 +127,11 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd }: Prese
                   data-active={String(preset.id === activePresetId)}
                   onClick={() => handleSelect(preset.id)}
                 >
-                  <span className="dialkit-preset-name">{preset.name}</span>
+                  <button type="button" className="dialkit-preset-name">{preset.name}</button>
                   <button
                     className="dialkit-preset-delete"
                     onClick={(e) => handleDelete(e, preset.id)}
-                    title="Delete preset"
+                    type="button" title={`Delete ${preset.name}`}
                   >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       {ICON_TRASH.map((d, i) => (

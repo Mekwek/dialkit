@@ -7,8 +7,8 @@
   }>();
 </script>
 
-<div class="dialkit-text-control">
-  <label class="dialkit-text-label">{label}</label>
+<label class="dialkit-text-control">
+  <span class="dialkit-text-label">{label}</span>
   <input
     type="text"
     class="dialkit-text-input"
@@ -16,4 +16,4 @@
     placeholder={placeholder}
     oninput={(e) => onChange((e.currentTarget as HTMLInputElement).value)}
   />
-</div>
+</label>

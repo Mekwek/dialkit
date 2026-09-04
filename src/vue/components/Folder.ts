@@ -1,3 +1,4 @@
+import { activateOnKey } from '../../control-keyboard';
 import { measurePanelHeight } from '../../panel-size';
 import { computed, defineComponent, h, onMounted, onUnmounted, ref, type PropType, type VNodeChild } from 'vue';
 import { AnimatePresence, motion } from 'motion-v';
@@ -78,7 +79,7 @@ export const Folder = defineComponent({
       class: `dialkit-folder-header ${props.isRoot ? 'dialkit-panel-header' : ''}`,
       onClick: handleToggle,
     }, [
-      h('div', { class: 'dialkit-folder-header-top' }, [
+      h('div', { class: 'dialkit-folder-header-top', role: props.inline && props.isRoot ? undefined : 'button', tabindex: props.inline && props.isRoot ? undefined : 0, 'aria-label': props.title, 'aria-expanded': isOpen.value, onKeydown: (e: KeyboardEvent) => activateOnKey(e, handleToggle) }, [
         props.isRoot
           ? (isOpen.value
               ? h('div', { class: 'dialkit-folder-title-row' }, [
@@ -177,6 +178,7 @@ export const Folder = defineComponent({
 
         return h(motion.div, {
           class: 'dialkit-panel-inner',
+          tabindex: -1,
           style: panelStyle,
           onClick: !isOpen.value ? handleToggle : undefined,
           'data-collapsed': String(isCollapsed.value),

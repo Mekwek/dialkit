@@ -1,3 +1,4 @@
+import { observeDropdownKeyboard } from '../dropdown-keyboard';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
@@ -28,6 +29,13 @@ function formatInteraction(sc: ShortcutConfig): string {
 
 export function ShortcutsMenu({ panelId }: ShortcutsMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [panel, setPanel] = useState(() => DialStore.getPanel(panelId));
+  useEffect(() => {
+    const update = () => setPanel(DialStore.getPanel(panelId));
+    const stop = DialStore.subscribeGlobal(update);
+    update();
+    return stop;
+  }, [panelId]);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ top: 0, right: 0 });
@@ -60,11 +68,11 @@ export function ShortcutsMenu({ panelId }: ShortcutsMenuProps) {
       close();
     };
 
+    const stopKeyboard = observeDropdownKeyboard(triggerRef.current!, () => dropdownRef.current, close, 'help');
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    return () => { stopKeyboard(); document.removeEventListener('mousedown', handler); };
   }, [isOpen, close]);
 
-  const panel = DialStore.getPanel(panelId);
   if (!panel) return null;
 
   const shortcuts = Object.entries(panel.shortcuts);
@@ -97,6 +105,7 @@ export function ShortcutsMenu({ panelId }: ShortcutsMenuProps) {
         className="dialkit-shortcuts-trigger"
         onClick={toggle}
         title="Keyboard shortcuts"
+        type="button" aria-haspopup="dialog" aria-expanded={isOpen}
         whileTap={{ scale: 0.9 }}
         transition={{ type: 'spring', visualDuration: 0.15, bounce: 0.3 }}
       >

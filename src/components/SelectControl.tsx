@@ -1,3 +1,5 @@
+import { observeDropdownKeyboard } from '../dropdown-keyboard';
+import { openDropdownOnKey } from '../control-keyboard';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
@@ -49,7 +51,9 @@ export function SelectControl({ label, value, options, onChange }: SelectControl
   useEffect(() => {
     if (!isOpen) return;
     if (!triggerRef.current) return;
-    return observeDropdownPosition(triggerRef.current, updatePos, () => dropdownRef.current);
+    const stopPosition = observeDropdownPosition(triggerRef.current, updatePos, () => dropdownRef.current);
+    const stopKeyboard = observeDropdownKeyboard(triggerRef.current, () => dropdownRef.current, () => setIsOpen(false));
+    return () => { stopKeyboard(); stopPosition(); };
   }, [isOpen, updatePos]);
 
   // Close on click outside
@@ -77,6 +81,8 @@ export function SelectControl({ label, value, options, onChange }: SelectControl
         className="dialkit-select-trigger"
         onClick={() => setIsOpen(!isOpen)}
         data-open={String(isOpen)}
+        type="button" aria-haspopup="listbox" aria-expanded={isOpen} disabled={!options.length}
+        onKeyDown={(e) => openDropdownOnKey(e, () => setIsOpen(true))}
       >
         <span className="dialkit-select-label">{label}</span>
         <div className="dialkit-select-right">

@@ -1,3 +1,5 @@
+import { observeDropdownKeyboard } from '../../dropdown-keyboard';
+import { openDropdownOnKey } from '../../control-keyboard';
 import { createSignal, createEffect, on, onMount, onCleanup, Show, For } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import { animate } from 'motion';
@@ -69,6 +71,7 @@ export function SelectControl(props: SelectControlProps) {
   createEffect(() => {
     if (!dropdown.isOpen() || !triggerRef) return;
     onCleanup(observeDropdownPosition(triggerRef, updatePos, () => dropdownRef));
+    onCleanup(observeDropdownKeyboard(triggerRef, () => dropdownRef, dropdown.close));
   });
 
   const openDropdown = () => {
@@ -103,6 +106,8 @@ export function SelectControl(props: SelectControlProps) {
         class="dialkit-select-trigger"
         onClick={() => dropdown.isOpen() ? dropdown.close() : openDropdown()}
         data-open={String(dropdown.isOpen())}
+        type="button" aria-haspopup="listbox" aria-expanded={dropdown.isOpen()} disabled={!props.options.length}
+        onKeyDown={(e) => openDropdownOnKey(e, openDropdown)}
       >
         <span class="dialkit-select-label">{props.label}</span>
         <div class="dialkit-select-right">

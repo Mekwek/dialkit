@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { observeDropdownKeyboard } from '../../dropdown-keyboard';
+
   import { DialStore } from 'dialkit/store';
   import type { ShortcutConfig } from 'dialkit/store';
   import Portal from '../Portal.svelte';
@@ -56,19 +58,28 @@
       close();
     };
 
+    const stopKeyboard = observeDropdownKeyboard(triggerEl!, () => dropdownEl, close, 'help');
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    return () => { stopKeyboard(); document.removeEventListener('mousedown', handler); };
   });
 
-  const panel = $derived(DialStore.getPanel(panelId));
+  let panel = $state<ReturnType<typeof DialStore.getPanel>>();
+  $effect(() => {
+    const id = panelId;
+    const update = () => { panel = DialStore.getPanel(id); };
+    const stop = DialStore.subscribeGlobal(update);
+    update();
+    return stop;
+  });
 
   const rows = $derived.by(() => {
-    if (!panel) return [];
-    const shortcuts = Object.entries(panel.shortcuts);
+    const currentPanel = panel;
+    if (!currentPanel) return [];
+    const shortcuts = Object.entries(currentPanel.shortcuts);
     if (shortcuts.length === 0) return [];
 
     return shortcuts.map(([path, shortcut]) => {
-      const findLabel = (controls: typeof panel.controls): string => {
+      const findLabel = (controls: typeof currentPanel.controls): string => {
         for (const c of controls) {
           if (c.path === path) return c.label;
           if (c.type === 'folder' && c.children) {
@@ -78,7 +89,7 @@
         }
         return path;
       };
-      return { path, shortcut, label: findLabel(panel.controls) };
+      return { path, shortcut, label: findLabel(currentPanel.controls) };
     });
   });
 </script>
@@ -89,6 +100,7 @@
     class="dialkit-shortcuts-trigger"
     onclick={toggle}
     title="Keyboard shortcuts"
+    type="button" aria-haspopup="dialog" aria-expanded={isOpen}
   >
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <rect x="2" y="6" width="20" height="12" rx="2" />

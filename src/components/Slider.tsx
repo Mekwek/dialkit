@@ -1,3 +1,4 @@
+import { handleSliderKey } from '../control-keyboard';
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { motion, useMotionValue, useTransform, animate } from 'motion/react';
 import type { ShortcutConfig } from '../store/DialStore';
@@ -34,6 +35,7 @@ export function Slider({
   const wrapperRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const editingEnded = useRef(false);
   const labelRef = useRef<HTMLSpanElement>(null);
   const valueSpanRef = useRef<HTMLSpanElement>(null);
   const [isInteracting, setIsInteracting] = useState(false);
@@ -267,6 +269,8 @@ export function Slider({
   };
 
   const handleInputSubmit = () => {
+    if (editingEnded.current) return;
+    editingEnded.current = true;
     const parsed = parseFloat(inputValue);
     if (!isNaN(parsed)) {
       const clamped = Math.max(min, Math.min(max, parsed));
@@ -281,18 +285,23 @@ export function Slider({
     if (isValueEditable) {
       e.stopPropagation();
       e.preventDefault();
+      editingEnded.current = false;
       setShowInput(true);
       setInputValue(value.toFixed(decimalsForStep(step)));
     }
   };
 
   const handleInputKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleInputSubmit();
-    } else if (e.key === 'Escape') {
+    e.stopPropagation();
+    if (e.key !== 'Enter' && e.key !== 'Escape') return;
+    e.preventDefault();
+    if (e.key === 'Enter') handleInputSubmit();
+    else {
+      editingEnded.current = true;
       setShowInput(false);
       setIsValueHovered(false);
     }
+    queueMicrotask(() => trackRef.current?.focus({ preventScroll: true }));
   };
 
   const handleInputBlur = () => {
@@ -356,6 +365,20 @@ export function Slider({
       <motion.div
         ref={trackRef}
         className={`dialkit-slider ${isActive ? 'dialkit-slider-active' : ''}`}
+        role="slider"
+        tabIndex={showInput ? -1 : 0}
+        aria-label={label}
+        aria-valuemin={min}
+        aria-valuemax={max}
+        aria-valuenow={value}
+        aria-valuetext={`${displayValue}${unit ? ` ${unit}` : ''}`}
+        onKeyDown={(e) => handleSliderKey(e, value, min, max, step, (next) => {
+          animRef.current?.stop(); animRef.current = null;
+          fillPercent.jump(percentFromValue(next)); onChange(next);
+        }, () => {
+          editingEnded.current = false;
+          setInputValue(value.toFixed(decimalsForStep(step))); setShowInput(true);
+        })}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -404,6 +427,7 @@ export function Slider({
             ref={inputRef}
             type="text"
             className="dialkit-slider-input"
+            aria-label={`${label} value`}
             value={inputValue}
             onChange={handleInputChange}
             onKeyDown={handleInputKeyDown}

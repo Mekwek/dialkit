@@ -9,6 +9,8 @@ import { ShortcutListener } from './ShortcutListener';
 import { TimelineToggleButton } from './Timeline/TimelineToggleButton';
 import {
   blockPanelDragClick,
+  capturePanelPointer,
+  releasePanelPointer,
   getPanelCorner,
   getPanelDragHandle,
   getPanelDragOffset,
@@ -123,7 +125,7 @@ export const DialRoot = defineComponent({
       dragStart = getPanelDragStart(event.clientX, event.clientY, panel);
       didDrag = false;
       dragging = true;
-      handle.setPointerCapture(event.pointerId);
+      capturePanelPointer(handle, event.pointerId);
     };
 
     const handlePointerMove = (event: PointerEvent) => {
@@ -142,7 +144,7 @@ export const DialRoot = defineComponent({
       const handle = dragTarget;
 
       if (handle?.hasPointerCapture(event.pointerId)) {
-        handle.releasePointerCapture(event.pointerId);
+        releasePanelPointer(handle, event.pointerId);
       }
 
       if (didDrag) {

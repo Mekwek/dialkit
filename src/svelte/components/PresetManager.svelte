@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { observeDropdownKeyboard } from '../../dropdown-keyboard';
+import { openDropdownOnKey } from '../../control-keyboard';
+
   import { Spring } from 'svelte/motion';
   import Portal from '../Portal.svelte';
   import { DialStore } from 'dialkit/store';
@@ -17,7 +20,7 @@
   let pos = $state({ top: 0, left: 0, width: 0 });
   let portalTarget = $state<HTMLElement | null>(null);
   let triggerRef: HTMLButtonElement | undefined;
-  let dropdownRef: HTMLDivElement | undefined;
+  let dropdownRef = $state<HTMLDivElement | undefined>(undefined);
 
   const chevronRotation = new Spring(0, { stiffness: 0.2, damping: 0.6 });
   const chevronOpacity = new Spring(0.25, { stiffness: 0.2, damping: 0.6 });
@@ -27,7 +30,7 @@
 
   const updatePos = () => {
     if (!triggerRef || !portalTarget) return;
-    pos = getDropdownPosition(triggerRef, portalTarget, { allowAbove: false });
+    pos = getDropdownPosition(triggerRef, portalTarget, { fixed: true, dropdownHeight: (dropdownRef?.scrollHeight ?? 0) + 2 });
   };
 
   const openDropdown = () => {
@@ -61,11 +64,13 @@
     };
 
     updatePos();
+    const stopKeyboard = observeDropdownKeyboard(triggerRef!, () => dropdownRef, closeDropdown, 'presets');
     document.addEventListener('mousedown', handler);
     window.addEventListener('resize', handleViewportChange);
     window.addEventListener('scroll', handleViewportChange, true);
 
     return () => {
+      stopKeyboard();
       document.removeEventListener('mousedown', handler);
       window.removeEventListener('resize', handleViewportChange);
       window.removeEventListener('scroll', handleViewportChange, true);
@@ -92,6 +97,8 @@
     data-open={String(isOpen)}
     data-has-preset={String(!!activePreset)}
     data-disabled={String(!hasPresets)}
+    type="button" aria-haspopup="menu" aria-expanded={isOpen} disabled={!hasPresets}
+    aria-label="Versions" onkeydown={(e) => openDropdownOnKey(e, openDropdown)}
   >
     <span class="dialkit-preset-label">
       {activePreset ? activePreset.name : 'Version 1'}
@@ -117,7 +124,7 @@
         <div
           bind:this={dropdownRef}
           class="dialkit-root dialkit-preset-dropdown"
-          style={`position:absolute;top:${pos.top}px;left:${pos.left}px;min-width:${pos.width}px;`}
+          style={`position:fixed;top:${pos.top}px;left:${pos.left}px;min-width:${pos.width}px;`}
           transition:dropdownTransition={{ above: false }}
         >
           <div
@@ -125,7 +132,7 @@
             data-active={String(!activePresetId)}
             onclick={() => handleSelect(null)}
           >
-            <span class="dialkit-preset-name">Version 1</span>
+            <button type="button" class="dialkit-preset-name">Version 1</button>
           </div>
 
           {#each presets as preset (preset.id)}
@@ -134,11 +141,11 @@
               data-active={String(preset.id === activePresetId)}
               onclick={() => handleSelect(preset.id)}
             >
-              <span class="dialkit-preset-name">{preset.name}</span>
+              <button type="button" class="dialkit-preset-name">{preset.name}</button>
               <button
                 class="dialkit-preset-delete"
                 onclick={(e) => handleDelete(e, preset.id)}
-                title="Delete preset"
+                type="button" title={`Delete ${preset.name}`}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d={ICON_TRASH[0]} />

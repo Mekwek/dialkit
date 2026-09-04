@@ -1,3 +1,4 @@
+import { handleSliderKey } from '../../control-keyboard';
 import { defineComponent, h, computed, nextTick, onMounted, onUnmounted, ref, watch, type PropType } from 'vue';
 import { animate, motionValue } from 'motion-v';
 import type { ShortcutConfig } from '../../store/DialStore';
@@ -41,6 +42,7 @@ export const Slider = defineComponent({
     const isValueEditable = ref(false);
     const showInput = ref(false);
     const inputValue = ref('');
+    let editingEnded = false;
 
     const fillPercent = motionValue(((props.value - min.value) / (max.value - min.value)) * 100);
     const rubberStretchPx = motionValue(0);
@@ -247,6 +249,8 @@ export const Slider = defineComponent({
     };
 
     const handleInputSubmit = () => {
+      if (editingEnded) return;
+      editingEnded = true;
       const parsed = parseFloat(inputValue.value);
       if (!Number.isNaN(parsed)) {
         const clamped = Math.max(min.value, Math.min(max.value, parsed));
@@ -261,17 +265,18 @@ export const Slider = defineComponent({
       if (!isValueEditable.value) return;
       event.stopPropagation();
       event.preventDefault();
+      editingEnded = false;
       showInput.value = true;
       inputValue.value = props.value.toFixed(decimalsForStep(step.value));
     };
 
     const handleInputKeydown = (event: KeyboardEvent) => {
-      if (event.key === 'Enter') {
-        handleInputSubmit();
-      } else if (event.key === 'Escape') {
-        showInput.value = false;
-        isValueHovered.value = false;
-      }
+      event.stopPropagation();
+      if (event.key !== 'Enter' && event.key !== 'Escape') return;
+      event.preventDefault();
+      if (event.key === 'Enter') handleInputSubmit();
+      else { editingEnded = true; showInput.value = false; isValueHovered.value = false; }
+      queueMicrotask(() => trackRef.value?.focus({ preventScroll: true }));
     };
 
     watch(() => props.value, () => {
@@ -364,6 +369,20 @@ export const Slider = defineComponent({
       h('div', {
         ref: trackRef,
         class: `dialkit-slider ${isActive.value ? 'dialkit-slider-active' : ''}`,
+        role: 'slider',
+        tabindex: showInput.value ? -1 : 0,
+        'aria-label': props.label,
+        'aria-valuemin': min.value,
+        'aria-valuemax': max.value,
+        'aria-valuenow': props.value,
+        'aria-valuetext': `${displayValue.value}${props.unit ? ` ${props.unit}` : ''}`,
+        onKeydown: (event: KeyboardEvent) => handleSliderKey(event, props.value, min.value, max.value, step.value, (next) => {
+          snapAnim?.stop(); snapAnim = null;
+          fillPercent.jump(((next - min.value) / (max.value - min.value)) * 100); emit('change', next);
+        }, () => {
+          editingEnded = false;
+          inputValue.value = props.value.toFixed(decimalsForStep(step.value)); showInput.value = true;
+        }),
         onPointerdown: handlePointerDown,
         onPointermove: handlePointerMove,
         onPointerup: handlePointerUp,
@@ -407,6 +426,7 @@ export const Slider = defineComponent({
             ref: inputRef,
             type: 'text',
             class: 'dialkit-slider-input',
+            'aria-label': `${props.label} value`,
             value: inputValue.value,
             onInput: (event: Event) => {
               inputValue.value = (event.target as HTMLInputElement).value;

@@ -1,5 +1,6 @@
 import { clamp, colorFormat, colorToRgb, fitGamut, formatColor, maxChroma, parseColor, type Color } from './color';
 import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition } from './dropdown-position';
+import { handleSegmentKey } from './control-keyboard';
 
 export type ColorControlProps = { label: string; value: string; onChange: (value: string) => void };
 
@@ -144,13 +145,16 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps)
     const formatRow = element('div', 'dialkit-labeled-control dialkit-color-format-row');
     const formats = element('div', 'dialkit-segmented dialkit-color-formats');
     formatRow.append(formats);
-    formats.setAttribute('role', 'group');
+    formats.setAttribute('role', 'radiogroup');
+    formats.addEventListener('keydown', handleSegmentKey);
     formats.setAttribute('aria-label', 'Color format');
     const formatPill = element('div', 'dialkit-segmented-pill');
     formatPill.setAttribute('aria-hidden', 'true');
     formats.append(formatPill);
     const formatButtons = (['hex', 'oklch', 'p3'] as const).map(f => {
       const button = element('button', 'dialkit-segmented-button dialkit-color-format', f === 'p3' ? 'Display P3' : f === 'hex' ? 'Hex' : 'OKLCH');
+      button.type = 'button';
+      button.setAttribute('role', 'radio');
       button.addEventListener('click', () => commit(color, f));
       formats.append(button);
       return button;
@@ -159,7 +163,7 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps)
     output.type = 'text'; output.spellcheck = false;
     output.setAttribute('aria-label', 'CSS color');
     output.addEventListener('change', () => acceptText(output));
-    output.addEventListener('keydown', e => { if (e.key === 'Enter') { if (acceptText(output)) output.blur(); } });
+    output.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); acceptText(output); } });
     let lastHue = -1;
     let lastSpace = '';
     let lastHueTrack = '';
@@ -215,7 +219,8 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps)
       opacity.style.setProperty('--dial-color-opaque', formatColor({ ...color, a: 1 }, 'oklch'));
       formatButtons.forEach((button, i) => {
         const active = (['hex', 'oklch', 'p3'] as const)[i] === format;
-        button.setAttribute('aria-pressed', String(active));
+        button.setAttribute('aria-checked', String(active));
+        button.tabIndex = active ? 0 : -1;
         button.dataset.active = String(active);
         if (active) formatPill.style.transform = `translateX(${i * 100}%)`;
       });
@@ -249,6 +254,13 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps)
     plane.addEventListener('pointerup', e => { if (plane.hasPointerCapture(e.pointerId)) plane.releasePointerCapture(e.pointerId); });
     popup.addEventListener('keydown', e => {
       if (e.key === 'Escape') { e.preventDefault(); close(true); }
+      if (e.key === 'Tab') {
+        const first = formatButtons.find(button => button.tabIndex === 0);
+        if ((e.shiftKey && document.activeElement === first) || (!e.shiftKey && document.activeElement === output)) {
+          swatch.focus({ preventScroll: true });
+          close();
+        }
+      }
       e.stopPropagation();
     });
     popup.append(formatRow, plane, tracks, output);
@@ -265,7 +277,7 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps)
     swatch.setAttribute('aria-expanded', 'true');
     document.addEventListener('pointerdown', outside);
     document.addEventListener('focusin', focusOutside);
-    formatButtons.find(button => button.getAttribute('aria-pressed') === 'true')?.focus({ preventScroll: true });
+    formatButtons.find(button => button.getAttribute('aria-checked') === 'true')?.focus({ preventScroll: true });
   };
   swatch.addEventListener('click', open);
   render();

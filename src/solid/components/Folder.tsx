@@ -1,3 +1,4 @@
+import { activateOnKey } from '../../control-keyboard';
 import { createSignal, createEffect, on, onCleanup, Show, JSX } from 'solid-js';
 import { animate } from 'motion';
 import { ICON_CHEVRON } from '../../icons';
@@ -104,7 +105,7 @@ export function Folder(props: FolderProps) {
   return (
     <div class="dialkit-folder" data-open={String(isOpen())}>
       <div class="dialkit-folder-header" onClick={handleToggle}>
-        <div class="dialkit-folder-header-top">
+        <div class="dialkit-folder-header-top" role={false ? undefined : "button"} tabIndex={false ? undefined : 0} aria-label={props.title} aria-expanded={isOpen()} onKeyDown={(e) => activateOnKey(e, handleToggle)}>
           <div class="dialkit-folder-title-row">
             <span class="dialkit-folder-title">{props.title}</span>
           </div>

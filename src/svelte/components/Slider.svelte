@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { handleSliderKey } from '../../control-keyboard';
+
   import { tick } from 'svelte';
   import { Spring } from 'svelte/motion';
   import type { ShortcutConfig } from 'dialkit/store';
@@ -11,6 +13,7 @@
     min = 0,
     max = 1,
     step = 0.01,
+    unit,
     shortcut,
     shortcutActive = false,
   } = $props<{
@@ -37,6 +40,8 @@
   let labelRef: HTMLSpanElement | undefined;
   let valueSpanRef: HTMLSpanElement | undefined;
   let inputRef: HTMLInputElement | undefined;
+  let trackRef: HTMLDivElement | undefined;
+  let editingEnded = false;
 
   let isInteracting = $state(false);
   let isDragging = $state(false);
@@ -241,6 +246,8 @@
   };
 
   const handleInputSubmit = () => {
+    if (editingEnded) return;
+    editingEnded = true;
     const parsed = Number.parseFloat(inputValue);
     if (!Number.isNaN(parsed)) {
       const clamped = Math.max(min, Math.min(max, parsed));
@@ -256,6 +263,7 @@
     if (!isValueEditable) return;
     e.stopPropagation();
     e.preventDefault();
+    editingEnded = false;
     showInput = true;
     inputValue = value.toFixed(decimalsForStep(step));
   };
@@ -270,6 +278,20 @@
 <div bind:this={wrapperRef} class="dialkit-slider-wrapper">
   <div
     class={`dialkit-slider ${isActive ? 'dialkit-slider-active' : ''}`}
+    bind:this={trackRef}
+    role="slider"
+    tabindex={showInput ? -1 : 0}
+    aria-label={label}
+    aria-valuemin={min}
+    aria-valuemax={max}
+    aria-valuenow={value}
+    aria-valuetext={`${displayValue}${unit ? ` ${unit}` : ''}`}
+    onkeydown={(event) => handleSliderKey(event, value, min, max, step, (next) => {
+      fillPercent.set(percentFromValue(next), { instant: true }); onChange(next);
+    }, () => {
+      editingEnded = false;
+      inputValue = value.toFixed(decimalsForStep(step)); showInput = true;
+    })}
     style={trackStyle}
     onpointerdown={handlePointerDown}
     onpointermove={handlePointerMove}
@@ -302,14 +324,16 @@
         bind:this={inputRef}
         type="text"
         class="dialkit-slider-input"
+        aria-label={`${label} value`}
         value={inputValue}
         oninput={(e) => (inputValue = (e.currentTarget as HTMLInputElement).value)}
         onkeydown={(e) => {
+          e.stopPropagation();
+          if (e.key !== 'Enter' && e.key !== 'Escape') return;
+          e.preventDefault();
           if (e.key === 'Enter') handleInputSubmit();
-          else if (e.key === 'Escape') {
-            showInput = false;
-            isValueHovered = false;
-          }
+          else { editingEnded = true; showInput = false; isValueHovered = false; }
+          tick().then(() => trackRef?.focus({ preventScroll: true }));
         }}
         onblur={handleInputSubmit}
         onpointerdown={(e) => e.stopPropagation()}

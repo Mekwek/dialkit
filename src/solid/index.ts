@@ -40,6 +40,7 @@ export { TextControl } from './components/TextControl';
 export { SelectControl } from './components/SelectControl';
 export { ColorControl } from './components/ColorControl';
 export { PresetManager } from './components/PresetManager';
+export { ShortcutsMenu } from './components/ShortcutsMenu';
 export { ControlRenderer } from './components/ControlRenderer';
 
 // Store exports

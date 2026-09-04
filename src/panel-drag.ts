@@ -116,3 +116,18 @@ export function blockPanelDragClick(handle: HTMLElement) {
     handle.removeEventListener('click', blocker, true);
   }, 0);
 }
+
+/** A pointer can end while a framework is replacing the dragged header. */
+export function capturePanelPointer(handle: HTMLElement, pointerId: number): void {
+  try { handle.setPointerCapture(pointerId); }
+  catch (error) {
+    if (!(error instanceof DOMException) || !['NotFoundError', 'InvalidStateError'].includes(error.name)) throw error;
+  }
+}
+
+export function releasePanelPointer(handle: HTMLElement, pointerId: number): void {
+  try { if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId); }
+  catch (error) {
+    if (!(error instanceof DOMException) || !['NotFoundError', 'InvalidStateError'].includes(error.name)) throw error;
+  }
+}

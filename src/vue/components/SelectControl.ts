@@ -1,3 +1,5 @@
+import { observeDropdownKeyboard } from '../../dropdown-keyboard';
+import { openDropdownOnKey } from '../../control-keyboard';
 import { Teleport, defineComponent, h, onMounted, ref, watch, type PropType } from 'vue';
 import { AnimatePresence, motion } from 'motion-v';
 import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition, type DropdownPosition } from '../../dropdown-position';
@@ -82,11 +84,13 @@ export const SelectControl = defineComponent({
       };
 
       const stopPosition = observeDropdownPosition(triggerRef.value!, updatePos, () => dropdownRef.value);
+      const stopKeyboard = observeDropdownKeyboard(triggerRef.value!, () => dropdownRef.value, closeDropdown);
       document.addEventListener('mousedown', handleDocumentClick);
       window.addEventListener('resize', handleViewportChange);
       window.addEventListener('scroll', handleViewportChange, true);
 
       onCleanup(() => {
+        stopKeyboard();
         stopPosition();
         document.removeEventListener('mousedown', handleDocumentClick);
         window.removeEventListener('resize', handleViewportChange);
@@ -103,6 +107,8 @@ export const SelectControl = defineComponent({
         ref: triggerRef,
         class: 'dialkit-select-trigger',
         'data-open': String(isOpen.value),
+        type: 'button', 'aria-haspopup': 'listbox', 'aria-expanded': isOpen.value, disabled: !props.options.length,
+        onKeydown: (e: KeyboardEvent) => openDropdownOnKey(e, openDropdown),
         onClick: toggleDropdown,
       }, [
         h('span', { class: 'dialkit-select-label' }, props.label),

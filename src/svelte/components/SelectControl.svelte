@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { observeDropdownKeyboard } from '../../dropdown-keyboard';
+import { openDropdownOnKey } from '../../control-keyboard';
+
   import { Spring } from 'svelte/motion';
   import Portal from '../Portal.svelte';
   import { dropdownTransition } from './transitions';
@@ -79,11 +82,13 @@
     };
 
     const stopPosition = observeDropdownPosition(triggerRef!, updatePos, () => dropdownRef);
+    const stopKeyboard = observeDropdownKeyboard(triggerRef!, () => dropdownRef, closeDropdown);
     document.addEventListener('mousedown', handleClick);
     window.addEventListener('resize', handleViewportChange);
     window.addEventListener('scroll', handleViewportChange, true);
 
     return () => {
+      stopKeyboard();
       stopPosition();
       document.removeEventListener('mousedown', handleClick);
       window.removeEventListener('resize', handleViewportChange);
@@ -98,6 +103,8 @@
     class="dialkit-select-trigger"
     onclick={() => (isOpen ? closeDropdown() : openDropdown())}
     data-open={String(isOpen)}
+    type="button" aria-haspopup="listbox" aria-expanded={isOpen} disabled={!options.length}
+    onkeydown={(e) => openDropdownOnKey(e, openDropdown)}
   >
     <span class="dialkit-select-label">{label}</span>
     <div class="dialkit-select-right">

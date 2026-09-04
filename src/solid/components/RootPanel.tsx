@@ -1,3 +1,4 @@
+import { activateOnKey } from '../../control-keyboard';
 import { measurePanelHeight } from '../../panel-size';
 import { createSignal, createEffect, on, onCleanup, untrack, Show, JSX } from 'solid-js';
 import { isServer } from 'solid-js/web';
@@ -44,7 +45,7 @@ export function RootPanel(props: RootPanelProps) {
   const folderContent = () => (
     <div ref={folderRef} class="dialkit-folder dialkit-folder-root" data-open={String(isOpen())}>
       <div class="dialkit-folder-header dialkit-panel-header" onClick={handleToggle}>
-        <div class="dialkit-folder-header-top">
+        <div class="dialkit-folder-header-top" role={inline ? undefined : "button"} tabIndex={inline ? undefined : 0} aria-label={props.title} aria-expanded={isOpen()} onKeyDown={(e) => activateOnKey(e, handleToggle)}>
           <Show when={isOpen()}>
             <div class="dialkit-folder-title-row">
               <span class="dialkit-folder-title dialkit-folder-title-root">
@@ -155,7 +156,20 @@ export function RootPanel(props: RootPanelProps) {
   // Track content growth/shrink while open without re-triggering the morph.
   createEffect(on([contentHeight, windowHeight] as const, ([height, winHeight]) => {
     if (height === undefined || !untrack(isOpen)) return;
-    panelRef.style.height = `${Math.min(height + (props.panelHeightOffset ?? 0), winHeight - 32)}px`;
+    const nextHeight = Math.min(height + (props.panelHeightOffset ?? 0), winHeight - 32);
+    if (morphAnim) {
+      // The first content measurement can arrive after opening starts. Retarget
+      // the morph so its stale collapsed-height target cannot overwrite it.
+      morphAnim.stop();
+      morphAnim = animate(panelRef, {
+        width: 280,
+        height: nextHeight,
+        borderRadius: 14,
+        boxShadow: 'var(--dial-shadow)',
+      }, { ...morphTransition, onComplete: () => { morphAnim = null; } });
+    } else {
+      panelRef.style.height = `${nextHeight}px`;
+    }
   }, { defer: true }));
 
   // Expand-on-tap while collapsed uses a native listener: stopPropagation here

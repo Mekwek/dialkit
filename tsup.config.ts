@@ -40,6 +40,8 @@ export default defineConfig([
       'panel-drag': 'src/panel-drag.ts',
       'panel-size': 'src/panel-size.ts',
       'color-control': 'src/color-control.ts',
+      'control-keyboard': 'src/control-keyboard.ts',
+      'dropdown-keyboard': 'src/dropdown-keyboard.ts',
       'shortcut-utils': 'src/shortcut-utils.ts',
     },
     format: ['esm'],

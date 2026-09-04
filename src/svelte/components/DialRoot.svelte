@@ -12,6 +12,8 @@
   import ShortcutListener from './ShortcutListener.svelte';
   import {
     blockPanelDragClick,
+  capturePanelPointer,
+  releasePanelPointer,
     getPanelCorner,
     getPanelDragHandle,
     getPanelDragOffset,
@@ -152,7 +154,7 @@
     dragStart = getPanelDragStart(event.clientX, event.clientY, panel);
     didDrag = false;
     dragging = true;
-    handle.setPointerCapture(event.pointerId);
+    capturePanelPointer(handle, event.pointerId);
   }
 
   function handlePointerMove(event: PointerEvent) {
@@ -171,7 +173,7 @@
     const handle = dragTarget;
 
     if (handle?.hasPointerCapture(event.pointerId)) {
-      handle.releasePointerCapture(event.pointerId);
+      releasePanelPointer(handle, event.pointerId);
     }
 
     if (didDrag) {
