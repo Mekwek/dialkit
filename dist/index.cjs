@@ -5426,7 +5426,8 @@ var DialTimeline = (0, import_react26.memo)(function DialTimeline2({
   visible,
   onVisibilityChange,
   defaultOpen = true,
-  productionEnabled = isDevDefault
+  productionEnabled = isDevDefault,
+  onExport
 }) {
   if (!productionEnabled) return null;
   return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
@@ -5436,7 +5437,8 @@ var DialTimeline = (0, import_react26.memo)(function DialTimeline2({
       defaultVisible,
       visible,
       onVisibilityChange,
-      defaultOpen
+      defaultOpen,
+      onExport
     }
   );
 });
@@ -5445,7 +5447,8 @@ function DialTimelineDock({
   defaultVisible,
   visible,
   onVisibilityChange,
-  defaultOpen
+  defaultOpen,
+  onExport
 }) {
   const [mounted, setMounted] = (0, import_react26.useState)(false);
   const [dockMaxHeight, setDockMaxHeight] = (0, import_react26.useState)(DEFAULT_DOCK_MAX_HEIGHT);
@@ -5543,7 +5546,8 @@ function DialTimelineDock({
               meta: timeline,
               defaultOpen,
               theme,
-              dockVisible
+              dockVisible,
+              onExport
             },
             timeline.id
           ))
@@ -5840,7 +5844,8 @@ var TimelineSection = (0, import_react26.memo)(function TimelineSection2({
   meta,
   defaultOpen,
   theme,
-  dockVisible
+  dockVisible,
+  onExport
 }) {
   const [open, setOpen] = (0, import_react26.useState)(defaultOpen);
   const [copied, setCopied] = (0, import_react26.useState)(false);
@@ -6549,6 +6554,25 @@ var TimelineSection = (0, import_react26.memo)(function TimelineSection2({
               },
               "clipboard"
             ) }) })
+          }
+        ),
+        onExport && /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
+          import_react27.motion.button,
+          {
+            className: "dialkit-toolbar-add dialkit-timeline-export",
+            onClick: onExport,
+            title: "Export video",
+            "aria-label": "Export video",
+            whileTap: { scale: 0.9 },
+            transition: { type: "spring", visualDuration: 0.15, bounce: 0.3 },
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("path", { d: "M12 3v12" }),
+                /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("path", { d: "m7 10 5 5 5-5" }),
+                /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("path", { d: "M5 21h14" })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { children: "Export" })
+            ]
           }
         ),
         /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(

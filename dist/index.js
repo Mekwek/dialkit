@@ -5367,7 +5367,8 @@ var DialTimeline = memo(function DialTimeline2({
   visible,
   onVisibilityChange,
   defaultOpen = true,
-  productionEnabled = isDevDefault
+  productionEnabled = isDevDefault,
+  onExport
 }) {
   if (!productionEnabled) return null;
   return /* @__PURE__ */ jsx18(
@@ -5377,7 +5378,8 @@ var DialTimeline = memo(function DialTimeline2({
       defaultVisible,
       visible,
       onVisibilityChange,
-      defaultOpen
+      defaultOpen,
+      onExport
     }
   );
 });
@@ -5386,7 +5388,8 @@ function DialTimelineDock({
   defaultVisible,
   visible,
   onVisibilityChange,
-  defaultOpen
+  defaultOpen,
+  onExport
 }) {
   const [mounted, setMounted] = useState11(false);
   const [dockMaxHeight, setDockMaxHeight] = useState11(DEFAULT_DOCK_MAX_HEIGHT);
@@ -5484,7 +5487,8 @@ function DialTimelineDock({
               meta: timeline,
               defaultOpen,
               theme,
-              dockVisible
+              dockVisible,
+              onExport
             },
             timeline.id
           ))
@@ -5781,7 +5785,8 @@ var TimelineSection = memo(function TimelineSection2({
   meta,
   defaultOpen,
   theme,
-  dockVisible
+  dockVisible,
+  onExport
 }) {
   const [open, setOpen] = useState11(defaultOpen);
   const [copied, setCopied] = useState11(false);
@@ -6490,6 +6495,25 @@ var TimelineSection = memo(function TimelineSection2({
               },
               "clipboard"
             ) }) })
+          }
+        ),
+        onExport && /* @__PURE__ */ jsxs14(
+          motion9.button,
+          {
+            className: "dialkit-toolbar-add dialkit-timeline-export",
+            onClick: onExport,
+            title: "Export video",
+            "aria-label": "Export video",
+            whileTap: { scale: 0.9 },
+            transition: { type: "spring", visualDuration: 0.15, bounce: 0.3 },
+            children: [
+              /* @__PURE__ */ jsxs14("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true", children: [
+                /* @__PURE__ */ jsx18("path", { d: "M12 3v12" }),
+                /* @__PURE__ */ jsx18("path", { d: "m7 10 5 5 5-5" }),
+                /* @__PURE__ */ jsx18("path", { d: "M5 21h14" })
+              ] }),
+              /* @__PURE__ */ jsx18("span", { children: "Export" })
+            ]
           }
         ),
         /* @__PURE__ */ jsx18(

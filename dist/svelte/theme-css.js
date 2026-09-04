@@ -836,6 +836,17 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   color: var(--dial-text-label);
 }
 
+.dialkit-timeline-export {
+  width: auto;
+  gap: 6px;
+  padding: 0 14px 0 9px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--dial-text-label);
+  white-space: nowrap;
+}
+
 .dialkit-timeline-toolkit-only {
   height: var(--dial-row-height);
   display: flex;

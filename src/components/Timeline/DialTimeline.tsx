@@ -83,6 +83,8 @@ export interface DialTimelineProps {
   onVisibilityChange?: (visible: boolean) => void;
   defaultOpen?: boolean;
   productionEnabled?: boolean;
+  /** Renders an Export button in the dock actions row when set (host decides what export means). */
+  onExport?: () => void;
 }
 
 // Memoized: hosts that bind `current` re-render every frame, and the dock
@@ -96,6 +98,7 @@ export const DialTimeline = memo(function DialTimeline({
   onVisibilityChange,
   defaultOpen = true,
   productionEnabled = isDevDefault,
+  onExport,
 }: DialTimelineProps) {
   if (!productionEnabled) return null;
   return (
@@ -105,6 +108,7 @@ export const DialTimeline = memo(function DialTimeline({
       visible={visible}
       onVisibilityChange={onVisibilityChange}
       defaultOpen={defaultOpen}
+      onExport={onExport}
     />
   );
 });
@@ -115,12 +119,14 @@ function DialTimelineDock({
   visible,
   onVisibilityChange,
   defaultOpen,
+  onExport,
 }: {
   theme: DialTheme;
   defaultVisible: boolean;
   visible?: boolean;
   onVisibilityChange?: (visible: boolean) => void;
   defaultOpen: boolean;
+  onExport?: () => void;
 }) {
   const [mounted, setMounted] = useState(false);
   const [dockMaxHeight, setDockMaxHeight] = useState(DEFAULT_DOCK_MAX_HEIGHT);
@@ -231,6 +237,7 @@ function DialTimelineDock({
             defaultOpen={defaultOpen}
             theme={theme}
             dockVisible={dockVisible}
+            onExport={onExport}
           />
         ))}
       </div>
@@ -610,11 +617,13 @@ const TimelineSection = memo(function TimelineSection({
   defaultOpen,
   theme,
   dockVisible,
+  onExport,
 }: {
   meta: TimelineMeta;
   defaultOpen: boolean;
   theme: DialTheme;
   dockVisible: boolean;
+  onExport?: () => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const [copied, setCopied] = useState(false);
@@ -1463,6 +1472,23 @@ const TimelineSection = memo(function TimelineSection({
               </AnimatePresence>
             </span>
           </motion.button>
+          {onExport && (
+            <motion.button
+              className="dialkit-toolbar-add dialkit-timeline-export"
+              onClick={onExport}
+              title="Export video"
+              aria-label="Export video"
+              whileTap={{ scale: 0.9 }}
+              transition={{ type: 'spring', visualDuration: 0.15, bounce: 0.3 }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 3v12" />
+                <path d="m7 10 5 5 5-5" />
+                <path d="M5 21h14" />
+              </svg>
+              <span>Export</span>
+            </motion.button>
+          )}
           <button
             className="dialkit-timeline-chevron"
             data-open={open}

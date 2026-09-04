@@ -707,6 +707,8 @@ interface DialTimelineProps {
     onVisibilityChange?: (visible: boolean) => void;
     defaultOpen?: boolean;
     productionEnabled?: boolean;
+    /** Renders an Export button in the dock actions row when set (host decides what export means). */
+    onExport?: () => void;
 }
 declare const DialTimeline: react.NamedExoticComponent<DialTimelineProps>;
 
