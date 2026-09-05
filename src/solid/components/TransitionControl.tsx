@@ -1,3 +1,4 @@
+import { formatEase, parseEase } from '../../easing-geometry';
 import { createSignal, Show } from 'solid-js';
 import { DialStore } from '../../store/DialStore';
 import type { EasingConfig, SpringConfig, TransitionConfig } from '../../store/DialStore';
@@ -81,18 +82,9 @@ export function TransitionControl(props: TransitionControlProps) {
     }
   };
 
-  const updateEase = (index: number, value: number) => {
-    const current = easing();
-    const next = [...current.ease] as [number, number, number, number];
-    next[index] = value;
-    props.onChange({ ...current, ease: next });
-  };
-
-  const formatEase = (value: [number, number, number, number]) =>
-    value.map((part) => Number(part.toFixed(2))).join(', ');
   const commitEase = () => {
-    const parts = easeDraft().split(',').map((part) => Number.parseFloat(part.trim()));
-    if (parts.length === 4 && parts.every(Number.isFinite)) {
+    const parts = parseEase(easeDraft());
+    if (parts) {
       props.onChange({ ...easing(), ease: parts as [number, number, number, number] });
     }
     setEditingEase(false);
@@ -121,7 +113,7 @@ export function TransitionControl(props: TransitionControlProps) {
     <Folder title={props.label} defaultOpen={true}>
       <div style={{ display: 'flex', 'flex-direction': 'column', gap: '6px' }}>
         <Show when={isEasing()} fallback={<SpringVisualization spring={spring()} isSimpleMode={isSimple()} />}>
-          <EasingVisualization easing={easing()} />
+          <EasingVisualization easing={easing()} onChange={(ease) => props.onChange({ ...easing(), ease })} />
         </Show>
 
         <div class="dialkit-labeled-control">
@@ -138,14 +130,11 @@ export function TransitionControl(props: TransitionControlProps) {
         </div>
 
         <Show when={isEasing()}>
-          <Slider label="x1" value={easing().ease[0]} onChange={(value) => updateEase(0, value)} min={0} max={1} step={0.01} />
-          <Slider label="y1" value={easing().ease[1]} onChange={(value) => updateEase(1, value)} min={-1} max={2} step={0.01} />
-          <Slider label="x2" value={easing().ease[2]} onChange={(value) => updateEase(2, value)} min={0} max={1} step={0.01} />
-          <Slider label="y2" value={easing().ease[3]} onChange={(value) => updateEase(3, value)} min={-1} max={2} step={0.01} />
           <div class="dialkit-labeled-control">
             <span class="dialkit-labeled-control-label">Ease</span>
             <input
               type="text"
+              aria-label="Bézier coordinates"
               class="dialkit-text-input"
               value={editingEase() ? easeDraft() : formatEase(easing().ease)}
               onInput={(event) => setEaseDraft(event.currentTarget.value)}

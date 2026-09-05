@@ -266,6 +266,33 @@ A single number auto-infers a reasonable min, max, and step:
 
 Sliders support click-to-snap (with spring animation), drag with rubber-band overflow, and direct text editing (hover the value for 800ms, then click to type).
 
+### DialPad
+
+Two continuous values, controlled together on a pad. The pad has a draggable point, a grid of six equal square cells per side, and a center marker for visual reference. The label and X/Y fields share one compact row above the pad.
+
+```tsx
+const p = useDialKit('Card', {
+  position: { type: 'pad' }, // Both axes default to [0, -1, 1, 0.01]
+  motion: {
+    type: 'pad',
+    x: [0.3, 0.1, 1, 0.01], // [default, min, max, step?]
+    y: [0.2, 0, 1, 0.01],
+    labels: { x: 'Duration', y: 'Bounce' },
+  },
+});
+
+p.position.x;
+p.position.y;
+```
+
+Each axis accepts the same range tuple notation as a slider. An omitted axis uses the normalized range above; an explicit tuple without a step divides its range into 200 intervals. Values are clamped to the bounds and snapped to the step. X increases to the right and Y increases upward. Labels describe the axes without changing the returned keys.
+
+Click anywhere to position the point. Clicks within 8px of a grid intersection snap to it; dragging stays free of grid snapping. The point's outer ring animates in during a drag. Hold Shift while dragging to lock to the dominant axis. Arrow keys adjust one step; Shift + Arrow adjusts ten. The two numeric fields support direct editing: Enter commits, Escape cancels, and Tab commits and advances. Home while the pad is focused or double-clicking the pad restores both configured defaults. Escape during a drag restores the values from before that drag.
+
+**Returns:** `{ x: number, y: number }`. The pair works with presets, persistence, nested folders, dynamic configs, and controller updates such as `dial.setValue('position', { x: 0.5, y: -0.25 })` or `dial.setValues({ position: { x: 0.5, y: -0.25 } })`. Available in React, Solid, Svelte, and Vue, including the standalone `DialPad` component.
+
+Run the example app and open `/dialpad.html` for a live position and tilt demo.
+
 ### Toggle
 
 ```tsx
@@ -329,7 +356,7 @@ const values = useDialKit('Profile', {
 <img src={values.avatar || '/images/default-avatar.png'} alt="Avatar" />
 ```
 
-The row's thumbnail opens a popover with a larger preview, a grid of images, and an upload button. Selecting or uploading an image updates the returned string immediately. The preview contains the full image; grid thumbnails crop to fit. Options accept URL strings or `{ value, label }` objects. `default` selects an initial URL; without it, the first option is selected, or `''` when there are no options. **Remove** returns `''`.
+The row's thumbnail opens a popover with a grid of images and an upload button. Selecting or uploading an image updates the returned string immediately. Grid thumbnails crop to fit and a stroke marks the selected image. Options accept URL strings or `{ value, label }` objects. `default` selects an initial URL; without it, the first option is selected, or `''` when there are no options. **Remove** returns `''`.
 
 Upload or drop an image up to 10 MB. Files are read locally as data URLs, ready to use as an image `src` or CSS background. DialKit does not upload them to a server. Uploaded choices remain available while the control is mounted. Selected image values work with presets, resets, and optional persistence; persistent uploads are subject to browser storage limits.
 
@@ -598,6 +625,7 @@ All controls also work directly from the keyboard, without configuring shortcuts
 | Panel or folder header | Tab to focus; Enter or Space to expand or collapse |
 | Slider | Arrow keys adjust by one step; Shift + Arrow or Page Up/Down adjusts by ten steps; Home/End selects the minimum/maximum |
 | Slider value | Enter opens the numeric editor; Enter commits, Escape cancels, and Tab commits and advances |
+| DialPad | Arrows adjust X/Y; Shift + Arrow adjusts ten steps; Home resets both axes; Escape cancels an active drag |
 | Select or version menu | Enter, Space, or Up/Down opens; arrows, Home/End, and typing navigate; Enter/Space selects; Escape cancels |
 | Segmented control | Tab reaches the selected segment; arrows move and select; Home/End selects the first/last segment |
 | Color picker | Tab moves between the format, color field, hue, opacity, and CSS value; arrows adjust the focused control; Escape closes |

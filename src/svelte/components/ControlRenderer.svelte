@@ -1,7 +1,7 @@
 <script lang="ts">
   import { getContext } from 'svelte';
   import { DialStore } from 'dialkit/store';
-  import type { ControlMeta, DialValue, SpringConfig, TransitionConfig } from 'dialkit/store';
+  import type { ControlMeta, DialValue, SpringConfig, TransitionConfig, DialPadValue } from 'dialkit/store';
   import Slider from './Slider.svelte';
   import Toggle from './Toggle.svelte';
   import Folder from './Folder.svelte';
@@ -11,6 +11,7 @@
   import SelectControl from './SelectControl.svelte';
   import ColorControl from './ColorControl.svelte';
   import ImageControl from './ImageControl.svelte';
+  import DialPad from './DialPad.svelte';
   import ControlRenderer from './ControlRenderer.svelte';
   import { SHORTCUT_CTX } from './ShortcutListener.svelte';
   import type { ShortcutContextValue } from './ShortcutListener.svelte';
@@ -98,6 +99,15 @@
     options={control.options}
     label={control.label}
     value={controlValue as string}
+    onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
+  />
+{:else if control.type === 'pad'}
+  <DialPad
+    label={control.label}
+    value={controlValue as DialPadValue}
+    x={control.pad?.x}
+    y={control.pad?.y}
+    labels={control.pad?.labels}
     onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
   />
 {:else if control.type === 'action'}

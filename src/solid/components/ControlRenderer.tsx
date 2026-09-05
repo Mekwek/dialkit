@@ -10,6 +10,8 @@ import { useShortcutContext } from './ShortcutListener';
 import { ButtonGroup } from './ButtonGroup';
 import { ColorControl } from './ColorControl';
 import { ImageControl } from './ImageControl';
+import { DialPad } from './DialPad';
+import type { DialPadValue } from '../../dial-pad';
 import { Folder } from './Folder';
 import { SelectControl } from './SelectControl';
 import { Slider } from './Slider';
@@ -113,6 +115,17 @@ export function ControlRenderer(props: ControlRendererProps) {
             options={control.options}
             label={control.label}
             value={value() as string}
+            onChange={(next) => DialStore.updateValue(props.panelId, control.path, next)}
+          />
+        );
+      case 'pad':
+        return (
+          <DialPad
+            label={control.label}
+            value={value() as DialPadValue}
+            x={control.pad?.x}
+            y={control.pad?.y}
+            labels={control.pad?.labels}
             onChange={(next) => DialStore.updateValue(props.panelId, control.path, next)}
           />
         );

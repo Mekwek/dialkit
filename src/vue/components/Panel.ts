@@ -12,6 +12,8 @@ import { TextControl } from './TextControl';
 import { SelectControl } from './SelectControl';
 import { ColorControl } from './ColorControl';
 import { ImageControl } from './ImageControl';
+import { DialPad } from './DialPad';
+import type { DialPadValue } from '../../dial-pad';
 import { PresetManager } from './PresetManager';
 import { useShortcutContext } from './ShortcutListener';
 import { ShortcutsMenu } from './ShortcutsMenu';
@@ -181,6 +183,16 @@ export const Panel = defineComponent({
             label: control.label,
             value: value as string,
             onChange: (next: string) => DialStore.updateValue(props.panel.id, control.path, next),
+          });
+        case 'pad':
+          return h(DialPad, {
+            key: control.path,
+            label: control.label,
+            value: value as DialPadValue,
+            x: control.pad?.x,
+            y: control.pad?.y,
+            labels: control.pad?.labels,
+            onChange: (next: DialPadValue) => DialStore.updateValue(props.panel.id, control.path, next),
           });
         case 'action':
           return h('button', {

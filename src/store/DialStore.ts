@@ -1,4 +1,6 @@
 import { parseColor } from '../color';
+import { normalizePadValue, type DialPadConfig, type DialPadValue } from '../dial-pad';
+export type { DialPadAxis, DialPadConfig, DialPadValue } from '../dial-pad';
 
 // Lightweight state store with subscriptions for dialkit
 
@@ -51,7 +53,7 @@ export type TextConfig = {
   placeholder?: string;
 };
 
-export type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig;
+export type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue;
 
 export type DialConfig = {
   [key: string]: DialValue | [number, number, number, number?] | DialConfig;
@@ -70,9 +72,11 @@ export type ResolvedValues<T extends DialConfig> = {
             ? string
             : T[K] extends TextConfig
               ? string
-              : T[K] extends DialConfig
-                ? ResolvedValues<T[K]>
-                : T[K];
+              : T[K] extends DialPadConfig
+                ? DialPadValue
+                : T[K] extends DialConfig
+                  ? ResolvedValues<T[K]>
+                  : T[K];
 };
 
 export type DialKitValueUpdates<T extends DialConfig> = {
@@ -84,9 +88,11 @@ export type DialKitValueUpdates<T extends DialConfig> = {
         ? never
         : T[K] extends SelectConfig | ColorConfig | ImageConfig | TextConfig
           ? string
-          : T[K] extends DialConfig
-            ? DialKitValueUpdates<T[K]>
-            : T[K];
+          : T[K] extends DialPadConfig
+            ? DialPadValue
+            : T[K] extends DialConfig
+              ? DialKitValueUpdates<T[K]>
+              : T[K];
 };
 
 export type ShortcutMode = 'fine' | 'normal' | 'coarse';
@@ -100,7 +106,7 @@ export type ShortcutConfig = {
 };
 
 export type ControlMeta = {
-  type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'image' | 'text';
+  type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'image' | 'text' | 'pad';
   path: string;
   label: string;
   min?: number;
@@ -110,6 +116,7 @@ export type ControlMeta = {
   defaultOpen?: boolean;
   options?: (string | { value: string; label: string })[];
   placeholder?: string;
+  pad?: DialPadConfig;
   shortcut?: ShortcutConfig;
 };
 
@@ -207,6 +214,8 @@ function resolveConfigValues(
       result[key] = flatValues[path] ?? configValue.default ?? getFirstOptionValue(configValue.options ?? []);
     } else if (isTextConfigValue(configValue)) {
       result[key] = flatValues[path] ?? configValue.default ?? '';
+    } else if (isPadConfigValue(configValue)) {
+      result[key] = flatValues[path] ?? normalizePadValue(undefined, configValue);
     } else if (typeof configValue === 'object' && configValue !== null) {
       result[key] = resolveConfigValues(configValue as DialConfig, flatValues, path);
     }
@@ -262,7 +271,8 @@ function isLeafConfigValue(value: unknown): boolean {
     isSelectConfigValue(value) ||
     isColorConfigValue(value) ||
     isImageConfigValue(value) ||
-    isTextConfigValue(value)
+    isTextConfigValue(value) ||
+    isPadConfigValue(value)
   );
 }
 
@@ -317,6 +327,10 @@ function isImageConfigValue(value: unknown): value is ImageConfig {
 
 function isTextConfigValue(value: unknown): value is TextConfig {
   return hasType(value, 'text');
+}
+
+function isPadConfigValue(value: unknown): value is DialPadConfig {
+  return hasType(value, 'pad');
 }
 
 function getFirstOptionValue(options: (string | { value: string; label: string })[]): string {
@@ -510,8 +524,9 @@ class DialStoreClass {
         continue;
       }
 
-      panel.values[path] = value;
-      validUpdates[path] = value;
+      const next = control?.type === 'pad' ? normalizePadValue(value, control.pad) : value;
+      panel.values[path] = next;
+      validUpdates[path] = next;
     }
 
     if (Object.keys(validUpdates).length === 0) {
@@ -916,7 +931,7 @@ class DialStoreClass {
         const hasPhysics = value.stiffness !== undefined || value.damping !== undefined || value.mass !== undefined;
         const hasTime = value.visualDuration !== undefined || value.bounce !== undefined;
         values[`${path}.__mode`] = hasPhysics && !hasTime ? 'advanced' : 'simple';
-      } else if (typeof value === 'object' && value !== null && !Array.isArray(value) && !this.isActionConfig(value) && !this.isSelectConfig(value) && !this.isColorConfig(value) && !isImageConfigValue(value) && !this.isTextConfig(value)) {
+      } else if (typeof value === 'object' && value !== null && !Array.isArray(value) && !this.isActionConfig(value) && !this.isSelectConfig(value) && !this.isColorConfig(value) && !isImageConfigValue(value) && !this.isTextConfig(value) && !isPadConfigValue(value)) {
         this.initTransitionModes(value as DialConfig, path, values);
       }
     }
@@ -960,6 +975,8 @@ class DialStoreClass {
         controls.push({ type: 'image', path, label, options: value.options });
       } else if (this.isTextConfig(value)) {
         controls.push({ type: 'text', path, label, placeholder: value.placeholder });
+      } else if (isPadConfigValue(value)) {
+        controls.push({ type: 'pad', path, label, pad: value });
       } else if (typeof value === 'string') {
         // Auto-detect: hex color vs text
         if (parseColor(value) && value !== 'transparent') {
@@ -1011,6 +1028,8 @@ class DialStoreClass {
         values[path] = value.default ?? getFirstOptionValue(value.options ?? []);
       } else if (this.isTextConfig(value)) {
         values[path] = value.default ?? '';
+      } else if (isPadConfigValue(value)) {
+        values[path] = normalizePadValue(undefined, value);
       } else if (typeof value === 'object' && value !== null) {
         Object.assign(values, this.flattenValues(value as DialConfig, path));
       }
@@ -1129,6 +1148,8 @@ class DialStoreClass {
       }
       case 'toggle':
         return typeof existingValue === 'boolean' ? existingValue : defaultValue;
+      case 'pad':
+        return normalizePadValue(existingValue, control.pad);
       case 'select': {
         if (typeof existingValue !== 'string') {
           return defaultValue;

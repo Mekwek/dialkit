@@ -10,6 +10,8 @@ import { TextControl } from './TextControl';
 import { SelectControl } from './SelectControl';
 import { ColorControl } from './ColorControl';
 import { ImageControl } from './ImageControl';
+import { DialPad } from './DialPad';
+import type { DialPadValue } from '../dial-pad';
 
 interface ControlRendererProps {
   panelId: string;
@@ -132,6 +134,19 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration 
             options={control.options}
             label={control.label}
             value={value as string}
+            onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
+          />
+        );
+
+      case 'pad':
+        return (
+          <DialPad
+            key={control.path}
+            label={control.label}
+            value={value as DialPadValue}
+            x={control.pad?.x}
+            y={control.pad?.y}
+            labels={control.pad?.labels}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
           />
         );

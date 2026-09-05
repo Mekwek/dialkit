@@ -1,3 +1,4 @@
+import { formatEase, parseEase } from '../../easing-geometry';
 import { defineComponent, h, onMounted, onUnmounted, ref, type PropType } from 'vue';
 import { DialStore } from '../../store/DialStore';
 import type { EasingConfig, SpringConfig, TransitionConfig } from '../../store/DialStore';
@@ -15,18 +16,6 @@ export interface TransitionDurationControl {
   min?: number;
   max?: number;
   step?: number;
-}
-
-function formatEase(ease: [number, number, number, number]): string {
-  return ease.map((value) => Number(value.toFixed(2))).join(', ');
-}
-
-function parseEase(value: string): [number, number, number, number] | null {
-  const parts = value.split(',').map((part) => Number.parseFloat(part.trim()));
-  if (parts.length === 4 && parts.every((part) => Number.isFinite(part))) {
-    return parts as [number, number, number, number];
-  }
-  return null;
 }
 
 const EaseTextInput = defineComponent({
@@ -66,6 +55,7 @@ const EaseTextInput = defineComponent({
       h('span', { class: 'dialkit-labeled-control-label' }, 'Ease'),
       h('input', {
         type: 'text',
+        'aria-label': 'Bézier coordinates',
         class: 'dialkit-text-input',
         value: editing.value ? draft.value : formatEase(props.ease),
         spellcheck: false,
@@ -142,13 +132,6 @@ export const TransitionControl = defineComponent({
       }
     };
 
-    const updateEase = (index: number, value: number) => {
-      const current = easing();
-      const next = [...current.ease] as [number, number, number, number];
-      next[index] = value;
-      emit('change', { ...current, ease: next });
-    };
-
     const handleSpringUpdate = (key: keyof SpringConfig, value: number) => {
       const current = spring();
       if (mode.value === 'simple') {
@@ -184,7 +167,7 @@ export const TransitionControl = defineComponent({
         default: () => [
           h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } }, [
             isEasing
-              ? h(EasingVisualization, { easing: currentEasing })
+              ? h(EasingVisualization, { easing: currentEasing, onChange: (ease: EasingConfig['ease']) => emit('change', { ...currentEasing, ease }) })
               : h(SpringVisualization, { spring: currentSpring, isSimpleMode: isSimpleSpring }),
             h('div', { class: 'dialkit-labeled-control' }, [
               h('span', { class: 'dialkit-labeled-control-label' }, 'Type'),
@@ -200,10 +183,6 @@ export const TransitionControl = defineComponent({
             ]),
             ...(isEasing
               ? [
-                h(Slider, { label: 'x1', value: currentEasing.ease[0], min: 0, max: 1, step: 0.01, onChange: (next: number) => updateEase(0, next) }),
-                h(Slider, { label: 'y1', value: currentEasing.ease[1], min: -1, max: 2, step: 0.01, onChange: (next: number) => updateEase(1, next) }),
-                h(Slider, { label: 'x2', value: currentEasing.ease[2], min: 0, max: 1, step: 0.01, onChange: (next: number) => updateEase(2, next) }),
-                h(Slider, { label: 'y2', value: currentEasing.ease[3], min: -1, max: 2, step: 0.01, onChange: (next: number) => updateEase(3, next) }),
                 h(EaseTextInput, {
                   ease: currentEasing.ease,
                   onChange: (next: [number, number, number, number]) => emit('change', { ...currentEasing, ease: next }),

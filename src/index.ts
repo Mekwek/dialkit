@@ -48,6 +48,8 @@ export { TextControl } from './components/TextControl';
 export { SelectControl } from './components/SelectControl';
 export { ColorControl } from './components/ColorControl';
 export { ImageControl } from './components/ImageControl';
+export { DialPad } from './components/DialPad';
+export type { DialPadProps } from './dial-pad-control';
 export { PresetManager } from './components/PresetManager';
 export { ShortcutsMenu } from './components/ShortcutsMenu';
 
@@ -62,6 +64,9 @@ export type {
   ColorConfig,
   ImageConfig,
   ImageOption,
+  DialPadAxis,
+  DialPadConfig,
+  DialPadValue,
   TextConfig,
   DialKitPersistOptions,
   ShortcutConfig,

@@ -21,7 +21,7 @@ function element<K extends keyof HTMLElementTagNameMap>(tag: K, className: strin
   return el;
 }
 
-function icon(kind: 'image' | 'upload' | 'check') {
+function icon(kind: 'image' | 'upload') {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('viewBox', '0 0 24 24');
   svg.setAttribute('fill', 'none');
@@ -32,8 +32,7 @@ function icon(kind: 'image' | 'upload' | 'check') {
   svg.setAttribute('aria-hidden', 'true');
   const path = document.createElementNS(svg.namespaceURI, 'path');
   path.setAttribute('d', kind === 'upload' ? 'M12 16V3m-4 4 4-4 4 4M4 15v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5'
-    : kind === 'check' ? 'm6 12 4 4 8-8'
-      : 'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm-2 13 5-5 4 4 3-3 6 6M15 7h.01');
+    : 'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm-2 13 5-5 4 4 3-3 6 6M15 7h.01');
   svg.append(path);
   return svg;
 }
@@ -90,6 +89,7 @@ export function mountImageControl(host: HTMLElement, initial: ImageControlProps)
   let popup: HTMLDivElement | undefined;
   let stopPosition: (() => void) | undefined;
   let updatePicker = () => {};
+  let resetUpload = () => {};
   let reader: FileReader | undefined;
   let uploadRequest = 0;
   const popupId = `dialkit-image-picker-${++imageControlId}`;
@@ -123,11 +123,13 @@ export function mountImageControl(host: HTMLElement, initial: ImageControlProps)
     uploadRequest++;
     reader?.abort();
     reader = undefined;
+    fileInput.onchange = null;
     stopPosition?.();
     stopPosition = undefined;
     popup?.remove();
     popup = undefined;
     updatePicker = () => {};
+    resetUpload = () => {};
     delete trigger.dataset.open;
     trigger.setAttribute('aria-expanded', 'false');
     trigger.removeAttribute('aria-controls');
@@ -154,19 +156,13 @@ export function mountImageControl(host: HTMLElement, initial: ImageControlProps)
     const clear = element('button', 'dialkit-image-clear', 'Remove');
     clear.addEventListener('click', () => { commit(''); close(true); });
     heading.append(title, clear);
-    const large = preview('dialkit-image-preview');
-    const caption = element('div', 'dialkit-image-caption');
-    const selectedName = element('span', 'dialkit-image-name');
-    const count = element('span', 'dialkit-image-count');
-    caption.append(selectedName, count);
     const grid = element('div', 'dialkit-image-grid');
     grid.setAttribute('role', 'group');
     grid.setAttribute('aria-label', 'Available images');
     const empty = element('div', 'dialkit-image-empty', 'Choose an image to get started.');
-    const upload = element('button', 'dialkit-image-upload');
+    const upload = element('button', 'dialkit-button dialkit-image-upload');
     const uploadText = element('span', '', 'Upload image');
     upload.append(icon('upload'), uploadText);
-    const hint = element('div', 'dialkit-image-hint', 'Or drop an image here · Up to 10 MB');
     const status = element('div', 'dialkit-image-status');
     status.setAttribute('role', 'status');
     status.hidden = true;
@@ -180,6 +176,13 @@ export function mountImageControl(host: HTMLElement, initial: ImageControlProps)
       upload.setAttribute('aria-disabled', String(next));
       uploadText.textContent = next ? 'Loading image…' : 'Upload image';
       grid.setAttribute('aria-busy', String(next));
+    };
+    resetUpload = () => {
+      uploadRequest++;
+      reader?.abort();
+      reader = undefined;
+      setBusy(false);
+      status.hidden = true;
     };
     const acceptFile = (file: File) => {
       if (busy) return;
@@ -212,8 +215,6 @@ export function mountImageControl(host: HTMLElement, initial: ImageControlProps)
           setBusy(false);
           if (!uploaded.some(item => item.value === value)) uploaded.push({ value, label: file.name });
           commit(value);
-          status.textContent = `${file.name} added.`;
-          status.hidden = false;
           buttons.find(button => button.getAttribute('aria-pressed') === 'true')?.focus({ preventScroll: true });
         };
         check.src = value;
@@ -273,10 +274,6 @@ export function mountImageControl(host: HTMLElement, initial: ImageControlProps)
       clear.hidden = !props.value;
       clear.setAttribute('aria-label', `Remove ${props.label.toLowerCase()} image`);
       const items = choices();
-      large.update(props.value);
-      large.frame.hidden = !props.value;
-      selectedName.textContent = items.find(item => item.value === props.value)?.label ?? 'No image selected';
-      count.textContent = `${items.length} image${items.length === 1 ? '' : 's'}`;
       empty.hidden = items.length > 0;
       grid.hidden = items.length === 0;
       if (items.length !== previousItems.length || items.some((item, i) => item.value !== previousItems[i].value || item.label !== previousItems[i].label)) {
@@ -288,16 +285,10 @@ export function mountImageControl(host: HTMLElement, initial: ImageControlProps)
           button.title = item.label;
           const thumb = preview('dialkit-image-option-preview');
           thumb.update(item.value);
-          const check = element('span', 'dialkit-image-check');
-          check.append(icon('check'));
-          button.append(thumb.frame, check);
+          button.append(thumb.frame);
           button.addEventListener('click', () => {
             // A pending upload must not overwrite a newer selection.
-            uploadRequest++;
-            reader?.abort();
-            reader = undefined;
-            setBusy(false);
-            status.hidden = true;
+            resetUpload();
             commit(item.value);
           });
           return button;
@@ -311,7 +302,7 @@ export function mountImageControl(host: HTMLElement, initial: ImageControlProps)
         button.tabIndex = index === Math.max(0, selected) ? 0 : -1;
       });
     };
-    popup.append(heading, large.frame, caption, grid, empty, upload, hint, status);
+    popup.append(heading, grid, empty, upload, status);
     root.append(popup);
     render();
     const position = () => {
@@ -336,7 +327,11 @@ export function mountImageControl(host: HTMLElement, initial: ImageControlProps)
   });
   render();
   return {
-    update(next: ImageControlProps) { props = next; render(); },
+    update(next: ImageControlProps) {
+      if (next.value !== props.value) resetUpload();
+      props = next;
+      render();
+    },
     destroy() { close(); fileInput.onchange = null; trigger.remove(); fileInput.remove(); },
   };
 }

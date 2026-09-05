@@ -1,3 +1,4 @@
+import { formatEase, parseEase } from '../easing-geometry';
 import { SpringConfig, EasingConfig, TransitionConfig, DialStore } from '../store/DialStore';
 import { Folder } from './Folder';
 import { Slider } from './Slider';
@@ -93,12 +94,6 @@ export function TransitionControl({
     }
   };
 
-  const updateEase = (index: number, val: number) => {
-    const newEase = [...easing.ease] as [number, number, number, number];
-    newEase[index] = val;
-    onChange({ ...easing, ease: newEase });
-  };
-
   const durationSlider = !hideDuration && (isEasing || isSimpleSpring) ? (
     <Slider
       label="Duration"
@@ -118,7 +113,7 @@ export function TransitionControl({
     <Folder title={label} defaultOpen={true}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {isEasing ? (
-          <EasingVisualization easing={easing} />
+          <EasingVisualization easing={easing} onChange={(ease) => onChange({ ...easing, ease })} />
         ) : (
           <SpringVisualization spring={spring} isSimpleMode={isSimpleSpring} />
         )}
@@ -138,10 +133,6 @@ export function TransitionControl({
 
         {isEasing ? (
           <>
-            <Slider label="x1" value={easing.ease[0]} onChange={(v) => updateEase(0, v)} min={0} max={1} step={0.01} />
-            <Slider label="y1" value={easing.ease[1]} onChange={(v) => updateEase(1, v)} min={-1} max={2} step={0.01} />
-            <Slider label="x2" value={easing.ease[2]} onChange={(v) => updateEase(2, v)} min={0} max={1} step={0.01} />
-            <Slider label="y2" value={easing.ease[3]} onChange={(v) => updateEase(3, v)} min={-1} max={2} step={0.01} />
             <EaseTextInput ease={easing.ease} onChange={(newEase) => onChange({ ...easing, ease: newEase })} />
           </>
         ) : isSimpleSpring ? (
@@ -157,18 +148,6 @@ export function TransitionControl({
       </div>
     </Folder>
   );
-}
-
-function formatEase(ease: [number, number, number, number]): string {
-  return ease.map(v => parseFloat(v.toFixed(2))).join(', ');
-}
-
-function parseEase(str: string): [number, number, number, number] | null {
-  const parts = str.split(',').map(s => parseFloat(s.trim()));
-  if (parts.length === 4 && parts.every(n => !isNaN(n))) {
-    return parts as [number, number, number, number];
-  }
-  return null;
 }
 
 function EaseTextInput({ ease, onChange }: { ease: [number, number, number, number]; onChange: (ease: [number, number, number, number]) => void }) {
@@ -197,6 +176,7 @@ function EaseTextInput({ ease, onChange }: { ease: [number, number, number, numb
       <span className="dialkit-labeled-control-label">Ease</span>
       <input
         type="text"
+        aria-label="Bézier coordinates"
         className="dialkit-text-input"
         value={editing ? draft : formatEase(ease)}
         onChange={(e) => setDraft(e.target.value)}

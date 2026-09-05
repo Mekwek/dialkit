@@ -15,6 +15,8 @@ import { TextControl } from './TextControl';
 import { SelectControl } from './SelectControl';
 import { ColorControl } from './ColorControl';
 import { ImageControl } from './ImageControl';
+import { DialPad } from './DialPad';
+import type { DialPadValue } from '../../dial-pad';
 import { PresetManager } from './PresetManager';
 
 interface PanelProps {
@@ -226,6 +228,18 @@ export function Panel(props: PanelProps) {
             label={control.label}
             value={value() as string}
             onChange={(v) => DialStore.updateValue(props.panel.id, control.path, v)}
+          />
+        );
+
+      case 'pad':
+        return (
+          <DialPad
+            label={control.label}
+            value={value() as DialPadValue}
+            x={control.pad?.x}
+            y={control.pad?.y}
+            labels={control.pad?.labels}
+            onChange={(next) => DialStore.updateValue(props.panel.id, control.path, next)}
           />
         );
 

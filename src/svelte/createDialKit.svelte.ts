@@ -150,6 +150,7 @@ function isLeafConfigValue(value: unknown): boolean {
     isSelectConfig(value) ||
     isColorConfig(value) ||
     hasType(value, 'image') ||
+    hasType(value, 'pad') ||
     isTextConfig(value)
   );
 }
