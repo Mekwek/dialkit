@@ -52,7 +52,7 @@ export const Slider = defineComponent({
 
     const percentage = computed(() => ((props.value - min.value) / (max.value - min.value)) * 100);
     const isActive = computed(() => isInteracting.value || isHovered.value);
-    const displayValue = computed(() => props.value.toFixed(decimalsForStep(step.value)));
+    const displayValue = computed(() => props.value.toFixed(decimalsForStep(step.value, min.value, max.value)));
     let pointerDownPos: { x: number; y: number } | null = null;
     let isClickFlag = true;
     let wrapperRect: DOMRect | null = null;
@@ -196,7 +196,7 @@ export const Slider = defineComponent({
           snapAnim = null;
         }
         fillPercent.jump(nextPct);
-        emit('change', roundValue(nextValue, step.value));
+        emit('change', roundValue(nextValue, step.value, min.value, max.value));
       }
     };
 
@@ -223,7 +223,7 @@ export const Slider = defineComponent({
           },
         });
 
-        emit('change', roundValue(snappedValue, step.value));
+        emit('change', roundValue(snappedValue, step.value, min.value, max.value));
       }
 
       if (rubberStretchPx.get() !== 0) {
@@ -254,7 +254,7 @@ export const Slider = defineComponent({
       const parsed = parseFloat(inputValue.value);
       if (!Number.isNaN(parsed)) {
         const clamped = Math.max(min.value, Math.min(max.value, parsed));
-        emit('change', roundValue(clamped, step.value));
+        emit('change', roundValue(clamped, step.value, min.value, max.value));
       }
       showInput.value = false;
       isValueHovered.value = false;
@@ -267,7 +267,7 @@ export const Slider = defineComponent({
       event.preventDefault();
       editingEnded = false;
       showInput.value = true;
-      inputValue.value = props.value.toFixed(decimalsForStep(step.value));
+      inputValue.value = props.value.toFixed(decimalsForStep(step.value, min.value, max.value));
     };
 
     const handleInputKeydown = (event: KeyboardEvent) => {
@@ -381,7 +381,7 @@ export const Slider = defineComponent({
           fillPercent.jump(((next - min.value) / (max.value - min.value)) * 100); emit('change', next);
         }, () => {
           editingEnded = false;
-          inputValue.value = props.value.toFixed(decimalsForStep(step.value)); showInput.value = true;
+          inputValue.value = props.value.toFixed(decimalsForStep(step.value, min.value, max.value)); showInput.value = true;
         }),
         onPointerdown: handlePointerDown,
         onPointermove: handlePointerMove,

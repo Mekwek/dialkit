@@ -119,7 +119,7 @@ export function Slider({
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
-      if (showInput) return;
+      if (showInput || e.button !== 0) return;
       e.preventDefault();
       (e.target as HTMLElement).setPointerCapture(e.pointerId);
       pointerDownPos.current = { x: e.clientX, y: e.clientY };
@@ -169,7 +169,7 @@ export function Slider({
           animRef.current = null;
         }
         fillPercent.jump(newPct);
-        onChange(roundValue(newValue, step));
+        onChange(roundValue(newValue, step, min, max));
       }
     },
     [
@@ -180,6 +180,9 @@ export function Slider({
       fillPercent,
       rubberStretchPx,
       computeRubberStretch,
+      min,
+      max,
+      step,
     ]
   );
 
@@ -208,7 +211,7 @@ export function Slider({
           mass: 0.8,
           onComplete: () => { animRef.current = null; },
         });
-        onChange(roundValue(snappedValue, step));
+        onChange(roundValue(snappedValue, step, min, max));
       }
 
       // Spring rubber band back
@@ -231,10 +234,21 @@ export function Slider({
       onChange,
       min,
       max,
+      step,
       fillPercent,
       rubberStretchPx,
     ]
   );
+
+  const handlePointerCancel = () => {
+    if (!pointerDownPos.current) return;
+    rubberStretchPx.jump(0);
+    setIsInteracting(false);
+    setIsDragging(false);
+    pointerDownPos.current = null;
+  };
+
+  useEffect(() => () => { animRef.current?.stop(); }, []);
 
   // Handle value hover delay for editable state
   useEffect(() => {
@@ -274,7 +288,7 @@ export function Slider({
     const parsed = parseFloat(inputValue);
     if (!isNaN(parsed)) {
       const clamped = Math.max(min, Math.min(max, parsed));
-      onChange(roundValue(clamped, step));
+      onChange(roundValue(clamped, step, min, max));
     }
     setShowInput(false);
     setIsValueHovered(false);
@@ -287,7 +301,7 @@ export function Slider({
       e.preventDefault();
       editingEnded.current = false;
       setShowInput(true);
-      setInputValue(value.toFixed(decimalsForStep(step)));
+      setInputValue(value.toFixed(decimalsForStep(step, min, max)));
     }
   };
 
@@ -308,7 +322,7 @@ export function Slider({
     handleInputSubmit();
   };
 
-  const displayValue = value.toFixed(decimalsForStep(step));
+  const displayValue = value.toFixed(decimalsForStep(step, min, max));
 
   // Handle opacity: not active → 0, active → 0.5, dragging → 0.9
   // Value dodge: fade when handle overlaps label (left) or value (right)
@@ -377,11 +391,13 @@ export function Slider({
           fillPercent.jump(percentFromValue(next)); onChange(next);
         }, () => {
           editingEnded.current = false;
-          setInputValue(value.toFixed(decimalsForStep(step))); setShowInput(true);
+          setInputValue(value.toFixed(decimalsForStep(step, min, max))); setShowInput(true);
         })}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
+        onLostPointerCapture={handlePointerCancel}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         style={{ width: rubberBandWidth, x: rubberBandX }}

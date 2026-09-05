@@ -210,7 +210,7 @@
 
       const newValue = positionToValue(e.clientX);
       fillPercent.set(percentFromValue(newValue), { instant: true });
-      onChange(roundValue(newValue, step));
+      onChange(roundValue(newValue, step, min, max));
     }
   };
 
@@ -225,7 +225,7 @@
         : snapToDecile(rawValue, min, max);
 
       fillPercent.set(percentFromValue(snappedValue));
-      onChange(roundValue(snappedValue, step));
+      onChange(roundValue(snappedValue, step, min, max));
     }
 
     if (rubberStretchPx.current !== 0) {
@@ -251,7 +251,7 @@
     const parsed = Number.parseFloat(inputValue);
     if (!Number.isNaN(parsed)) {
       const clamped = Math.max(min, Math.min(max, parsed));
-      onChange(roundValue(clamped, step));
+      onChange(roundValue(clamped, step, min, max));
     }
 
     showInput = false;
@@ -265,10 +265,10 @@
     e.preventDefault();
     editingEnded = false;
     showInput = true;
-    inputValue = value.toFixed(decimalsForStep(step));
+    inputValue = value.toFixed(decimalsForStep(step, min, max));
   };
 
-  const displayValue = $derived(value.toFixed(decimalsForStep(step)));
+  const displayValue = $derived(value.toFixed(decimalsForStep(step, min, max)));
 
   const trackStyle = $derived(`width:calc(100% + ${Math.abs(rubberStretchPx.current)}px);transform:translateX(${rubberStretchPx.current < 0 ? rubberStretchPx.current : 0}px);`);
   const fillStyle = $derived(`width:${fillPercent.current}%;`);
@@ -290,7 +290,7 @@
       fillPercent.set(percentFromValue(next), { instant: true }); onChange(next);
     }, () => {
       editingEnded = false;
-      inputValue = value.toFixed(decimalsForStep(step)); showInput = true;
+      inputValue = value.toFixed(decimalsForStep(step, min, max)); showInput = true;
     })}
     style={trackStyle}
     onpointerdown={handlePointerDown}

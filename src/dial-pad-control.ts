@@ -119,7 +119,6 @@ export function mountDialPad(host: HTMLElement, initial: DialPadProps) {
     const normalized = normalizePadValue(next, props);
     if (normalized.x === value.x && normalized.y === value.y) return;
     value = normalized;
-    props = { ...props, value };
     render();
     props.onChange({ ...value });
   }

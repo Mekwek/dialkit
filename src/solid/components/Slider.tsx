@@ -161,7 +161,7 @@ export function Slider(props: SliderProps) {
       const newPct = percentFromValue(newValue);
       if (snapAnim) { snapAnim.stop(); snapAnim = null; }
       fillPercent.jump(newPct);
-      props.onChange(roundValue(newValue, step()));
+      props.onChange(roundValue(newValue, step(), min(), max()));
     }
   };
 
@@ -188,7 +188,7 @@ export function Slider(props: SliderProps) {
         },
       });
 
-      props.onChange(roundValue(snappedValue, step()));
+      props.onChange(roundValue(snappedValue, step(), min(), max()));
     }
 
     if (rubberStretchPx.get() !== 0) {
@@ -268,7 +268,7 @@ export function Slider(props: SliderProps) {
     const parsed = parseFloat(inputValue());
     if (!isNaN(parsed)) {
       const clamped = Math.max(min(), Math.min(max(), parsed));
-      props.onChange(roundValue(clamped, step()));
+      props.onChange(roundValue(clamped, step(), min(), max()));
     }
     setShowInput(false);
     setIsValueHovered(false);
@@ -281,7 +281,7 @@ export function Slider(props: SliderProps) {
       e.preventDefault();
       editingEnded = false;
       setShowInput(true);
-      setInputValue(props.value.toFixed(decimalsForStep(step())));
+      setInputValue(props.value.toFixed(decimalsForStep(step(), min(), max())));
     }
   };
 
@@ -294,7 +294,7 @@ export function Slider(props: SliderProps) {
     queueMicrotask(() => trackRef?.focus({ preventScroll: true }));
   };
 
-  const displayValue = () => props.value.toFixed(decimalsForStep(step()));
+  const displayValue = () => props.value.toFixed(decimalsForStep(step(), min(), max()));
 
   // Value dodge: fade handle when it overlaps label or value text
   const HANDLE_BUFFER = 8;
@@ -381,7 +381,7 @@ export function Slider(props: SliderProps) {
           fillPercent.jump(percentFromValue(next)); props.onChange(next);
         }, () => {
           editingEnded = false;
-          setInputValue(props.value.toFixed(decimalsForStep(step()))); setShowInput(true);
+          setInputValue(props.value.toFixed(decimalsForStep(step(), min(), max()))); setShowInput(true);
         })}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}

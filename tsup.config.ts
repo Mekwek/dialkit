@@ -36,6 +36,7 @@ export default defineConfig([
   {
     entry: {
       icons: 'src/icons.ts',
+      'copy-instruction': 'src/copy-instruction.ts',
       'dropdown-position': 'src/dropdown-position.ts',
       'panel-drag': 'src/panel-drag.ts',
       'panel-size': 'src/panel-size.ts',

@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DialStore, PanelConfig } from '../store/DialStore';
 import { buildCopyInstruction } from '../copy-instruction';
-import { ShortcutsMenu } from './ShortcutsMenu';
 import { ICON_CLIPBOARD, ICON_CHECK, ICON_ADD_PRESET } from '../icons';
 import { ControlRenderer } from './ControlRenderer';
 import { Folder } from './Folder';
@@ -20,7 +19,8 @@ interface PanelProps {
 
 export function Panel({ panel, defaultOpen = true, inline = false, onOpenChange, variant = 'root', toolbarExtra }: PanelProps) {
   const [copied, setCopied] = useState(false);
-  const hasShortcuts = Object.keys(panel.shortcuts).length > 0;
+  const copyTimeout = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => () => clearTimeout(copyTimeout.current), []);
   const subscribe = useCallback(
     (callback: () => void) => DialStore.subscribe(panel.id, callback),
     [panel.id]
@@ -53,10 +53,12 @@ export function Panel({ panel, defaultOpen = true, inline = false, onOpenChange,
     DialStore.savePreset(panel.id, `Version ${nextNum}`);
   };
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(buildCopyInstruction('useDialKit', panel.name, values));
+  const handleCopy = async () => {
+    try { await navigator.clipboard.writeText(buildCopyInstruction('useDialKit', panel.name, values)); }
+    catch { return; }
     setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    clearTimeout(copyTimeout.current);
+    copyTimeout.current = setTimeout(() => setCopied(false), 1500);
   };
 
   const handleOpenChange = useCallback((open: boolean) => {

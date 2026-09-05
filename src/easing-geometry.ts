@@ -46,7 +46,7 @@ export function fitEasingGraph(ease: BezierPoints, width: number, height: number
     x: width / 2 + (x - 0.5) * scale.x,
     y: height / 2 - (y - 0.5) * scale.y,
   });
-  return { scale, padding, start: project(0, 0), end: project(1, 1), handles: [project(value[0], value[1]), project(value[2], value[3])], project };
+  return { scale, start: project(0, 0), end: project(1, 1), handles: [project(value[0], value[1]), project(value[2], value[3])] };
 }
 
 /** Deltas use the pointer-down scale so refitting the display cannot amplify a drag. */

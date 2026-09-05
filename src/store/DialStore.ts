@@ -1,3 +1,4 @@
+import { roundValue } from '../numeric';
 import { parseColor } from '../color';
 import { normalizePadValue, type DialPadConfig, type DialPadValue } from '../dial-pad';
 export type { DialPadAxis, DialPadConfig, DialPadValue } from '../dial-pad';
@@ -197,25 +198,8 @@ function resolveConfigValues(
     if (key === '_collapsed') continue;
     const path = prefix ? `${prefix}.${key}` : key;
 
-    if (Array.isArray(configValue) && configValue.length <= 4 && typeof configValue[0] === 'number') {
-      result[key] = flatValues[path] ?? configValue[0];
-    } else if (typeof configValue === 'number' || typeof configValue === 'boolean' || typeof configValue === 'string') {
-      result[key] = flatValues[path] ?? configValue;
-    } else if (isSpringConfigValue(configValue) || isEasingConfigValue(configValue)) {
-      result[key] = flatValues[path] ?? configValue;
-    } else if (isActionConfigValue(configValue)) {
-      result[key] = flatValues[path] ?? configValue;
-    } else if (isSelectConfigValue(configValue)) {
-      const defaultValue = configValue.default ?? getFirstOptionValue(configValue.options);
-      result[key] = flatValues[path] ?? defaultValue;
-    } else if (isColorConfigValue(configValue)) {
-      result[key] = flatValues[path] ?? configValue.default ?? '#000000';
-    } else if (isImageConfigValue(configValue)) {
-      result[key] = flatValues[path] ?? configValue.default ?? getFirstOptionValue(configValue.options ?? []);
-    } else if (isTextConfigValue(configValue)) {
-      result[key] = flatValues[path] ?? configValue.default ?? '';
-    } else if (isPadConfigValue(configValue)) {
-      result[key] = flatValues[path] ?? normalizePadValue(undefined, configValue);
+    if (isLeafConfigValue(configValue)) {
+      result[key] = flatValues[path] ?? configDefaultValue(configValue);
     } else if (typeof configValue === 'object' && configValue !== null) {
       result[key] = resolveConfigValues(configValue as DialConfig, flatValues, path);
     }
@@ -259,7 +243,7 @@ function flattenConfigUpdates(
   }
 }
 
-function isLeafConfigValue(value: unknown): boolean {
+export function isLeafConfigValue(value: unknown): boolean {
   return (
     (Array.isArray(value) && value.length <= 4 && typeof value[0] === 'number') ||
     typeof value === 'number' ||
@@ -274,6 +258,26 @@ function isLeafConfigValue(value: unknown): boolean {
     isTextConfigValue(value) ||
     isPadConfigValue(value)
   );
+}
+
+/** Defaults shared by the store and the values returned before a panel mounts. */
+function configDefaultValue(value: DialConfig[string]): DialValue {
+  if (Array.isArray(value)) return value[0];
+  if (isSelectConfigValue(value)) return value.default ?? getFirstOptionValue(value.options);
+  if (isColorConfigValue(value)) return value.default ?? '#000000';
+  if (isImageConfigValue(value)) return value.default ?? getFirstOptionValue(value.options ?? []);
+  if (isTextConfigValue(value)) return value.default ?? '';
+  if (isPadConfigValue(value)) return normalizePadValue(undefined, value);
+  return value as DialValue;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function sameControlValue(previous: unknown, next: unknown, control?: ControlMeta): boolean {
+  return Object.is(previous, next) || (control?.type === 'pad' &&
+    isRecord(previous) && isRecord(next) && previous.x === next.x && previous.y === next.y);
 }
 
 function hasType(value: unknown, type: string): boolean {
@@ -343,6 +347,7 @@ class DialStoreClass {
   private panelOpenListeners = new Set<(panelId: string, open: boolean) => void>();
   private panelOpenStates = new Map<string, boolean>();
   private panels: Map<string, PanelConfig> = new Map();
+  private controlsByPanel = new WeakMap<PanelConfig, Map<string, ControlMeta>>();
   private panelsSnapshot: PanelConfig[] = [];
   private standardPanelsSnapshot: PanelConfig[] = [];
   private timelinePanelsSnapshot: PanelConfig[] = [];
@@ -359,6 +364,7 @@ class DialStoreClass {
   private persistConfigs: Map<string, PersistConfig> = new Map();
 
   registerPanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, options: DialStorePanelOptions = {}): void {
+    const { controls, controlsByPath, defaultValues } = this.parseConfig(config, shortcuts);
     if (!this.panelOpenStates.has(id) && options.defaultCollapsed !== undefined) {
       this.panelOpenStates.set(id, !options.defaultCollapsed);
     }
@@ -372,13 +378,6 @@ class DialStoreClass {
     this.configurePanelRetention(id, options);
     this.registrationCounts.set(id, (this.registrationCounts.get(id) ?? 0) + 1);
 
-    const controls = this.parseConfig(config, '', shortcuts);
-    const controlsByPath = this.mapControlsByPath(controls);
-    const defaultValues = this.flattenValues(config, '');
-
-    // Set initial transition modes based on config types
-    this.initTransitionModes(config, '', defaultValues);
-
     const persisted = this.loadPersistedPanel(id);
     const previousValues = this.panels.get(id)?.values ?? this.snapshots.get(id) ?? persisted?.values ?? {};
     const values = this.reconcileValues(defaultValues, previousValues, controlsByPath);
@@ -386,7 +385,9 @@ class DialStoreClass {
     const previousBaseValues = this.baseValues.get(id) ?? persisted?.baseValues ?? persisted?.values ?? {};
     const baseValues = this.reconcileValues(defaultValues, previousBaseValues, controlsByPath);
 
-    this.panels.set(id, { id, name, controls, values, shortcuts: shortcuts ?? {}, kind: options.kind });
+    const panel: PanelConfig = { id, name, controls, values, shortcuts: shortcuts ?? {}, kind: options.kind };
+    this.panels.set(id, panel);
+    this.controlsByPanel.set(panel, controlsByPath);
     this.snapshots.set(id, { ...values });
     this.baseValues.set(id, baseValues);
     this.defaultValues.set(id, { ...defaultValues });
@@ -405,21 +406,19 @@ class DialStoreClass {
   }
 
   updatePanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, options: DialStorePanelOptions = {}): void {
-    this.configurePanelRetention(id, options);
     const existing = this.panels.get(id);
     if (!existing) {
       this.registerPanel(id, name, config, shortcuts, options);
       return;
     }
 
-    const controls = this.parseConfig(config, '', shortcuts);
-    const controlsByPath = this.mapControlsByPath(controls);
-    const defaultValues = this.flattenValues(config, '');
-    this.initTransitionModes(config, '', defaultValues);
+    const { controls, controlsByPath, defaultValues } = this.parseConfig(config, shortcuts ?? existing.shortcuts);
+    this.configurePanelRetention(id, options);
     const nextValues = this.reconcileValues(defaultValues, existing.values, controlsByPath);
 
     const nextPanel: PanelConfig = { id, name, controls, values: nextValues, shortcuts: shortcuts ?? existing.shortcuts, kind: options.kind ?? existing.kind };
     this.panels.set(id, nextPanel);
+    this.controlsByPanel.set(nextPanel, controlsByPath);
     this.snapshots.set(id, { ...nextValues });
 
     const previousBaseValues = this.baseValues.get(id) ?? {};
@@ -513,18 +512,24 @@ class DialStoreClass {
     if (!panel) return;
 
     const validUpdates: Record<string, DialValue> = {};
+    const activeId = this.activePreset.get(panelId);
+    const target = activeId
+      ? this.presets.get(panelId)?.find(preset => preset.id === activeId)?.values
+      : this.baseValues.get(panelId);
 
     for (const [path, value] of Object.entries(updates)) {
       if (!Object.prototype.hasOwnProperty.call(panel.values, path)) {
         continue;
       }
 
-      const control = this.findControlByPath(panel.controls, path);
+      const control = this.controlsByPanel.get(panel)?.get(path);
       if (control?.type === 'action') {
         continue;
       }
 
       const next = control?.type === 'pad' ? normalizePadValue(value, control.pad) : value;
+      if (sameControlValue(panel.values[path], next, control) &&
+        (!target || sameControlValue(target[path], next, control))) continue;
       panel.values[path] = next;
       validUpdates[path] = next;
     }
@@ -534,23 +539,7 @@ class DialStoreClass {
     }
 
     // Auto-save to active preset or base values
-    const activeId = this.activePreset.get(panelId);
-    if (activeId) {
-      const presets = this.presets.get(panelId) ?? [];
-      const preset = presets.find(p => p.id === activeId);
-      if (preset) {
-        for (const [path, value] of Object.entries(validUpdates)) {
-          preset.values[path] = value;
-        }
-      }
-    } else {
-      const base = this.baseValues.get(panelId);
-      if (base) {
-        for (const [path, value] of Object.entries(validUpdates)) {
-          base[path] = value;
-        }
-      }
-    }
+    if (target) Object.assign(target, validUpdates);
 
     // Create a new snapshot reference so useSyncExternalStore detects the change
     this.snapshots.set(panelId, { ...panel.values });
@@ -585,6 +574,7 @@ class DialStoreClass {
     const panel = this.panels.get(panelId);
     if (!panel) return;
 
+    if (panel.values[`${path}.__mode`] === mode) return;
     panel.values[`${path}.__mode`] = mode;
     this.snapshots.set(panelId, { ...panel.values });
     this.persistPanel(panelId);
@@ -749,7 +739,7 @@ class DialStoreClass {
         const scMod = shortcut.modifier ?? undefined;
         if (scMod !== modifier) continue;
 
-        const control = this.findControlByPath(panel.controls, path);
+        const control = this.controlsByPanel.get(panel)?.get(path);
         if (control) {
           return { panelId: panel.id, path, control };
         }
@@ -768,7 +758,7 @@ class DialStoreClass {
     for (const panel of this.panels.values()) {
       for (const [path, shortcut] of Object.entries(panel.shortcuts)) {
         if ((shortcut.interaction ?? 'scroll') !== 'scroll-only') continue;
-        const control = this.findControlByPath(panel.controls, path);
+        const control = this.controlsByPanel.get(panel)?.get(path);
         if (control) {
           results.push({ panelId: panel.id, path, control, shortcut });
         }
@@ -786,6 +776,8 @@ class DialStoreClass {
     if (persistConfig) {
       this.persistConfigs.set(id, persistConfig);
       this.retainedPanels.add(id);
+    } else if (options.persist === false) {
+      this.persistConfigs.delete(id);
     }
   }
 
@@ -800,8 +792,9 @@ class DialStoreClass {
       if (path.endsWith('.__mode')) {
         const transitionPath = path.slice(0, -'.__mode'.length);
         const transitionControl = controlsByPath.get(transitionPath);
-        nextValues[path] = transitionControl?.type === 'transition' && previousValues[path] !== undefined
-          ? previousValues[path]
+        const mode = previousValues[path];
+        nextValues[path] = transitionControl?.type === 'transition' && (mode === 'easing' || mode === 'simple' || mode === 'advanced')
+          ? mode
           : defaultValue;
         continue;
       }
@@ -847,9 +840,20 @@ class DialStoreClass {
     try {
       const raw = storage.getItem(config.key);
       if (!raw) return null;
-      const parsed = JSON.parse(raw) as PersistedPanelState;
-      if (parsed?.version !== 1 || typeof parsed !== 'object') return null;
-      return parsed;
+      const parsed: unknown = JSON.parse(raw);
+      if (!isRecord(parsed) || parsed.version !== 1) return null;
+      const values = isRecord(parsed.values) ? parsed.values as Record<string, DialValue> : undefined;
+      const presets = config.presets && Array.isArray(parsed.presets)
+        ? parsed.presets.filter((preset): preset is Preset =>
+          isRecord(preset) && typeof preset.id === 'string' && typeof preset.name === 'string' && isRecord(preset.values))
+        : [];
+      return {
+        version: 1,
+        values,
+        baseValues: config.presets && isRecord(parsed.baseValues) ? parsed.baseValues as Record<string, DialValue> : values,
+        presets,
+        activePresetId: presets.some(preset => preset.id === parsed.activePresetId) ? parsed.activePresetId as string : null,
+      };
     } catch {
       return null;
     }
@@ -865,15 +869,11 @@ class DialStoreClass {
     const values = this.snapshots.get(id) ?? this.panels.get(id)?.values;
     if (!values) return;
 
-    const state: PersistedPanelState = {
-      version: 1,
-      values,
-      baseValues: this.baseValues.get(id) ?? values,
-      activePresetId: this.activePreset.get(id) ?? null,
-    };
-
+    const state: PersistedPanelState = { version: 1, values };
     if (config.presets) {
+      state.baseValues = this.baseValues.get(id) ?? values;
       state.presets = this.presets.get(id) ?? [];
+      state.activePresetId = this.activePreset.get(id) ?? null;
     }
 
     try {
@@ -897,17 +897,6 @@ class DialStoreClass {
     }
   }
 
-  private findControlByPath(controls: ControlMeta[], path: string): ControlMeta | null {
-    for (const control of controls) {
-      if (control.path === path) return control;
-      if (control.type === 'folder' && control.children) {
-        const found = this.findControlByPath(control.children, path);
-        if (found) return found;
-      }
-    }
-    return null;
-  }
-
   private notify(panelId: string): void {
     this.listeners.get(panelId)?.forEach(fn => fn());
   }
@@ -919,187 +908,90 @@ class DialStoreClass {
     this.globalListeners.forEach(fn => fn());
   }
 
-  private initTransitionModes(config: DialConfig, prefix: string, values: Record<string, DialValue>): void {
-    for (const [key, value] of Object.entries(config)) {
-      if (key === '_collapsed') continue;
-      const path = prefix ? `${prefix}.${key}` : key;
+  /** Compile controls, defaults, and the lookup index in one walk. */
+  private parseConfig(config: DialConfig, shortcuts?: Record<string, ShortcutConfig>) {
+    const defaultValues: Record<string, DialValue> = {};
+    const modes: Record<string, DialValue> = {};
+    const controlsByPath = new Map<string, ControlMeta>();
+    const visit = (config: DialConfig, prefix: string): ControlMeta[] => {
+      const controls: ControlMeta[] = [];
 
-      if (this.isEasingConfig(value)) {
-        values[`${path}.__mode`] = 'easing';
-      } else if (this.isSpringConfig(value)) {
-        // Detect physics mode from config
-        const hasPhysics = value.stiffness !== undefined || value.damping !== undefined || value.mass !== undefined;
-        const hasTime = value.visualDuration !== undefined || value.bounce !== undefined;
-        values[`${path}.__mode`] = hasPhysics && !hasTime ? 'advanced' : 'simple';
-      } else if (typeof value === 'object' && value !== null && !Array.isArray(value) && !this.isActionConfig(value) && !this.isSelectConfig(value) && !this.isColorConfig(value) && !isImageConfigValue(value) && !this.isTextConfig(value) && !isPadConfigValue(value)) {
-        this.initTransitionModes(value as DialConfig, path, values);
-      }
-    }
-  }
+      for (const [key, value] of Object.entries(config)) {
+        if (key === '_collapsed') continue;
+        const path = prefix ? `${prefix}.${key}` : key;
+        const label = formatLabel(key);
+        const shortcut = shortcuts?.[path];
+        let control: ControlMeta | undefined;
 
-  private parseConfig(config: DialConfig, prefix: string, shortcuts?: Record<string, ShortcutConfig>): ControlMeta[] {
-    const controls: ControlMeta[] = [];
-
-    for (const [key, value] of Object.entries(config)) {
-      if (key === '_collapsed') continue;
-      const path = prefix ? `${prefix}.${key}` : key;
-      const label = this.formatLabel(key);
-      const shortcut = shortcuts?.[path];
-
-      if (Array.isArray(value) && value.length <= 4 && typeof value[0] === 'number') {
-        // Range tuple: [default, min, max]
-        controls.push({
-          type: 'slider',
-          path,
-          label,
-          min: value[1],
-          max: value[2],
-          step: value[3] ?? this.inferStep(value[1], value[2]),
-          shortcut,
-        });
-      } else if (typeof value === 'number') {
-        // Single number - auto-infer range
-        const { min, max, step } = this.inferRange(value);
-        controls.push({ type: 'slider', path, label, min, max, step, shortcut });
-      } else if (typeof value === 'boolean') {
-        controls.push({ type: 'toggle', path, label, shortcut });
-      } else if (this.isSpringConfig(value) || this.isEasingConfig(value)) {
-        controls.push({ type: 'transition', path, label });
-      } else if (this.isActionConfig(value)) {
-        controls.push({ type: 'action', path, label: (value as ActionConfig).label || label });
-      } else if (this.isSelectConfig(value)) {
-        controls.push({ type: 'select', path, label, options: value.options });
-      } else if (this.isColorConfig(value)) {
-        controls.push({ type: 'color', path, label });
-      } else if (isImageConfigValue(value)) {
-        controls.push({ type: 'image', path, label, options: value.options });
-      } else if (this.isTextConfig(value)) {
-        controls.push({ type: 'text', path, label, placeholder: value.placeholder });
-      } else if (isPadConfigValue(value)) {
-        controls.push({ type: 'pad', path, label, pad: value });
-      } else if (typeof value === 'string') {
-        // Auto-detect: hex color vs text
-        if (parseColor(value) && value !== 'transparent') {
-          controls.push({ type: 'color', path, label });
-        } else {
-          controls.push({ type: 'text', path, label });
+        if (Array.isArray(value) && value.length <= 4 && typeof value[0] === 'number') {
+          // Range tuple: [default, min, max]
+          control = {
+            type: 'slider',
+            path,
+            label,
+            min: value[1],
+            max: value[2],
+            step: value[3] ?? inferStep(value[1], value[2]),
+            shortcut,
+          };
+        } else if (typeof value === 'number') {
+          // Single number - auto-infer range
+          const { min, max, step } = this.inferRange(value);
+          control = { type: 'slider', path, label, min, max, step, shortcut };
+        } else if (typeof value === 'boolean') {
+          control = { type: 'toggle', path, label, shortcut };
+        } else if (isSpringConfigValue(value) || isEasingConfigValue(value)) {
+          control = { type: 'transition', path, label };
+        } else if (isActionConfigValue(value)) {
+          control = { type: 'action', path, label: value.label || label };
+        } else if (isSelectConfigValue(value)) {
+          control = { type: 'select', path, label, options: value.options };
+        } else if (isColorConfigValue(value)) {
+          control = { type: 'color', path, label };
+        } else if (isImageConfigValue(value)) {
+          control = { type: 'image', path, label, options: value.options };
+        } else if (isTextConfigValue(value)) {
+          control = { type: 'text', path, label, placeholder: value.placeholder };
+        } else if (isPadConfigValue(value)) {
+          control = { type: 'pad', path, label, pad: value };
+        } else if (typeof value === 'string') {
+          // Auto-detect: hex color vs text
+          if (parseColor(value) && value !== 'transparent') {
+            control = { type: 'color', path, label };
+          } else {
+            control = { type: 'text', path, label };
+          }
+        } else if (typeof value === 'object' && value !== null) {
+          // Nested object becomes a folder
+          const folderConfig = value as DialConfig;
+          const defaultOpen = '_collapsed' in folderConfig ? !(folderConfig._collapsed as boolean) : true;
+          control = {
+            type: 'folder',
+            path,
+            label,
+            defaultOpen,
+            children: visit(folderConfig, path),
+          };
         }
-      } else if (typeof value === 'object' && value !== null) {
-        // Nested object becomes a folder
-        const folderConfig = value as DialConfig;
-        const defaultOpen = '_collapsed' in folderConfig ? !(folderConfig._collapsed as boolean) : true;
-        controls.push({
-          type: 'folder',
-          path,
-          label,
-          defaultOpen,
-          children: this.parseConfig(folderConfig, path, shortcuts),
-        });
+        if (!control) continue;
+        controls.push(control);
+        controlsByPath.set(path, control);
+        if (control.type === 'folder') continue;
+        defaultValues[path] = configDefaultValue(value);
+        if (isEasingConfigValue(value)) {
+          modes[`${path}.__mode`] = 'easing';
+        } else if (isSpringConfigValue(value)) {
+          const hasPhysics = value.stiffness !== undefined || value.damping !== undefined || value.mass !== undefined;
+          const hasTime = value.visualDuration !== undefined || value.bounce !== undefined;
+          modes[`${path}.__mode`] = hasPhysics && !hasTime ? 'advanced' : 'simple';
+        }
       }
-    }
 
-    return controls;
-  }
-
-  private flattenValues(config: DialConfig, prefix: string): Record<string, DialValue> {
-    const values: Record<string, DialValue> = {};
-
-    for (const [key, value] of Object.entries(config)) {
-      if (key === '_collapsed') continue;
-      const path = prefix ? `${prefix}.${key}` : key;
-
-      if (Array.isArray(value) && value.length <= 4 && typeof value[0] === 'number') {
-        values[path] = value[0]; // Default value
-      } else if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'string') {
-        values[path] = value;
-      } else if (this.isSpringConfig(value) || this.isEasingConfig(value)) {
-        values[path] = value;
-      } else if (this.isActionConfig(value)) {
-        // Actions don't need stored values - they're just triggers
-        values[path] = value;
-      } else if (this.isSelectConfig(value)) {
-        // Use default or first option's value
-        const firstOption = value.options[0];
-        const firstValue = typeof firstOption === 'string' ? firstOption : firstOption.value;
-        values[path] = value.default ?? firstValue;
-      } else if (this.isColorConfig(value)) {
-        values[path] = value.default ?? '#000000';
-      } else if (isImageConfigValue(value)) {
-        values[path] = value.default ?? getFirstOptionValue(value.options ?? []);
-      } else if (this.isTextConfig(value)) {
-        values[path] = value.default ?? '';
-      } else if (isPadConfigValue(value)) {
-        values[path] = normalizePadValue(undefined, value);
-      } else if (typeof value === 'object' && value !== null) {
-        Object.assign(values, this.flattenValues(value as DialConfig, path));
-      }
-    }
-
-    return values;
-  }
-
-  private isSpringConfig(value: unknown): value is SpringConfig {
-    return (
-      typeof value === 'object' &&
-      value !== null &&
-      'type' in value &&
-      (value as SpringConfig).type === 'spring'
-    );
-  }
-
-  private isEasingConfig(value: unknown): value is EasingConfig {
-    return (
-      typeof value === 'object' &&
-      value !== null &&
-      'type' in value &&
-      (value as EasingConfig).type === 'easing'
-    );
-  }
-
-  private isActionConfig(value: unknown): value is ActionConfig {
-    return (
-      typeof value === 'object' &&
-      value !== null &&
-      'type' in value &&
-      (value as ActionConfig).type === 'action'
-    );
-  }
-
-  private isSelectConfig(value: unknown): value is SelectConfig {
-    return (
-      typeof value === 'object' &&
-      value !== null &&
-      'type' in value &&
-      (value as SelectConfig).type === 'select' &&
-      'options' in value &&
-      Array.isArray((value as SelectConfig).options)
-    );
-  }
-
-  private isColorConfig(value: unknown): value is ColorConfig {
-    return (
-      typeof value === 'object' &&
-      value !== null &&
-      'type' in value &&
-      (value as ColorConfig).type === 'color'
-    );
-  }
-
-  private isTextConfig(value: unknown): value is TextConfig {
-    return (
-      typeof value === 'object' &&
-      value !== null &&
-      'type' in value &&
-      (value as TextConfig).type === 'text'
-    );
-  }
-
-  private isHexColor(value: string): boolean {
-    return isHexColor(value);
-  }
-
-  private formatLabel(key: string): string {
-    return formatLabel(key);
+      return controls;
+    };
+    const controls = visit(config, '');
+    Object.assign(defaultValues, modes);
+    return { controls, defaultValues, controlsByPath };
   }
 
   private inferRange(value: number): { min: number; max: number; step: number } {
@@ -1117,10 +1009,6 @@ class DialStoreClass {
     }
   }
 
-  private inferStep(min: number, max: number): number {
-    return inferStep(min, max);
-  }
-
   private normalizePreservedValue(
     existingValue: DialValue | undefined,
     defaultValue: DialValue,
@@ -1132,7 +1020,7 @@ class DialStoreClass {
 
     switch (control.type) {
       case 'slider': {
-        if (typeof existingValue !== 'number' || typeof defaultValue !== 'number') {
+        if (typeof existingValue !== 'number' || !Number.isFinite(existingValue) || typeof defaultValue !== 'number') {
           return defaultValue;
         }
 
@@ -1144,7 +1032,7 @@ class DialStoreClass {
           return clamped;
         }
 
-        return this.roundToStep(clamped, min, max, control.step);
+        return roundValue(clamped, control.step, min, max);
       }
       case 'toggle':
         return typeof existingValue === 'boolean' ? existingValue : defaultValue;
@@ -1164,11 +1052,11 @@ class DialStoreClass {
       case 'text':
         return typeof existingValue === 'string' ? existingValue : defaultValue;
       case 'transition':
-        if (this.isSpringConfig(defaultValue)) {
-          return this.isSpringConfig(existingValue) ? existingValue : defaultValue;
+        if (isSpringConfigValue(defaultValue)) {
+          return isSpringConfigValue(existingValue) ? existingValue : defaultValue;
         }
-        if (this.isEasingConfig(defaultValue)) {
-          return this.isEasingConfig(existingValue) ? existingValue : defaultValue;
+        if (isEasingConfigValue(defaultValue)) {
+          return isEasingConfigValue(existingValue) ? existingValue : defaultValue;
         }
         return defaultValue;
       case 'action':
@@ -1177,38 +1065,6 @@ class DialStoreClass {
         return defaultValue;
     }
   }
-
-  private roundToStep(value: number, min: number, max: number, step: number): number {
-    const snapped = min + Math.round((value - min) / step) * step;
-    const clamped = Math.min(max, Math.max(min, snapped));
-    const precision = this.stepPrecision(step);
-    return Number(clamped.toFixed(precision));
-  }
-
-  private stepPrecision(step: number): number {
-    const text = String(step);
-    const decimalIndex = text.indexOf('.');
-    return decimalIndex === -1 ? 0 : text.length - decimalIndex - 1;
-  }
-
-  private mapControlsByPath(controls: ControlMeta[]): Map<string, ControlMeta> {
-    const map = new Map<string, ControlMeta>();
-
-    const visit = (nodes: ControlMeta[]) => {
-      for (const node of nodes) {
-        if (node.type === 'folder' && node.children) {
-          visit(node.children);
-          continue;
-        }
-
-        map.set(node.path, node);
-      }
-    };
-
-    visit(controls);
-    return map;
-  }
-
 }
 
 // Singleton instance

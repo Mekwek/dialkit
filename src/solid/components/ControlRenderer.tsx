@@ -1,4 +1,4 @@
-import { For, Show } from 'solid-js';
+import { For } from 'solid-js';
 import { DialStore } from '../../store/DialStore';
 import type {
   ControlMeta,
@@ -7,7 +7,6 @@ import type {
   TransitionConfig,
 } from '../../store/DialStore';
 import { useShortcutContext } from './ShortcutListener';
-import { ButtonGroup } from './ButtonGroup';
 import { ColorControl } from './ColorControl';
 import { ImageControl } from './ImageControl';
 import { DialPad } from './DialPad';

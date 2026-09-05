@@ -6,17 +6,27 @@ import { pathToFileURL } from 'node:url';
 import { describe, it } from 'node:test';
 import { createElement, StrictMode } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { createRenderer, defineComponent, h } from 'vue';
+import { createRenderer, defineComponent, h, nextTick, reactive } from 'vue';
 import { compileModule } from 'svelte/compiler';
 import { ModuleKind, ScriptTarget, transpileModule } from 'typescript';
 import { useDialKitController } from './hooks/useDialKit';
 import { useDialKitController as useVueDialKitController } from './vue/useDialKit';
 import { DialStore, type DialConfig } from './store/DialStore';
 
-const config = { group: { position: { type: 'pad' } } } satisfies DialConfig;
-const changed = { x: 0.75, y: -0.4 };
+const config = { group: {
+  position: { type: 'pad' }, amount: [0.25, 0, 1], enabled: true,
+  title: { type: 'text', default: 'Example' }, choice: { type: 'select', options: [] },
+  accent: { type: 'color' }, cover: { type: 'image' },
+  spring: { type: 'spring', visualDuration: 0.3, bounce: 0.2 },
+  easing: { type: 'easing', duration: 0.5, ease: [0, 0, 1, 1] },
+  run: { type: 'action' },
+} } satisfies DialConfig;
+const defaults = { position: { x: 0, y: 0 }, amount: 0.25, enabled: true, title: 'Example', choice: '',
+  accent: '#000000', cover: '', spring: config.group.spring, easing: config.group.easing, run: config.group.run };
+const updates = { position: { x: 0.75, y: -0.4 }, amount: 0.5, enabled: false, title: 'Changed', accent: '#ff0000', cover: '/cover.png' };
+const changed = { ...defaults, ...updates };
 
-describe('DialPad framework values', () => {
+describe('DialKit framework values', () => {
   it('updates and resets the React controller under StrictMode', () => {
     const id = 'pad-react';
     let dial: ReturnType<typeof useDialKitController<typeof config>>;
@@ -24,11 +34,11 @@ describe('DialPad framework values', () => {
     function Harness() { dial = useDialKitController('Pad', config, { id }); return null; }
     try {
       act(() => { renderer = create(createElement(StrictMode, null, createElement(Harness))); });
-      assert.deepEqual(dial!.values.group.position, { x: 0, y: 0 });
-      act(() => dial.setValues({ group: { position: changed } }));
-      assert.deepEqual(dial!.values.group.position, changed);
+      assert.deepEqual(dial!.values.group, defaults);
+      act(() => dial.setValues({ group: updates }));
+      assert.deepEqual(dial!.values.group, changed);
       act(() => dial.resetValues());
-      assert.deepEqual(dial!.values.group.position, { x: 0, y: 0 });
+      assert.deepEqual(dial!.values.group, defaults);
     } finally { act(() => renderer?.unmount()); }
     assert.equal(DialStore.getPanel(id), undefined);
   });
@@ -48,11 +58,41 @@ describe('DialPad framework values', () => {
     }));
     try {
       app.mount({});
-      assert.deepEqual(dial!.values.value.group.position, { x: 0, y: 0 });
-      dial!.setValues({ group: { position: changed } });
-      assert.deepEqual(dial!.values.value.group.position, changed);
+      assert.deepEqual(dial!.values.value.group, defaults);
+      dial!.setValues({ group: updates });
+      assert.deepEqual(dial!.values.value.group, changed);
       dial!.resetValues();
-      assert.deepEqual(dial!.values.value.group.position, { x: 0, y: 0 });
+      assert.deepEqual(dial!.values.value.group, defaults);
+    } finally { app.unmount(); }
+    assert.equal(DialStore.getPanel(id), undefined);
+  });
+
+  it('tracks Vue config changes and the current action callback without replacing the controller', async () => {
+    const id = 'vue-live-config';
+    const config = reactive({ amount: [0.5, 0, 1, 0.1], run: { type: 'action' } } satisfies DialConfig);
+    const actions: string[] = [];
+    const options = reactive({ id, shortcuts: { amount: { key: 'r' } }, onAction: (path: string) => actions.push(`first:${path}`) });
+    let dial: ReturnType<typeof useVueDialKitController<typeof config>>;
+    const renderer = createRenderer<object, object>({
+      patchProp() {}, insert() {}, remove() {},
+      createElement: () => ({}), createText: () => ({}), createComment: () => ({}),
+      setText() {}, setElementText() {}, parentNode: () => null, nextSibling: () => null,
+      querySelector: () => null, setScopeId() {}, insertStaticContent: () => [{}, {}],
+    });
+    const app = renderer.createApp(defineComponent({
+      setup() { dial = useVueDialKitController('Live config', config, options); return () => h('div'); },
+    }));
+    try {
+      app.mount({});
+      dial!.setValue('amount', 0.8);
+      config.amount[2] = 0.6;
+      options.shortcuts.amount.key = 't';
+      options.onAction = path => actions.push(`latest:${path}`);
+      await nextTick();
+      assert.equal(dial!.values.value.amount, 0.6);
+      assert.equal(DialStore.resolveShortcutTarget('t')?.panelId, id);
+      DialStore.triggerAction(id, 'run');
+      assert.deepEqual(actions, ['latest:run']);
     } finally { app.unmount(); }
     assert.equal(DialStore.getPanel(id), undefined);
   });
@@ -69,11 +109,11 @@ describe('DialPad framework values', () => {
         dial = createDialKitController('Pad', ${JSON.stringify(config)}, { id: 'pad-solid' });
       });
       await new Promise(resolve => queueMicrotask(resolve));
-      assert.deepEqual(JSON.parse(JSON.stringify(dial.values().group.position)), { x: 0, y: 0 });
-      dial.setValues({ group: { position: ${JSON.stringify(changed)} } });
-      assert.deepEqual(JSON.parse(JSON.stringify(dial.values().group.position)), ${JSON.stringify(changed)});
+      assert.deepEqual(JSON.parse(JSON.stringify(dial.values().group)), ${JSON.stringify(defaults)});
+      dial.setValues({ group: ${JSON.stringify(updates)} });
+      assert.deepEqual(JSON.parse(JSON.stringify(dial.values().group)), ${JSON.stringify(changed)});
       dial.resetValues();
-      assert.deepEqual(JSON.parse(JSON.stringify(dial.values().group.position)), { x: 0, y: 0 });
+      assert.deepEqual(JSON.parse(JSON.stringify(dial.values().group)), ${JSON.stringify(defaults)});
       dispose();
       assert.equal(DialStore.getPanel('pad-solid'), undefined);
     `;
@@ -81,7 +121,7 @@ describe('DialPad framework values', () => {
     assert.equal(result.status, 0, result.stderr);
   });
 
-  it('keeps Svelte pad values as reactive pairs instead of recursing into the axis config', () => {
+  it('keeps all Svelte control values reactive without exposing their config', () => {
     const source = readFileSync('src/svelte/createDialKit.svelte.ts', 'utf8')
       .replaceAll("from 'dialkit/store'", `from '${pathToFileURL(join(process.cwd(), 'src/store/DialStore.ts')).href}'`);
     const harness = `
@@ -94,13 +134,13 @@ describe('DialPad framework values', () => {
         });
         try {
           flushSync();
-          assert.deepEqual(JSON.parse(JSON.stringify(dial.values.group.position)), { x: 0, y: 0 });
-          dial.setValues({ group: { position: ${JSON.stringify(changed)} } });
+          assert.deepEqual(JSON.parse(JSON.stringify(dial.values.group)), ${JSON.stringify(defaults)});
+          dial.setValues({ group: ${JSON.stringify(updates)} });
           flushSync();
-          assert.deepEqual(JSON.parse(JSON.stringify(dial.values.group.position)), ${JSON.stringify(changed)});
+          assert.deepEqual(JSON.parse(JSON.stringify(dial.values.group)), ${JSON.stringify(changed)});
           dial.resetValues();
           flushSync();
-          assert.deepEqual(JSON.parse(JSON.stringify(dial.values.group.position)), { x: 0, y: 0 });
+          assert.deepEqual(JSON.parse(JSON.stringify(dial.values.group)), ${JSON.stringify(defaults)});
         } finally { dispose(); }
         assert.equal(DialStore.getPanel('pad-svelte'), undefined);
       }
