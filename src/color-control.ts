@@ -13,7 +13,8 @@ function element<K extends keyof HTMLElementTagNameMap>(tag: K, className: strin
 }
 
 /** One interaction/rendering implementation shared by the four framework adapters. */
-export function mountColorControl(host: HTMLElement, initial: ColorControlProps) {
+export function mountColorControl(host: HTMLElement, initial: ColorControlProps, presentation: 'popover' | 'inline' = 'popover') {
+  const inline = presentation === 'inline';
   let props = initial;
   let color: Color = parseColor(props.value) ?? { l: 0, c: 0, h: 0, a: 1 };
   let format = colorFormat(props.value);
@@ -35,6 +36,7 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps)
   inputs.append(valueInput, swatch);
   row.append(label, inputs);
   host.append(row);
+  if (inline) row.style.display = 'none';
 
   const render = () => {
     label.textContent = props.label;
@@ -106,11 +108,12 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps)
   };
 
   const open = () => {
-    if (popup) { close(); return; }
-    const root = getDialKitPortalRoot(host) ?? host;
+    if (popup) { if (!inline) close(); return; }
+    const root = inline ? host : getDialKitPortalRoot(host) ?? host;
     popup = element('div', 'dialkit-color-popover');
-    popup.style.position = 'fixed';
-    popup.setAttribute('role', 'dialog');
+    popup.dataset.presentation = presentation;
+    popup.style.position = inline ? 'static' : 'fixed';
+    popup.setAttribute('role', inline ? 'group' : 'dialog');
     popup.setAttribute('aria-label', `${props.label} color picker`);
     const plane = element('div', 'dialkit-color-plane');
     plane.setAttribute('role', 'group');
@@ -253,6 +256,7 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps)
     plane.addEventListener('pointermove', e => { if (plane.hasPointerCapture(e.pointerId)) move(e); });
     plane.addEventListener('pointerup', e => { if (plane.hasPointerCapture(e.pointerId)) plane.releasePointerCapture(e.pointerId); });
     popup.addEventListener('keydown', e => {
+      if (inline) return;
       if (e.key === 'Escape') { e.preventDefault(); close(true); }
       if (e.key === 'Tab') {
         const first = formatButtons.find(button => button.tabIndex === 0);
@@ -272,6 +276,7 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps)
       Object.assign(popup.style, { left: `${p.left}px`, top: `${p.top}px`, width: `${p.width}px`, maxHeight: `${p.maxHeight}px`, transformOrigin: p.above ? 'bottom' : 'top' });
     };
     updatePicker();
+    if (inline) return;
     stopPosition = observeDropdownPosition(row, updatePosition, () => popup);
     row.dataset.open = 'true';
     swatch.setAttribute('aria-expanded', 'true');
@@ -281,6 +286,7 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps)
   };
   swatch.addEventListener('click', open);
   render();
+  if (inline) open();
   return {
     update(next: ColorControlProps) {
       const parsed = parseColor(next.value);

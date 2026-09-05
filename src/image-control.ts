@@ -83,7 +83,8 @@ function preview(className: string) {
 }
 
 /** Shared picker so selection, uploads, focus, and positioning match in every framework. */
-export function mountImageControl(host: HTMLElement, initial: ImageControlProps) {
+export function mountImageControl(host: HTMLElement, initial: ImageControlProps, presentation: 'popover' | 'inline' = 'popover') {
+  const inline = presentation === 'inline';
   let props = initial;
   const uploaded: NamedImage[] = [];
   let popup: HTMLDivElement | undefined;
@@ -105,6 +106,7 @@ export function mountImageControl(host: HTMLElement, initial: ImageControlProps)
   fileInput.accept = 'image/*';
   fileInput.hidden = true;
   host.append(trigger, fileInput);
+  if (inline) trigger.style.display = 'none';
 
   const choices = () => imageOptions(props.options, uploaded, props.value);
   const render = () => {
@@ -145,16 +147,17 @@ export function mountImageControl(host: HTMLElement, initial: ImageControlProps)
   };
 
   const open = () => {
-    if (popup) { close(); return; }
-    const root = getDialKitPortalRoot(host) ?? host;
+    if (popup) { if (!inline) close(); return; }
+    const root = inline ? host : getDialKitPortalRoot(host) ?? host;
     popup = element('div', 'dialkit-image-popover');
-    popup.style.position = 'fixed';
+    popup.dataset.presentation = presentation;
+    popup.style.position = inline ? 'static' : 'fixed';
     popup.id = popupId;
-    popup.setAttribute('role', 'dialog');
+    popup.setAttribute('role', inline ? 'group' : 'dialog');
     const heading = element('div', 'dialkit-image-heading');
     const title = element('span', 'dialkit-image-title');
     const clear = element('button', 'dialkit-image-clear', 'Remove');
-    clear.addEventListener('click', () => { commit(''); close(true); });
+    clear.addEventListener('click', () => { commit(''); if (!inline) close(true); });
     heading.append(title, clear);
     const grid = element('div', 'dialkit-image-grid');
     grid.setAttribute('role', 'group');
@@ -257,6 +260,7 @@ export function mountImageControl(host: HTMLElement, initial: ImageControlProps)
       button.scrollIntoView({ block: 'nearest' });
     });
     popup.addEventListener('keydown', event => {
+      if (inline) return;
       event.stopPropagation();
       if (event.key === 'Escape') { event.preventDefault(); close(true); }
       if (event.key === 'Tab') {
@@ -311,6 +315,7 @@ export function mountImageControl(host: HTMLElement, initial: ImageControlProps)
       const p = getDropdownPosition(trigger, root, { dropdownHeight: popup.scrollHeight + 2, width: 320, maxHeight: 560, preferSide: true, fixed: true, gap: 8 });
       Object.assign(popup.style, { left: `${p.left}px`, top: `${p.top}px`, width: `${p.width}px`, maxHeight: `${p.maxHeight}px`, transformOrigin: p.above ? 'bottom' : 'top' });
     };
+    if (inline) return;
     stopPosition = observeDropdownPosition(trigger, position, () => popup);
     trigger.dataset.open = 'true';
     trigger.setAttribute('aria-expanded', 'true');
@@ -326,6 +331,7 @@ export function mountImageControl(host: HTMLElement, initial: ImageControlProps)
     if (event.key === 'ArrowDown' && !popup) { event.preventDefault(); open(); }
   });
   render();
+  if (inline) open();
   return {
     update(next: ImageControlProps) {
       if (next.value !== props.value) resetUpload();

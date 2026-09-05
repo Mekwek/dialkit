@@ -57,6 +57,24 @@ export default defineConfig([
     sourcemap: true,
     esbuildPlugins: [externalPackageStorePlugin],
   },
+  // Dependency-free DOM adapter, including a single script for plain HTML.
+  {
+    entry: { index: 'src/vanilla/index.ts' },
+    outDir: 'dist/vanilla',
+    format: ['esm', 'cjs'],
+    dts: true,
+    splitting: false,
+    sourcemap: true,
+  },
+  {
+    entry: { browser: 'src/vanilla/index.ts' },
+    outDir: 'dist/vanilla',
+    format: ['iife'],
+    globalName: 'DialKit',
+    define: { 'import.meta': '{}' },
+    splitting: false,
+    sourcemap: true,
+  },
   // React build
   {
     entry: ['src/index.ts'],
@@ -70,7 +88,7 @@ export default defineConfig([
         js: '"use client";',
       };
     },
-    onSuccess: 'cp src/styles/theme.css dist/styles.css',
+    onSuccess: 'node scripts/copy-styles.mjs',
   },
   // Solid build
   {

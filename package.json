@@ -1,7 +1,7 @@
 {
   "name": "dialkit",
   "version": "1.4.4",
-  "description": "Real-time parameter tweaking for React, Solid, Svelte, and Vue apps",
+  "description": "Live controls for tuning interfaces in React, Solid, Svelte, Vue, and plain JavaScript",
   "type": "module",
   "sideEffects": false,
   "main": "./dist/index.cjs",
@@ -55,7 +55,19 @@
       "svelte": "./dist/svelte/index.js",
       "default": "./dist/svelte/index.js"
     },
-    "./styles.css": "./dist/styles.css"
+    "./styles.css": "./dist/styles.css",
+    "./vanilla": {
+      "import": {
+        "types": "./dist/vanilla/index.d.ts",
+        "default": "./dist/vanilla/index.js"
+      },
+      "require": {
+        "types": "./dist/vanilla/index.d.cts",
+        "default": "./dist/vanilla/index.cjs"
+      }
+    },
+    "./vanilla/browser.js": "./dist/vanilla/browser.global.js",
+    "./vanilla/styles.css": "./dist/vanilla/styles.css"
   },
   "files": [
     "dist"
@@ -96,6 +108,9 @@
     },
     "vue": {
       "optional": true
+    },
+    "motion": {
+      "optional": true
     }
   },
   "devDependencies": {
@@ -126,7 +141,8 @@
     "animation",
     "tweaking",
     "parameters",
-    "devtools"
+    "devtools",
+    "vanilla"
   ],
   "license": "MIT",
   "repository": {

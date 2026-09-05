@@ -24,7 +24,8 @@
     "src/index.ts",
     "src/components/**/*",
     "src/hooks/**/*",
-    "src/store/**/*"
+    "src/store/**/*",
+    "src/vanilla/**/*"
   ],
   "exclude": ["node_modules", "dist", "example"]
 }
