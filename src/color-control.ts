@@ -202,7 +202,8 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
     const opacity = track('Opacity', 100, 1, 'dialkit-color-opacity');
 
     // The mode switcher.
-    const formatRow = element('div', 'dialkit-labeled-control dialkit-color-format-row');
+    // The switcher stands on its own; it is not a labeled row with a surface behind it.
+    const formatRow = element('div', 'dialkit-color-format-row');
     const formats = element('div', 'dialkit-segmented dialkit-color-formats');
     formatRow.append(formats);
     formats.setAttribute('role', 'radiogroup');

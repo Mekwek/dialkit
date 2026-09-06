@@ -2024,7 +2024,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
       }
       const hue = track("Hue", 360, 0.1, "dialkit-color-hue");
       const opacity = track("Opacity", 100, 1, "dialkit-color-opacity");
-      const formatRow = element("div", "dialkit-labeled-control dialkit-color-format-row");
+      const formatRow = element("div", "dialkit-color-format-row");
       const formats = element("div", "dialkit-segmented dialkit-color-formats");
       formatRow.append(formats);
       formats.setAttribute("role", "radiogroup");

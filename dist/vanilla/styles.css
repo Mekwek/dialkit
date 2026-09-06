@@ -1395,11 +1395,11 @@
 .dialkit-color-track::-moz-range-track { height: 16px; border: 0; border-radius: 4px; background: var(--dial-color-track-bg); }
 .dialkit-color-track::-webkit-slider-thumb { -webkit-appearance: none; box-sizing: border-box; width: 16px; height: 24px; margin-top: -4px; border-radius: 5px; background: var(--dial-color-thumb-bg); background-clip: padding-box; border: 2px solid white; box-shadow: 0 2px 4px rgb(0 0 0 / 30%); }
 .dialkit-color-track::-moz-range-thumb { box-sizing: border-box; width: 16px; height: 24px; border-radius: 5px; background: var(--dial-color-thumb-bg); background-clip: padding-box; border: 2px solid white; box-shadow: 0 2px 4px rgb(0 0 0 / 30%); }
-/* The same row, buttons, and pill as Enabled, with no label and equal segments. */
-.dialkit-color-format-row { padding: 2px; }
+/* The same buttons and pill as Enabled, with equal segments and no row surface behind them. */
+.dialkit-color-format-row { display: flex; align-items: center; height: var(--dial-row-height); }
 .dialkit-color-format-row .dialkit-color-formats { flex: 1; min-width: 0; margin-right: 0; }
 .dialkit-color-formats .dialkit-segmented-pill { left: 2px; width: calc((100% - 4px) / 4); transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1); }
-.dialkit-color-format { flex: 1 1 0; min-width: 0; white-space: nowrap; }
+.dialkit-color-format { flex: 1 1 0; min-width: 0; white-space: nowrap; text-align: center; justify-content: center; }
 .dialkit-color-format:hover { color: var(--dial-text-primary); }
 /* The inputs row: eyedropper, the mode's channel fields, then alpha. */
 .dialkit-color-fields { display: flex; align-items: center; gap: 8px; height: var(--dial-row-height); padding: 0 8px 0 6px; border-radius: var(--dial-radius); background: var(--dial-surface); font: 500 12px 'Geist Mono', monospace; color: var(--dial-text-label); }
