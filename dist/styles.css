@@ -55,6 +55,7 @@
      surface it is on instead of glowing against it. */
   --dial-checker-a: #262626;
   --dial-checker-b: #333333;
+  --dial-checker: repeating-conic-gradient(var(--dial-checker-b) 0% 25%, var(--dial-checker-a) 0% 50%) 0 0 / 8px 8px;
   --dial-radius: 8px;
   --dial-row-height: 36px;
   --dial-row-gap: 6px;
@@ -1342,19 +1343,13 @@
   padding: 0;
   border-radius: 5px;
   border: 1px solid var(--dial-border-hover);
-  background: linear-gradient(var(--dial-color), var(--dial-color)), repeating-conic-gradient(#aaa 0% 25%, #eee 0% 50%) 0 / 8px 8px;
+  /* The colour layer sits on top of the theme's checker, so a transparent
+     colour shows the checker through it. */
+  background: linear-gradient(var(--dial-color), var(--dial-color)), var(--dial-checker);
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 8%);
   cursor: pointer;
   overflow: hidden;
   transition: transform 0.15s;
-  background-color: var(--dial-checker-a);
-  background-image:
-    linear-gradient(45deg, var(--dial-checker-b) 25%, transparent 25%),
-    linear-gradient(-45deg, var(--dial-checker-b) 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, var(--dial-checker-b) 75%),
-    linear-gradient(-45deg, transparent 75%, var(--dial-checker-b) 75%);
-  background-size: 8px 8px;
-  background-position: 0 0, 0 4px, 4px -4px, -4px 0;
   /* The border is semi-transparent, and a background paints under it by
      default — stop at the border's inside edge so the checker cannot show
      through it. */
@@ -1395,8 +1390,8 @@
   --dial-color-thumb-bg: var(--dial-color-thumb);
 }
 .dialkit-color-opacity {
-  --dial-color-track-bg: linear-gradient(to right, transparent, var(--dial-color-opaque)), repeating-conic-gradient(#aaa 0% 25%, #eee 0% 50%) 0 / 8px 8px;
-  --dial-color-thumb-bg: linear-gradient(var(--dial-color-thumb), var(--dial-color-thumb)), repeating-conic-gradient(#aaa 0% 25%, #eee 0% 50%) 0 / 8px 8px;
+  --dial-color-track-bg: linear-gradient(to right, transparent, var(--dial-color-opaque)), var(--dial-checker);
+  --dial-color-thumb-bg: linear-gradient(var(--dial-color-thumb), var(--dial-color-thumb)), var(--dial-checker);
 }
 .dialkit-color-track::-webkit-slider-runnable-track { height: 16px; border-radius: 4px; background: var(--dial-color-track-bg); }
 .dialkit-color-track::-moz-range-track { height: 16px; border: 0; border-radius: 4px; background: var(--dial-color-track-bg); }
@@ -1405,9 +1400,21 @@
 /* The same row, buttons, and pill as Enabled, with no label and equal segments. */
 .dialkit-color-format-row { padding: 2px; }
 .dialkit-color-format-row .dialkit-color-formats { flex: 1; min-width: 0; margin-right: 0; }
-.dialkit-color-formats .dialkit-segmented-pill { left: 2px; width: calc((100% - 4px) / 3); transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1); }
+.dialkit-color-formats .dialkit-segmented-pill { left: 2px; width: calc((100% - 4px) / 4); transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1); }
 .dialkit-color-format { flex: 1 1 0; min-width: 0; white-space: nowrap; }
 .dialkit-color-format:hover { color: var(--dial-text-primary); }
+/* The inputs row: eyedropper, the mode's channel fields, then alpha. */
+.dialkit-color-fields { display: flex; align-items: center; gap: 8px; height: var(--dial-row-height); padding: 0 8px 0 6px; border-radius: var(--dial-radius); background: var(--dial-surface); font: 500 12px 'Geist Mono', monospace; color: var(--dial-text-label); }
+.dialkit-color-channels { display: flex; flex: 1; min-width: 0; align-items: center; gap: 6px; }
+.dialkit-color-channel-cell { display: flex; flex: 1; min-width: 0; align-items: center; gap: 3px; }
+.dialkit-color-channel { min-width: 0; padding: 0; border: 0; outline: none; background: transparent; color: inherit; font: inherit; text-align: right; }
+.dialkit-color-channel:focus { color: var(--dial-text-focus); }
+.dialkit-color-hex-input { flex: 1; width: 100%; text-align: left; text-transform: uppercase; }
+.dialkit-color-channel-name, .dialkit-color-unit { flex-shrink: 0; opacity: 0.6; }
+.dialkit-color-alpha { display: flex; align-items: center; gap: 1px; margin-left: auto; }
+.dialkit-color-eyedropper { display: flex; flex-shrink: 0; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 4px; background: var(--dial-surface-hover); color: var(--dial-text-label); cursor: pointer; transition: background 0.15s, color 0.15s; }
+.dialkit-color-eyedropper:hover { background: var(--dial-surface-active); color: var(--dial-text-focus); }
+.dialkit-color-eyedropper svg { width: 13px; height: 13px; }
 .dialkit-color-css-input { display: block; width: 100%; height: var(--dial-row-height); padding: 0 12px; border: 0; border-radius: var(--dial-radius); background: var(--dial-surface); outline: none; color: var(--dial-text-label); font: 500 13px 'Geist Mono', monospace; }
 .dialkit-color-css-input:focus { color: var(--dial-text-focus); }
 .dialkit-color-popover input[aria-invalid="true"], .dialkit-color-value[aria-invalid="true"] { color: #ef7777; }

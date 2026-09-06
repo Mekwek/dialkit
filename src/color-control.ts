@@ -1,8 +1,37 @@
-import { clamp, colorFormat, colorToRgb, fitGamut, formatColor, maxChroma, parseColor, type Color } from './color';
+import {
+  clamp, colorFormat, colorToHexSix, colorToHsl, colorToHsv, colorToRgb, colorToRgb255, fieldSpace, fitGamut, formatColor,
+  hslToColor, hsvToColor, maxChroma, parseColor, rgb255ToColor, wrapHue, type Color, type ColorFormat, type ColorSpace,
+} from './color';
 import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition } from './dropdown-position';
 import { handleSegmentKey } from './control-keyboard';
 
 export type ColorControlProps = { label: string; value: string; onChange: (value: string) => void };
+
+const FORMATS: ColorFormat[] = ['hex', 'rgb', 'hsl', 'oklch'];
+const FORMAT_LABEL: Record<ColorFormat, string> = { hex: 'Hex', rgb: 'RGB', hsl: 'HSL', oklch: 'OKLCH' };
+const MODE_KEY = 'dialkit:color-mode';
+const HEX_RE = /^#?([\da-f]{3}|[\da-f]{4}|[\da-f]{6}|[\da-f]{8})$/i;
+const EYEDROPPER_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m2 22 1-1h3l9-9"/><path d="M3 21v-3l9-9"/><path d="m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4Z"/></svg>';
+
+type EyeDropperCtor = new () => { open: () => Promise<{ sRGBHex: string }> };
+type Channel = { key: string; label: string; min: number; max: number; digits: number; unit?: string; width: number };
+const CHANNELS: Record<Exclude<ColorFormat, 'hex'>, Channel[]> = {
+  rgb: [
+    { key: 'r', label: 'Red', min: 0, max: 255, digits: 0, width: 4 },
+    { key: 'g', label: 'Green', min: 0, max: 255, digits: 0, width: 4 },
+    { key: 'b', label: 'Blue', min: 0, max: 255, digits: 0, width: 4 },
+  ],
+  hsl: [
+    { key: 'h', label: 'Hue', min: 0, max: 360, digits: 0, width: 4 },
+    { key: 's', label: 'Saturation', min: 0, max: 100, digits: 0, unit: '%', width: 4 },
+    { key: 'l', label: 'Lightness', min: 0, max: 100, digits: 0, unit: '%', width: 4 },
+  ],
+  oklch: [
+    { key: 'l', label: 'Lightness', min: 0, max: 1, digits: 3, width: 6 },
+    { key: 'c', label: 'Chroma', min: 0, max: 0.4, digits: 3, width: 6 },
+    { key: 'h', label: 'Hue', min: 0, max: 360, digits: 1, width: 6 },
+  ],
+};
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {
   const el = document.createElement(tag);
@@ -11,25 +40,56 @@ function element<K extends keyof HTMLElementTagNameMap>(tag: K, className: strin
   if (el instanceof HTMLButtonElement) el.type = 'button';
   return el;
 }
+function textInput(className: string, label: string, width?: number): HTMLInputElement {
+  const input = element('input', className);
+  input.type = 'text';
+  input.spellcheck = false;
+  input.autocomplete = 'off';
+  input.setAttribute('aria-label', label);
+  if (width) input.style.width = `${width}ch`;
+  return input;
+}
+function readMode(): ColorFormat | null {
+  try {
+    const stored = localStorage.getItem(MODE_KEY);
+    return FORMATS.includes(stored as ColorFormat) ? (stored as ColorFormat) : null;
+  } catch { return null; }
+}
+function writeMode(format: ColorFormat) {
+  try { localStorage.setItem(MODE_KEY, format); } catch { /* storage unavailable */ }
+}
+const percentByte = (n: number) => Math.round(clamp(n) * 100);
+
+/** sRGB conversions used only to paint the HSB and HSL fields; direct so a 252×160 paint stays cheap. */
+function hsvRgb(h: number, s: number, v: number): [number, number, number] {
+  const f = (n: number) => { const k = (n + h / 60) % 6; return v - v * s * Math.max(0, Math.min(k, 4 - k, 1)); };
+  return [f(5), f(3), f(1)];
+}
+function hslRgb(h: number, s: number, l: number): [number, number, number] {
+  const k = s * Math.min(l, 1 - l);
+  const f = (n: number) => { const t = (n + h / 30) % 12; return l - k * Math.max(-1, Math.min(t - 3, 9 - t, 1)); };
+  return [f(0), f(8), f(4)];
+}
+const cssRgb = (rgb: number[]) => `rgb(${rgb.map(n => Math.round(clamp(n) * 255)).join(' ')})`;
 
 /** One interaction/rendering implementation shared by the four framework adapters. */
 export function mountColorControl(host: HTMLElement, initial: ColorControlProps, presentation: 'popover' | 'inline' = 'popover') {
   const inline = presentation === 'inline';
   let props = initial;
   let color: Color = parseColor(props.value) ?? { l: 0, c: 0, h: 0, a: 1 };
-  let format = colorFormat(props.value);
+  let format: ColorFormat = readMode() ?? colorFormat(props.value);
+  // The sRGB hue survives a grey so the HSB and HSL fields do not jump to red.
+  let srgbHue = colorToHsv(color).h;
   let lastEmitted: string | undefined;
   let popup: HTMLDivElement | undefined;
   let stopPosition: (() => void) | undefined;
   let paintFrame = 0;
   let updatePicker = () => {};
+  let rebuildFields = () => {};
   const row = element('div', 'dialkit-color-control');
   const label = element('span', 'dialkit-color-label');
   const inputs = element('div', 'dialkit-color-inputs');
-  const valueInput = element('input', 'dialkit-color-value');
-  valueInput.type = 'text';
-  valueInput.spellcheck = false;
-  valueInput.autocomplete = 'off';
+  const valueInput = textInput('dialkit-color-value', 'color value');
   const swatch = element('button', 'dialkit-color-swatch');
   swatch.setAttribute('aria-haspopup', 'dialog');
   swatch.setAttribute('aria-expanded', 'false');
@@ -38,19 +98,25 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
   host.append(row);
   if (inline) row.style.display = 'none';
 
+  const rememberHue = (next: Color) => {
+    const hsv = colorToHsv(next, srgbHue);
+    if (hsv.s > 1e-4 && hsv.v > 1e-4) srgbHue = hsv.h;
+  };
   const render = () => {
     label.textContent = props.label;
     valueInput.setAttribute('aria-label', `${props.label} color value`);
-    if (document.activeElement !== valueInput) valueInput.value = props.value;
+    // The row shows the six-digit colour only; the alpha lives in the panel.
+    if (document.activeElement !== valueInput) valueInput.value = colorToHexSix(color);
     valueInput.title = props.value;
-    swatch.style.setProperty('--dial-color', props.value);
+    swatch.style.setProperty('--dial-color', formatColor(color, 'hex'));
     swatch.setAttribute('aria-label', `Pick ${props.label.toLowerCase()} color`);
     updatePicker();
   };
   const commit = (next: Color, nextFormat = format) => {
     format = nextFormat;
-    // Hex and P3 are bounded output spaces. Keep the handle on the emitted color.
-    color = format === 'oklch' ? next : fitGamut(next, format === 'p3' ? 'p3' : 'srgb');
+    // Hex, RGB and HSL are bounded output spaces. Keep the handle on the emitted color.
+    color = format === 'oklch' ? next : fitGamut(next);
+    rememberHue(color);
     const value = formatColor(color, format);
     lastEmitted = value;
     props = { ...props, value };
@@ -61,29 +127,21 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
     const parsed = parseColor(input.value);
     if (!parsed) {
       input.setAttribute('aria-invalid', 'true');
-      input.title = 'Enter a hex, RGB, HSL, OKLCH, or Display P3 color';
+      input.title = 'Enter a hex, RGB, HSL or OKLCH color';
       return false;
     }
     input.removeAttribute('aria-invalid');
-    color = parsed;
-    format = colorFormat(input.value);
-    const value = input.value.trim();
-    lastEmitted = value;
-    props = { ...props, value };
-    render();
-    props.onChange(value);
+    commit(parsed);
     return true;
   };
   valueInput.addEventListener('change', () => acceptText(valueInput));
   valueInput.addEventListener('blur', () => {
-    if (valueInput.getAttribute('aria-invalid')) {
-      valueInput.value = props.value;
-      valueInput.removeAttribute('aria-invalid');
-    }
+    valueInput.value = colorToHexSix(color);
+    valueInput.removeAttribute('aria-invalid');
   });
   valueInput.addEventListener('keydown', e => {
     if (e.key === 'Enter') { if (acceptText(valueInput)) valueInput.blur(); }
-    if (e.key === 'Escape') { valueInput.value = props.value; valueInput.removeAttribute('aria-invalid'); valueInput.blur(); }
+    if (e.key === 'Escape') { valueInput.value = colorToHexSix(color); valueInput.removeAttribute('aria-invalid'); valueInput.blur(); }
     e.stopPropagation();
   });
 
@@ -94,6 +152,7 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
     popup?.remove();
     popup = undefined;
     updatePicker = () => {};
+    rebuildFields = () => {};
     delete row.dataset.open;
     swatch.setAttribute('aria-expanded', 'false');
     document.removeEventListener('pointerdown', outside);
@@ -115,9 +174,10 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
     popup.style.position = inline ? 'static' : 'fixed';
     popup.setAttribute('role', inline ? 'group' : 'dialog');
     popup.setAttribute('aria-label', `${props.label} color picker`);
+
+    // The field: one canvas, painted per space.
     const plane = element('div', 'dialkit-color-plane');
     plane.setAttribute('role', 'group');
-    plane.setAttribute('aria-label', 'Color field; use arrow keys to adjust saturation and lightness');
     plane.tabIndex = 0;
     const canvas = element('canvas', 'dialkit-color-canvas');
     canvas.width = 252;
@@ -126,6 +186,8 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
     const marker = element('span', 'dialkit-color-marker');
     marker.setAttribute('aria-hidden', 'true');
     plane.append(canvas, marker);
+
+    // The hue and opacity strips.
     const tracks = element('div', 'dialkit-color-tracks');
     function track(name: string, max: number, step: number, className: string) {
       const line = element('label', 'dialkit-color-track-row');
@@ -138,13 +200,8 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
     }
     const hue = track('Hue', 360, 0.1, 'dialkit-color-hue');
     const opacity = track('Opacity', 100, 1, 'dialkit-color-opacity');
-    hue.addEventListener('input', () => {
-      const h = Number(hue.value);
-      // Hue changes keep the field handle in place and match the strip preview.
-      commit({ ...color, h, c: saturation * maxChroma(color.l, h, planeSpace()) });
-    });
-    opacity.addEventListener('input', () => commit({ ...color, a: Number(opacity.value) / 100 }));
 
+    // The mode switcher.
     const formatRow = element('div', 'dialkit-labeled-control dialkit-color-format-row');
     const formats = element('div', 'dialkit-segmented dialkit-color-formats');
     formatRow.append(formats);
@@ -154,40 +211,152 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
     const formatPill = element('div', 'dialkit-segmented-pill');
     formatPill.setAttribute('aria-hidden', 'true');
     formats.append(formatPill);
-    const formatButtons = (['hex', 'oklch', 'p3'] as const).map(f => {
-      const button = element('button', 'dialkit-segmented-button dialkit-color-format', f === 'p3' ? 'Display P3' : f === 'hex' ? 'Hex' : 'OKLCH');
-      button.type = 'button';
+    const formatButtons = FORMATS.map(f => {
+      const button = element('button', 'dialkit-segmented-button dialkit-color-format', FORMAT_LABEL[f]);
       button.setAttribute('role', 'radio');
-      button.addEventListener('click', () => commit(color, f));
+      button.addEventListener('click', () => { writeMode(f); commit(color, f); rebuildFields(); });
       formats.append(button);
       return button;
     });
-    const output = element('input', 'dialkit-color-css-input');
-    output.type = 'text'; output.spellcheck = false;
-    output.setAttribute('aria-label', 'CSS color');
+
+    // The inputs row: eyedropper, the mode's channel fields, then alpha.
+    const fields = element('div', 'dialkit-color-fields');
+    const EyeDropperApi = (window as unknown as { EyeDropper?: EyeDropperCtor }).EyeDropper;
+    const eyedropper = element('button', 'dialkit-color-eyedropper');
+    eyedropper.innerHTML = EYEDROPPER_ICON;
+    eyedropper.title = 'Pick a color from the screen';
+    eyedropper.setAttribute('aria-label', 'Pick a color from the screen');
+    eyedropper.addEventListener('click', async () => {
+      if (!EyeDropperApi) return;
+      try {
+        const picked = await new EyeDropperApi().open();
+        const parsed = parseColor(picked.sRGBHex);
+        // The eyedropper reads opaque pixels; keep the alpha already set.
+        if (parsed) commit({ ...parsed, a: color.a });
+      } catch { /* the user dismissed the eyedropper */ }
+    });
+    const channelBox = element('div', 'dialkit-color-channels');
+    const alphaBox = element('div', 'dialkit-color-alpha');
+    const alphaInput = textInput('dialkit-color-channel dialkit-color-alpha-input', 'Alpha percentage', 3);
+    const alphaUnit = element('span', 'dialkit-color-unit', '%');
+    alphaBox.append(alphaInput, alphaUnit);
+    if (EyeDropperApi) fields.append(eyedropper);
+    fields.append(channelBox, alphaBox);
+    let channelInputs: HTMLInputElement[] = [];
+    let syncChannels = () => {};
+
+    /** A typed number for one channel, or null when it is not a number. */
+    const readNumber = (input: HTMLInputElement, channel: Channel) => {
+      const n = Number.parseFloat(input.value.replace('%', '').trim());
+      return Number.isFinite(n) ? clamp(n, channel.min, channel.max) : null;
+    };
+    const commitChannels = () => {
+      if (format === 'hex') {
+        const match = HEX_RE.exec(channelInputs[0].value.trim());
+        if (!match) { channelInputs[0].setAttribute('aria-invalid', 'true'); return; }
+        const parsed = parseColor(`#${match[1]}`)!;
+        // Typing a colour keeps the alpha already set; an eight-digit hex carries its own.
+        commit({ ...parsed, a: match[1].length === 4 || match[1].length === 8 ? parsed.a : color.a });
+        return;
+      }
+      const values = CHANNELS[format].map((channel, i) => readNumber(channelInputs[i], channel));
+      if (values.some(n => n === null)) {
+        channelInputs.forEach((input, i) => { if (values[i] === null) input.setAttribute('aria-invalid', 'true'); });
+        return;
+      }
+      const [a, b, c] = values as number[];
+      if (format === 'rgb') commit(rgb255ToColor(a, b, c, color.a));
+      else if (format === 'hsl') { srgbHue = wrapHue(a); commit(hslToColor({ h: a, s: b / 100, l: c / 100 }, color.a)); }
+      else commit({ l: a, c: b, h: wrapHue(c), a: color.a });
+    };
+    const bindField = (input: HTMLInputElement, onCommit: () => void) => {
+      input.addEventListener('change', onCommit);
+      input.addEventListener('blur', () => { input.removeAttribute('aria-invalid'); syncChannels(); });
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); onCommit(); input.blur(); }
+        if (e.key === 'Escape') { e.preventDefault(); input.removeAttribute('aria-invalid'); syncChannels(); input.blur(); }
+      });
+    };
+    rebuildFields = () => {
+      channelBox.replaceChildren();
+      if (format === 'hex') {
+        const input = textInput('dialkit-color-channel dialkit-color-hex-input', 'Hex value', 8);
+        channelInputs = [input];
+        channelBox.append(input);
+      } else {
+        channelInputs = CHANNELS[format].map(channel => {
+          const cell = element('label', 'dialkit-color-channel-cell');
+          const input = textInput('dialkit-color-channel', channel.label, channel.width);
+          const name = element('span', 'dialkit-color-channel-name', channel.key.toUpperCase());
+          cell.append(input, name);
+          channelBox.append(cell);
+          return input;
+        });
+      }
+      channelInputs.forEach(input => bindField(input, commitChannels));
+      syncChannels();
+    };
+    syncChannels = () => {
+      const focused = document.activeElement;
+      if (format === 'hex') {
+        if (focused !== channelInputs[0]) channelInputs[0].value = colorToHexSix(color);
+      } else {
+        const values = format === 'rgb' ? colorToRgb255(color)
+          : format === 'hsl' ? (({ h, s, l }) => [h, s * 100, l * 100])(colorToHsl(color, srgbHue))
+          : [color.l, color.c, color.h];
+        CHANNELS[format].forEach((channel, i) => {
+          if (focused !== channelInputs[i]) channelInputs[i].value = values[i].toFixed(channel.digits);
+        });
+      }
+      if (focused !== alphaInput) alphaInput.value = String(percentByte(color.a));
+    };
+    bindField(alphaInput, () => {
+      const percent = Number.parseFloat(alphaInput.value.replace('%', '').trim());
+      if (!Number.isFinite(percent)) { alphaInput.setAttribute('aria-invalid', 'true'); return; }
+      commit({ ...color, a: clamp(percent, 0, 100) / 100 });
+    });
+
+    // The full CSS value, for copy and paste of any colour string.
+    const output = textInput('dialkit-color-css-input', 'CSS color');
     output.addEventListener('change', () => acceptText(output));
     output.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); acceptText(output); } });
-    let lastHue = -1;
-    let lastSpace = '';
+
+    // Field geometry per space: x and y in 0..1, y from the top.
+    let space: ColorSpace = fieldSpace(format);
+    let lastPaintKey = '';
     let lastHueTrack = '';
     let saturation = 0;
-    const planeSpace = () => format === 'hex' ? 'srgb' : 'p3';
-    const ctx = canvas.getContext('2d', { colorSpace: 'display-p3' });
-    const canvasSpace = ctx?.getContextAttributes?.().colorSpace === 'display-p3' ? 'p3' : 'srgb';
+    const fieldHue = () => space === 'oklch' ? color.h : srgbHue;
+    const handle = (): { x: number; y: number } => {
+      if (space === 'hsv') { const { s, v } = colorToHsv(color, srgbHue); return { x: s, y: 1 - v }; }
+      if (space === 'hsl') { const { s, l } = colorToHsl(color, srgbHue); return { x: s, y: 1 - l }; }
+      const max = maxChroma(color.l, color.h);
+      // Keep the horizontal position at white and black, where chroma is zero.
+      if (max > 0) saturation = clamp(color.c / max);
+      return { x: saturation, y: 1 - color.l };
+    };
+    const colorAt = (x: number, y: number): Color => {
+      if (space === 'hsv') return hsvToColor({ h: srgbHue, s: x, v: 1 - y }, color.a);
+      if (space === 'hsl') return hslToColor({ h: srgbHue, s: x, l: 1 - y }, color.a);
+      saturation = x;
+      const l = 1 - y;
+      return { ...color, l, c: x * maxChroma(l, color.h) };
+    };
+    const ctx = canvas.getContext('2d');
     const paint = () => {
       if (!ctx) return;
-      const space = planeSpace();
-      if (lastHue === color.h && lastSpace === space) return;
-      lastHue = color.h; lastSpace = space;
+      const key = `${space}:${fieldHue().toFixed(2)}`;
+      if (key === lastPaintKey) return;
+      lastPaintKey = key;
+      const h = fieldHue();
       const pixels = ctx.createImageData(canvas.width, canvas.height);
       for (let y = 0; y < canvas.height; y++) {
-        const l = 1 - y / (canvas.height - 1);
-        // Normalize each row to its available chroma: the whole field is usable,
-        // from neutral on the left to the richest color on the right.
-        const max = maxChroma(l, color.h, space);
+        const t = 1 - y / (canvas.height - 1);
+        // Normalize each OKLCH row to its available chroma: the whole field is usable.
+        const max = space === 'oklch' ? maxChroma(t, h) : 0;
         for (let x = 0; x < canvas.width; x++) {
-          const sample = { l, c: x / (canvas.width - 1) * max, h: color.h, a: 1 };
-          const rgb = colorToRgb(sample, canvasSpace);
+          const u = x / (canvas.width - 1);
+          const rgb = space === 'hsv' ? hsvRgb(h, u, t) : space === 'hsl' ? hslRgb(h, u, t) : colorToRgb({ l: t, c: u * max, h, a: 1 });
           const index = (y * canvas.width + x) * 4;
           rgb.forEach((n, i) => { pixels.data[index + i] = Math.round(clamp(n) * 255); });
           pixels.data[index + 3] = 255;
@@ -195,48 +364,69 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
       }
       ctx.putImageData(pixels, 0, 0);
     };
+    const hueStops = () => {
+      const at = handle();
+      const stops = Array.from({ length: 73 }, (_, i) => {
+        const h = i * 5;
+        if (space === 'hsv') return cssRgb(hsvRgb(h, at.x, 1 - at.y));
+        if (space === 'hsl') return cssRgb(hslRgb(h, at.x, 1 - at.y));
+        return formatColor({ l: color.l, c: saturation * maxChroma(color.l, h), h, a: 1 }, 'oklch');
+      });
+      return `linear-gradient(to right${space === 'oklch' ? ' in oklab' : ''}, ${stops.join(', ')})`;
+    };
     updatePicker = () => {
       popup?.setAttribute('aria-label', `${props.label} color picker`);
-      const max = maxChroma(color.l, color.h, planeSpace());
-      // Keep the horizontal position at white and black, where chroma is zero.
-      if (max > 0) saturation = clamp(color.c / max);
-      marker.style.left = `${saturation * 100}%`;
-      marker.style.top = `${(1 - color.l) * 100}%`;
-      marker.style.background = formatColor({ ...color, a: 1 }, 'oklch');
-      hue.value = String(color.h);
+      space = fieldSpace(format);
+      plane.setAttribute('aria-label', space === 'oklch'
+        ? 'Color field; use arrow keys to adjust chroma and lightness'
+        : space === 'hsl' ? 'Color field; use arrow keys to adjust saturation and lightness'
+        : 'Color field; use arrow keys to adjust saturation and brightness');
+      const at = handle();
+      marker.style.left = `${at.x * 100}%`;
+      marker.style.top = `${at.y * 100}%`;
+      const opaque = formatColor({ ...color, a: 1 }, 'hex');
+      marker.style.background = opaque;
+      hue.value = String(fieldHue());
       opacity.value = String(color.a * 100);
-      hue.setAttribute('aria-valuetext', `${Math.round(color.h)} degrees`);
-      opacity.setAttribute('aria-valuetext', `${Math.round(color.a * 100)} percent`);
-      const hueTrackKey = `${color.l.toFixed(5)}:${saturation.toFixed(5)}:${planeSpace()}`;
+      hue.setAttribute('aria-valuetext', `${Math.round(fieldHue())} degrees`);
+      opacity.setAttribute('aria-valuetext', `${percentByte(color.a)} percent`);
+      const hueTrackKey = `${space}:${at.x.toFixed(4)}:${at.y.toFixed(4)}`;
       if (hueTrackKey !== lastHueTrack) {
         lastHueTrack = hueTrackKey;
-        const stops = Array.from({ length: 73 }, (_, i) => {
-          const h = i * 5;
-          return formatColor({ l: color.l, c: saturation * maxChroma(color.l, h, planeSpace()), h, a: 1 }, 'oklch');
-        });
-        hue.style.setProperty('--dial-color-track-bg', `linear-gradient(to right in oklab, ${stops.join(', ')})`);
+        hue.style.setProperty('--dial-color-track-bg', hueStops());
       }
       // Fill the entire thumb independently of the shorter track beneath it.
-      hue.style.setProperty('--dial-color-thumb', formatColor({ ...color, a: 1 }, 'oklch'));
-      opacity.style.setProperty('--dial-color-thumb', formatColor(color, 'oklch'));
-      opacity.style.setProperty('--dial-color-opaque', formatColor({ ...color, a: 1 }, 'oklch'));
+      hue.style.setProperty('--dial-color-thumb', opaque);
+      opacity.style.setProperty('--dial-color-thumb', formatColor(color, 'hex'));
+      opacity.style.setProperty('--dial-color-opaque', opaque);
       formatButtons.forEach((button, i) => {
-        const active = (['hex', 'oklch', 'p3'] as const)[i] === format;
+        const active = FORMATS[i] === format;
         button.setAttribute('aria-checked', String(active));
         button.tabIndex = active ? 0 : -1;
         button.dataset.active = String(active);
         if (active) formatPill.style.transform = `translateX(${i * 100}%)`;
       });
+      syncChannels();
       if (document.activeElement !== output) { output.value = props.value; output.removeAttribute('aria-invalid'); }
       output.title = props.value;
       cancelAnimationFrame(paintFrame);
       paintFrame = requestAnimationFrame(paint);
     };
+    hue.addEventListener('input', () => {
+      const h = Number(hue.value);
+      const at = handle();
+      if (space === 'oklch') {
+        // Hue changes keep the field handle in place and match the strip preview.
+        commit({ ...color, h, c: saturation * maxChroma(color.l, h) });
+      } else {
+        srgbHue = wrapHue(h);
+        commit(colorAt(at.x, at.y));
+      }
+    });
+    opacity.addEventListener('input', () => commit({ ...color, a: Number(opacity.value) / 100 }));
     const move = (e: PointerEvent) => {
       const rect = plane.getBoundingClientRect();
-      const l = 1 - clamp((e.clientY - rect.top) / rect.height);
-      saturation = clamp((e.clientX - rect.left) / rect.width);
-      commit({ ...color, l, c: saturation * maxChroma(l, color.h, planeSpace()) });
+      commit(colorAt(clamp((e.clientX - rect.left) / rect.width), clamp((e.clientY - rect.top) / rect.height)));
     };
     plane.addEventListener('pointerdown', e => {
       if (e.button !== 0) return;
@@ -249,9 +439,10 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
       if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
       e.preventDefault();
       const step = e.shiftKey ? 0.1 : 0.01;
-      const l = clamp(color.l + (e.key === 'ArrowUp' ? step : e.key === 'ArrowDown' ? -step : 0));
-      saturation = clamp(saturation + (e.key === 'ArrowRight' ? step : e.key === 'ArrowLeft' ? -step : 0));
-      commit({ ...color, l, c: saturation * maxChroma(l, color.h, planeSpace()) });
+      const at = handle();
+      const x = clamp(at.x + (e.key === 'ArrowRight' ? step : e.key === 'ArrowLeft' ? -step : 0));
+      const y = clamp(at.y + (e.key === 'ArrowDown' ? step : e.key === 'ArrowUp' ? -step : 0));
+      commit(colorAt(x, y));
     });
     plane.addEventListener('pointermove', e => { if (plane.hasPointerCapture(e.pointerId)) move(e); });
     plane.addEventListener('pointerup', e => { if (plane.hasPointerCapture(e.pointerId)) plane.releasePointerCapture(e.pointerId); });
@@ -267,8 +458,9 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
       }
       e.stopPropagation();
     });
-    popup.append(formatRow, plane, tracks, output);
+    popup.append(formatRow, plane, tracks, fields, output);
     root.append(popup);
+    rebuildFields();
     const updatePosition = () => {
       if (!popup) return;
       if (!host.isConnected || row.getClientRects().length === 0) { close(); return; }
@@ -292,7 +484,7 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
       const parsed = parseColor(next.value);
       if (parsed && next.value !== lastEmitted && next.value !== props.value) {
         color = { ...parsed, h: parsed.c < 1e-7 ? color.h : parsed.h };
-        format = colorFormat(next.value);
+        rememberHue(color);
       }
       props = next;
       render();

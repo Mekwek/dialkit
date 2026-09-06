@@ -1,7 +1,10 @@
 /** Dependency-free CSS color math. Matrices use the CSS Color 4 D65 reference white.
  * https://www.w3.org/TR/css-color-4/#color-conversion-code */
 export type Color = { l: number; c: number; h: number; a: number };
-export type ColorFormat = 'hex' | 'oklch' | 'p3';
+export type ColorFormat = 'hex' | 'rgb' | 'hsl' | 'oklch';
+/** Which field the picker paints for a format. Hex and RGB share the HSB square. */
+export type ColorSpace = 'hsv' | 'hsl' | 'oklch';
+export const fieldSpace = (format: ColorFormat): ColorSpace => format === 'hsl' ? 'hsl' : format === 'oklch' ? 'oklch' : 'hsv';
 type Triple = [number, number, number];
 export const clamp = (n: number, min = 0, max = 1) => Math.max(min, Math.min(max, n));
 export const wrapHue = (h: number) => ((h % 360) + 360) % 360;
@@ -57,17 +60,68 @@ export function maxChroma(l: number, h: number, space: 'srgb' | 'p3' = 'srgb'): 
 }
 
 export function colorFormat(value: string): ColorFormat {
-  return /^oklch\(/i.test(value.trim()) ? 'oklch' : /^color\(display-p3\s/i.test(value.trim()) ? 'p3' : 'hex';
+  const text = value.trim();
+  if (/^oklch\(/i.test(text) || /^color\(display-p3\s/i.test(text)) return 'oklch';
+  if (/^rgba?\(/i.test(text)) return 'rgb';
+  if (/^hsla?\(/i.test(text)) return 'hsl';
+  return 'hex';
 }
 const round = (v: number, digits = 4) => Number(v.toFixed(digits));
 export function formatColor(color: Color, format: ColorFormat): string {
   const alpha = color.a < 1 ? ` / ${round(color.a)}` : '';
   if (format === 'oklch') return `oklch(${round(color.l)} ${round(color.c)} ${round(color.h, 2)}${alpha})`;
-  const rgb = colorToRgb(fitGamut(color, format === 'p3' ? 'p3' : 'srgb'), format === 'p3' ? 'p3' : 'srgb');
-  if (format === 'p3') return `color(display-p3 ${rgb.map(n => round(clamp(n), 5)).join(' ')}${alpha})`;
-  const bytes = rgb.map(n => Math.round(clamp(n) * 255));
+  if (format === 'hsl') {
+    const { h, s, l } = colorToHsl(color);
+    return `hsl(${round(h, 1)} ${round(s * 100, 1)}% ${round(l * 100, 1)}%${alpha})`;
+  }
+  const bytes = colorToRgb255(color);
+  if (format === 'rgb') return `rgb(${bytes.join(' ')}${alpha})`;
   if (color.a < 1) bytes.push(Math.round(color.a * 255));
   return '#' + bytes.map(n => n.toString(16).padStart(2, '0')).join('');
+}
+
+/** sRGB bytes of the gamut-fitted color; the swatch, the row readout and the RGB fields. */
+export function colorToRgb255(color: Color): number[] {
+  return colorToRgb(fitGamut(color)).map(n => Math.round(clamp(n) * 255));
+}
+export function rgb255ToColor(r: number, g: number, b: number, a = 1): Color {
+  return rgbToColor([clamp(r / 255), clamp(g / 255), clamp(b / 255)], a);
+}
+/** Six-digit uppercase hex with no alpha; the row readout next to the swatch. */
+export function colorToHexSix(color: Color): string {
+  return ('#' + colorToRgb255(color).map(n => n.toString(16).padStart(2, '0')).join('')).toUpperCase();
+}
+
+export type Hsv = { h: number; s: number; v: number };
+export type Hsl = { h: number; s: number; l: number };
+/** Hue, saturation, brightness in sRGB. A grey keeps `fallbackHue` so the field does not jump. */
+export function colorToHsv(color: Color, fallbackHue = 0): Hsv {
+  const [r, g, b] = colorToRgb(fitGamut(color)).map(n => clamp(n));
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  const grey = d < 1e-6;
+  return { h: grey ? fallbackHue : rgbHue(r, g, b, max, d), s: grey || max === 0 ? 0 : d / max, v: max };
+}
+export function hsvToColor({ h, s, v }: Hsv, a = 1): Color {
+  const f = (n: number) => { const k = (n + wrapHue(h) / 60) % 6; return v - v * s * Math.max(0, Math.min(k, 4 - k, 1)); };
+  return rgbToColor([f(5), f(3), f(1)], a);
+}
+/** Hue, saturation, lightness in sRGB. A grey keeps `fallbackHue`. */
+export function colorToHsl(color: Color, fallbackHue = 0): Hsl {
+  const [r, g, b] = colorToRgb(fitGamut(color)).map(n => clamp(n));
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  const l = (max + min) / 2;
+  const grey = d < 1e-6;
+  const s = grey ? 0 : d / (1 - Math.abs(2 * l - 1));
+  return { h: grey ? fallbackHue : rgbHue(r, g, b, max, d), s: clamp(s), l };
+}
+export function hslToColor({ h, s, l }: Hsl, a = 1): Color {
+  const k = clamp(s) * Math.min(clamp(l), 1 - clamp(l));
+  const f = (n: number) => { const t = (n + wrapHue(h) / 30) % 12; return clamp(l) - k * Math.max(-1, Math.min(t - 3, 9 - t, 1)); };
+  return rgbToColor([f(0), f(8), f(4)], a);
+}
+function rgbHue(r: number, g: number, b: number, max: number, d: number): number {
+  const h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return wrapHue(h * 60);
 }
 
 const NUMBER = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?(%|deg|grad|rad|turn)?$/i;

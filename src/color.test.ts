@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { colorToRgb, fitGamut, formatColor, inGamut, maxChroma, parseColor } from './color';
+import { colorFormat, colorToHexSix, colorToHsl, colorToHsv, colorToRgb, colorToRgb255, fieldSpace, fitGamut, formatColor, hslToColor, hsvToColor, inGamut, maxChroma, parseColor, rgb255ToColor } from './color';
 import { DialStore } from './store/DialStore';
 
 const near = (a: number, b: number, epsilon = 0.00001) => assert.ok(Math.abs(a - b) < epsilon, `${a} ≈ ${b}`);
@@ -12,15 +12,45 @@ describe('color conversion and editing', () => {
     assert.equal(formatColor(parseColor('#f008')!, 'hex'), '#ff000088');
     assert.equal(formatColor(parseColor('#abc')!, 'hex'), '#aabbcc');
   });
-  it('matches reference OKLCH red and preserves wide-gamut P3', () => {
+  it('matches reference OKLCH red and still reads wide-gamut P3 input', () => {
     const red = parseColor('#ff0000')!;
     near(red.l, 0.62795536); near(red.c, 0.25768331); near(red.h, 29.233885, 0.0001);
     const wide = parseColor('color(display-p3 1 0 0 / 0.5)')!;
     assert.equal(inGamut(wide), false);
     assert.equal(inGamut(wide, 'p3'), true);
-    assert.equal(formatColor(wide, 'p3'), 'color(display-p3 1 0 0 / 0.5)');
+    assert.equal(colorFormat('color(display-p3 1 0 0 / 0.5)'), 'oklch');
     const roundTrip = parseColor(formatColor(wide, 'oklch'))!;
     near(roundTrip.c, wide.c, 0.0001); near(roundTrip.a, wide.a);
+  });
+  it('writes RGB and HSL forms and detects the format of a value', () => {
+    const half = parseColor('#ff000080')!;
+    assert.equal(formatColor(half, 'rgb'), 'rgb(255 0 0 / 0.502)');
+    assert.equal(formatColor(half, 'hsl'), 'hsl(0 100% 50% / 0.502)');
+    assert.equal(formatColor(parseColor('#47a9c3')!, 'rgb'), 'rgb(71 169 195)');
+    assert.equal(formatColor(parseColor('#47a9c3')!, 'hex'), '#47a9c3');
+    assert.equal(colorFormat('rgb(1 2 3)'), 'rgb');
+    assert.equal(colorFormat('rgba(1, 2, 3, 0.5)'), 'rgb');
+    assert.equal(colorFormat('hsl(10 20% 30%)'), 'hsl');
+    assert.equal(colorFormat('oklch(0.5 0.1 20)'), 'oklch');
+    assert.equal(colorFormat('#abc'), 'hex');
+    assert.deepEqual(['hex', 'rgb', 'hsl', 'oklch'].map(f => fieldSpace(f as never)), ['hsv', 'hsv', 'hsl', 'oklch']);
+  });
+  it('round-trips the field spaces and the row readout', () => {
+    const teal = parseColor('#47a9c3')!;
+    assert.deepEqual(colorToRgb255(teal), [71, 169, 195]);
+    assert.equal(colorToHexSix(parseColor('#47a9c380')!), '#47A9C3');
+    assert.equal(formatColor(rgb255ToColor(71, 169, 195), 'hex'), '#47a9c3');
+    const hsv = colorToHsv(teal);
+    near(hsv.h, 192.6, 0.1); near(hsv.s, 0.636, 0.001); near(hsv.v, 0.765, 0.001);
+    assert.equal(formatColor(hsvToColor(hsv), 'hex'), '#47a9c3');
+    const hsl = colorToHsl(teal);
+    near(hsl.h, 192.6, 0.1); near(hsl.s, 0.508, 0.001); near(hsl.l, 0.522, 0.001);
+    assert.equal(formatColor(hslToColor(hsl), 'hex'), '#47a9c3');
+    // A grey keeps the hue the caller passes, so the field does not jump to red.
+    assert.equal(colorToHsv(parseColor('#808080')!, 210).h, 210);
+    assert.equal(colorToHsl(parseColor('#ffffff')!, 210).h, 210);
+    assert.equal(colorToHsv(parseColor('#808080')!).s, 0);
+    near(colorToHsl(parseColor('#808080')!).l, 0.502, 0.001);
   });
   it('reduces chroma without changing lightness, hue or alpha for bounded outputs', () => {
     const color = parseColor('oklch(70% 0.35 145 / 40%)')!;
