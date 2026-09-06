@@ -86,15 +86,19 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
   let paintFrame = 0;
   let updatePicker = () => {};
   let rebuildFields = () => {};
+  // The row is a bare flex line: the label and the value share a surface box,
+  // and the swatch stands beside that box as its own element.
   const row = element('div', 'dialkit-color-control');
+  const box = element('div', 'dialkit-color-box');
   const label = element('span', 'dialkit-color-label');
   const inputs = element('div', 'dialkit-color-inputs');
   const valueInput = textInput('dialkit-color-value', 'color value');
   const swatch = element('button', 'dialkit-color-swatch');
   swatch.setAttribute('aria-haspopup', 'dialog');
   swatch.setAttribute('aria-expanded', 'false');
-  inputs.append(valueInput, swatch);
-  row.append(label, inputs);
+  inputs.append(valueInput);
+  box.append(label, inputs);
+  row.append(box, swatch);
   host.append(row);
   if (inline) row.style.display = 'none';
 
@@ -202,8 +206,7 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
     const opacity = track('Opacity', 100, 1, 'dialkit-color-opacity');
 
     // The mode switcher.
-    // The switcher stands on its own; it is not a labeled row with a surface behind it.
-    const formatRow = element('div', 'dialkit-color-format-row');
+    const formatRow = element('div', 'dialkit-labeled-control dialkit-color-format-row');
     const formats = element('div', 'dialkit-segmented dialkit-color-formats');
     formatRow.append(formats);
     formats.setAttribute('role', 'radiogroup');

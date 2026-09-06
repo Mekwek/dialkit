@@ -1288,20 +1288,29 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 .dialkit-pad-instructions { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 @media (prefers-reduced-motion: reduce) { .dialkit-pad-point { transition: none; } }
 
-/* Color Control */
+/* Color Control: a bare row; the label and value share a surface box, and
+   the swatch stands beside that box as its own element. */
 .dialkit-color-control {
   display: flex;
   align-items: center;
+  gap: 8px;
+  height: var(--dial-row-height);
+}
+.dialkit-color-box {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
-  height: var(--dial-row-height);
+  height: 100%;
   padding: 0 12px;
   background: var(--dial-surface);
   border-radius: var(--dial-radius);
   transition: background 0.15s, box-shadow 0.15s;
 }
 
-.dialkit-color-control[data-open="true"] {
+.dialkit-color-control[data-open="true"] .dialkit-color-box {
   background: var(--dial-surface-active);
   box-shadow: inset 0 0 0 1px var(--dial-border-hover);
 }
@@ -1398,8 +1407,8 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 .dialkit-color-track::-moz-range-track { height: 16px; border: 0; border-radius: 4px; background: var(--dial-color-track-bg); }
 .dialkit-color-track::-webkit-slider-thumb { -webkit-appearance: none; box-sizing: border-box; width: 16px; height: 24px; margin-top: -4px; border-radius: 5px; background: var(--dial-color-thumb-bg); background-clip: padding-box; border: 2px solid white; box-shadow: 0 2px 4px rgb(0 0 0 / 30%); }
 .dialkit-color-track::-moz-range-thumb { box-sizing: border-box; width: 16px; height: 24px; border-radius: 5px; background: var(--dial-color-thumb-bg); background-clip: padding-box; border: 2px solid white; box-shadow: 0 2px 4px rgb(0 0 0 / 30%); }
-/* The same buttons and pill as Enabled, with equal segments and no row surface behind them. */
-.dialkit-color-format-row { display: flex; align-items: center; height: var(--dial-row-height); }
+/* The same row, buttons, and pill as Enabled, with no label and equal segments. */
+.dialkit-color-format-row { padding: 2px; }
 .dialkit-color-format-row .dialkit-color-formats { flex: 1; min-width: 0; margin-right: 0; }
 .dialkit-color-formats .dialkit-segmented-pill { left: 2px; width: calc((100% - 4px) / 4); transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1); }
 .dialkit-color-format { flex: 1 1 0; min-width: 0; white-space: nowrap; text-align: center; justify-content: center; }
