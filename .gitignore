@@ -18,6 +18,19 @@ example/src/TimelineTest1.tsx
 example/src/TimelineTest2.tsx
 example/public/
 
+# Local controls preview
+example/controls.html
+example/src/Controls.tsx
+example/src/controls.css
+
+# Local showcase page
+example/showcase.html
+example/src/Showcase.tsx
+example/src/showcase-entry.tsx
+example/src/showcase.css
+example/src/assets/showcase/
+example/src/vite-env.d.ts
+
 # IDE
 .vscode/
 .idea/

@@ -1,4 +1,5 @@
-import { defineComponent, h, onMounted, onUnmounted, ref, Teleport, type PropType } from 'vue';
+import { observeDropdownKeyboard } from '../../dropdown-keyboard';
+import { defineComponent, h, watch, onMounted, onUnmounted, ref, Teleport, type PropType } from 'vue';
 import { DialStore, ShortcutConfig } from '../../store/DialStore';
 
 function formatShortcutKey(sc: ShortcutConfig): string {
@@ -30,6 +31,13 @@ export const ShortcutsMenu = defineComponent({
   },
   setup(props) {
     const isOpen = ref(false);
+    const currentPanel = ref(DialStore.getPanel(props.panelId));
+    let stopPanels: (() => void) | undefined;
+    onMounted(() => {
+      const update = () => { currentPanel.value = DialStore.getPanel(props.panelId); };
+      stopPanels = DialStore.subscribeGlobal(update);
+      update();
+    });
     const triggerRef = ref<HTMLButtonElement | null>(null);
     const dropdownRef = ref<HTMLDivElement | null>(null);
     const pos = ref({ top: 0, right: 0 });
@@ -50,6 +58,11 @@ export const ShortcutsMenu = defineComponent({
       if (isOpen.value) close();
       else open();
     };
+
+    watch(isOpen, (open, _, onCleanup) => {
+      if (!open) return;
+      onCleanup(observeDropdownKeyboard(triggerRef.value!, () => dropdownRef.value, close, 'help'));
+    });
 
     let mousedownHandler: ((e: MouseEvent) => void) | null = null;
 
@@ -73,11 +86,12 @@ export const ShortcutsMenu = defineComponent({
     };
 
     onUnmounted(() => {
+      stopPanels?.();
       removeOutsideClickListener();
     });
 
     return () => {
-      const panel = DialStore.getPanel(props.panelId);
+      const panel = currentPanel.value;
       if (!panel) return null;
 
       const shortcuts = Object.entries(panel.shortcuts);
@@ -114,6 +128,7 @@ export const ShortcutsMenu = defineComponent({
           class: 'dialkit-shortcuts-trigger',
           onClick: toggle,
           title: 'Keyboard shortcuts',
+          type: 'button', 'aria-haspopup': 'dialog', 'aria-expanded': isOpen.value,
         }, [
           h('svg', {
             viewBox: '0 0 24 24',

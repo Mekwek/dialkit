@@ -1,3 +1,5 @@
+import { observeDropdownKeyboard } from '../../dropdown-keyboard';
+import { openDropdownOnKey } from '../../control-keyboard';
 import { Teleport, defineComponent, h, ref, watch, type PropType } from 'vue';
 import { AnimatePresence, motion } from 'motion-v';
 import { ICON_CHEVRON, ICON_TRASH } from '../../icons';
@@ -70,8 +72,10 @@ export const PresetManager = defineComponent({
         close();
       };
 
+      const stopKeyboard = observeDropdownKeyboard(triggerRef.value!, () => dropdownRef.value, close, 'presets');
       document.addEventListener('mousedown', handler);
       onCleanup(() => {
+        stopKeyboard();
         document.removeEventListener('mousedown', handler);
       });
     });
@@ -98,6 +102,8 @@ export const PresetManager = defineComponent({
         'data-open': String(isOpen.value),
         'data-has-preset': String(!!activePreset()),
         'data-disabled': String(!hasPresets()),
+        type: 'button', 'aria-haspopup': 'menu', 'aria-expanded': isOpen.value, disabled: !hasPresets(),
+        'aria-label': 'Versions', onKeydown: (e: KeyboardEvent) => openDropdownOnKey(e, open),
       }, [
         h('span', { class: 'dialkit-preset-label' }, activePreset()?.name ?? 'Version 1'),
         h(motion.svg, {
@@ -135,7 +141,7 @@ export const PresetManager = defineComponent({
                 class: 'dialkit-preset-item',
                 'data-active': String(!props.activePresetId),
                 onClick: () => handleSelect(null),
-              }, [h('span', { class: 'dialkit-preset-name' }, 'Version 1')]),
+              }, [h('button', { type: 'button', class: 'dialkit-preset-name' }, 'Version 1')]),
 
               ...props.presets.map((preset) => h('div', {
                 key: preset.id,
@@ -143,11 +149,11 @@ export const PresetManager = defineComponent({
                 'data-active': String(preset.id === props.activePresetId),
                 onClick: () => handleSelect(preset.id),
               }, [
-                h('span', { class: 'dialkit-preset-name' }, preset.name),
+                h('button', { type: 'button', class: 'dialkit-preset-name' }, preset.name),
                 h('button', {
                   class: 'dialkit-preset-delete',
                   onClick: (event: MouseEvent) => handleDelete(event, preset.id),
-                  title: 'Delete preset',
+                  type: 'button', title: `Delete ${preset.name}`,
                 }, [
                   h('svg', {
                     viewBox: '0 0 24 24',

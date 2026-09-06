@@ -38,6 +38,8 @@ export { EasingVisualization } from './components/EasingVisualization';
 export { TextControl } from './components/TextControl';
 export { SelectControl } from './components/SelectControl';
 export { ColorControl } from './components/ColorControl';
+export { ImageControl } from './components/ImageControl';
+export { DialPad } from './components/DialPad';
 export { PresetManager } from './components/PresetManager';
 export { ControlRenderer } from './components/ControlRenderer';
 
@@ -49,6 +51,11 @@ export type {
   ActionConfig,
   SelectConfig,
   ColorConfig,
+  ImageConfig,
+  ImageOption,
+  DialPadAxis,
+  DialPadConfig,
+  DialPadValue,
   TextConfig,
   Preset,
   DialValue,

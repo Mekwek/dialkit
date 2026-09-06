@@ -1,3 +1,5 @@
+import { observeDropdownKeyboard } from '../../dropdown-keyboard';
+import { openDropdownOnKey } from '../../control-keyboard';
 import { createSignal, createEffect, on, onMount, onCleanup, Show, For } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import { animate } from 'motion';
@@ -18,6 +20,7 @@ export function PresetManager(props: PresetManagerProps) {
   const [pos, setPos] = createSignal({ top: 0, left: 0, width: 0 });
   const [portalTarget, setPortalTarget] = createSignal<HTMLElement | null>(null);
   let triggerRef!: HTMLButtonElement;
+  let dropdownRef: HTMLDivElement | undefined;
   let chevronRef!: SVGSVGElement;
   let chevronAnim: AnimationHandle | null = null;
 
@@ -51,7 +54,7 @@ export function PresetManager(props: PresetManagerProps) {
   const updatePos = () => {
     const root = portalTarget();
     if (!triggerRef || !root) return;
-    setPos(getDropdownPosition(triggerRef, root, { allowAbove: false }));
+    setPos(getDropdownPosition(triggerRef, root, { fixed: true, dropdownHeight: (dropdownRef?.scrollHeight ?? 0) + 2 }));
   };
 
   const openDropdown = () => {
@@ -70,6 +73,11 @@ export function PresetManager(props: PresetManagerProps) {
     contains: (target) => triggerRef?.contains(target) || dropdown.contains(target),
     onDismiss: dropdown.close,
     onViewportChange: updatePos,
+  });
+
+  createEffect(() => {
+    if (!dropdown.isOpen()) return;
+    onCleanup(observeDropdownKeyboard(triggerRef, () => dropdownRef, dropdown.close, 'presets'));
   });
 
   const handleSelect = (presetId: string | null) => {
@@ -92,6 +100,8 @@ export function PresetManager(props: PresetManagerProps) {
         data-open={String(dropdown.isOpen())}
         data-has-preset={String(!!activePreset())}
         data-disabled={String(!hasPresets())}
+        type="button" aria-haspopup="menu" aria-expanded={dropdown.isOpen()} disabled={!hasPresets()}
+        aria-label="Versions" onKeyDown={(e) => openDropdownOnKey(e, openDropdown)}
       >
         <span class="dialkit-preset-label">
           {activePreset() ? activePreset()!.name : 'Version 1'}
@@ -116,6 +126,7 @@ export function PresetManager(props: PresetManagerProps) {
           <Show when={dropdown.mounted()}>
             <div
               ref={(el) => {
+                dropdownRef = el;
                 dropdown.setRef(el);
                 animate(
                   el,
@@ -125,7 +136,7 @@ export function PresetManager(props: PresetManagerProps) {
               }}
               class="dialkit-root dialkit-preset-dropdown"
               style={{
-                position: 'absolute',
+                position: 'fixed',
                 top: `${pos().top}px`,
                 left: `${pos().left}px`,
                 'min-width': `${pos().width}px`,
@@ -136,7 +147,7 @@ export function PresetManager(props: PresetManagerProps) {
                 data-active={String(!props.activePresetId)}
                 onClick={() => handleSelect(null)}
               >
-                <span class="dialkit-preset-name">Version 1</span>
+                <button type="button" class="dialkit-preset-name">Version 1</button>
               </div>
 
               <For each={props.presets}>
@@ -146,11 +157,11 @@ export function PresetManager(props: PresetManagerProps) {
                     data-active={String(preset.id === props.activePresetId)}
                     onClick={() => handleSelect(preset.id)}
                   >
-                    <span class="dialkit-preset-name">{preset.name}</span>
+                    <button type="button" class="dialkit-preset-name">{preset.name}</button>
                     <button
                       class="dialkit-preset-delete"
                       onClick={(e) => handleDelete(e, preset.id)}
-                      title="Delete preset"
+                      type="button" title={`Delete ${preset.name}`}
                     >
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d={ICON_TRASH[0]} />

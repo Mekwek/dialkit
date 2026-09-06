@@ -1,9 +1,8 @@
-import { useCallback, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DialStore, PanelConfig } from '../store/DialStore';
 import { buildCopyInstruction } from '../copy-instruction';
-import { ShortcutsMenu } from './ShortcutsMenu';
 import { ICON_CLIPBOARD, ICON_CHECK, ICON_ADD_PRESET } from '../icons';
 import { ControlRenderer } from './ControlRenderer';
 import { Folder } from './Folder';
@@ -34,13 +33,18 @@ interface PanelProps {
 
 export function Panel({ panel, defaultOpen = true, inline = false, folderMode = 'independent', onOpenChange, variant = 'root', toolbarExtra }: PanelProps) {
   const [copied, setCopied] = useState(false);
-  const [isPanelOpen, setIsPanelOpen] = useState(defaultOpen);
+  const copyTimeout = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => () => clearTimeout(copyTimeout.current), []);
   const subscribe = useCallback(
     (callback: () => void) => DialStore.subscribe(panel.id, callback),
     [panel.id]
   );
   const getSnapshot = useCallback(
     () => DialStore.getValues(panel.id),
+    [panel.id]
+  );
+  const getOpenSnapshot = useCallback(
+    () => DialStore.getPanelOpen(panel.id),
     [panel.id]
   );
 
@@ -70,16 +74,16 @@ export function Panel({ panel, defaultOpen = true, inline = false, folderMode = 
   });
   const accordion = folderMode === 'accordion';
 
-  // Mirror the root folder's open state locally and surface it to DialRoot's
-  // aggregate `onOpenChange` (a no-op for section panels, which don't receive
-  // the callback — their open/close is section-level, not shell-level).
-  const handleOpenChange = useCallback((open: boolean) => {
-    setIsPanelOpen(open);
-    onOpenChange?.(open);
-  }, [onOpenChange]);
-
   // Subscribe to panel value changes
   const values = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+
+  // The store owns open/collapsed state so it can be driven programmatically.
+  const storeOpen = useSyncExternalStore(subscribe, getOpenSnapshot, getOpenSnapshot);
+  const isOpen = storeOpen ?? defaultOpen;
+
+  useEffect(() => {
+    DialStore.initPanelOpen(panel.id, defaultOpen);
+  }, [panel.id, defaultOpen]);
 
   const presets = DialStore.getPresets(panel.id);
   const activePresetId = DialStore.getActivePresetId(panel.id);
@@ -89,15 +93,24 @@ export function Panel({ panel, defaultOpen = true, inline = false, folderMode = 
     DialStore.savePreset(panel.id, `Version ${nextNum}`);
   };
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(buildCopyInstruction('useDialKit', panel.name, values));
+  const handleCopy = async () => {
+    try { await navigator.clipboard.writeText(buildCopyInstruction('useDialKit', panel.name, values)); }
+    catch { return; }
     setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    clearTimeout(copyTimeout.current);
+    copyTimeout.current = setTimeout(() => setCopied(false), 1500);
   };
 
   const handleAccordionToggle = useCallback((path: string, next: boolean) => {
     setOpenFolder(next ? path : null);
   }, []);
+
+  // The store owns the open state; DialRoot's aggregate `onOpenChange` only
+  // fires for root panels (sections are shell-level, not panel-level).
+  const handleOpenChange = useCallback((open: boolean) => {
+    DialStore.setPanelOpen(panel.id, open);
+    onOpenChange?.(open);
+  }, [onOpenChange, panel.id]);
 
   const renderControls = () => (
     <ControlRenderer
@@ -191,7 +204,7 @@ export function Panel({ panel, defaultOpen = true, inline = false, folderMode = 
   if (variant === 'section') {
     return (
       <div className="dialkit-panel-section" data-panel-name={panel.name}>
-        <Folder title={panel.name} defaultOpen={panel.defaultOpen ?? defaultOpen} onOpenChange={handleOpenChange}>
+        <Folder title={panel.name} open={isOpen} onOpenChange={handleOpenChange}>
           <div className="dialkit-panel-section-toolbar" onClick={(e) => e.stopPropagation()}>
             {toolbar}
           </div>
@@ -203,7 +216,7 @@ export function Panel({ panel, defaultOpen = true, inline = false, folderMode = 
 
   return (
     <div className="dialkit-panel-wrapper">
-      <Folder title={panel.name} defaultOpen={defaultOpen} isRoot={true} inline={inline} onOpenChange={handleOpenChange} toolbar={toolbar}>
+      <Folder title={panel.name} open={isOpen} isRoot={true} inline={inline} onOpenChange={handleOpenChange} toolbar={toolbar}>
         {renderControls()}
       </Folder>
     </div>

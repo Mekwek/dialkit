@@ -3,11 +3,12 @@ import { createPortal } from 'react-dom';
 import { DialStore, PanelConfig } from '../store/DialStore';
 import { TimelineStore } from '../store/TimelineStore';
 import { isDevDefault } from '../env';
+import { groupRootKey, partitionPanels } from '../panel-groups';
 import { Folder } from './Folder';
 import { Panel } from './Panel';
 import { ShortcutListener } from './ShortcutListener';
 import { TimelineToggleButton } from './Timeline/TimelineToggleButton';
-import { blockPanelDragClick, getPanelDragHandle, getPanelDragOffset, getPanelDragStart, getPanelOriginX, hasPanelDragMoved } from '../panel-drag';
+import { blockPanelDragClick, capturePanelPointer, releasePanelPointer, getPanelCorner, getPanelDragHandle, getPanelDragOffset, getPanelDragStart, getPanelOriginX, getPanelOriginY, hasPanelDragMoved } from '../panel-drag';
 
 export type DialPosition = 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
 export type DialMode = 'popover' | 'inline';
@@ -29,23 +30,18 @@ interface DialRootProps {
   /** See {@link FolderMode}. */
   folderMode?: FolderMode;
   onOpenChange?: (open: boolean) => void;
-  /**
-   * Restrict which registered panels this root renders. Lets multiple
-   * `DialRoot` instances split the same store — e.g. one popover root showing
-   * only ungrouped panels, another inline root showing only a named group.
-   * - `{ ungrouped: true }` — render only panels with no `group`.
-   * - `{ groups: ['X'] }` — render only panels in the listed groups.
-   * Both may be combined (OR). Omit to render every panel (the default).
-   */
-  include?: { groups?: string[]; ungrouped?: boolean };
 }
 
-export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'popover', theme = 'system', productionEnabled = isDevDefault, folderMode = 'independent', onOpenChange, include }: DialRootProps) {
+export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'popover', theme = 'system', productionEnabled = isDevDefault, folderMode = 'independent', onOpenChange }: DialRootProps) {
   if (!productionEnabled) return null;
   const [panels, setPanels] = useState<PanelConfig[]>([]);
   const [timelineCount, setTimelineCount] = useState(0);
   const [mounted, setMounted] = useState(false);
   const inline = mode === 'inline';
+  const [shellOpen, setShellOpen] = useState(inline || defaultOpen);
+  // Controlled open state per merged group shell, keyed by group name, so a
+  // member panel's setOpen(true) can reveal the shell that contains it.
+  const [groupOpen, setGroupOpen] = useState<Record<string, boolean>>({});
 
   // Drag state
   const panelRef = useRef<HTMLDivElement>(null);
@@ -59,34 +55,13 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
   const panelOpenStatesRef = useRef<Map<string, boolean>>(new Map());
   const rootOpenRef = useRef<boolean | null>(null);
 
-  // Optionally restrict which panels this root renders (lets multiple roots
-  // split the same store — see the `include` prop). An include-filtered root
-  // may legitimately show nothing, which is why the empty-check below uses
-  // `visiblePanels.length` rather than the store's full `panels.length`.
-  const visiblePanels = useMemo(() => {
-    if (!include) return panels;
-    return panels.filter((p) =>
-      (include.ungrouped === true && !p.group) ||
-      (!!include.groups && !!p.group && include.groups.includes(p.group)));
-  }, [panels, include]);
-
-  // Aggregate open-state tracking works over "root keys" — one per ungrouped
-  // panel, plus one synthetic `group:X` key per distinct group — because a
-  // grouped panel's open/close is reported at the merged shell level, not per
-  // panel. Both the seeding effect and `handlePanelOpenChange` read this list.
-  const rootKeys = useMemo(() => {
-    const keys: string[] = [];
-    const seenGroups = new Set<string>();
-    for (const panel of visiblePanels) {
-      if (!panel.group) {
-        keys.push(panel.id);
-      } else if (!seenGroups.has(panel.group)) {
-        seenGroups.add(panel.group);
-        keys.push(`group:${panel.group}`);
-      }
-    }
-    return keys;
-  }, [visiblePanels]);
+  // Root shells: one per ungrouped panel, plus one merged shell per distinct
+  // group. Aggregate open-state tracking works over their keys (panel ids and
+  // synthetic `group:X` keys) because a grouped panel's open/close is
+  // reported at the shell level, not per panel. Both the seeding effect and
+  // `handlePanelOpenChange` read this list.
+  const rootEntries = useMemo(() => partitionPanels(panels), [panels]);
+  const rootKeys = useMemo(() => rootEntries.map((entry) => entry.key), [rootEntries]);
 
   // Subscribe to registered editing surfaces. Timeline-backed panels render
   // in DialTimeline, but their presence adds a visibility toggle here.
@@ -112,7 +87,10 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
     const fallbackOpen = inline || defaultOpen;
     const nextStates = new Map<string, boolean>();
     for (const key of rootKeys) {
-      nextStates.set(key, panelOpenStatesRef.current.get(key) ?? fallbackOpen);
+      // Ungrouped keys are panel ids, so the store's own open state (a
+      // `defaultCollapsed` option) seeds them; synthetic group keys fall
+      // back to the root default.
+      nextStates.set(key, panelOpenStatesRef.current.get(key) ?? DialStore.getPanelOpen(key) ?? fallbackOpen);
     }
     panelOpenStatesRef.current = nextStates;
     rootOpenRef.current = Array.from(nextStates.values()).some(Boolean);
@@ -133,9 +111,7 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
         // Opening — save drag position, determine corner, snap
         if (currentDragOffset) {
           lastDragOffset.current = currentDragOffset;
-          const bubbleCenterX = currentDragOffset.x + 21;
-          const midX = window.innerWidth / 2;
-          setActivePosition(bubbleCenterX < midX ? 'top-left' : 'top-right');
+          setActivePosition(getPanelCorner(position, currentDragOffset));
         } else {
           setActivePosition(position);
         }
@@ -160,7 +136,7 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
     dragStartRef.current = getPanelDragStart(e.clientX, e.clientY, panel);
     didDragRef.current = false;
     draggingRef.current = true;
-    handle.setPointerCapture(e.pointerId);
+    capturePanelPointer(handle, e.pointerId);
   }, []);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
@@ -179,7 +155,7 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
     const dragTarget = dragTargetRef.current;
 
     if (dragTarget?.hasPointerCapture(e.pointerId)) {
-      dragTarget.releasePointerCapture(e.pointerId);
+      releasePanelPointer(dragTarget, e.pointerId);
     }
 
     // If we actually dragged, prevent the click from opening the panel
@@ -205,19 +181,37 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
   }, [defaultOpen, inline, onOpenChange, rootKeys]);
 
   const handleRootOpenChange = useCallback((open: boolean) => {
+    setShellOpen(open);
     if (rootOpenRef.current === open) return;
     rootOpenRef.current = open;
     onOpenChange?.(open);
   }, [onOpenChange]);
+
+  const handleGroupOpenChange = useCallback((group: string, open: boolean) => {
+    setGroupOpen((prev) => (prev[group] === open ? prev : { ...prev, [group]: open }));
+    handlePanelOpenChange(groupRootKey(group), open);
+  }, [handlePanelOpenChange]);
+
+  // Programmatic open requests: an ungrouped panel reports its own state; a
+  // grouped panel asking to open reveals the merged shell that contains it
+  // (the section itself is already store-driven inside Panel).
+  useEffect(() => DialStore.subscribePanelOpen((id, open) => {
+    const panel = panels.find(p => p.id === id);
+    if (!panel) return;
+    if (panel.group) {
+      if (open) handleGroupOpenChange(panel.group, true);
+    } else {
+      handlePanelOpenChange(id, open);
+    }
+  }), [panels, handleGroupOpenChange, handlePanelOpenChange]);
 
   // Don't render on server
   if (!mounted || typeof window === 'undefined') {
     return null;
   }
 
-  // Don't render if no editing surfaces are registered. An include-filtered
-  // root may legitimately show nothing even when other panels exist elsewhere.
-  if (visiblePanels.length === 0 && timelineCount === 0) {
+  // Don't render if no editing surfaces are registered.
+  if (panels.length === 0 && timelineCount === 0) {
     return null;
   }
 
@@ -228,6 +222,7 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
     bottom: 'auto' as const,
   } : undefined;
   const originX = getPanelOriginX(activePosition, dragOffset);
+  const originY = getPanelOriginY(activePosition, dragOffset);
   const timelineToggle = timelineCount > 0 ? <TimelineToggleButton /> : null;
 
   // Group-aware rendering. Panels with no group render as independent
@@ -237,13 +232,12 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
   // first panel so DOM order tracks registration order. Group shells do NOT
   // get the timeline toggle (grouped-shell + timeline coexistence is a
   // documented follow-up, not exercised here).
-  const renderedGroups = new Set<string>();
-  const panelNodes = visiblePanels.map((panel) => {
-    const group = panel.group;
-    if (!group) {
+  const panelNodes = rootEntries.map((entry) => {
+    if (entry.kind === 'panel') {
+      const panel = entry.panel;
       return (
         <Panel
-          key={panel.id}
+          key={entry.key}
           panel={panel}
           defaultOpen={inline || defaultOpen}
           inline={inline}
@@ -253,26 +247,24 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
         />
       );
     }
-    if (renderedGroups.has(group)) return null;
-    renderedGroups.add(group);
-    const sectionPanels = visiblePanels.filter((p) => p.group === group);
+    const { group } = entry;
     return (
-      <div key={`group:${group}`} className="dialkit-panel-wrapper" data-group={group}>
+      <div key={entry.key} className="dialkit-panel-wrapper" data-group={group}>
         <Folder
           title={group}
+          open={groupOpen[group] ?? (inline || defaultOpen)}
           defaultOpen={inline || defaultOpen}
           isRoot
           inline={inline}
-          panelHeightOffset={12}
-          onOpenChange={(open) => handlePanelOpenChange(`group:${group}`, open)}
+          panelHeightOffset={2}
+          onOpenChange={(open) => handleGroupOpenChange(group, open)}
         >
-          {sectionPanels.map((p) => (
+          {entry.panels.map((p) => (
             <Panel
               key={p.id}
               panel={p}
               variant="section"
-              defaultOpen={inline || defaultOpen}
-              inline={inline}
+              defaultOpen={true}
               folderMode={folderMode}
             />
           ))}
@@ -289,6 +281,7 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
         className="dialkit-panel"
         data-position={inline ? undefined : (dragOffset ? undefined : activePosition)}
         data-origin-x={inline ? undefined : originX}
+        data-origin-y={inline ? undefined : originY}
         data-mode={mode}
         style={dragStyle}
         onPointerDown={!inline ? handlePointerDown : undefined}
@@ -296,16 +289,16 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
         onPointerUp={!inline ? handlePointerUp : undefined}
         onPointerCancel={!inline ? handlePointerUp : undefined}
       >
-        {visiblePanels.length === 0 ? (
+        {panels.length === 0 ? (
           <div className="dialkit-panel-wrapper">
             <Folder
               title="DialKit"
+              open={shellOpen}
               defaultOpen={inline || defaultOpen}
               isRoot={true}
               inline={inline}
               onOpenChange={handleRootOpenChange}
               toolbar={timelineToggle}
-              panelHeightOffset={2}
             >
               <div className="dialkit-timeline-toolkit-only">Timeline</div>
             </Folder>

@@ -4,6 +4,7 @@ import type { DialConfig, DialKitPersistOptions, DialValue, ShortcutConfig } fro
 
 export interface UseDialStorePanelOptions {
   id?: string;
+  defaultCollapsed?: boolean;
   persist?: DialKitPersistOptions;
   shortcuts?: Record<string, ShortcutConfig>;
   kind?: 'timeline';
@@ -12,10 +13,6 @@ export interface UseDialStorePanelOptions {
    * rendered as collapsible sections inside ONE merged shell by `DialRoot`.
    */
   group?: string;
-  /**
-   * Initial open state for this panel's folder. Defaults to open.
-   */
-  defaultOpen?: boolean;
   /**
    * `false` hides the rename control and disables drag reorder in the
    * preset dropdown (a read-only host such as a share-link viewer).
@@ -68,9 +65,9 @@ export function useDialStorePanel(
     DialStore.registerPanel(panelId, name, configRef.current, optionsRef.current.shortcuts, {
       retainOnUnmount: hasStableId,
       persist: optionsRef.current.persist,
+      defaultCollapsed: optionsRef.current.defaultCollapsed,
       kind: optionsRef.current.kind,
       group: optionsRef.current.group,
-      defaultOpen: optionsRef.current.defaultOpen,
       presetsEditable: optionsRef.current.presetsEditable,
       presetsLockable: optionsRef.current.presetsLockable,
     });
@@ -87,14 +84,14 @@ export function useDialStorePanel(
     DialStore.updatePanel(panelId, name, configRef.current, optionsRef.current.shortcuts, {
       retainOnUnmount: hasStableId,
       persist: optionsRef.current.persist,
+      defaultCollapsed: optionsRef.current.defaultCollapsed,
       kind: optionsRef.current.kind,
       group: optionsRef.current.group,
-      defaultOpen: optionsRef.current.defaultOpen,
       presetsEditable: optionsRef.current.presetsEditable,
       presetsLockable: optionsRef.current.presetsLockable,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasStableId, panelId, name, serializedConfig, serializedShortcuts, serializedPersist, options.group, options.defaultOpen, options.presetsEditable, options.presetsLockable]);
+  }, [hasStableId, panelId, name, serializedConfig, serializedShortcuts, serializedPersist, options.group, options.presetsEditable, options.presetsLockable]);
 
   const subscribe = useCallback(
     (callback: () => void) => DialStore.subscribe(panelId, callback),

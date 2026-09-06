@@ -1,19 +1,12 @@
-import { Fragment, defineComponent, h, onMounted, onUnmounted, ref, type PropType, type VNodeChild } from 'vue';
+import { buildCopyInstruction } from '../../copy-instruction';
+import { Fragment, computed, defineComponent, h, onMounted, onUnmounted, ref, type PropType, type VNodeChild } from 'vue';
 import { AnimatePresence, motion } from 'motion-v';
 import { ICON_ADD_PRESET, ICON_CHECK, ICON_CLIPBOARD } from '../../icons';
 import { DialStore } from '../../store/DialStore';
-import type { ControlMeta, DialValue, PanelConfig, SpringConfig, TransitionConfig } from '../../store/DialStore';
+import type { DialValue, PanelConfig } from '../../store/DialStore';
 import { Folder } from './Folder';
-import { Slider } from './Slider';
-import { Toggle } from './Toggle';
-import { SpringControl } from './SpringControl';
-import { TransitionControl } from './TransitionControl';
-import { TextControl } from './TextControl';
-import { SelectControl } from './SelectControl';
-import { ColorControl } from './ColorControl';
+import { ControlRenderer } from './ControlRenderer';
 import { PresetManager } from './PresetManager';
-import { useShortcutContext } from './ShortcutListener';
-import { ShortcutsMenu } from './ShortcutsMenu';
 
 export const Panel = defineComponent({
   name: 'DialKitPanel',
@@ -38,12 +31,13 @@ export const Panel = defineComponent({
   },
   emits: ['openChange'],
   setup(props, { emit }) {
-    const shortcutCtx = useShortcutContext();
     const values = ref<Record<string, DialValue>>(DialStore.getValues(props.panel.id));
     const presets = ref(DialStore.getPresets(props.panel.id));
     const activePresetId = ref<string | null>(DialStore.getActivePresetId(props.panel.id));
     const copied = ref(false);
-    const hasShortcuts = () => Object.keys(DialStore.getPanel(props.panel.id)?.shortcuts ?? {}).length > 0;
+    const storeOpen = ref<boolean | undefined>(DialStore.getPanelOpen(props.panel.id));
+    // The store owns open/collapsed state so it can be driven programmatically.
+    const isOpen = computed(() => storeOpen.value ?? props.defaultOpen);
 
     let unsubscribe: (() => void) | undefined;
     let copiedTimeout: ReturnType<typeof window.setTimeout> | null = null;
@@ -53,7 +47,9 @@ export const Panel = defineComponent({
         values.value = DialStore.getValues(props.panel.id);
         presets.value = DialStore.getPresets(props.panel.id);
         activePresetId.value = DialStore.getActivePresetId(props.panel.id);
+        storeOpen.value = DialStore.getPanelOpen(props.panel.id);
       });
+      DialStore.initPanelOpen(props.panel.id, props.defaultOpen);
     });
 
     onUnmounted(() => {
@@ -68,17 +64,11 @@ export const Panel = defineComponent({
       DialStore.savePreset(props.panel.id, `Version ${nextNum}`);
     };
 
-    const handleCopy = () => {
-      const json = JSON.stringify(values.value, null, 2);
-      const instruction = `Update the useDialKit configuration for "${props.panel.name}" with these values:\n\n\`\`\`json\n${json}\n\`\`\`\n\nApply these values as the new defaults in the useDialKit call.`;
+    const handleCopy = async () => {
+      const instruction = buildCopyInstruction('useDialKit', props.panel.name, values.value);
 
-      try {
-        if (navigator.clipboard?.writeText) {
-          void navigator.clipboard.writeText(instruction).catch(() => undefined);
-        }
-      } catch {
-        // Ignore clipboard errors; the UI confirmation should still run.
-      }
+      try { await navigator.clipboard.writeText(instruction); }
+      catch { return; }
 
       copied.value = true;
       if (copiedTimeout) {
@@ -90,92 +80,8 @@ export const Panel = defineComponent({
     };
 
     const handleOpenChange = (open: boolean) => {
+      DialStore.setPanelOpen(props.panel.id, open);
       emit('openChange', open);
-    };
-
-    const renderControl = (control: ControlMeta) => {
-      const value = values.value[control.path];
-
-      switch (control.type) {
-        case 'slider':
-          return h(Slider, {
-            key: control.path,
-            label: control.label,
-            value: value as number,
-            min: control.min,
-            max: control.max,
-            step: control.step,
-            shortcut: control.shortcut,
-            shortcutActive: shortcutCtx.activePanelId.value === props.panel.id && shortcutCtx.activePath.value === control.path,
-            onChange: (next: number) => DialStore.updateValue(props.panel.id, control.path, next),
-          });
-        case 'toggle':
-          return h(Toggle, {
-            key: control.path,
-            label: control.label,
-            checked: value as boolean,
-            shortcut: control.shortcut,
-            shortcutActive: shortcutCtx.activePanelId.value === props.panel.id && shortcutCtx.activePath.value === control.path,
-            onChange: (next: boolean) => DialStore.updateValue(props.panel.id, control.path, next),
-          });
-        case 'spring':
-          return h(SpringControl, {
-            key: control.path,
-            panelId: props.panel.id,
-            path: control.path,
-            label: control.label,
-            spring: value as SpringConfig,
-            onChange: (next: SpringConfig) => DialStore.updateValue(props.panel.id, control.path, next),
-          });
-        case 'transition':
-          return h(TransitionControl, {
-            key: control.path,
-            panelId: props.panel.id,
-            path: control.path,
-            label: control.label,
-            value: value as TransitionConfig,
-            onChange: (next: TransitionConfig) => DialStore.updateValue(props.panel.id, control.path, next),
-          });
-        case 'folder':
-          return h(Folder, {
-            key: control.path,
-            title: control.label,
-            defaultOpen: control.defaultOpen ?? true,
-          }, {
-            default: () => (control.children ?? []).map(renderControl),
-          });
-        case 'text':
-          return h(TextControl, {
-            key: control.path,
-            label: control.label,
-            value: value as string,
-            placeholder: control.placeholder,
-            onChange: (next: string) => DialStore.updateValue(props.panel.id, control.path, next),
-          });
-        case 'select':
-          return h(SelectControl, {
-            key: control.path,
-            label: control.label,
-            value: value as string,
-            options: control.options ?? [],
-            onChange: (next: string) => DialStore.updateValue(props.panel.id, control.path, next),
-          });
-        case 'color':
-          return h(ColorControl, {
-            key: control.path,
-            label: control.label,
-            value: value as string,
-            onChange: (next: string) => DialStore.updateValue(props.panel.id, control.path, next),
-          });
-        case 'action':
-          return h('button', {
-            key: control.path,
-            class: 'dialkit-button',
-            onClick: () => DialStore.triggerAction(props.panel.id, control.path),
-          }, control.label);
-        default:
-          return null;
-      }
     };
 
     return () => {
@@ -270,7 +176,7 @@ export const Panel = defineComponent({
       if (props.variant === 'section') {
         return h(Folder, {
           title: props.panel.name,
-          defaultOpen: props.defaultOpen,
+          open: isOpen.value,
           onOpenChange: handleOpenChange,
         }, {
           default: () => [
@@ -278,7 +184,7 @@ export const Panel = defineComponent({
               class: 'dialkit-panel-section-toolbar',
               onClick: (event: Event) => event.stopPropagation(),
             }, [toolbarNode]),
-            ...props.panel.controls.map(renderControl),
+            h(ControlRenderer, { panelId: props.panel.id, controls: props.panel.controls, values: values.value }),
           ],
         });
       }
@@ -286,13 +192,13 @@ export const Panel = defineComponent({
       return h('div', { class: 'dialkit-panel-wrapper' }, [
         h(Folder, {
           title: props.panel.name,
-          defaultOpen: props.defaultOpen,
+          open: isOpen.value,
           isRoot: true,
           inline: props.inline,
           toolbar: () => toolbarNode,
           onOpenChange: handleOpenChange,
         }, {
-          default: () => props.panel.controls.map(renderControl),
+          default: () => h(ControlRenderer, { panelId: props.panel.id, controls: props.panel.controls, values: values.value }),
         }),
       ]);
     };

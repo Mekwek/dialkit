@@ -30,6 +30,35 @@ function TimelineHarness({
 }
 
 describe('useDialTimeline (React)', () => {
+  it('does not recursively update when a loop region is passed inline', () => {
+    const id = 'react-timeline-inline-loop';
+    const config = {
+      intro: { at: 0, duration: 0.1 },
+      orbit: { at: 0.1, duration: 1, loop: true },
+    } as TimelineConfig;
+    let renderer: ReactTestRenderer | undefined;
+
+    function InlineLoopHarness() {
+      useDialTimeline('React Inline Loop Test', config, {
+        id,
+        autoplay: false,
+        loop: { from: 0.1 },
+      });
+      return null;
+    }
+
+    try {
+      act(() => {
+        renderer = create(createElement(InlineLoopHarness));
+      });
+
+      assert.equal(TimelineStore.getTimeline(id)?.loop, true);
+      assert.equal(TimelineStore.getTimeline(id)?.loopStart, 0.1);
+    } finally {
+      act(() => renderer?.unmount());
+    }
+  });
+
   it('keeps the registered transport when a live edit swaps in a physics spring', () => {
     const id = 'react-timeline-live-duration';
     const config = {

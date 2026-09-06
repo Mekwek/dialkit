@@ -1,0 +1,29 @@
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
+.pad-demo { min-height: 100vh; padding: 32px 48px; background: #151515; color: #ededed; }
+.pad-demo-nav { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 550; }
+.pad-demo-nav span span { margin-left: 8px; color: #777; font-weight: 400; }
+.pad-demo-nav button { padding: 8px 12px; border: 1px solid #ffffff18; border-radius: 7px; background: #ffffff06; color: inherit; font: inherit; font-size: 11px; cursor: pointer; }
+.pad-demo-layout { display: grid; grid-template-columns: minmax(0, 500px) 280px; align-items: center; justify-content: center; gap: clamp(48px, 8vw, 140px); min-height: calc(100vh - 110px); padding: 48px 0; }
+.pad-demo-eyebrow { font-size: 10px; letter-spacing: 0.14em; color: #777; }
+.pad-demo h1 { margin: 15px 0; font-size: clamp(32px, 4vw, 46px); font-weight: 500; letter-spacing: -0.055em; }
+.pad-demo p { color: #888; font-size: 14px; line-height: 1.65; }
+.pad-demo-stage { height: 340px; display: grid; place-items: center; perspective: 700px; }
+.pad-demo-object { display: grid; place-items: center; width: 140px; height: 140px; border-radius: 34px; border: 1px solid #ffffff50; background: linear-gradient(145deg, #e4e4e4, #a6a6a6); box-shadow: 0 30px 50px -20px #0009, inset 0 1px 1px #fff; will-change: transform; }
+.pad-demo-dot { width: 28px; height: 28px; border-radius: 50%; background: #444; box-shadow: inset 0 2px 4px #0005, 0 1px 1px #fff8; }
+.pad-demo-output { display: flex; justify-content: center; align-items: center; gap: 12px; color: #666; font: 11px 'Geist Mono', monospace; }
+.pad-demo-output span { min-width: 40px; color: #aaa; }
+.pad-demo-output i { height: 12px; width: 1px; margin: 0 8px; background: #ffffff16; }
+.pad-demo-panel > .dialkit-root { border: 1px solid #ffffff12; border-radius: 14px; overflow: hidden; background: #212121; }
+.pad-demo-panel > p { padding: 0 12px; font-size: 11px; line-height: 1.8; }
+.pad-demo[data-theme="light"] { background: #f4f3f1; color: #222; }
+.pad-demo[data-theme="light"] .pad-demo-nav button { border-color: #0002; background: #00000004; }
+.pad-demo[data-theme="light"] .pad-demo-object { box-shadow: 0 30px 50px -20px #0004, inset 0 1px 1px #fff; }
+.pad-demo[data-theme="light"] .pad-demo-panel > .dialkit-root { border-color: #0001; background: #f7f7f7; }
+.pad-demo[data-theme="light"] .pad-demo-output span { color: #555; }
+@media (max-width: 700px) {
+  .pad-demo { padding: 24px; }
+  .pad-demo-layout { grid-template-columns: minmax(0, 1fr); gap: 32px; padding: 48px 0; }
+  .pad-demo-panel { width: 280px; max-width: 100%; justify-self: center; }
+  .pad-demo-stage { height: 320px; }
+}

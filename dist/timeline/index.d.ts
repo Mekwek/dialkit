@@ -1,3 +1,21 @@
+/** The same [default, min, max, step?] notation used by sliders. */
+type DialPadAxis = [number, number, number, number?];
+type DialPadValue = {
+    x: number;
+    y: number;
+};
+type DialPadConfig = {
+    type: 'pad';
+    /** Defaults to [0, -1, 1, 0.01]. */
+    x?: DialPadAxis;
+    /** Positive Y points upward. Defaults to [0, -1, 1, 0.01]. */
+    y?: DialPadAxis;
+    labels?: {
+        x?: string;
+        y?: string;
+    };
+};
+
 type SpringConfig = {
     type: 'spring';
     stiffness?: number;
@@ -28,12 +46,23 @@ type ColorConfig = {
     type: 'color';
     default?: string;
 };
+type ImageOption = string | {
+    value: string;
+    label: string;
+};
+type ImageConfig = {
+    type: 'image';
+    /** Image URLs, optionally paired with display labels. */
+    options?: ImageOption[];
+    /** Defaults to the first option, or an empty string for upload-only controls. */
+    default?: string;
+};
 type TextConfig = {
     type: 'text';
     default?: string;
     placeholder?: string;
 };
-type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | TextConfig;
+type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue;
 type VisibleWhenValue = string | boolean | number;
 /**
  * Rule for conditional control visibility. Exactly one of `is` or `not`
@@ -65,11 +94,15 @@ type ControlWithVisibility<T = DialValue | [number, number, number, number?] | D
     value: T;
     visibleWhen: VisibleWhen;
 };
+/** The union of all value shapes that can appear in a DialConfig entry. */
+type DialConfigValue = DialValue | [number, number, number, number?] | DialConfig;
 type DialConfig = {
     [key: string]: DialValue | [number, number, number, number?] | DialConfig | ControlWithVisibility;
 };
 type ResolvedValues<T extends DialConfig> = {
-    [K in keyof T]: T[K] extends [number, number, number, number?] ? number : T[K] extends SpringConfig ? TransitionConfig : T[K] extends EasingConfig ? TransitionConfig : T[K] extends SelectConfig ? string : T[K] extends ColorConfig ? string : T[K] extends TextConfig ? string : T[K] extends DialConfig ? ResolvedValues<T[K]> : T[K];
+    [K in keyof T]: T[K] extends ControlWithVisibility<infer U> ? U extends DialConfigValue ? ResolvedValues<{
+        value: U;
+    }>['value'] : never : T[K] extends [number, number, number, number?] ? number : T[K] extends SpringConfig ? TransitionConfig : T[K] extends EasingConfig ? TransitionConfig : T[K] extends SelectConfig ? string : T[K] extends ColorConfig | ImageConfig ? string : T[K] extends TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends DialConfig ? ResolvedValues<T[K]> : T[K];
 };
 type DialKitPersistOptions = boolean | {
     key?: string;

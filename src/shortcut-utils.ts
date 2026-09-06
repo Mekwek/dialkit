@@ -5,16 +5,8 @@ import type { ControlMeta, ShortcutConfig } from './store/DialStore';
 
 // ── Math helpers ──
 
-export function decimalsForStep(step: number): number {
-  const s = step.toString();
-  const dot = s.indexOf('.');
-  return dot === -1 ? 0 : s.length - dot - 1;
-}
-
-export function roundValue(val: number, step: number): number {
-  const raw = Math.round(val / step) * step;
-  return parseFloat(raw.toFixed(decimalsForStep(step)));
-}
+export { decimalsForStep, roundValue } from './numeric';
+import { roundValue } from './numeric';
 
 export function getEffectiveStep(control: ControlMeta, shortcut: ShortcutConfig): number {
   const min = control.min ?? 0;
@@ -37,7 +29,7 @@ export function applySliderDelta(
   const min = control.min ?? 0;
   const max = control.max ?? 1;
   const newValue = Math.max(min, Math.min(max, currentValue + direction * effectiveStep));
-  DialStore.updateValue(panelId, path, roundValue(newValue, effectiveStep));
+  DialStore.updateValue(panelId, path, roundValue(newValue, effectiveStep, min, max));
 }
 
 export function snapToDecile(rawValue: number, min: number, max: number): number {
@@ -56,6 +48,7 @@ export function isInputFocused(): boolean {
   if (!el) return false;
   const tag = el.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA') return true;
+  if (el.closest('select, button, [role="slider"], [role="radio"], [role="listbox"], [role="menu"], [role="menuitem"], [role="menuitemradio"], [role="button"]')) return true;
   if ((el as HTMLElement).contentEditable === 'true') return true;
   return false;
 }

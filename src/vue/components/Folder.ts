@@ -1,4 +1,6 @@
-import { defineComponent, h, onMounted, onUnmounted, ref, type PropType, type VNodeChild } from 'vue';
+import { activateOnKey } from '../../control-keyboard';
+import { measurePanelHeight } from '../../panel-size';
+import { computed, defineComponent, h, onMounted, onUnmounted, ref, type PropType, type VNodeChild } from 'vue';
 import { AnimatePresence, motion } from 'motion-v';
 import { ICON_CHEVRON, ICON_PANEL } from '../../icons';
 
@@ -6,6 +8,7 @@ export const Folder = defineComponent({
   name: 'DialKitFolder',
   props: {
     title: { type: String, required: true },
+    open: { type: Boolean, default: undefined },
     defaultOpen: { type: Boolean, default: true },
     isRoot: { type: Boolean, default: false },
     inline: { type: Boolean, default: false },
@@ -16,13 +19,14 @@ export const Folder = defineComponent({
     },
     panelHeightOffset: {
       type: Number,
-      default: 10,
+      default: 0,
     },
   },
   emits: ['openChange'],
   setup(props, { emit, slots }) {
-    const isOpen = ref(props.defaultOpen);
-    const isCollapsed = ref(!props.defaultOpen);
+    const localOpen = ref(props.defaultOpen);
+    const isOpen = computed(() => props.open ?? localOpen.value);
+    const isCollapsed = computed(() => !isOpen.value);
     const contentRef = ref<HTMLElement | null>(null);
     const contentHeight = ref<number | undefined>(undefined);
     const windowHeight = ref(typeof window !== 'undefined' ? window.innerHeight : 800);
@@ -40,8 +44,7 @@ export const Folder = defineComponent({
     const handleToggle = () => {
       if (props.inline && props.isRoot) return;
       const next = !isOpen.value;
-      isOpen.value = next;
-      isCollapsed.value = !next;
+      localOpen.value = next;
       emit('openChange', next);
     };
 
@@ -54,7 +57,7 @@ export const Folder = defineComponent({
 
       ro = new ResizeObserver(() => {
         if (isOpen.value) {
-          const next = el.offsetHeight;
+          const next = measurePanelHeight(el);
           if (contentHeight.value !== next) {
             contentHeight.value = next;
           }
@@ -64,7 +67,7 @@ export const Folder = defineComponent({
       ro.observe(el);
 
       if (isOpen.value) {
-        contentHeight.value = el.offsetHeight;
+        contentHeight.value = measurePanelHeight(el);
       }
     });
 
@@ -76,7 +79,7 @@ export const Folder = defineComponent({
       class: `dialkit-folder-header ${props.isRoot ? 'dialkit-panel-header' : ''}`,
       onClick: handleToggle,
     }, [
-      h('div', { class: 'dialkit-folder-header-top' }, [
+      h('div', { class: 'dialkit-folder-header-top', role: props.inline && props.isRoot ? undefined : 'button', tabindex: props.inline && props.isRoot ? undefined : 0, 'aria-label': props.title, 'aria-expanded': isOpen.value, onKeydown: (e: KeyboardEvent) => activateOnKey(e, handleToggle) }, [
         props.isRoot
           ? (isOpen.value
               ? h('div', { class: 'dialkit-folder-title-row' }, [
@@ -175,6 +178,7 @@ export const Folder = defineComponent({
 
         return h(motion.div, {
           class: 'dialkit-panel-inner',
+          tabindex: -1,
           style: panelStyle,
           onClick: !isOpen.value ? handleToggle : undefined,
           'data-collapsed': String(isCollapsed.value),

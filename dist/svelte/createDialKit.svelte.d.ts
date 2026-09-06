@@ -1,6 +1,7 @@
 import type { DialConfig, DialKitPersistOptions, DialKitValueUpdates, DialValue, ResolvedValues, ShortcutConfig } from 'dialkit/store';
 export interface CreateDialOptions {
     id?: string;
+    defaultCollapsed?: boolean;
     persist?: DialKitPersistOptions;
     onAction?: (action: string) => void;
     shortcuts?: Record<string, ShortcutConfig>;
@@ -11,6 +12,8 @@ export interface DialKitController<T extends DialConfig> {
     setValue: (path: string, value: DialValue) => void;
     setValues: (values: DialKitValueUpdates<T>) => void;
     resetValues: () => void;
+    setOpen: (open: boolean) => void;
+    getOpen: () => boolean | undefined;
     getValues: () => ResolvedValues<T>;
 }
 export declare function createDialKit<T extends DialConfig>(name: string, config: T, options?: CreateDialOptions): DialKitValues<ResolvedValues<T>>;

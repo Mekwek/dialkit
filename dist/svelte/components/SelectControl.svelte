@@ -1,8 +1,11 @@
 <script lang="ts">
+  import { observeDropdownKeyboard } from '../../dropdown-keyboard';
+import { openDropdownOnKey } from '../../control-keyboard';
+
   import { Spring } from 'svelte/motion';
   import Portal from '../Portal.svelte';
   import { dropdownTransition } from './transitions';
-  import { getDialKitPortalRoot, getDropdownPosition } from '../../dropdown-position';
+  import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition, type DropdownPosition } from '../../dropdown-position';
   import { ICON_CHEVRON } from '../../icons';
 
   type SelectOption = string | { value: string; label: string };
@@ -15,7 +18,7 @@
   }>();
 
   let isOpen = $state(false);
-  let pos = $state<{ top: number; left: number; width: number; above: boolean } | null>(null);
+  let pos = $state<DropdownPosition | null>(null);
   let portalTarget = $state<HTMLElement | null>(null);
   let triggerRef: HTMLButtonElement | undefined;
   let dropdownRef: HTMLDivElement | undefined;
@@ -34,8 +37,8 @@
 
   const updatePos = () => {
     if (!triggerRef || !portalTarget || typeof window === 'undefined') return;
-    const dropdownHeight = 8 + normalized.length * 36;
-    pos = getDropdownPosition(triggerRef, portalTarget, { dropdownHeight });
+    const dropdownHeight = dropdownRef ? dropdownRef.scrollHeight + 2 : 10 + normalized.length * 36;
+    pos = getDropdownPosition(triggerRef, portalTarget, { dropdownHeight, fixed: true });
   };
 
   const openDropdown = () => {
@@ -51,10 +54,10 @@
     if (!pos || typeof window === 'undefined') return '';
 
     if (pos.above) {
-      return `position:absolute;left:${pos.left}px;top:${pos.top}px;width:${pos.width}px;transform-origin:bottom;`;
+      return `position:fixed;left:${pos.left}px;top:${pos.top}px;width:${pos.width}px;max-height:${pos.maxHeight}px;transform-origin:bottom;`;
     }
 
-    return `position:absolute;left:${pos.left}px;top:${pos.top}px;width:${pos.width}px;transform-origin:top;`;
+    return `position:fixed;left:${pos.left}px;top:${pos.top}px;width:${pos.width}px;max-height:${pos.maxHeight}px;transform-origin:top;`;
   });
 
   $effect(() => {
@@ -78,12 +81,15 @@
       closeDropdown();
     };
 
-    updatePos();
+    const stopPosition = observeDropdownPosition(triggerRef!, updatePos, () => dropdownRef);
+    const stopKeyboard = observeDropdownKeyboard(triggerRef!, () => dropdownRef, closeDropdown);
     document.addEventListener('mousedown', handleClick);
     window.addEventListener('resize', handleViewportChange);
     window.addEventListener('scroll', handleViewportChange, true);
 
     return () => {
+      stopKeyboard();
+      stopPosition();
       document.removeEventListener('mousedown', handleClick);
       window.removeEventListener('resize', handleViewportChange);
       window.removeEventListener('scroll', handleViewportChange, true);
@@ -97,6 +103,8 @@
     class="dialkit-select-trigger"
     onclick={() => (isOpen ? closeDropdown() : openDropdown())}
     data-open={String(isOpen)}
+    type="button" aria-haspopup="listbox" aria-expanded={isOpen} disabled={!options.length}
+    onkeydown={(e) => openDropdownOnKey(e, openDropdown)}
   >
     <span class="dialkit-select-label">{label}</span>
     <div class="dialkit-select-right">

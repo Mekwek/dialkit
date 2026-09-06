@@ -9,10 +9,14 @@ import { ShortcutListener } from './ShortcutListener';
 import { TimelineToggleButton } from './Timeline/TimelineToggleButton';
 import {
   blockPanelDragClick,
+  capturePanelPointer,
+  releasePanelPointer,
+  getPanelCorner,
   getPanelDragHandle,
   getPanelDragOffset,
   getPanelDragStart,
   getPanelOriginX,
+  getPanelOriginY,
   hasPanelDragMoved,
   type PanelDragOffset,
   type PanelDragStart,
@@ -71,13 +75,15 @@ export const DialRoot = defineComponent({
     let didDrag = false;
     let dragTarget: HTMLElement | null = null;
     let panelOpenStates = new Map<string, boolean>();
+    const shellOpen = ref(props.mode === 'inline' || props.defaultOpen);
+    let unsubscribeOpen: (() => void) | undefined;
     let rootOpen: boolean | undefined;
 
     const syncPanelOpenStates = () => {
       const fallbackOpen = props.mode === 'inline' || props.defaultOpen;
       const nextStates = new Map<string, boolean>();
       for (const panel of panels.value) {
-        nextStates.set(panel.id, panelOpenStates.get(panel.id) ?? fallbackOpen);
+        nextStates.set(panel.id, panelOpenStates.get(panel.id) ?? DialStore.getPanelOpen(panel.id) ?? fallbackOpen);
       }
       panelOpenStates = nextStates;
       rootOpen = Array.from(nextStates.values()).some(Boolean);
@@ -95,8 +101,7 @@ export const DialRoot = defineComponent({
         if (!collapsed) {
           if (currentDragOffset) {
             lastDragOffset = currentDragOffset;
-            const bubbleCenterX = currentDragOffset.x + 21;
-            activePosition.value = bubbleCenterX < window.innerWidth / 2 ? 'top-left' : 'top-right';
+            activePosition.value = getPanelCorner(props.position, currentDragOffset);
           } else {
             activePosition.value = props.position;
           }
@@ -120,7 +125,7 @@ export const DialRoot = defineComponent({
       dragStart = getPanelDragStart(event.clientX, event.clientY, panel);
       didDrag = false;
       dragging = true;
-      handle.setPointerCapture(event.pointerId);
+      capturePanelPointer(handle, event.pointerId);
     };
 
     const handlePointerMove = (event: PointerEvent) => {
@@ -139,7 +144,7 @@ export const DialRoot = defineComponent({
       const handle = dragTarget;
 
       if (handle?.hasPointerCapture(event.pointerId)) {
-        handle.releasePointerCapture(event.pointerId);
+        releasePanelPointer(handle, event.pointerId);
       }
 
       if (didDrag) {
@@ -165,6 +170,7 @@ export const DialRoot = defineComponent({
     };
 
     const handleRootOpenChange = (open: boolean) => {
+      shellOpen.value = open;
       if (rootOpen === open) return;
       rootOpen = open;
       emit('openChange', open);
@@ -179,6 +185,7 @@ export const DialRoot = defineComponent({
       }
       : undefined;
     const originX = computed(() => props.mode === 'inline' ? undefined : getPanelOriginX(activePosition.value, dragOffset.value));
+    const originY = computed(() => props.mode === 'inline' ? undefined : getPanelOriginY(activePosition.value, dragOffset.value));
 
     onMounted(() => {
       mounted.value = true;
@@ -189,6 +196,11 @@ export const DialRoot = defineComponent({
         panels.value = DialStore.getPanels('panel');
         syncPanelOpenStates();
       });
+      unsubscribeOpen = DialStore.subscribePanelOpen((id, open) => {
+        if (!panels.value.some(panel => panel.id === id)) return;
+        if (panels.value.length > 1 && open) handleRootOpenChange(true);
+        else if (panels.value.length === 1) handlePanelOpenChange(id, open);
+      });
       unsubscribeTimelines = TimelineStore.subscribeGlobal(() => {
         timelines.value = TimelineStore.getTimelines();
       });
@@ -198,6 +210,7 @@ export const DialRoot = defineComponent({
     onUnmounted(() => {
       unsubscribePanels?.();
       unsubscribeTimelines?.();
+      unsubscribeOpen?.();
       observer?.disconnect();
     });
 
@@ -208,26 +221,26 @@ export const DialRoot = defineComponent({
         return [h('div', { class: 'dialkit-panel-wrapper' }, [
           h(Folder, {
             title: 'DialKit',
+            open: shellOpen.value,
             defaultOpen: props.mode === 'inline' || props.defaultOpen,
             isRoot: true,
             inline: props.mode === 'inline',
             toolbar: timelineToggle,
             onOpenChange: handleRootOpenChange,
-            panelHeightOffset: 2,
-          }, { default: () => [h('div', { class: 'dialkit-timeline-toolkit-only' }, 'Timeline')] }),
+            }, { default: () => [h('div', { class: 'dialkit-timeline-toolkit-only' }, 'Timeline')] }),
         ])];
       }
       if (panels.value.length > 1) {
         return [h('div', { class: 'dialkit-panel-wrapper' }, [
           h(Folder, {
             title: 'DialKit',
+            open: shellOpen.value,
             defaultOpen: props.mode === 'inline' || props.defaultOpen,
             isRoot: true,
             inline: props.mode === 'inline',
             toolbar: timelineToggle,
             onOpenChange: handleRootOpenChange,
-            panelHeightOffset: 2,
-          }, {
+            }, {
             default: () => panels.value.map((panel) => h(Panel, {
               key: panel.id,
               panel,
@@ -257,6 +270,7 @@ export const DialRoot = defineComponent({
           class: 'dialkit-panel',
           'data-position': props.mode === 'inline' ? undefined : (dragOffset.value ? undefined : activePosition.value),
           'data-origin-x': originX.value,
+          'data-origin-y': originY.value,
           'data-mode': props.mode,
           'data-multiple': panels.value.length > 1 ? 'true' : undefined,
           style: getDragStyle(),

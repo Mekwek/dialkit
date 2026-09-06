@@ -1258,7 +1258,9 @@ var TimelineUiStore = /* @__PURE__ */ new TimelineUiStoreClass();
 
 // src/copy-instruction.ts
 function buildCopyInstruction(hookName, panelName, values) {
-  const jsonStr = JSON.stringify(values, null, 2);
+  const jsonStr = JSON.stringify(Object.fromEntries(
+    Object.entries(values).filter(([path]) => !path.endsWith(".__mode"))
+  ), null, 2);
   if (hookName === "useDialTimeline" || hookName === "createDialTimeline") {
     return `Update the ${hookName} configuration for "${panelName}" with these values:
 

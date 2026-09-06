@@ -1,8 +1,5 @@
-import type { EasingConfig } from 'dialkit/store';
-type $$ComponentProps = {
-    easing: EasingConfig;
-};
-declare const EasingVisualization: import("svelte").Component<$$ComponentProps, {
+import { type EasingVisualizationProps } from '../../easing-control';
+declare const EasingVisualization: import("svelte").Component<EasingVisualizationProps, {
     easingPresets: Record<string, [number, number, number, number]>;
 }, "">;
 type EasingVisualization = ReturnType<typeof EasingVisualization>;

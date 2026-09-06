@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { handleSegmentKey, labelSegmentedControl } from '../../control-keyboard';
+
   export interface SegmentedControlOption<T extends string = string> {
     value: T;
     label: string;
@@ -17,6 +19,7 @@
 
   function measure() {
     if (!containerRef) return;
+    labelSegmentedControl(containerRef);
     const activeButton = containerRef.querySelector('[data-active="true"]') as HTMLElement | null;
     if (!activeButton) return;
     pillLeft = activeButton.offsetLeft;
@@ -38,7 +41,7 @@
   });
 </script>
 
-<div class="dialkit-segmented" bind:this={containerRef}>
+<div class="dialkit-segmented" bind:this={containerRef} role="radiogroup" tabindex="-1" onkeydown={handleSegmentKey}>
   {#if pillLeft !== null && pillWidth !== null}
     <div
       class="dialkit-segmented-pill"
@@ -55,6 +58,7 @@
       onclick={() => onChange(option.value)}
       class="dialkit-segmented-button"
       data-active={String(value === option.value)}
+      type="button" role="radio" aria-checked={value === option.value} tabindex={value === option.value ? 0 : -1}
     >
       {option.label}
     </button>

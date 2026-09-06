@@ -11,6 +11,9 @@ import { TransitionControl } from './TransitionControl';
 import { TextControl } from './TextControl';
 import { SelectControl } from './SelectControl';
 import { ColorControl } from './ColorControl';
+import { ImageControl } from './ImageControl';
+import { DialPad } from './DialPad';
+import type { DialPadValue } from '../dial-pad';
 
 interface ControlRendererProps {
   panelId: string;
@@ -125,7 +128,7 @@ export function ControlRenderer({
           depth === 0 && onAccordionToggle
             ? {
                 open: accordionOpenPath === control.path,
-                onToggle: (next: boolean) => onAccordionToggle(control.path, next),
+                onOpenChange: (next: boolean) => onAccordionToggle(control.path, next),
               }
             : {};
         const children = control.children?.map((child) => renderControl(child, depth + 1));
@@ -164,6 +167,30 @@ export function ControlRenderer({
             key={control.path}
             label={control.label}
             value={value as string}
+            onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
+          />
+        );
+
+      case 'image':
+        return (
+          <ImageControl
+            key={control.path}
+            options={control.options}
+            label={control.label}
+            value={value as string}
+            onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
+          />
+        );
+
+      case 'pad':
+        return (
+          <DialPad
+            key={control.path}
+            label={control.label}
+            value={value as DialPadValue}
+            x={control.pad?.x}
+            y={control.pad?.y}
+            labels={control.pad?.labels}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
           />
         );

@@ -1,4 +1,5 @@
-import { createSignal, onCleanup, Show, For } from 'solid-js';
+import { observeDropdownKeyboard } from '../../dropdown-keyboard';
+import { createSignal, createEffect, onCleanup, Show, For } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import { animate } from 'motion';
 import { DialStore, ShortcutConfig } from '../../store/DialStore';
@@ -31,6 +32,7 @@ export function ShortcutsMenu(props: ShortcutsMenuProps) {
   const [pos, setPos] = createSignal({ top: 0, right: 0 });
 
   let triggerRef!: HTMLButtonElement;
+  let dropdownRef: HTMLDivElement | undefined;
   let triggerTapAnim: AnimationHandle | null = null;
 
   const tapTransition = { type: 'spring' as const, visualDuration: 0.15, bounce: 0.3 };
@@ -62,9 +64,19 @@ export function ShortcutsMenu(props: ShortcutsMenuProps) {
     onDismiss: dropdown.close,
   });
 
+  createEffect(() => {
+    if (!dropdown.isOpen()) return;
+    onCleanup(observeDropdownKeyboard(triggerRef, () => dropdownRef, dropdown.close, 'help'));
+  });
   onCleanup(() => triggerTapAnim?.stop());
 
-  const panel = () => DialStore.getPanel(props.panelId);
+  const [panel, setPanel] = createSignal(DialStore.getPanel(props.panelId));
+  createEffect(() => {
+    const id = props.panelId;
+    const update = () => setPanel(DialStore.getPanel(id));
+    onCleanup(DialStore.subscribeGlobal(update));
+    update();
+  });
 
   const rows = () => {
     const p = panel();
@@ -107,6 +119,7 @@ export function ShortcutsMenu(props: ShortcutsMenuProps) {
         onPointerCancel={() => tapTo(1)}
         onPointerLeave={() => tapTo(1)}
         title="Keyboard shortcuts"
+        type="button" aria-haspopup="dialog" aria-expanded={dropdown.isOpen()}
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <rect x="2" y="6" width="20" height="12" rx="2" />
@@ -122,6 +135,7 @@ export function ShortcutsMenu(props: ShortcutsMenuProps) {
         <Portal mount={document.body}>
           <div
             ref={(el) => {
+              dropdownRef = el;
               dropdown.setRef(el);
               animate(
                 el,

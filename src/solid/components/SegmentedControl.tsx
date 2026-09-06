@@ -1,3 +1,4 @@
+import { handleSegmentKey, labelSegmentedControl } from '../../control-keyboard';
 import { createSignal, createEffect, on, onMount, onCleanup, For, Show } from 'solid-js';
 
 interface SegmentedControlOption<T extends string> {
@@ -19,6 +20,7 @@ export function SegmentedControl<T extends string>(props: SegmentedControlProps<
 
   const measure = () => {
     if (!containerRef) return;
+    labelSegmentedControl(containerRef);
     const activeButton = containerRef.querySelector('[data-active="true"]') as HTMLElement | null;
     if (!activeButton) return;
     setPillStyle({
@@ -34,6 +36,7 @@ export function SegmentedControl<T extends string>(props: SegmentedControlProps<
   // Keep the pill aligned when the container itself resizes (e.g. panel width).
   onMount(() => {
     if (!containerRef) return;
+    labelSegmentedControl(containerRef);
     const ro = new ResizeObserver(measure);
     ro.observe(containerRef);
     onCleanup(() => ro.disconnect());
@@ -46,7 +49,7 @@ export function SegmentedControl<T extends string>(props: SegmentedControlProps<
   );
 
   return (
-    <div class="dialkit-segmented" ref={containerRef}>
+    <div class="dialkit-segmented" ref={containerRef} role="radiogroup" onKeyDown={handleSegmentKey}>
       <Show when={pillStyle()}>
         {(style) => (
           <div
@@ -65,6 +68,7 @@ export function SegmentedControl<T extends string>(props: SegmentedControlProps<
             onClick={() => props.onChange(option.value)}
             class="dialkit-segmented-button"
             data-active={String(props.value === option.value)}
+            type="button" role="radio" aria-checked={props.value === option.value} tabIndex={props.value === option.value ? 0 : -1}
           >
             {option.label}
           </button>

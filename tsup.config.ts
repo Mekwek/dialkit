@@ -36,8 +36,19 @@ export default defineConfig([
   {
     entry: {
       icons: 'src/icons.ts',
+      'copy-instruction': 'src/copy-instruction.ts',
       'dropdown-position': 'src/dropdown-position.ts',
       'panel-drag': 'src/panel-drag.ts',
+      'panel-size': 'src/panel-size.ts',
+      'color-control': 'src/color-control.ts',
+      'image-control': 'src/image-control.ts',
+      'dial-pad-control': 'src/dial-pad-control.ts',
+      'dial-pad': 'src/dial-pad.ts',
+      'easing-control': 'src/easing-control.ts',
+      'easing-geometry': 'src/easing-geometry.ts',
+      'control-keyboard': 'src/control-keyboard.ts',
+      'dropdown-keyboard': 'src/dropdown-keyboard.ts',
+      'text-autosize': 'src/text-autosize.ts',
       'shortcut-utils': 'src/shortcut-utils.ts',
     },
     format: ['esm'],
@@ -45,6 +56,24 @@ export default defineConfig([
     splitting: false,
     sourcemap: true,
     esbuildPlugins: [externalPackageStorePlugin],
+  },
+  // Dependency-free DOM adapter, including a single script for plain HTML.
+  {
+    entry: { index: 'src/vanilla/index.ts' },
+    outDir: 'dist/vanilla',
+    format: ['esm', 'cjs'],
+    dts: true,
+    splitting: false,
+    sourcemap: true,
+  },
+  {
+    entry: { browser: 'src/vanilla/index.ts' },
+    outDir: 'dist/vanilla',
+    format: ['iife'],
+    globalName: 'DialKit',
+    define: { 'import.meta': '{}' },
+    splitting: false,
+    sourcemap: true,
   },
   // React build
   {
@@ -59,7 +88,7 @@ export default defineConfig([
         js: '"use client";',
       };
     },
-    onSuccess: 'cp src/styles/theme.css dist/styles.css',
+    onSuccess: 'node scripts/copy-styles.mjs',
   },
   // Solid build
   {

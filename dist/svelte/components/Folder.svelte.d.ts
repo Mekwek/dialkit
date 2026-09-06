@@ -2,6 +2,7 @@ import type { Snippet } from 'svelte';
 type $$ComponentProps = {
     title: string;
     defaultOpen?: boolean;
+    open?: boolean;
     isRoot?: boolean;
     inline?: boolean;
     onOpenChange?: (isOpen: boolean) => void;

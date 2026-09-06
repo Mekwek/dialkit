@@ -1,3 +1,6 @@
+import { observeDropdownKeyboard } from '../dropdown-keyboard';
+import { getDropdownPosition } from '../dropdown-position';
+import { openDropdownOnKey } from '../control-keyboard';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
@@ -47,19 +50,15 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdow
 
   const open = useCallback(() => {
     if (!hasPresets) return;
-    const rect = triggerRef.current?.getBoundingClientRect();
-    if (rect) {
+    const trigger = triggerRef.current;
+    if (trigger) {
       // Flip above the trigger when there isn't room below (mirrors SelectControl).
       // +1 row for the default "Version 1" entry; 36px/row + 8px padding.
       const dropdownHeight = 8 + (presets.length + 1) * 36;
-      const spaceBelow = window.innerHeight - rect.bottom - 4;
-      const above = spaceBelow < dropdownHeight && rect.top > spaceBelow;
-      setPos({
-        top: above ? rect.top - 4 : rect.bottom + 4,
-        left: rect.left,
-        width: rect.width,
-        above,
-      });
+      // The keyboard observer re-positions the open menu every frame with the
+      // same helper; this first pass only has to land close and pick the side.
+      const { top, left, width, above } = getDropdownPosition(trigger, document.body, { dropdownHeight, fixed: true });
+      setPos({ top, left, width, above });
     }
     setIsOpen(true);
   }, [hasPresets, presets.length]);
@@ -87,8 +86,9 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdow
       close();
     };
 
+    const stopKeyboard = observeDropdownKeyboard(triggerRef.current!, () => dropdownRef.current, close, 'presets');
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    return () => { stopKeyboard(); document.removeEventListener('mousedown', handler); };
   }, [isOpen, close]);
 
   const handleSelect = (presetId: string | null) => {
@@ -196,6 +196,8 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdow
         data-open={String(isOpen)}
         data-has-preset={String(!!activePreset)}
         data-disabled={String(!hasPresets)}
+        type="button" aria-haspopup="menu" aria-expanded={isOpen} disabled={!hasPresets}
+        aria-label="Versions" onKeyDown={(e) => openDropdownOnKey(e, open)}
       >
         <span className="dialkit-preset-label">
           {activePreset ? activePreset.name : 'Version 1'}
@@ -224,6 +226,7 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdow
               data-dragging={draggingId ? 'true' : undefined}
               style={{
                 position: 'fixed',
+                top: pos.top,
                 left: pos.left,
                 minWidth: pos.width,
                 // Grow for long names, but never past the viewport's right
@@ -231,9 +234,7 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdow
                 // .dialkit-preset-name) instead of pushing the icons off
                 // screen where the rename control can't be reached.
                 maxWidth: Math.max(pos.width, Math.min(PRESET_DROPDOWN_MAX_WIDTH, window.innerWidth - pos.left - 8)),
-                ...(pos.above
-                  ? { bottom: window.innerHeight - pos.top, transformOrigin: 'bottom' }
-                  : { top: pos.top, transformOrigin: 'top' }),
+                transformOrigin: pos.above ? 'bottom' : 'top',
               }}
               initial={{ opacity: 0, y: pos.above ? 8 : -8, scale: 0.97 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -245,7 +246,7 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdow
                 data-active={String(!activePresetId)}
                 onClick={() => handleSelect(null)}
               >
-                <span className="dialkit-preset-name">Version 1</span>
+                <button type="button" className="dialkit-preset-name">Version 1</button>
               </div>
 
               {presets.map((preset) => {
@@ -300,7 +301,7 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdow
                         onPointerDown={(e) => e.stopPropagation()}
                       />
                     ) : (
-                      <span className="dialkit-preset-name">{preset.name}</span>
+                      <button type="button" className="dialkit-preset-name">{preset.name}</button>
                     )}
 
                     {!isEditing && (

@@ -1,3 +1,4 @@
+import { handleSegmentKey, labelSegmentedControl } from '../../control-keyboard';
 import { defineComponent, h, nextTick, onMounted, onUnmounted, ref, watch, type PropType } from 'vue';
 import { animate } from 'motion';
 
@@ -32,6 +33,7 @@ export const SegmentedControl = defineComponent({
       const button = buttonRefs.get(props.value);
       const container = containerRef.value;
       if (!button || !container) return null;
+      labelSegmentedControl(container);
 
       const containerRect = container.getBoundingClientRect();
       const buttonRect = button.getBoundingClientRect();
@@ -110,7 +112,7 @@ export const SegmentedControl = defineComponent({
       { flush: 'post' }
     );
 
-    return () => h('div', { ref: containerRef, class: 'dialkit-segmented' }, [
+    return () => h('div', { ref: containerRef, class: 'dialkit-segmented', role: 'radiogroup', onKeydown: handleSegmentKey }, [
       h('div', {
         ref: pillRef,
         class: 'dialkit-segmented-pill',
@@ -131,6 +133,7 @@ export const SegmentedControl = defineComponent({
         }) as any,
         class: 'dialkit-segmented-button',
         'data-active': String(props.value === option.value),
+        type: 'button', role: 'radio', 'aria-checked': props.value === option.value, tabindex: props.value === option.value ? 0 : -1,
         onClick: () => emit('change', option.value),
       }, option.label)),
     ]);

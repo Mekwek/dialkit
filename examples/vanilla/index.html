@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DialKit · Plain JavaScript</title>
+  <link rel="stylesheet" href="../../dist/vanilla/styles.css">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #161616; color: #f4f4f4; font: 14px/1.5 system-ui, sans-serif; }
+    main { max-width: 740px; padding: 64px 40px 440px; }
+    h1 { font-size: 36px; letter-spacing: -.04em; font-weight: 500; margin: 8px 0; }
+    p { color: #aaa; max-width: 500px; }
+    .eyebrow { font: 12px monospace; text-transform: uppercase; letter-spacing: .12em; color: #aaa; }
+    .stage { height: 250px; display: grid; place-items: center; margin: 24px 0; background: #202020; border-radius: 20px; overflow: hidden; }
+    #card { width: 140px; height: 140px; display: grid; place-items: center; background: #a78bfa; color: #171717; font-weight: 600; text-align: center; white-space: pre-wrap; background-size: cover; }
+    main button { background: #333; color: #eee; border: 1px solid #444; padding: 8px 12px; border-radius: 8px; cursor: pointer; }
+    output { display: block; font: 12px/1.6 monospace; color: #888; overflow-wrap: anywhere; margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="eyebrow">DialKit / Vanilla</div>
+    <h1>A few dials. Just JavaScript.</h1>
+    <p>Every control, with no framework or runtime dependencies. Hold R and scroll to change the radius. Scrub the timeline to move the card.</p>
+    <div class="stage"><div id="card"></div></div>
+    <button id="reset">Reset values</button>
+    <button id="open">Open panel</button>
+    <button id="close">Close panel</button>
+    <output id="values" aria-label="Values"></output>
+    <output id="action" aria-label="Last action">No action yet</output>
+  </main>
+  <!-- After npm run build, this file also works when opened directly from disk. -->
+  <script src="../../dist/vanilla/browser.global.js"></script>
+  <script>
+    const { createDialKit, createDialRoot, createDialTimeline, createDialTimelineRoot } = DialKit;
+    const params = new URLSearchParams(location.search);
+    const kit = createDialKit('Card', {
+      radius: [24, 0, 64, 1], scale: [1, .5, 1.5, .01], visible: true,
+      title: { type: 'text', default: 'Hello, HTML.' },
+      accent: { type: 'color', default: '#a78bfa' },
+      choice: { type: 'select', options: ['center', 'left', 'right'] },
+      cover: { type: 'image', options: [{ value: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect width="100" height="100" fill="coral"/%3E%3C/svg%3E', label: 'Coral' }] },
+      position: { type: 'pad', x: [0, -1, 1, .01], y: [0, -1, 1, .01] },
+      motion: { _collapsed: true, spring: { type: 'spring', visualDuration: .3, bounce: .2 }, transition: { type: 'easing', duration: .5, ease: [.25, -.6, .6, 1.6] } },
+      actions: { _collapsed: true, replay: { type: 'action' }, reset: { type: 'action' } }
+    }, { id: 'vanilla-card', persist: true, shortcuts: { radius: { key: 'r' }, visible: { key: 'v' } }, onAction(action) {
+      document.getElementById('action').textContent = action;
+      if (action === 'actions.replay') timeline.replay();
+      if (action === 'actions.reset') kit.resetValues();
+    } });
+    const root = createDialRoot({ theme: params.get('theme') || 'dark', position: params.get('position') || 'top-right', mode: params.has('inline') ? 'inline' : 'popover', target: params.has('inline') ? document.querySelector('main') : undefined });
+    const timeline = createDialTimeline('Card movement', {
+      duration: 4,
+      card: { move: { at: .5, duration: 2, from: { x: -80 }, to: { x: 80 }, transition: { type: 'easing', duration: 2, ease: [.25, .1, .25, 1] } },
+        pulse: { at: 0, from: { opacity: .4 }, steps: [{ duration: 1, to: { opacity: 1 } }, { duration: 1, to: { opacity: .4 } }] } }
+    }, { autoplay: false });
+    const dock = createDialTimelineRoot({ theme: params.get('theme') || 'dark' });
+    function render() {
+      const p = kit.values;
+      Object.assign(document.getElementById('card').style, { borderRadius: p.radius + 'px', backgroundColor: p.accent, backgroundImage: p.cover ? 'url(' + JSON.stringify(p.cover) + ')' : '', transform: 'translate(' + (timeline.values.card.move.current.x + p.position.x * 40) + 'px,' + (-p.position.y * 40) + 'px) scale(' + p.scale + ')', visibility: p.visible ? 'visible' : 'hidden', opacity: timeline.values.card.pulse.current.opacity, textAlign: p.choice });
+      document.getElementById('card').textContent = p.title;
+      document.getElementById('values').textContent = JSON.stringify(p);
+    }
+    kit.subscribe(render); timeline.subscribe(render);
+    document.getElementById('reset').onclick = () => kit.resetValues();
+    document.getElementById('open').onclick = () => kit.setOpen(true);
+    document.getElementById('close').onclick = () => kit.setOpen(false);
+    // Exposed for the browser integration fixture.
+    window.demo = { kit, root, timeline, dock };
+    window.addEventListener('pagehide', () => { dock.destroy(); root.destroy(); timeline.destroy(); kit.destroy(); }, { once: true });
+  </script>
+</body>
+</html>

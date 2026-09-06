@@ -1,3 +1,5 @@
+import { activateOnKey } from '../../control-keyboard';
+import { measurePanelHeight } from '../../panel-size';
 import { createSignal, createEffect, on, onCleanup, untrack, Show, JSX } from 'solid-js';
 import { isServer } from 'solid-js/web';
 import { animate } from 'motion';
@@ -8,6 +10,7 @@ export interface RootPanelProps {
   title: string;
   children: JSX.Element;
   defaultOpen?: boolean;
+  open?: boolean;
   inline?: boolean;
   onOpenChange?: (isOpen: boolean) => void;
   toolbar?: JSX.Element;
@@ -26,7 +29,8 @@ export function RootPanel(props: RootPanelProps) {
   // configuration (DialRoot never changes mode at runtime).
   const inline = props.inline ?? false;
 
-  const [isOpen, setIsOpen] = createSignal(props.defaultOpen ?? true);
+  const [localOpen, setIsOpen] = createSignal(props.defaultOpen ?? true);
+  const isOpen = () => props.open ?? localOpen();
   const [contentHeight, setContentHeight] = createSignal<number | undefined>(undefined);
   const [windowHeight, setWindowHeight] = createSignal(isServer ? 800 : window.innerHeight);
   let folderRef: HTMLDivElement | undefined;
@@ -41,7 +45,7 @@ export function RootPanel(props: RootPanelProps) {
   const folderContent = () => (
     <div ref={folderRef} class="dialkit-folder dialkit-folder-root" data-open={String(isOpen())}>
       <div class="dialkit-folder-header dialkit-panel-header" onClick={handleToggle}>
-        <div class="dialkit-folder-header-top">
+        <div class="dialkit-folder-header-top" role={inline ? undefined : "button"} tabIndex={inline ? undefined : 0} aria-label={props.title} aria-expanded={isOpen()} onKeyDown={(e) => activateOnKey(e, handleToggle)}>
           <Show when={isOpen()}>
             <div class="dialkit-folder-title-row">
               <span class="dialkit-folder-title dialkit-folder-title-root">
@@ -105,7 +109,7 @@ export function RootPanel(props: RootPanelProps) {
     const el = folderRef;
     if (!el) return;
     const ro = new ResizeObserver(() => {
-      const h = el.offsetHeight;
+      const h = measurePanelHeight(el);
       setContentHeight((prev) => (prev === h ? prev : h));
     });
     ro.observe(el);
@@ -114,7 +118,7 @@ export function RootPanel(props: RootPanelProps) {
 
   const measuredOpenHeight = () => (
     contentHeight() !== undefined
-      ? Math.min(contentHeight()! + (props.panelHeightOffset ?? 10), windowHeight() - 32)
+      ? Math.min(contentHeight()! + (props.panelHeightOffset ?? 0), windowHeight() - 32)
       : panelRef.getBoundingClientRect().height
   );
 
@@ -152,7 +156,20 @@ export function RootPanel(props: RootPanelProps) {
   // Track content growth/shrink while open without re-triggering the morph.
   createEffect(on([contentHeight, windowHeight] as const, ([height, winHeight]) => {
     if (height === undefined || !untrack(isOpen)) return;
-    panelRef.style.height = `${Math.min(height + (props.panelHeightOffset ?? 10), winHeight - 32)}px`;
+    const nextHeight = Math.min(height + (props.panelHeightOffset ?? 0), winHeight - 32);
+    if (morphAnim) {
+      // The first content measurement can arrive after opening starts. Retarget
+      // the morph so its stale collapsed-height target cannot overwrite it.
+      morphAnim.stop();
+      morphAnim = animate(panelRef, {
+        width: 280,
+        height: nextHeight,
+        borderRadius: 14,
+        boxShadow: 'var(--dial-shadow)',
+      }, { ...morphTransition, onComplete: () => { morphAnim = null; } });
+    } else {
+      panelRef.style.height = `${nextHeight}px`;
+    }
   }, { defer: true }));
 
   // Expand-on-tap while collapsed uses a native listener: stopPropagation here

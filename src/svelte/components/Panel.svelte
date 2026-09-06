@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { buildCopyInstruction } from '../../copy-instruction';
   import { Spring } from 'svelte/motion';
   import type { Snippet } from 'svelte';
   import { DialStore } from 'dialkit/store';
@@ -6,7 +7,6 @@
   import Folder from './Folder.svelte';
   import PresetManager from './PresetManager.svelte';
   import ControlRenderer from './ControlRenderer.svelte';
-  import ShortcutsMenu from './ShortcutsMenu.svelte';
   import { ICON_CLIPBOARD, ICON_CHECK, ICON_ADD_PRESET } from '../../icons';
 
   let { panel, defaultOpen = true, inline = false, onOpenChange, variant = 'root', toolbarExtra } = $props<{
@@ -18,10 +18,11 @@
     toolbarExtra?: Snippet;
   }>();
 
-  const hasShortcuts = $derived(Object.keys(panel.shortcuts).length > 0);
 
   let copied = $state(false);
-  let isPanelOpen = $state(defaultOpen);
+  // The store owns open/collapsed state so it can be driven programmatically.
+  let storeOpen = $state<boolean | undefined>(DialStore.getPanelOpen(panel.id));
+  const isOpen = $derived(storeOpen ?? defaultOpen);
   let values = $state<Record<string, DialValue>>(DialStore.getValues(panel.id));
   let presets = $state<Preset[]>(DialStore.getPresets(panel.id));
   let activePresetId = $state<string | null>(DialStore.getActivePresetId(panel.id));
@@ -40,7 +41,9 @@
       values = DialStore.getValues(panel.id);
       presets = DialStore.getPresets(panel.id);
       activePresetId = DialStore.getActivePresetId(panel.id);
+      storeOpen = DialStore.getPanelOpen(panel.id);
     });
+    DialStore.initPanelOpen(panel.id, defaultOpen);
 
     return () => {
       unsub();
@@ -69,10 +72,10 @@
   };
 
   const handleCopy = async () => {
-    const jsonStr = JSON.stringify(values, null, 2);
-    const instruction = `Update the createDialKit configuration for "${panel.name}" with these values:\n\n\`\`\`json\n${jsonStr}\n\`\`\`\n\nApply these values as the new defaults in the createDialKit call.`;
+    const instruction = buildCopyInstruction('createDialKit', panel.name, values);
 
-    await navigator.clipboard.writeText(instruction);
+    try { await navigator.clipboard.writeText(instruction); }
+    catch { return; }
     copied = true;
 
     if (copyTimeout) clearTimeout(copyTimeout);
@@ -82,7 +85,7 @@
   };
 
   const handleOpenChange = (open: boolean) => {
-    isPanelOpen = open;
+    DialStore.setPanelOpen(panel.id, open);
     onOpenChange?.(open);
   };
 </script>
@@ -163,7 +166,7 @@
 {/snippet}
 
 {#if variant === 'section'}
-  <Folder title={panel.name} {defaultOpen} onOpenChange={handleOpenChange}>
+  <Folder title={panel.name} open={isOpen} onOpenChange={handleOpenChange}>
     <div class="dialkit-panel-section-toolbar" onclick={(e) => e.stopPropagation()}>
       {@render panelToolbar()}
     </div>
@@ -171,7 +174,7 @@
   </Folder>
 {:else}
   <div class="dialkit-panel-wrapper">
-    <Folder title={panel.name} {defaultOpen} isRoot={true} {inline} onOpenChange={handleOpenChange}>
+    <Folder title={panel.name} open={isOpen} isRoot={true} {inline} onOpenChange={handleOpenChange}>
       {#snippet toolbar()}
         {@render panelToolbar()}
       {/snippet}

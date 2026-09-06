@@ -50,6 +50,15 @@ function getPanelOriginX(position, offset, viewportWidth = typeof window !== "un
   }
   return position.endsWith("left") ? "left" : "right";
 }
+function getPanelOriginY(position, offset, viewportHeight = typeof window !== "undefined" ? window.innerHeight : void 0) {
+  if (offset && viewportHeight) {
+    return offset.y + COLLAPSED_PANEL_SIZE / 2 < viewportHeight / 2 ? "top" : "bottom";
+  }
+  return position.startsWith("bottom") ? "bottom" : "top";
+}
+function getPanelCorner(position, offset, viewportWidth = typeof window !== "undefined" ? window.innerWidth : void 0, viewportHeight = typeof window !== "undefined" ? window.innerHeight : void 0) {
+  return `${getPanelOriginY(position, offset, viewportHeight)}-${getPanelOriginX(position, offset, viewportWidth)}`;
+}
 function blockPanelDragClick(handle) {
   const blocker = (event) => {
     event.preventDefault();
@@ -61,12 +70,30 @@ function blockPanelDragClick(handle) {
     handle.removeEventListener("click", blocker, true);
   }, 0);
 }
+function capturePanelPointer(handle, pointerId) {
+  try {
+    handle.setPointerCapture(pointerId);
+  } catch (error) {
+    if (!(error instanceof DOMException) || !["NotFoundError", "InvalidStateError"].includes(error.name)) throw error;
+  }
+}
+function releasePanelPointer(handle, pointerId) {
+  try {
+    if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId);
+  } catch (error) {
+    if (!(error instanceof DOMException) || !["NotFoundError", "InvalidStateError"].includes(error.name)) throw error;
+  }
+}
 export {
   blockPanelDragClick,
+  capturePanelPointer,
+  getPanelCorner,
   getPanelDragHandle,
   getPanelDragOffset,
   getPanelDragStart,
   getPanelOriginX,
-  hasPanelDragMoved
+  getPanelOriginY,
+  hasPanelDragMoved,
+  releasePanelPointer
 };
 //# sourceMappingURL=panel-drag.js.map

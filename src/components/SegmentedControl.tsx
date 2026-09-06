@@ -1,3 +1,4 @@
+import { handleSegmentKey, labelSegmentedControl } from '../control-keyboard';
 import { useRef, useState, useLayoutEffect, useCallback } from 'react';
 
 interface SegmentedControlOption<T extends string> {
@@ -23,6 +24,7 @@ export function SegmentedControl<T extends string>({
   const measure = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;
+    labelSegmentedControl(container);
     const activeButton = container.querySelector('[data-active="true"]') as HTMLElement | null;
     if (!activeButton) return;
     setPillStyle({
@@ -40,7 +42,7 @@ export function SegmentedControl<T extends string>({
   hasAnimated.current = true;
 
   return (
-    <div className="dialkit-segmented" ref={containerRef}>
+    <div className="dialkit-segmented" ref={containerRef} role="radiogroup" onKeyDown={handleSegmentKey}>
       {pillStyle && (
         <div
           className="dialkit-segmented-pill"
@@ -62,6 +64,7 @@ export function SegmentedControl<T extends string>({
             onClick={() => onChange(option.value)}
             className="dialkit-segmented-button"
             data-active={String(isActive)}
+            type="button" role="radio" aria-checked={isActive} tabIndex={isActive ? 0 : -1}
           >
             {option.label}
           </button>

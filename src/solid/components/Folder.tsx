@@ -1,3 +1,4 @@
+import { activateOnKey } from '../../control-keyboard';
 import { createSignal, createEffect, on, onCleanup, Show, JSX } from 'solid-js';
 import { animate } from 'motion';
 import { ICON_CHEVRON } from '../../icons';
@@ -8,6 +9,7 @@ interface FolderProps {
   title: string;
   children: JSX.Element;
   defaultOpen?: boolean;
+  open?: boolean;
   onOpenChange?: (isOpen: boolean) => void;
   /** @deprecated Use RootPanel instead; kept for backwards compatibility. */
   isRoot?: boolean;
@@ -28,9 +30,10 @@ export function Folder(props: FolderProps) {
     return <RootPanel {...props} />;
   }
 
-  const [isOpen, setIsOpen] = createSignal(props.defaultOpen ?? true);
-  const [contentMounted, setContentMounted] = createSignal(props.defaultOpen ?? true);
-  let skipFirstAnim = props.defaultOpen ?? true;
+  const [localOpen, setIsOpen] = createSignal(props.defaultOpen ?? true);
+  const isOpen = () => props.open ?? localOpen();
+  const [contentMounted, setContentMounted] = createSignal(props.open ?? props.defaultOpen ?? true);
+  let skipFirstAnim = props.open ?? props.defaultOpen ?? true;
   let sectionContentRef: HTMLDivElement | undefined;
   let sectionAnim: AnimationHandle | null = null;
   let chevronRef: SVGSVGElement | undefined;
@@ -52,9 +55,7 @@ export function Folder(props: FolderProps) {
     );
   }, { defer: true }));
 
-  const handleToggle = () => {
-    const next = !isOpen();
-    setIsOpen(next);
+  createEffect(on(isOpen, (next) => {
     if (next) {
       sectionAnim?.stop();
       sectionAnim = null;
@@ -93,13 +94,18 @@ export function Folder(props: FolderProps) {
     } else {
       setContentMounted(false);
     }
+  }, { defer: true }));
+
+  const handleToggle = () => {
+    const next = !isOpen();
+    setIsOpen(next);
     props.onOpenChange?.(next);
   };
 
   return (
     <div class="dialkit-folder" data-open={String(isOpen())}>
       <div class="dialkit-folder-header" onClick={handleToggle}>
-        <div class="dialkit-folder-header-top">
+        <div class="dialkit-folder-header-top" role={false ? undefined : "button"} tabIndex={false ? undefined : 0} aria-label={props.title} aria-expanded={isOpen()} onKeyDown={(e) => activateOnKey(e, handleToggle)}>
           <div class="dialkit-folder-title-row">
             <span class="dialkit-folder-title">{props.title}</span>
           </div>
@@ -113,7 +119,7 @@ export function Folder(props: FolderProps) {
             stroke-width="2.5"
             stroke-linecap="round"
             stroke-linejoin="round"
-            style={{ transform: `rotate(${(props.defaultOpen ?? true) ? 0 : 180}deg)` }}
+            style={{ transform: `rotate(${(props.open ?? props.defaultOpen ?? true) ? 0 : 180}deg)` }}
           >
             <path d={ICON_CHEVRON} />
           </svg>

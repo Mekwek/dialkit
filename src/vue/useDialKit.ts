@@ -1,4 +1,4 @@
-import { computed, onMounted, onUnmounted, ref, shallowRef, watch, type ComputedRef } from 'vue';
+import { computed, onMounted, onUnmounted, shallowRef, watch, type ComputedRef } from 'vue';
 import { DialStore, flattenDialValueUpdates, resolveDialValues } from '../store/DialStore';
 import type {
   DialConfig,
@@ -11,6 +11,7 @@ import type {
 
 export interface UseDialOptions {
   id?: string;
+  defaultCollapsed?: boolean;
   persist?: DialKitPersistOptions;
   onAction?: (action: string) => void;
   shortcuts?: Record<string, ShortcutConfig>;
@@ -21,6 +22,8 @@ export interface DialKitController<T extends DialConfig> {
   setValue: (path: string, value: DialValue) => void;
   setValues: (values: DialKitValueUpdates<T>) => void;
   resetValues: () => void;
+  setOpen: (open: boolean) => void;
+  getOpen: () => boolean | undefined;
   getValues: () => ResolvedValues<T>;
 }
 
@@ -41,12 +44,8 @@ export function useDialKitController<T extends DialConfig>(
 ): DialKitController<T> {
   const hasStableId = options?.id !== undefined;
   const panelId = options?.id ?? `${name}-${++dialKitInstance}`;
-  const configRef = shallowRef(config);
-  const onActionRef = ref(options?.onAction);
-  const shortcutsRef = shallowRef(options?.shortcuts);
-  const persistRef = shallowRef(options?.persist);
-  const flatValues = ref<Record<string, DialValue>>(DialStore.getValues(panelId));
-  const mounted = ref(false);
+  const flatValues = shallowRef<Record<string, DialValue>>(DialStore.getValues(panelId));
+  let mounted = false;
   const serializedConfig = computed(() => JSON.stringify(config));
   const serializedShortcuts = computed(() => JSON.stringify(options?.shortcuts));
   const serializedPersist = computed(() => JSON.stringify(options?.persist));
@@ -55,9 +54,10 @@ export function useDialKitController<T extends DialConfig>(
   let unsubscribeActions: (() => void) | undefined;
 
   const register = () => {
-    DialStore.registerPanel(panelId, name, configRef.value, shortcutsRef.value, {
+    DialStore.registerPanel(panelId, name, config, options?.shortcuts, {
       retainOnUnmount: hasStableId,
-      persist: persistRef.value,
+      persist: options?.persist,
+      defaultCollapsed: options?.defaultCollapsed,
     });
     flatValues.value = DialStore.getValues(panelId);
 
@@ -66,61 +66,47 @@ export function useDialKitController<T extends DialConfig>(
     });
 
     unsubscribeActions = DialStore.subscribeActions(panelId, (action) => {
-      onActionRef.value?.(action);
+      options?.onAction?.(action);
     });
   };
 
-  watch(() => options?.onAction, (next) => {
-    onActionRef.value = next;
-  });
-
-  watch(() => options?.shortcuts, (next) => {
-    shortcutsRef.value = next;
-  });
-
-  watch(() => options?.persist, (next) => {
-    persistRef.value = next;
-  });
-
   watch([serializedConfig, serializedShortcuts, serializedPersist], () => {
-    configRef.value = config;
-    shortcutsRef.value = options?.shortcuts;
-    persistRef.value = options?.persist;
-    if (mounted.value) {
-      DialStore.updatePanel(panelId, name, configRef.value, shortcutsRef.value, {
+    if (mounted) {
+      DialStore.updatePanel(panelId, name, config, options?.shortcuts, {
         retainOnUnmount: hasStableId,
-        persist: persistRef.value,
+        persist: options?.persist,
+        defaultCollapsed: options?.defaultCollapsed,
       });
       flatValues.value = DialStore.getValues(panelId);
     }
   });
 
-  onMounted(register);
-  onMounted(() => {
-    mounted.value = true;
-  });
+  onMounted(() => { register(); mounted = true; });
 
   onUnmounted(() => {
+    mounted = false;
     unsubscribeValues?.();
     unsubscribeActions?.();
     DialStore.unregisterPanel(panelId);
   });
 
-  const values = computed(() => resolveDialValues(configRef.value, flatValues.value));
+  const values = computed(() => resolveDialValues(config, flatValues.value));
 
   return {
     values,
+    setOpen(open) { DialStore.setPanelOpen(panelId, open); },
+    getOpen() { return DialStore.getPanelOpen(panelId); },
     setValue(path, value) {
       DialStore.updateValue(panelId, path, value);
     },
     setValues(nextValues) {
-      DialStore.updateValues(panelId, flattenDialValueUpdates(configRef.value, nextValues));
+      DialStore.updateValues(panelId, flattenDialValueUpdates(config, nextValues));
     },
     resetValues() {
       DialStore.resetValues(panelId);
     },
     getValues() {
-      return resolveDialValues(configRef.value, DialStore.getValues(panelId));
+      return resolveDialValues(config, DialStore.getValues(panelId));
     },
   };
 }

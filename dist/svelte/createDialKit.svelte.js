@@ -1,4 +1,4 @@
-import { DialStore, flattenDialValueUpdates, resolveDialValues } from 'dialkit/store';
+import { DialStore, flattenDialValueUpdates, isLeafConfigValue, resolveDialValues } from 'dialkit/store';
 let dialKitInstance = 0;
 export function createDialKit(name, config, options) {
     return createDialKitController(name, config, options).values;
@@ -12,6 +12,7 @@ export function createDialKitController(name, config, options) {
         DialStore.registerPanel(panelId, name, config, options?.shortcuts, {
             retainOnUnmount: hasStableId,
             persist: options?.persist,
+            defaultCollapsed: options?.defaultCollapsed,
         });
         values = resolve();
         const unsubValues = DialStore.subscribe(panelId, () => {
@@ -28,6 +29,8 @@ export function createDialKitController(name, config, options) {
     });
     return {
         values: buildReactiveValues(config, () => values, ''),
+        setOpen(open) { DialStore.setPanelOpen(panelId, open); },
+        getOpen() { return DialStore.getPanelOpen(panelId); },
         setValue(path, value) {
             DialStore.updateValue(panelId, path, value);
         },
@@ -73,37 +76,4 @@ function getPathValue(source, path) {
             return undefined;
         return value[segment];
     }, source);
-}
-function isLeafConfigValue(value) {
-    return ((Array.isArray(value) && value.length <= 4 && typeof value[0] === 'number') ||
-        typeof value === 'number' ||
-        typeof value === 'boolean' ||
-        typeof value === 'string' ||
-        isSpringConfig(value) ||
-        isEasingConfig(value) ||
-        isActionConfig(value) ||
-        isSelectConfig(value) ||
-        isColorConfig(value) ||
-        isTextConfig(value));
-}
-function hasType(value, type) {
-    return typeof value === 'object' && value !== null && 'type' in value && value.type === type;
-}
-function isSpringConfig(value) {
-    return hasType(value, 'spring');
-}
-function isEasingConfig(value) {
-    return hasType(value, 'easing');
-}
-function isActionConfig(value) {
-    return hasType(value, 'action');
-}
-function isSelectConfig(value) {
-    return hasType(value, 'select') && 'options' in value && Array.isArray(value.options);
-}
-function isColorConfig(value) {
-    return hasType(value, 'color');
-}
-function isTextConfig(value) {
-    return hasType(value, 'text');
 }

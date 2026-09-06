@@ -1,3 +1,8 @@
+import { roundValue } from '../numeric';
+import { parseColor } from '../color';
+import { normalizePadValue, type DialPadConfig, type DialPadValue } from '../dial-pad';
+export type { DialPadAxis, DialPadConfig, DialPadValue } from '../dial-pad';
+
 // Lightweight state store with subscriptions for dialkit
 
 export type SpringConfig = {
@@ -33,13 +38,23 @@ export type ColorConfig = {
   default?: string;
 };
 
+export type ImageOption = string | { value: string; label: string };
+
+export type ImageConfig = {
+  type: 'image';
+  /** Image URLs, optionally paired with display labels. */
+  options?: ImageOption[];
+  /** Defaults to the first option, or an empty string for upload-only controls. */
+  default?: string;
+};
+
 export type TextConfig = {
   type: 'text';
   default?: string;
   placeholder?: string;
 };
 
-export type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | TextConfig;
+export type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue;
 
 export type VisibleWhenValue = string | boolean | number;
 
@@ -90,6 +105,16 @@ export function withVisibility<T extends DialValue | [number, number, number, nu
 /** The union of all value shapes that can appear in a DialConfig entry. */
 type DialConfigValue = DialValue | [number, number, number, number?] | DialConfig;
 
+function isVisibilityWrapper(raw: unknown): raw is ControlWithVisibility {
+  return (
+    typeof raw === 'object' &&
+    raw !== null &&
+    !Array.isArray(raw) &&
+    'value' in raw &&
+    'visibleWhen' in raw
+  );
+}
+
 /**
  * Detect and unwrap a `{ value, visibleWhen }` wrapper produced by
  * {@link withVisibility}. Returns the inner value if wrapped, or the
@@ -100,16 +125,7 @@ type DialConfigValue = DialValue | [number, number, number, number?] | DialConfi
  * duplicating the detection logic.
  */
 export function unwrapVisibility(raw: unknown): DialConfigValue {
-  if (
-    typeof raw === 'object' &&
-    raw !== null &&
-    !Array.isArray(raw) &&
-    'value' in raw &&
-    'visibleWhen' in raw
-  ) {
-    return (raw as ControlWithVisibility).value;
-  }
-  return raw as DialConfigValue;
+  return isVisibilityWrapper(raw) ? raw.value : (raw as DialConfigValue);
 }
 
 export type DialConfig = {
@@ -117,7 +133,9 @@ export type DialConfig = {
 };
 
 export type ResolvedValues<T extends DialConfig> = {
-  [K in keyof T]: T[K] extends [number, number, number, number?]
+  [K in keyof T]: T[K] extends ControlWithVisibility<infer U>
+    ? U extends DialConfigValue ? ResolvedValues<{ value: U }>['value'] : never
+    : T[K] extends [number, number, number, number?]
     ? number
     : T[K] extends SpringConfig
       ? TransitionConfig
@@ -125,27 +143,33 @@ export type ResolvedValues<T extends DialConfig> = {
         ? TransitionConfig
         : T[K] extends SelectConfig
           ? string
-          : T[K] extends ColorConfig
+          : T[K] extends ColorConfig | ImageConfig
             ? string
             : T[K] extends TextConfig
               ? string
-              : T[K] extends DialConfig
-                ? ResolvedValues<T[K]>
-                : T[K];
+              : T[K] extends DialPadConfig
+                ? DialPadValue
+                : T[K] extends DialConfig
+                  ? ResolvedValues<T[K]>
+                  : T[K];
 };
 
 export type DialKitValueUpdates<T extends DialConfig> = {
-  [K in keyof T as K extends '_collapsed' ? never : K]?: T[K] extends [number, number, number, number?]
+  [K in keyof T as K extends '_collapsed' ? never : K]?: T[K] extends ControlWithVisibility<infer U>
+    ? U extends DialConfigValue ? DialKitValueUpdates<{ value: U }>['value'] : never
+    : T[K] extends [number, number, number, number?]
     ? number
     : T[K] extends SpringConfig | EasingConfig
       ? TransitionConfig
       : T[K] extends ActionConfig
         ? never
-        : T[K] extends SelectConfig | ColorConfig | TextConfig
+        : T[K] extends SelectConfig | ColorConfig | ImageConfig | TextConfig
           ? string
-          : T[K] extends DialConfig
-            ? DialKitValueUpdates<T[K]>
-            : T[K];
+          : T[K] extends DialPadConfig
+            ? DialPadValue
+            : T[K] extends DialConfig
+              ? DialKitValueUpdates<T[K]>
+              : T[K];
 };
 
 export type ShortcutMode = 'fine' | 'normal' | 'coarse';
@@ -159,7 +183,7 @@ export type ShortcutConfig = {
 };
 
 export type ControlMeta = {
-  type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'text';
+  type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'image' | 'text' | 'pad';
   path: string;
   label: string;
   min?: number;
@@ -169,6 +193,7 @@ export type ControlMeta = {
   defaultOpen?: boolean;
   options?: (string | { value: string; label: string })[];
   placeholder?: string;
+  pad?: DialPadConfig;
   shortcut?: ShortcutConfig;
   /** Conditional visibility rule attached via {@link withVisibility}. */
   visibleWhen?: VisibleWhen;
@@ -188,12 +213,6 @@ export type PanelConfig = {
    * shells, exactly as before.
    */
   group?: string;
-  /**
-   * Initial open state for this panel's folder. Defaults to open. Most useful
-   * for a grouped panel that should start collapsed as a section inside the
-   * merged shell (e.g. a secondary settings section). `undefined` ⇒ open.
-   */
-  defaultOpen?: boolean;
   /**
    * `false` hides the rename control and disables drag reorder in the
    * preset dropdown (a read-only host such as a share-link viewer).
@@ -229,6 +248,7 @@ export type DialKitPersistOptions = boolean | {
 };
 
 export type DialStorePanelOptions = {
+  defaultCollapsed?: boolean;
   retainOnUnmount?: boolean;
   persist?: DialKitPersistOptions;
   kind?: 'timeline';
@@ -236,10 +256,6 @@ export type DialStorePanelOptions = {
    * Optional grouping key. See {@link PanelConfig.group}.
    */
   group?: string;
-  /**
-   * Initial open state for this panel's folder. See {@link PanelConfig.defaultOpen}.
-   */
-  defaultOpen?: boolean;
   /**
    * `false` hides the rename control and disables drag reorder in the
    * preset dropdown (a read-only host such as a share-link viewer).
@@ -300,21 +316,8 @@ function resolveConfigValues(
     const path = prefix ? `${prefix}.${key}` : key;
     const configValue = unwrapVisibility(rawConfigValue);
 
-    if (Array.isArray(configValue) && configValue.length <= 4 && typeof configValue[0] === 'number') {
-      result[key] = flatValues[path] ?? configValue[0];
-    } else if (typeof configValue === 'number' || typeof configValue === 'boolean' || typeof configValue === 'string') {
-      result[key] = flatValues[path] ?? configValue;
-    } else if (isSpringConfigValue(configValue) || isEasingConfigValue(configValue)) {
-      result[key] = flatValues[path] ?? configValue;
-    } else if (isActionConfigValue(configValue)) {
-      result[key] = flatValues[path] ?? configValue;
-    } else if (isSelectConfigValue(configValue)) {
-      const defaultValue = configValue.default ?? getFirstOptionValue(configValue.options);
-      result[key] = flatValues[path] ?? defaultValue;
-    } else if (isColorConfigValue(configValue)) {
-      result[key] = flatValues[path] ?? configValue.default ?? '#000000';
-    } else if (isTextConfigValue(configValue)) {
-      result[key] = flatValues[path] ?? configValue.default ?? '';
+    if (isLeafConfigValue(configValue)) {
+      result[key] = flatValues[path] ?? configDefaultValue(configValue);
     } else if (typeof configValue === 'object' && configValue !== null) {
       result[key] = resolveConfigValues(configValue as DialConfig, flatValues, path);
     }
@@ -359,7 +362,7 @@ function flattenConfigUpdates(
   }
 }
 
-function isLeafConfigValue(value: unknown): boolean {
+export function isLeafConfigValue(value: unknown): boolean {
   return (
     (Array.isArray(value) && value.length <= 4 && typeof value[0] === 'number') ||
     typeof value === 'number' ||
@@ -370,8 +373,30 @@ function isLeafConfigValue(value: unknown): boolean {
     isActionConfigValue(value) ||
     isSelectConfigValue(value) ||
     isColorConfigValue(value) ||
-    isTextConfigValue(value)
+    isImageConfigValue(value) ||
+    isTextConfigValue(value) ||
+    isPadConfigValue(value)
   );
+}
+
+/** Defaults shared by the store and the values returned before a panel mounts. */
+function configDefaultValue(value: DialConfig[string]): DialValue {
+  if (Array.isArray(value)) return value[0];
+  if (isSelectConfigValue(value)) return value.default ?? getFirstOptionValue(value.options);
+  if (isColorConfigValue(value)) return value.default ?? '#000000';
+  if (isImageConfigValue(value)) return value.default ?? getFirstOptionValue(value.options ?? []);
+  if (isTextConfigValue(value)) return value.default ?? '';
+  if (isPadConfigValue(value)) return normalizePadValue(undefined, value);
+  return value as DialValue;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function sameControlValue(previous: unknown, next: unknown, control?: ControlMeta): boolean {
+  return Object.is(previous, next) || (control?.type === 'pad' &&
+    isRecord(previous) && isRecord(next) && previous.x === next.x && previous.y === next.y);
 }
 
 function hasType(value: unknown, type: string): boolean {
@@ -419,8 +444,16 @@ function isColorConfigValue(value: unknown): value is ColorConfig {
   return hasType(value, 'color');
 }
 
+function isImageConfigValue(value: unknown): value is ImageConfig {
+  return hasType(value, 'image');
+}
+
 function isTextConfigValue(value: unknown): value is TextConfig {
   return hasType(value, 'text');
+}
+
+function isPadConfigValue(value: unknown): value is DialPadConfig {
+  return hasType(value, 'pad');
 }
 
 function getFirstOptionValue(options: (string | { value: string; label: string })[]): string {
@@ -430,7 +463,10 @@ function getFirstOptionValue(options: (string | { value: string; label: string }
 }
 
 class DialStoreClass {
+  private panelOpenListeners = new Set<(panelId: string, open: boolean) => void>();
+  private panelOpenStates = new Map<string, boolean>();
   private panels: Map<string, PanelConfig> = new Map();
+  private controlsByPanel = new WeakMap<PanelConfig, Map<string, ControlMeta>>();
   private panelsSnapshot: PanelConfig[] = [];
   private standardPanelsSnapshot: PanelConfig[] = [];
   private timelinePanelsSnapshot: PanelConfig[] = [];
@@ -454,6 +490,10 @@ class DialStoreClass {
   private allControls: Map<string, ControlMeta[]> = new Map();
 
   registerPanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, options: DialStorePanelOptions = {}): void {
+    const { controls: allControls, controlsByPath, defaultValues } = this.parseConfig(config, shortcuts);
+    if (!this.panelOpenStates.has(id) && options.defaultCollapsed !== undefined) {
+      this.panelOpenStates.set(id, !options.defaultCollapsed);
+    }
     const existingPanel = this.panels.get(id);
     if (existingPanel && existingPanel.kind !== options.kind) {
       console.warn(
@@ -463,13 +503,6 @@ class DialStoreClass {
     }
     this.configurePanelRetention(id, options);
     this.registrationCounts.set(id, (this.registrationCounts.get(id) ?? 0) + 1);
-
-    const allControls = this.parseConfig(config, '', shortcuts);
-    const controlsByPath = this.mapControlsByPath(allControls);
-    const defaultValues = this.flattenValues(config, '');
-
-    // Set initial transition modes based on config types
-    this.initTransitionModes(config, '', defaultValues);
 
     const persisted = this.loadPersistedPanel(id);
     const previousValues = this.panels.get(id)?.values ?? this.snapshots.get(id) ?? persisted?.values ?? {};
@@ -481,9 +514,21 @@ class DialStoreClass {
     // Store the unfiltered tree so visibility can flip back later, then
     // filter against the RECONCILED values (not raw defaults) for HMR/retain.
     this.allControls.set(id, allControls);
-    const controls = this.filterByVisibility(allControls, values);
+    const controls = filterByVisibility(allControls, values);
 
-    this.panels.set(id, { id, name, controls, values, shortcuts: shortcuts ?? {}, kind: options.kind, group: options.group, defaultOpen: options.defaultOpen, presetsEditable: options.presetsEditable, presetsLockable: options.presetsLockable });
+    const panel: PanelConfig = {
+      id,
+      name,
+      controls,
+      values,
+      shortcuts: shortcuts ?? {},
+      kind: options.kind,
+      group: options.group,
+      presetsEditable: options.presetsEditable,
+      presetsLockable: options.presetsLockable,
+    };
+    this.panels.set(id, panel);
+    this.controlsByPanel.set(panel, controlsByPath);
     this.snapshots.set(id, { ...values });
     this.baseValues.set(id, baseValues);
     this.defaultValues.set(id, { ...defaultValues });
@@ -502,22 +547,19 @@ class DialStoreClass {
   }
 
   updatePanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, options: DialStorePanelOptions = {}): void {
-    this.configurePanelRetention(id, options);
     const existing = this.panels.get(id);
     if (!existing) {
       this.registerPanel(id, name, config, shortcuts, options);
       return;
     }
 
-    const allControls = this.parseConfig(config, '', shortcuts);
-    const controlsByPath = this.mapControlsByPath(allControls);
-    const defaultValues = this.flattenValues(config, '');
-    this.initTransitionModes(config, '', defaultValues);
+    const { controls: allControls, controlsByPath, defaultValues } = this.parseConfig(config, shortcuts ?? existing.shortcuts);
+    this.configurePanelRetention(id, options);
     const nextValues = this.reconcileValues(defaultValues, existing.values, controlsByPath);
 
     // Store the unfiltered tree, filter against the reconciled next values.
     this.allControls.set(id, allControls);
-    const controls = this.filterByVisibility(allControls, nextValues);
+    const controls = filterByVisibility(allControls, nextValues);
 
     const nextPanel: PanelConfig = {
       id,
@@ -527,11 +569,11 @@ class DialStoreClass {
       shortcuts: shortcuts ?? existing.shortcuts,
       kind: options.kind ?? existing.kind,
       group: options.group ?? existing.group,
-      defaultOpen: options.defaultOpen ?? existing.defaultOpen,
       presetsEditable: options.presetsEditable ?? existing.presetsEditable,
       presetsLockable: options.presetsLockable ?? existing.presetsLockable,
     };
     this.panels.set(id, nextPanel);
+    this.controlsByPanel.set(nextPanel, controlsByPath);
     this.snapshots.set(id, { ...nextValues });
 
     const previousBaseValues = this.baseValues.get(id) ?? {};
@@ -568,6 +610,7 @@ class DialStoreClass {
     if (this.actionListeners.get(id)?.size === 0) this.actionListeners.delete(id);
 
     if (!this.retainedPanels.has(id)) {
+      this.panelOpenStates.delete(id);
       this.snapshots.delete(id);
       this.baseValues.delete(id);
       this.defaultValues.delete(id);
@@ -582,6 +625,42 @@ class DialStoreClass {
     this.notifyGlobal();
   }
 
+  /** Undefined delegates the initial state to DialRoot.defaultOpen. */
+  getPanelOpen(panelId: string): boolean | undefined {
+    return this.panelOpenStates.get(panelId);
+  }
+
+  isPanelOpen(panelId: string): boolean {
+    return this.panelOpenStates.get(panelId) ?? true;
+  }
+
+  togglePanelOpen(panelId: string): void {
+    this.setPanelOpen(panelId, !this.isPanelOpen(panelId));
+  }
+
+  /** Applies a host component's own default; no-op once the panel has state. */
+  initPanelOpen(panelId: string, open: boolean): void {
+    if (this.panelOpenStates.has(panelId)) return;
+    this.panelOpenStates.set(panelId, open);
+    this.notify(panelId);
+  }
+
+  /** Observe open requests so a containing toolkit can reveal its requested panel. */
+  subscribePanelOpen(listener: (panelId: string, open: boolean) => void): () => void {
+    this.panelOpenListeners.add(listener);
+    return () => { this.panelOpenListeners.delete(listener); };
+  }
+
+  setPanelOpen(panelId: string, open: boolean): void {
+    if (!this.panels.has(panelId)) return;
+    if (this.panelOpenStates.get(panelId) !== open) {
+      this.panelOpenStates.set(panelId, open);
+      this.notify(panelId);
+    }
+    // Repeated open requests still reveal a collapsed containing toolkit.
+    this.panelOpenListeners.forEach(listener => listener(panelId, open));
+  }
+
   updateValue(panelId: string, path: string, value: DialValue): void {
     this.updateValues(panelId, { [path]: value });
   }
@@ -591,28 +670,35 @@ class DialStoreClass {
     if (!panel) return;
 
     const validUpdates: Record<string, DialValue> = {};
+    const activeId = this.activePreset.get(panelId);
+    const target = activeId
+      ? this.presets.get(panelId)?.find(preset => preset.id === activeId)?.values
+      : this.baseValues.get(panelId);
 
     for (const [path, value] of Object.entries(updates)) {
       if (!Object.prototype.hasOwnProperty.call(panel.values, path)) {
         continue;
       }
 
-      const control = this.findControlByPath(panel.controls, path);
+      const control = this.controlsByPanel.get(panel)?.get(path);
       if (control?.type === 'action') {
         continue;
       }
 
-      panel.values[path] = value;
-      validUpdates[path] = value;
+      const next = control?.type === 'pad' ? normalizePadValue(value, control.pad) : value;
+      if (sameControlValue(panel.values[path], next, control) &&
+        (!target || sameControlValue(target[path], next, control))) continue;
+      panel.values[path] = next;
+      validUpdates[path] = next;
 
       // A transition control renders from TWO keys: the config value and the
       // `.__mode` sibling that picks which editor (easing/time/physics) is
       // shown. A programmatic write that changes the config's type without
       // updating the mode leaves the control rendering the OLD type's
       // editors over the new value — so derive the mode from the value here,
-      // exactly as registration does in initTransitionModes.
+      // exactly as registration does in parseConfig.
       if (control?.type === 'transition') {
-        const mode = this.transitionModeFor(value);
+        const mode = transitionModeFor(next);
         if (mode) {
           panel.values[`${path}.__mode`] = mode;
           validUpdates[`${path}.__mode`] = mode;
@@ -625,23 +711,7 @@ class DialStoreClass {
     }
 
     // Auto-save to active preset or base values
-    const activeId = this.activePreset.get(panelId);
-    if (activeId) {
-      const presets = this.presets.get(panelId) ?? [];
-      const preset = presets.find(p => p.id === activeId);
-      if (preset) {
-        for (const [path, value] of Object.entries(validUpdates)) {
-          preset.values[path] = value;
-        }
-      }
-    } else {
-      const base = this.baseValues.get(panelId);
-      if (base) {
-        for (const [path, value] of Object.entries(validUpdates)) {
-          base[path] = value;
-        }
-      }
-    }
+    if (target) Object.assign(target, validUpdates);
 
     // Create a new snapshot reference so useSyncExternalStore detects the change
     this.snapshots.set(panelId, { ...panel.values });
@@ -649,17 +719,8 @@ class DialStoreClass {
     this.notify(panelId);
 
     // Re-evaluate conditional visibility once after the whole batch, against
-    // the values that just landed above. If any control's visibility
-    // flipped, rebuild the filtered tree and bump the global listener so
-    // DialRoot picks up the new controls array.
-    const allControls = this.allControls.get(panelId);
-    if (allControls) {
-      const nextControls = this.filterByVisibility(allControls, panel.values);
-      if (!this.sameControlPaths(panel.controls, nextControls)) {
-        panel.controls = nextControls;
-        this.notifyGlobal();
-      }
-    }
+    // the values that just landed above.
+    this.refilterVisibility(panelId);
   }
 
   resetValues(panelId: string): void {
@@ -673,15 +734,7 @@ class DialStoreClass {
     this.activePreset.set(panelId, null);
     this.persistPanel(panelId);
     this.notify(panelId);
-
-    const allControls = this.allControls.get(panelId);
-    if (allControls) {
-      const nextControls = this.filterByVisibility(allControls, panel.values);
-      if (!this.sameControlPaths(panel.controls, nextControls)) {
-        panel.controls = nextControls;
-        this.notifyGlobal();
-      }
-    }
+    this.refilterVisibility(panelId);
   }
 
   updateSpringMode(panelId: string, path: string, mode: 'simple' | 'advanced'): void {
@@ -698,6 +751,7 @@ class DialStoreClass {
     const panel = this.panels.get(panelId);
     if (!panel) return;
 
+    if (panel.values[`${path}.__mode`] === mode) return;
     panel.values[`${path}.__mode`] = mode;
     this.snapshots.set(panelId, { ...panel.values });
     this.persistPanel(panelId);
@@ -811,18 +865,9 @@ class DialStoreClass {
     this.persistPanel(panelId);
     this.notify(panelId);
 
-    // Re-evaluate conditional visibility against the preset's values. If
-    // any control's visibility flipped (e.g. the preset changed a field
-    // that drives a `visibleWhen` rule), rebuild the filtered tree and
-    // bump the global listener so DialRoot picks up the new controls.
-    const allControls = this.allControls.get(panelId);
-    if (allControls) {
-      const nextControls = this.filterByVisibility(allControls, panel.values);
-      if (!this.sameControlPaths(panel.controls, nextControls)) {
-        panel.controls = nextControls;
-        this.notifyGlobal();
-      }
-    }
+    // Re-evaluate conditional visibility against the preset's values (the
+    // preset may have changed a field that drives a `visibleWhen` rule).
+    this.refilterVisibility(panelId);
   }
 
   deletePreset(panelId: string, presetId: string): void {
@@ -852,14 +897,7 @@ class DialStoreClass {
     if (!preset) return;
 
     this.presets.set(panelId, presets.map(p => (p.id === presetId ? { ...p, name: trimmed } : p)));
-
-    // Force re-render by creating new snapshot reference
-    const panel = this.panels.get(panelId);
-    if (panel) {
-      this.snapshots.set(panelId, { ...panel.values });
-    }
-    this.persistPanel(panelId);
-    this.notify(panelId);
+    this.refreshPresetSnapshot(panelId);
   }
 
   setPresetLocked(panelId: string, presetId: string, locked: boolean): void {
@@ -868,14 +906,7 @@ class DialStoreClass {
     if (!preset || !!preset.locked === locked) return;
 
     this.presets.set(panelId, presets.map(p => (p.id === presetId ? { ...p, locked } : p)));
-
-    // Force re-render by creating new snapshot reference
-    const panel = this.panels.get(panelId);
-    if (panel) {
-      this.snapshots.set(panelId, { ...panel.values });
-    }
-    this.persistPanel(panelId);
-    this.notify(panelId);
+    this.refreshPresetSnapshot(panelId);
   }
 
   reorderPresets(panelId: string, orderedIds: string[]): void {
@@ -900,14 +931,7 @@ class DialStoreClass {
     if (unchanged) return;
 
     this.presets.set(panelId, ordered);
-
-    // Force re-render by creating new snapshot reference
-    const panel = this.panels.get(panelId);
-    if (panel) {
-      this.snapshots.set(panelId, { ...panel.values });
-    }
-    this.persistPanel(panelId);
-    this.notify(panelId);
+    this.refreshPresetSnapshot(panelId);
   }
 
   getPresets(panelId: string): Preset[] {
@@ -932,21 +956,23 @@ class DialStoreClass {
     if (panel && base) {
       panel.values = { ...base };
       this.snapshots.set(panelId, { ...panel.values });
-
-      // Re-evaluate conditional visibility against the restored base
-      // values, same as loadPreset. Without this, switching back to
-      // "Version 1" from an active preset keeps the preset's control
-      // tree even though the values have reverted.
-      const allControls = this.allControls.get(panelId);
-      if (allControls) {
-        const nextControls = this.filterByVisibility(allControls, panel.values);
-        if (!this.sameControlPaths(panel.controls, nextControls)) {
-          panel.controls = nextControls;
-          this.notifyGlobal();
-        }
-      }
     }
     this.activePreset.set(panelId, null);
+    this.persistPanel(panelId);
+    this.notify(panelId);
+
+    // Re-evaluate conditional visibility against the restored base values,
+    // same as loadPreset. Without this, switching back from an active
+    // preset keeps the preset's control tree even though values reverted.
+    if (panel && base) this.refilterVisibility(panelId);
+  }
+
+  /** Presets changed without a value change: bump the snapshot so subscribers re-render. */
+  private refreshPresetSnapshot(panelId: string): void {
+    const panel = this.panels.get(panelId);
+    if (panel) {
+      this.snapshots.set(panelId, { ...panel.values });
+    }
     this.persistPanel(panelId);
     this.notify(panelId);
   }
@@ -963,7 +989,7 @@ class DialStoreClass {
         const scMod = shortcut.modifier ?? undefined;
         if (scMod !== modifier) continue;
 
-        const control = this.findControlByPath(panel.controls, path);
+        const control = this.controlsByPanel.get(panel)?.get(path);
         if (control) {
           return { panelId: panel.id, path, control };
         }
@@ -982,7 +1008,7 @@ class DialStoreClass {
     for (const panel of this.panels.values()) {
       for (const [path, shortcut] of Object.entries(panel.shortcuts)) {
         if ((shortcut.interaction ?? 'scroll') !== 'scroll-only') continue;
-        const control = this.findControlByPath(panel.controls, path);
+        const control = this.controlsByPanel.get(panel)?.get(path);
         if (control) {
           results.push({ panelId: panel.id, path, control, shortcut });
         }
@@ -1000,6 +1026,8 @@ class DialStoreClass {
     if (persistConfig) {
       this.persistConfigs.set(id, persistConfig);
       this.retainedPanels.add(id);
+    } else if (options.persist === false) {
+      this.persistConfigs.delete(id);
     }
   }
 
@@ -1014,8 +1042,9 @@ class DialStoreClass {
       if (path.endsWith('.__mode')) {
         const transitionPath = path.slice(0, -'.__mode'.length);
         const transitionControl = controlsByPath.get(transitionPath);
-        nextValues[path] = transitionControl?.type === 'transition' && previousValues[path] !== undefined
-          ? previousValues[path]
+        const mode = previousValues[path];
+        nextValues[path] = transitionControl?.type === 'transition' && (mode === 'easing' || mode === 'simple' || mode === 'advanced')
+          ? mode
           : defaultValue;
         continue;
       }
@@ -1061,9 +1090,20 @@ class DialStoreClass {
     try {
       const raw = storage.getItem(config.key);
       if (!raw) return null;
-      const parsed = JSON.parse(raw) as PersistedPanelState;
-      if (parsed?.version !== 1 || typeof parsed !== 'object') return null;
-      return parsed;
+      const parsed: unknown = JSON.parse(raw);
+      if (!isRecord(parsed) || parsed.version !== 1) return null;
+      const values = isRecord(parsed.values) ? parsed.values as Record<string, DialValue> : undefined;
+      const presets = config.presets && Array.isArray(parsed.presets)
+        ? parsed.presets.filter((preset): preset is Preset =>
+          isRecord(preset) && typeof preset.id === 'string' && typeof preset.name === 'string' && isRecord(preset.values))
+        : [];
+      return {
+        version: 1,
+        values,
+        baseValues: config.presets && isRecord(parsed.baseValues) ? parsed.baseValues as Record<string, DialValue> : values,
+        presets,
+        activePresetId: presets.some(preset => preset.id === parsed.activePresetId) ? parsed.activePresetId as string : null,
+      };
     } catch {
       return null;
     }
@@ -1079,15 +1119,11 @@ class DialStoreClass {
     const values = this.snapshots.get(id) ?? this.panels.get(id)?.values;
     if (!values) return;
 
-    const state: PersistedPanelState = {
-      version: 1,
-      values,
-      baseValues: this.baseValues.get(id) ?? values,
-      activePresetId: this.activePreset.get(id) ?? null,
-    };
-
+    const state: PersistedPanelState = { version: 1, values };
     if (config.presets) {
+      state.baseValues = this.baseValues.get(id) ?? values;
       state.presets = this.presets.get(id) ?? [];
+      state.activePresetId = this.activePreset.get(id) ?? null;
     }
 
     try {
@@ -1111,17 +1147,6 @@ class DialStoreClass {
     }
   }
 
-  private findControlByPath(controls: ControlMeta[], path: string): ControlMeta | null {
-    for (const control of controls) {
-      if (control.path === path) return control;
-      if (control.type === 'folder' && control.children) {
-        const found = this.findControlByPath(control.children, path);
-        if (found) return found;
-      }
-    }
-    return null;
-  }
-
   private notify(panelId: string): void {
     this.listeners.get(panelId)?.forEach(fn => fn());
   }
@@ -1133,210 +1158,92 @@ class DialStoreClass {
     this.globalListeners.forEach(fn => fn());
   }
 
-  /** Editor mode implied by a transition config's shape — the same mapping
-   *  initTransitionModes applies to config defaults at registration. */
-  private transitionModeFor(value: DialValue): 'easing' | 'simple' | 'advanced' | null {
-    if (this.isEasingConfig(value)) return 'easing';
-    if (this.isSpringConfig(value)) {
-      const hasPhysics = value.stiffness !== undefined || value.damping !== undefined || value.mass !== undefined;
-      const hasTime = value.visualDuration !== undefined || value.bounce !== undefined;
-      return hasPhysics && !hasTime ? 'advanced' : 'simple';
-    }
-    return null;
-  }
+  /** Compile controls, defaults, and the lookup index in one walk. */
+  private parseConfig(config: DialConfig, shortcuts?: Record<string, ShortcutConfig>) {
+    const defaultValues: Record<string, DialValue> = {};
+    const modes: Record<string, DialValue> = {};
+    const controlsByPath = new Map<string, ControlMeta>();
+    const visit = (config: DialConfig, prefix: string): ControlMeta[] => {
+      const controls: ControlMeta[] = [];
 
-  private initTransitionModes(config: DialConfig, prefix: string, values: Record<string, DialValue>): void {
-    for (const [key, rawValue] of Object.entries(config)) {
-      if (key === '_collapsed') continue;
-      const path = prefix ? `${prefix}.${key}` : key;
-      // Unwrap conditional-visibility wrapper before shape dispatch.
-      const value = this.unwrapVisibilityWithRule(rawValue).value;
+      for (const [key, rawValue] of Object.entries(config)) {
+        if (key === '_collapsed') continue;
+        const path = prefix ? `${prefix}.${key}` : key;
+        const label = formatLabel(key);
+        const shortcut = shortcuts?.[path];
+        let control: ControlMeta | undefined;
 
-      if (this.isEasingConfig(value)) {
-        values[`${path}.__mode`] = 'easing';
-      } else if (this.isSpringConfig(value)) {
-        // Detect physics mode from config
-        const hasPhysics = value.stiffness !== undefined || value.damping !== undefined || value.mass !== undefined;
-        const hasTime = value.visualDuration !== undefined || value.bounce !== undefined;
-        values[`${path}.__mode`] = hasPhysics && !hasTime ? 'advanced' : 'simple';
-      } else if (typeof value === 'object' && value !== null && !Array.isArray(value) && !this.isActionConfig(value) && !this.isSelectConfig(value) && !this.isColorConfig(value) && !this.isTextConfig(value)) {
-        this.initTransitionModes(value as DialConfig, path, values);
-      }
-    }
-  }
+        // Unwrap the conditional-visibility wrapper before shape dispatch and
+        // remember the rule so the emitted control (and, for a folder, its
+        // descendants) can be filtered against live values.
+        const visibleWhen = isVisibilityWrapper(rawValue) ? rawValue.visibleWhen : undefined;
+        const value = unwrapVisibility(rawValue);
 
-  private parseConfig(config: DialConfig, prefix: string, shortcuts?: Record<string, ShortcutConfig>): ControlMeta[] {
-    const controls: ControlMeta[] = [];
-    const startLen = () => controls.length;
-    const tagLast = (visibleWhen: VisibleWhen | undefined, before: number) => {
-      if (!visibleWhen) return;
-      for (let i = before; i < controls.length; i++) {
-        if (!controls[i].visibleWhen) controls[i].visibleWhen = visibleWhen;
-      }
-    };
-
-    for (const [key, rawValue] of Object.entries(config)) {
-      if (key === '_collapsed') continue;
-      const path = prefix ? `${prefix}.${key}` : key;
-      const label = this.formatLabel(key);
-      const shortcut = shortcuts?.[path];
-
-      // Unwrap conditional-visibility wrapper, remember the rule.
-      const unwrapped = this.unwrapVisibilityWithRule(rawValue);
-      const value = unwrapped.value;
-      const visibleWhen = unwrapped.visibleWhen;
-      const before = startLen();
-
-      if (Array.isArray(value) && value.length <= 4 && typeof value[0] === 'number') {
-        // Range tuple: [default, min, max]
-        controls.push({
-          type: 'slider',
-          path,
-          label,
-          min: value[1],
-          max: value[2],
-          step: value[3] ?? this.inferStep(value[1], value[2]),
-          shortcut,
-        });
-      } else if (typeof value === 'number') {
-        // Single number - auto-infer range
-        const { min, max, step } = this.inferRange(value);
-        controls.push({ type: 'slider', path, label, min, max, step, shortcut });
-      } else if (typeof value === 'boolean') {
-        controls.push({ type: 'toggle', path, label, shortcut });
-      } else if (this.isSpringConfig(value) || this.isEasingConfig(value)) {
-        controls.push({ type: 'transition', path, label });
-      } else if (this.isActionConfig(value)) {
-        controls.push({ type: 'action', path, label: (value as ActionConfig).label || label });
-      } else if (this.isSelectConfig(value)) {
-        controls.push({ type: 'select', path, label, options: value.options });
-      } else if (this.isColorConfig(value)) {
-        controls.push({ type: 'color', path, label });
-      } else if (this.isTextConfig(value)) {
-        controls.push({ type: 'text', path, label, placeholder: value.placeholder });
-      } else if (typeof value === 'string') {
-        // Auto-detect: hex color vs text
-        if (this.isHexColor(value)) {
-          controls.push({ type: 'color', path, label });
-        } else {
-          controls.push({ type: 'text', path, label });
+        if (Array.isArray(value) && value.length <= 4 && typeof value[0] === 'number') {
+          // Range tuple: [default, min, max]
+          control = {
+            type: 'slider',
+            path,
+            label,
+            min: value[1],
+            max: value[2],
+            step: value[3] ?? inferStep(value[1], value[2]),
+            shortcut,
+          };
+        } else if (typeof value === 'number') {
+          // Single number - auto-infer range
+          const { min, max, step } = this.inferRange(value);
+          control = { type: 'slider', path, label, min, max, step, shortcut };
+        } else if (typeof value === 'boolean') {
+          control = { type: 'toggle', path, label, shortcut };
+        } else if (isSpringConfigValue(value) || isEasingConfigValue(value)) {
+          control = { type: 'transition', path, label };
+        } else if (isActionConfigValue(value)) {
+          control = { type: 'action', path, label: value.label || label };
+        } else if (isSelectConfigValue(value)) {
+          control = { type: 'select', path, label, options: value.options };
+        } else if (isColorConfigValue(value)) {
+          control = { type: 'color', path, label };
+        } else if (isImageConfigValue(value)) {
+          control = { type: 'image', path, label, options: value.options };
+        } else if (isTextConfigValue(value)) {
+          control = { type: 'text', path, label, placeholder: value.placeholder };
+        } else if (isPadConfigValue(value)) {
+          control = { type: 'pad', path, label, pad: value };
+        } else if (typeof value === 'string') {
+          // Auto-detect: hex color vs text
+          if (parseColor(value) && value !== 'transparent') {
+            control = { type: 'color', path, label };
+          } else {
+            control = { type: 'text', path, label };
+          }
+        } else if (typeof value === 'object' && value !== null) {
+          // Nested object becomes a folder
+          const folderConfig = value as DialConfig;
+          const defaultOpen = '_collapsed' in folderConfig ? !(folderConfig._collapsed as boolean) : true;
+          control = {
+            type: 'folder',
+            path,
+            label,
+            defaultOpen,
+            children: visit(folderConfig, path),
+          };
         }
-      } else if (typeof value === 'object' && value !== null) {
-        // Nested object becomes a folder
-        const folderConfig = value as DialConfig;
-        const defaultOpen = '_collapsed' in folderConfig ? !(folderConfig._collapsed as boolean) : true;
-        controls.push({
-          type: 'folder',
-          path,
-          label,
-          defaultOpen,
-          children: this.parseConfig(folderConfig, path, shortcuts),
-        });
+        if (!control) continue;
+        if (visibleWhen) tagVisibility(control, visibleWhen);
+        controls.push(control);
+        controlsByPath.set(path, control);
+        if (control.type === 'folder') continue;
+        defaultValues[path] = configDefaultValue(value);
+        const mode = transitionModeFor(value);
+        if (mode) modes[`${path}.__mode`] = mode;
       }
 
-      tagLast(visibleWhen, before);
-    }
-
-    return controls;
-  }
-
-  private flattenValues(config: DialConfig, prefix: string): Record<string, DialValue> {
-    const values: Record<string, DialValue> = {};
-
-    for (const [key, rawValue] of Object.entries(config)) {
-      if (key === '_collapsed') continue;
-      const path = prefix ? `${prefix}.${key}` : key;
-      // Unwrap conditional-visibility wrapper before shape dispatch.
-      const value = this.unwrapVisibilityWithRule(rawValue).value;
-
-      if (Array.isArray(value) && value.length <= 4 && typeof value[0] === 'number') {
-        values[path] = value[0]; // Default value
-      } else if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'string') {
-        values[path] = value;
-      } else if (this.isSpringConfig(value) || this.isEasingConfig(value)) {
-        values[path] = value;
-      } else if (this.isActionConfig(value)) {
-        // Actions don't need stored values - they're just triggers
-        values[path] = value;
-      } else if (this.isSelectConfig(value)) {
-        // Use default or first option's value
-        const firstOption = value.options[0];
-        const firstValue = typeof firstOption === 'string' ? firstOption : firstOption.value;
-        values[path] = value.default ?? firstValue;
-      } else if (this.isColorConfig(value)) {
-        values[path] = value.default ?? '#000000';
-      } else if (this.isTextConfig(value)) {
-        values[path] = value.default ?? '';
-      } else if (typeof value === 'object' && value !== null) {
-        Object.assign(values, this.flattenValues(value as DialConfig, path));
-      }
-    }
-
-    return values;
-  }
-
-  private isSpringConfig(value: unknown): value is SpringConfig {
-    return (
-      typeof value === 'object' &&
-      value !== null &&
-      'type' in value &&
-      (value as SpringConfig).type === 'spring'
-    );
-  }
-
-  private isEasingConfig(value: unknown): value is EasingConfig {
-    return (
-      typeof value === 'object' &&
-      value !== null &&
-      'type' in value &&
-      (value as EasingConfig).type === 'easing'
-    );
-  }
-
-  private isActionConfig(value: unknown): value is ActionConfig {
-    return (
-      typeof value === 'object' &&
-      value !== null &&
-      'type' in value &&
-      (value as ActionConfig).type === 'action'
-    );
-  }
-
-  private isSelectConfig(value: unknown): value is SelectConfig {
-    return (
-      typeof value === 'object' &&
-      value !== null &&
-      'type' in value &&
-      (value as SelectConfig).type === 'select' &&
-      'options' in value &&
-      Array.isArray((value as SelectConfig).options)
-    );
-  }
-
-  private isColorConfig(value: unknown): value is ColorConfig {
-    return (
-      typeof value === 'object' &&
-      value !== null &&
-      'type' in value &&
-      (value as ColorConfig).type === 'color'
-    );
-  }
-
-  private isTextConfig(value: unknown): value is TextConfig {
-    return (
-      typeof value === 'object' &&
-      value !== null &&
-      'type' in value &&
-      (value as TextConfig).type === 'text'
-    );
-  }
-
-  private isHexColor(value: string): boolean {
-    return isHexColor(value);
-  }
-
-  private formatLabel(key: string): string {
-    return formatLabel(key);
+      return controls;
+    };
+    const controls = visit(config, '');
+    Object.assign(defaultValues, modes);
+    return { controls, defaultValues, controlsByPath };
   }
 
   private inferRange(value: number): { min: number; max: number; step: number } {
@@ -1354,10 +1261,6 @@ class DialStoreClass {
     }
   }
 
-  private inferStep(min: number, max: number): number {
-    return inferStep(min, max);
-  }
-
   private normalizePreservedValue(
     existingValue: DialValue | undefined,
     defaultValue: DialValue,
@@ -1369,7 +1272,7 @@ class DialStoreClass {
 
     switch (control.type) {
       case 'slider': {
-        if (typeof existingValue !== 'number' || typeof defaultValue !== 'number') {
+        if (typeof existingValue !== 'number' || !Number.isFinite(existingValue) || typeof defaultValue !== 'number') {
           return defaultValue;
         }
 
@@ -1381,10 +1284,12 @@ class DialStoreClass {
           return clamped;
         }
 
-        return this.roundToStep(clamped, min, max, control.step);
+        return roundValue(clamped, control.step, min, max);
       }
       case 'toggle':
         return typeof existingValue === 'boolean' ? existingValue : defaultValue;
+      case 'pad':
+        return normalizePadValue(existingValue, control.pad);
       case 'select': {
         if (typeof existingValue !== 'string') {
           return defaultValue;
@@ -1395,6 +1300,7 @@ class DialStoreClass {
         return validValues.has(existingValue) ? existingValue : defaultValue;
       }
       case 'color':
+      case 'image':
       case 'text':
         return typeof existingValue === 'string' ? existingValue : defaultValue;
       case 'transition':
@@ -1403,7 +1309,7 @@ class DialStoreClass {
         // against the config default's type would silently revert every
         // type switch (user or programmatic) on the next re-registration,
         // since re-registrations happen on ordinary re-renders.
-        if (this.isSpringConfig(existingValue) || this.isEasingConfig(existingValue)) {
+        if (isSpringConfigValue(existingValue) || isEasingConfigValue(existingValue)) {
           return existingValue;
         }
         return defaultValue;
@@ -1414,136 +1320,110 @@ class DialStoreClass {
     }
   }
 
-  private roundToStep(value: number, min: number, max: number, step: number): number {
-    const snapped = min + Math.round((value - min) / step) * step;
-    const clamped = Math.min(max, Math.max(min, snapped));
-    const precision = this.stepPrecision(step);
-    return Number(clamped.toFixed(precision));
-  }
-
-  private stepPrecision(step: number): number {
-    const text = String(step);
-    const decimalIndex = text.indexOf('.');
-    return decimalIndex === -1 ? 0 : text.length - decimalIndex - 1;
-  }
-
-  private mapControlsByPath(controls: ControlMeta[]): Map<string, ControlMeta> {
-    const map = new Map<string, ControlMeta>();
-
-    const visit = (nodes: ControlMeta[]) => {
-      for (const node of nodes) {
-        if (node.type === 'folder' && node.children) {
-          visit(node.children);
-          continue;
-        }
-
-        map.set(node.path, node);
-      }
-    };
-
-    visit(controls);
-    return map;
-  }
-
   // ─── Conditional visibility ──────────────────────────────────────
 
   /**
-   * Detects and unwraps a `{ value, visibleWhen }` wrapper produced by
-   * {@link withVisibility}. Returns the inner control plus the rule (or
-   * `undefined` for `visibleWhen` if the input was not a wrapper).
+   * Rebuild the filtered control tree against the panel's current values.
+   * When the set of visible paths changed, swap `panel.controls` and bump
+   * the global listeners: `getPanels()` snapshots are cached by identity,
+   * so a per-panel notify alone would leave DialRoot rendering the old tree.
    */
-  private unwrapVisibilityWithRule(raw: unknown): { value: DialConfigValue; visibleWhen: VisibleWhen | undefined } {
-    if (
-      typeof raw === 'object' &&
-      raw !== null &&
-      !Array.isArray(raw) &&
-      'value' in raw &&
-      'visibleWhen' in raw
-    ) {
-      const wrapper = raw as ControlWithVisibility;
-      return { value: wrapper.value, visibleWhen: wrapper.visibleWhen };
+  private refilterVisibility(panelId: string): void {
+    const panel = this.panels.get(panelId);
+    const allControls = this.allControls.get(panelId);
+    if (!panel || !allControls) return;
+
+    const nextControls = filterByVisibility(allControls, panel.values);
+    if (!sameControlPaths(panel.controls, nextControls)) {
+      panel.controls = nextControls;
+      this.notifyGlobal();
     }
-    return { value: raw as DialConfigValue, visibleWhen: undefined };
   }
+}
 
-  /** Evaluate a visibility rule against a flat value map. */
-  private isVisible(rule: VisibleWhen | undefined, values: Record<string, DialValue>): boolean {
-    if (!rule) return true;
-    const actual = values[rule.field];
-    if (actual === undefined && !(rule.field in values)) {
-      // Dev-mode warning for mistyped field paths. Guarded by typeof check
-      // so it's safe in environments without process (bundlers strip this).
-      if (typeof globalThis !== 'undefined' && typeof console !== 'undefined') {
-        console.warn(
-          `[DialKit] visibleWhen references field "${rule.field}" which does not exist in the panel's values. ` +
-          `The control will default to visible. Check for typos — field must be the full dot-delimited store path.`
-        );
-      }
-    }
-    if (rule.is !== undefined) {
-      const targets = Array.isArray(rule.is) ? rule.is : [rule.is];
-      return targets.some(t => t === actual);
-    }
-    if (rule.not !== undefined) {
-      const targets = Array.isArray(rule.not) ? rule.not : [rule.not];
-      return !targets.some(t => t === actual);
-    }
-    return true;
+/** Attach a visibility rule to a control and (for folders) every descendant. */
+function tagVisibility(control: ControlMeta, visibleWhen: VisibleWhen): void {
+  if (!control.visibleWhen) control.visibleWhen = visibleWhen;
+  if (control.type === 'folder' && control.children) {
+    for (const child of control.children) tagVisibility(child, visibleWhen);
   }
+}
 
-  /**
-   * Recursively filter a control tree by evaluating each control's
-   * `visibleWhen` against the current values. Folders that become empty
-   * after filtering their children are pruned.
-   *
-   * KNOWN LIMITATION — folder collapsed state across hide/show cycles:
-   * Folder open/closed state lives in `Folder`'s local `useState`, not in
-   * the store. When a folder's `visibleWhen` fails, its DOM node unmounts
-   * and that local state is lost. Re-showing the folder mounts a fresh
-   * instance with `defaultOpen`, so a user-collapsed folder will re-open
-   * after a visibility cycle. Sibling visibility changes do NOT trigger
-   * this (motion.div keys are stable by path), only the wrapped folder
-   * itself hiding. This is a pre-existing architectural constraint of
-   * DialKit's folder state model, not introduced by this feature — any
-   * mechanism that unmounts a folder would behave the same. Lifting
-   * folder state into the store is a possible follow-up.
-   */
-  private filterByVisibility(controls: ControlMeta[], values: Record<string, DialValue>): ControlMeta[] {
-    const result: ControlMeta[] = [];
-    for (const control of controls) {
-      if (!this.isVisible(control.visibleWhen, values)) continue;
-
-      if (control.type === 'folder' && control.children) {
-        const filteredChildren = this.filterByVisibility(control.children, values);
-        if (filteredChildren.length === 0) continue;
-        result.push({ ...control, children: filteredChildren });
-      } else {
-        result.push(control);
-      }
-    }
-    return result;
+/** Editor mode implied by a transition config's shape; null for non-transitions. */
+function transitionModeFor(value: unknown): 'easing' | 'simple' | 'advanced' | null {
+  if (isEasingConfigValue(value)) return 'easing';
+  if (isSpringConfigValue(value)) {
+    const hasPhysics = value.stiffness !== undefined || value.damping !== undefined || value.mass !== undefined;
+    const hasTime = value.visualDuration !== undefined || value.bounce !== undefined;
+    return hasPhysics && !hasTime ? 'advanced' : 'simple';
   }
+  return null;
+}
 
-  /**
-   * Cheap structural comparison used to decide whether visibility flipped
-   * after an updateValue. We only care about the set of visible paths —
-   * labels/options/etc can't change between snapshots of the same tree.
-   */
-  private sameControlPaths(a: ControlMeta[], b: ControlMeta[]): boolean {
-    if (a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i++) {
-      const ca = a[i];
-      const cb = b[i];
-      if (ca.path !== cb.path || ca.type !== cb.type) return false;
-      if (ca.type === 'folder') {
-        const childrenA = ca.children ?? [];
-        const childrenB = cb.children ?? [];
-        if (!this.sameControlPaths(childrenA, childrenB)) return false;
-      }
-    }
-    return true;
+/** Evaluate a visibility rule against a flat value map. */
+function isVisible(rule: VisibleWhen | undefined, values: Record<string, DialValue>): boolean {
+  if (!rule) return true;
+  const actual = values[rule.field];
+  if (actual === undefined && !(rule.field in values)) {
+    // Dev-mode warning for mistyped field paths.
+    console.warn(
+      `[DialKit] visibleWhen references field "${rule.field}" which does not exist in the panel's values. ` +
+      `The control will default to visible. Check for typos — field must be the full dot-delimited store path.`
+    );
   }
+  if (rule.is !== undefined) {
+    const targets = Array.isArray(rule.is) ? rule.is : [rule.is];
+    return targets.some(t => t === actual);
+  }
+  if (rule.not !== undefined) {
+    const targets = Array.isArray(rule.not) ? rule.not : [rule.not];
+    return !targets.some(t => t === actual);
+  }
+  return true;
+}
 
+/**
+ * Recursively filter a control tree by evaluating each control's
+ * `visibleWhen` against the current values. Folders that become empty
+ * after filtering their children are pruned.
+ *
+ * KNOWN LIMITATION — folder collapsed state across hide/show cycles:
+ * Folder open/closed state lives in the host component, not in the store.
+ * When a folder's `visibleWhen` fails, its DOM node unmounts and that
+ * local state is lost, so a user-collapsed folder re-opens after a
+ * visibility cycle. Sibling visibility changes do NOT trigger this (keys
+ * are stable by path), only the wrapped folder itself hiding.
+ */
+function filterByVisibility(controls: ControlMeta[], values: Record<string, DialValue>): ControlMeta[] {
+  const result: ControlMeta[] = [];
+  for (const control of controls) {
+    if (!isVisible(control.visibleWhen, values)) continue;
+
+    if (control.type === 'folder' && control.children) {
+      const filteredChildren = filterByVisibility(control.children, values);
+      if (filteredChildren.length === 0) continue;
+      result.push({ ...control, children: filteredChildren });
+    } else {
+      result.push(control);
+    }
+  }
+  return result;
+}
+
+/**
+ * Cheap structural comparison used to decide whether visibility flipped
+ * after a write. We only care about the set of visible paths — labels and
+ * options can't change between snapshots of the same tree.
+ */
+function sameControlPaths(a: ControlMeta[], b: ControlMeta[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const ca = a[i];
+    const cb = b[i];
+    if (ca.path !== cb.path || ca.type !== cb.type) return false;
+    if (ca.type === 'folder' && !sameControlPaths(ca.children ?? [], cb.children ?? [])) return false;
+  }
+  return true;
 }
 
 // Singleton instance

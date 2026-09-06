@@ -1,3 +1,4 @@
+import { handleSliderKey } from '../control-keyboard';
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { motion, useMotionValue, useTransform, animate } from 'motion/react';
 import type { ShortcutConfig } from '../store/DialStore';
@@ -39,6 +40,7 @@ export function Slider({
   const wrapperRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const editingEnded = useRef(false);
   const labelRef = useRef<HTMLSpanElement>(null);
   const valueSpanRef = useRef<HTMLSpanElement>(null);
   const [isInteracting, setIsInteracting] = useState(false);
@@ -122,7 +124,7 @@ export function Slider({
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
-      if (showInput) return;
+      if (showInput || e.button !== 0) return;
       e.preventDefault();
       (e.target as HTMLElement).setPointerCapture(e.pointerId);
       pointerDownPos.current = { x: e.clientX, y: e.clientY };
@@ -172,7 +174,7 @@ export function Slider({
           animRef.current = null;
         }
         fillPercent.jump(newPct);
-        onChange(roundValue(newValue, step));
+        onChange(roundValue(newValue, step, min, max));
       }
     },
     [
@@ -183,6 +185,9 @@ export function Slider({
       fillPercent,
       rubberStretchPx,
       computeRubberStretch,
+      min,
+      max,
+      step,
     ]
   );
 
@@ -211,7 +216,7 @@ export function Slider({
           mass: 0.8,
           onComplete: () => { animRef.current = null; },
         });
-        onChange(roundValue(snappedValue, step));
+        onChange(roundValue(snappedValue, step, min, max));
       }
 
       // Spring rubber band back
@@ -234,10 +239,21 @@ export function Slider({
       onChange,
       min,
       max,
+      step,
       fillPercent,
       rubberStretchPx,
     ]
   );
+
+  const handlePointerCancel = () => {
+    if (!pointerDownPos.current) return;
+    rubberStretchPx.jump(0);
+    setIsInteracting(false);
+    setIsDragging(false);
+    pointerDownPos.current = null;
+  };
+
+  useEffect(() => () => { animRef.current?.stop(); }, []);
 
   // Handle value hover delay for editable state
   useEffect(() => {
@@ -272,10 +288,12 @@ export function Slider({
   };
 
   const handleInputSubmit = () => {
+    if (editingEnded.current) return;
+    editingEnded.current = true;
     const parsed = parseFloat(inputValue);
     if (!isNaN(parsed)) {
       const clamped = Math.max(min, Math.min(max, parsed));
-      onChange(roundValue(clamped, step));
+      onChange(roundValue(clamped, step, min, max));
     }
     setShowInput(false);
     setIsValueHovered(false);
@@ -286,31 +304,36 @@ export function Slider({
     if (isValueEditable) {
       e.stopPropagation();
       e.preventDefault();
+      editingEnded.current = false;
       setShowInput(true);
-      setInputValue(value.toFixed(decimalsForStep(step)));
+      setInputValue(value.toFixed(decimalsForStep(step, min, max)));
     }
   };
 
   const handleInputKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleInputSubmit();
-    } else if (e.key === 'Escape') {
+    e.stopPropagation();
+    if (e.key !== 'Enter' && e.key !== 'Escape') return;
+    e.preventDefault();
+    if (e.key === 'Enter') handleInputSubmit();
+    else {
+      editingEnded.current = true;
       setShowInput(false);
       setIsValueHovered(false);
     }
+    queueMicrotask(() => trackRef.current?.focus({ preventScroll: true }));
   };
 
   const handleInputBlur = () => {
     handleInputSubmit();
   };
 
-  const displayValue = value.toFixed(decimalsForStep(step));
+  const displayValue = value.toFixed(decimalsForStep(step, min, max));
 
   // Handle opacity: not active → 0, active → 0.5, dragging → 0.9
   // Value dodge: fade when handle overlaps label (left) or value (right)
   const HANDLE_BUFFER = 8;
   const LABEL_CSS_LEFT = 10;
-  const VALUE_CSS_RIGHT = 10;
+  const VALUE_CSS_RIGHT = 12;
   let leftThreshold = 30;
   let rightThreshold = 78;
   const trackWidth = wrapperRef.current?.offsetWidth;
@@ -361,9 +384,25 @@ export function Slider({
       <motion.div
         ref={trackRef}
         className={`dialkit-slider ${isActive ? 'dialkit-slider-active' : ''}`}
+        role="slider"
+        tabIndex={showInput ? -1 : 0}
+        aria-label={label}
+        aria-valuemin={min}
+        aria-valuemax={max}
+        aria-valuenow={value}
+        aria-valuetext={`${displayValue}${unit ? ` ${unit}` : ''}`}
+        onKeyDown={(e) => handleSliderKey(e, value, min, max, step, (next) => {
+          animRef.current?.stop(); animRef.current = null;
+          fillPercent.jump(percentFromValue(next)); onChange(next);
+        }, () => {
+          editingEnded.current = false;
+          setInputValue(value.toFixed(decimalsForStep(step, min, max))); setShowInput(true);
+        })}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
+        onLostPointerCapture={handlePointerCancel}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         style={{ width: rubberBandWidth, x: rubberBandX }}
@@ -409,6 +448,7 @@ export function Slider({
             ref={inputRef}
             type="text"
             className="dialkit-slider-input"
+            aria-label={`${label} value`}
             value={inputValue}
             onChange={handleInputChange}
             onKeyDown={handleInputKeyDown}

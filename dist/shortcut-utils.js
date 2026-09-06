@@ -1,14 +1,24 @@
 // src/shortcut-utils.ts
 import { DialStore } from "dialkit/store";
-function decimalsForStep(step) {
-  const s = step.toString();
-  const dot = s.indexOf(".");
-  return dot === -1 ? 0 : s.length - dot - 1;
+
+// src/numeric.ts
+function decimalsForStep(step, min = 0, max = 0) {
+  return Math.min(100, Math.max(...[step, min, max].map((value) => {
+    const [coefficient, exponent = "0"] = String(value).toLowerCase().split("e");
+    return Math.max(0, (coefficient.split(".")[1]?.length ?? 0) - Number(exponent));
+  })));
 }
-function roundValue(val, step) {
-  const raw = Math.round(val / step) * step;
-  return parseFloat(raw.toFixed(decimalsForStep(step)));
+function roundValue(value, step, min, max) {
+  const lower = min ?? -Infinity;
+  const upper = max ?? Infinity;
+  const clamped = Math.max(lower, Math.min(upper, value));
+  if (clamped === lower || clamped === upper || !Number.isFinite(step) || step <= 0) return clamped;
+  const origin = min ?? 0;
+  const snapped = origin + Math.round((clamped - origin) / step) * step;
+  return Math.max(lower, Math.min(upper, Number(snapped.toPrecision(14))));
 }
+
+// src/shortcut-utils.ts
 function getEffectiveStep(control, shortcut) {
   const min = control.min ?? 0;
   const max = control.max ?? 1;
@@ -21,7 +31,7 @@ function applySliderDelta(panelId, path, control, effectiveStep, direction) {
   const min = control.min ?? 0;
   const max = control.max ?? 1;
   const newValue = Math.max(min, Math.min(max, currentValue + direction * effectiveStep));
-  DialStore.updateValue(panelId, path, roundValue(newValue, effectiveStep));
+  DialStore.updateValue(panelId, path, roundValue(newValue, effectiveStep, min, max));
 }
 function snapToDecile(rawValue, min, max) {
   const normalized = (rawValue - min) / (max - min);
@@ -36,6 +46,7 @@ function isInputFocused() {
   if (!el) return false;
   const tag = el.tagName;
   if (tag === "INPUT" || tag === "TEXTAREA") return true;
+  if (el.closest('select, button, [role="slider"], [role="radio"], [role="listbox"], [role="menu"], [role="menuitem"], [role="menuitemradio"], [role="button"]')) return true;
   if (el.contentEditable === "true") return true;
   return false;
 }

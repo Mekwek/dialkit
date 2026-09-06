@@ -2,6 +2,9 @@ import { Fragment, defineComponent, h, type PropType } from 'vue';
 import { DialStore } from '../../store/DialStore';
 import type { ControlMeta, DialValue, SpringConfig, TransitionConfig } from '../../store/DialStore';
 import { ColorControl } from './ColorControl';
+import { ImageControl } from './ImageControl';
+import { DialPad } from './DialPad';
+import type { DialPadValue } from '../../dial-pad';
 import { Folder } from './Folder';
 import { SelectControl } from './SelectControl';
 import { ShortcutKey } from './ShortcutListener';
@@ -93,6 +96,24 @@ export const ControlRenderer = defineComponent({
             label: control.label,
             value: value as string,
             onChange: (next: string) => DialStore.updateValue(props.panelId, control.path, next),
+          });
+        case 'image':
+          return h(ImageControl, {
+            key: control.path,
+            options: control.options,
+            label: control.label,
+            value: value as string,
+            onChange: (next: string) => DialStore.updateValue(props.panelId, control.path, next),
+          });
+        case 'pad':
+          return h(DialPad, {
+            key: control.path,
+            label: control.label,
+            value: value as DialPadValue,
+            x: control.pad?.x,
+            y: control.pad?.y,
+            labels: control.pad?.labels,
+            onChange: (next: DialPadValue) => DialStore.updateValue(props.panelId, control.path, next),
           });
         case 'action':
           return h('button', {

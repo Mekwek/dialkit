@@ -1,21 +1,16 @@
-import { DialStore, flattenDialValueUpdates, resolveDialValues } from 'dialkit/store';
+import { DialStore, flattenDialValueUpdates, isLeafConfigValue, resolveDialValues } from 'dialkit/store';
 import type {
-  ActionConfig,
-  ColorConfig,
   DialConfig,
   DialKitPersistOptions,
   DialKitValueUpdates,
   DialValue,
-  EasingConfig,
   ResolvedValues,
-  SelectConfig,
   ShortcutConfig,
-  SpringConfig,
-  TextConfig,
 } from 'dialkit/store';
 
 export interface CreateDialOptions {
   id?: string;
+  defaultCollapsed?: boolean;
   persist?: DialKitPersistOptions;
   onAction?: (action: string) => void;
   shortcuts?: Record<string, ShortcutConfig>;
@@ -28,6 +23,8 @@ export interface DialKitController<T extends DialConfig> {
   setValue: (path: string, value: DialValue) => void;
   setValues: (values: DialKitValueUpdates<T>) => void;
   resetValues: () => void;
+  setOpen: (open: boolean) => void;
+  getOpen: () => boolean | undefined;
   getValues: () => ResolvedValues<T>;
 }
 
@@ -56,6 +53,7 @@ export function createDialKitController<T extends DialConfig>(
     DialStore.registerPanel(panelId, name, config, options?.shortcuts, {
       retainOnUnmount: hasStableId,
       persist: options?.persist,
+      defaultCollapsed: options?.defaultCollapsed,
     });
     values = resolve();
 
@@ -76,6 +74,8 @@ export function createDialKitController<T extends DialConfig>(
 
   return {
     values: buildReactiveValues(config, () => values, '') as DialKitValues<ResolvedValues<T>>,
+    setOpen(open) { DialStore.setPanelOpen(panelId, open); },
+    getOpen() { return DialStore.getPanelOpen(panelId); },
     setValue(path, value) {
       DialStore.updateValue(panelId, path, value);
     },
@@ -130,47 +130,4 @@ function getPathValue(source: unknown, path: string): unknown {
     if (typeof value !== 'object' || value === null) return undefined;
     return (value as Record<string, unknown>)[segment];
   }, source);
-}
-
-function isLeafConfigValue(value: unknown): boolean {
-  return (
-    (Array.isArray(value) && value.length <= 4 && typeof value[0] === 'number') ||
-    typeof value === 'number' ||
-    typeof value === 'boolean' ||
-    typeof value === 'string' ||
-    isSpringConfig(value) ||
-    isEasingConfig(value) ||
-    isActionConfig(value) ||
-    isSelectConfig(value) ||
-    isColorConfig(value) ||
-    isTextConfig(value)
-  );
-}
-
-function hasType(value: unknown, type: string): boolean {
-  return typeof value === 'object' && value !== null && 'type' in value && (value as { type: string }).type === type;
-}
-
-function isSpringConfig(value: unknown): value is SpringConfig {
-  return hasType(value, 'spring');
-}
-
-function isEasingConfig(value: unknown): value is EasingConfig {
-  return hasType(value, 'easing');
-}
-
-function isActionConfig(value: unknown): value is ActionConfig {
-  return hasType(value, 'action');
-}
-
-function isSelectConfig(value: unknown): value is SelectConfig {
-  return hasType(value, 'select') && 'options' in (value as object) && Array.isArray((value as SelectConfig).options);
-}
-
-function isColorConfig(value: unknown): value is ColorConfig {
-  return hasType(value, 'color');
-}
-
-function isTextConfig(value: unknown): value is TextConfig {
-  return hasType(value, 'text');
 }

@@ -31,4 +31,15 @@ describe('copy instructions', () => {
     assert.doesNotMatch(instruction, /clip\.current/);
     assert.doesNotMatch(instruction, /TODO\(production\)/);
   });
+
+  it('copies tuned values without leaking the transition editor mode', () => {
+    const instruction = buildCopyInstruction('createDialKit', 'Card', {
+      'motion.transition': { type: 'spring', visualDuration: 0.4, bounce: 0.2 },
+      'motion.transition.__mode': 'simple',
+      position: { x: 0.5, y: -0.2 },
+    });
+    assert.doesNotMatch(instruction, /__mode/);
+    assert.match(instruction, /"visualDuration": 0.4/);
+    assert.match(instruction, /"x": 0.5/);
+  });
 });

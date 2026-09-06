@@ -1,54 +1,11 @@
-type VisibleWhenValue = string | boolean | number;
-/**
- * Rule for conditional control visibility. Exactly one of `is` or `not`
- * should be provided — if both are set, only `is` is evaluated.
- */
-type VisibleWhen = {
-    /**
-     * Flat store path of another control in the same panel to watch.
-     * Must be the full dot-delimited path as it appears in panel.values
-     * (e.g. `"debug.showStats"` for a nested control, not a relative path).
-     */
-    field: string;
-} & ({
-    is: VisibleWhenValue | VisibleWhenValue[];
-    not?: never;
-} | {
-    not: VisibleWhenValue | VisibleWhenValue[];
-    is?: never;
-} | {
-    is?: undefined;
-    not?: undefined;
-});
-type ShortcutMode = 'fine' | 'normal' | 'coarse';
-type ShortcutInteraction = 'scroll' | 'drag' | 'move' | 'scroll-only';
-type ShortcutConfig = {
-    key?: string;
-    modifier?: 'alt' | 'shift' | 'meta';
-    mode?: ShortcutMode;
-    interaction?: ShortcutInteraction;
-};
-type ControlMeta = {
-    type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'text';
-    path: string;
-    label: string;
-    min?: number;
-    max?: number;
-    step?: number;
-    children?: ControlMeta[];
-    defaultOpen?: boolean;
-    options?: (string | {
-        value: string;
-        label: string;
-    })[];
-    placeholder?: string;
-    shortcut?: ShortcutConfig;
-    /** Conditional visibility rule attached via {@link withVisibility}. */
-    visibleWhen?: VisibleWhen;
-};
+import { C as ControlMeta, S as ShortcutConfig } from './DialStore-CNUyExjO.js';
+import './dial-pad.js';
 
-declare function decimalsForStep(step: number): number;
-declare function roundValue(val: number, step: number): number;
+/** Decimal places needed by a step or range endpoint, including scientific notation. */
+declare function decimalsForStep(step: number, min?: number, max?: number): number;
+/** Snap relative to the minimum and keep exact endpoints reachable. */
+declare function roundValue(value: number, step: number, min?: number, max?: number): number;
+
 declare function getEffectiveStep(control: ControlMeta, shortcut: ShortcutConfig): number;
 declare function applySliderDelta(panelId: string, path: string, control: ControlMeta, effectiveStep: number, direction: number): void;
 declare function snapToDecile(rawValue: number, min: number, max: number): number;

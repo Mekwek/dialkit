@@ -1,6 +1,24 @@
 import * as vue from 'vue';
 import { ComputedRef, ObjectDirective, PropType, InjectionKey, Ref, VNodeChild } from 'vue';
 
+/** The same [default, min, max, step?] notation used by sliders. */
+type DialPadAxis = [number, number, number, number?];
+type DialPadValue = {
+    x: number;
+    y: number;
+};
+type DialPadConfig = {
+    type: 'pad';
+    /** Defaults to [0, -1, 1, 0.01]. */
+    x?: DialPadAxis;
+    /** Positive Y points upward. Defaults to [0, -1, 1, 0.01]. */
+    y?: DialPadAxis;
+    labels?: {
+        x?: string;
+        y?: string;
+    };
+};
+
 type SpringConfig = {
     type: 'spring';
     stiffness?: number;
@@ -31,12 +49,23 @@ type ColorConfig = {
     type: 'color';
     default?: string;
 };
+type ImageOption = string | {
+    value: string;
+    label: string;
+};
+type ImageConfig = {
+    type: 'image';
+    /** Image URLs, optionally paired with display labels. */
+    options?: ImageOption[];
+    /** Defaults to the first option, or an empty string for upload-only controls. */
+    default?: string;
+};
 type TextConfig = {
     type: 'text';
     default?: string;
     placeholder?: string;
 };
-type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | TextConfig;
+type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue;
 type VisibleWhenValue = string | boolean | number;
 /**
  * Rule for conditional control visibility. Exactly one of `is` or `not`
@@ -95,10 +124,14 @@ type DialConfig = {
     [key: string]: DialValue | [number, number, number, number?] | DialConfig | ControlWithVisibility;
 };
 type ResolvedValues<T extends DialConfig> = {
-    [K in keyof T]: T[K] extends [number, number, number, number?] ? number : T[K] extends SpringConfig ? TransitionConfig : T[K] extends EasingConfig ? TransitionConfig : T[K] extends SelectConfig ? string : T[K] extends ColorConfig ? string : T[K] extends TextConfig ? string : T[K] extends DialConfig ? ResolvedValues<T[K]> : T[K];
+    [K in keyof T]: T[K] extends ControlWithVisibility<infer U> ? U extends DialConfigValue ? ResolvedValues<{
+        value: U;
+    }>['value'] : never : T[K] extends [number, number, number, number?] ? number : T[K] extends SpringConfig ? TransitionConfig : T[K] extends EasingConfig ? TransitionConfig : T[K] extends SelectConfig ? string : T[K] extends ColorConfig | ImageConfig ? string : T[K] extends TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends DialConfig ? ResolvedValues<T[K]> : T[K];
 };
 type DialKitValueUpdates<T extends DialConfig> = {
-    [K in keyof T as K extends '_collapsed' ? never : K]?: T[K] extends [number, number, number, number?] ? number : T[K] extends SpringConfig | EasingConfig ? TransitionConfig : T[K] extends ActionConfig ? never : T[K] extends SelectConfig | ColorConfig | TextConfig ? string : T[K] extends DialConfig ? DialKitValueUpdates<T[K]> : T[K];
+    [K in keyof T as K extends '_collapsed' ? never : K]?: T[K] extends ControlWithVisibility<infer U> ? U extends DialConfigValue ? DialKitValueUpdates<{
+        value: U;
+    }>['value'] : never : T[K] extends [number, number, number, number?] ? number : T[K] extends SpringConfig | EasingConfig ? TransitionConfig : T[K] extends ActionConfig ? never : T[K] extends SelectConfig | ColorConfig | ImageConfig | TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends DialConfig ? DialKitValueUpdates<T[K]> : T[K];
 };
 type ShortcutMode = 'fine' | 'normal' | 'coarse';
 type ShortcutInteraction = 'scroll' | 'drag' | 'move' | 'scroll-only';
@@ -109,7 +142,7 @@ type ShortcutConfig = {
     interaction?: ShortcutInteraction;
 };
 type ControlMeta = {
-    type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'text';
+    type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'image' | 'text' | 'pad';
     path: string;
     label: string;
     min?: number;
@@ -122,6 +155,7 @@ type ControlMeta = {
         label: string;
     })[];
     placeholder?: string;
+    pad?: DialPadConfig;
     shortcut?: ShortcutConfig;
     /** Conditional visibility rule attached via {@link withVisibility}. */
     visibleWhen?: VisibleWhen;
@@ -140,12 +174,6 @@ type PanelConfig = {
      * shells, exactly as before.
      */
     group?: string;
-    /**
-     * Initial open state for this panel's folder. Defaults to open. Most useful
-     * for a grouped panel that should start collapsed as a section inside the
-     * merged shell (e.g. a secondary settings section). `undefined` ⇒ open.
-     */
-    defaultOpen?: boolean;
     /**
      * `false` hides the rename control and disables drag reorder in the
      * preset dropdown (a read-only host such as a share-link viewer).
@@ -177,6 +205,7 @@ type DialKitPersistOptions = boolean | {
     presets?: boolean;
 };
 type DialStorePanelOptions = {
+    defaultCollapsed?: boolean;
     retainOnUnmount?: boolean;
     persist?: DialKitPersistOptions;
     kind?: 'timeline';
@@ -184,10 +213,6 @@ type DialStorePanelOptions = {
      * Optional grouping key. See {@link PanelConfig.group}.
      */
     group?: string;
-    /**
-     * Initial open state for this panel's folder. See {@link PanelConfig.defaultOpen}.
-     */
-    defaultOpen?: boolean;
     /**
      * `false` hides the rename control and disables drag reorder in the
      * preset dropdown (a read-only host such as a share-link viewer).
@@ -201,7 +226,10 @@ type DialStorePanelOptions = {
     presetsLockable?: boolean;
 };
 declare class DialStoreClass {
+    private panelOpenListeners;
+    private panelOpenStates;
     private panels;
+    private controlsByPanel;
     private panelsSnapshot;
     private standardPanelsSnapshot;
     private timelinePanelsSnapshot;
@@ -226,6 +254,15 @@ declare class DialStoreClass {
     registerPanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, options?: DialStorePanelOptions): void;
     updatePanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, options?: DialStorePanelOptions): void;
     unregisterPanel(id: string): void;
+    /** Undefined delegates the initial state to DialRoot.defaultOpen. */
+    getPanelOpen(panelId: string): boolean | undefined;
+    isPanelOpen(panelId: string): boolean;
+    togglePanelOpen(panelId: string): void;
+    /** Applies a host component's own default; no-op once the panel has state. */
+    initPanelOpen(panelId: string, open: boolean): void;
+    /** Observe open requests so a containing toolkit can reveal its requested panel. */
+    subscribePanelOpen(listener: (panelId: string, open: boolean) => void): () => void;
+    setPanelOpen(panelId: string, open: boolean): void;
     updateValue(panelId: string, path: string, value: DialValue): void;
     updateValues(panelId: string, updates: Record<string, DialValue>): void;
     resetValues(panelId: string): void;
@@ -252,6 +289,8 @@ declare class DialStoreClass {
     isPresetsEditable(panelId: string): boolean;
     isPresetsLockable(panelId: string): boolean;
     clearActivePreset(panelId: string): void;
+    /** Presets changed without a value change: bump the snapshot so subscribers re-render. */
+    private refreshPresetSnapshot;
     resolveShortcutTarget(key: string, modifier?: 'alt' | 'shift' | 'meta'): {
         panelId: string;
         path: string;
@@ -270,66 +309,25 @@ declare class DialStoreClass {
     private loadPersistedPanel;
     private persistPanel;
     private getStorage;
-    private findControlByPath;
     private notify;
     private notifyGlobal;
-    /** Editor mode implied by a transition config's shape — the same mapping
-     *  initTransitionModes applies to config defaults at registration. */
-    private transitionModeFor;
-    private initTransitionModes;
+    /** Compile controls, defaults, and the lookup index in one walk. */
     private parseConfig;
-    private flattenValues;
-    private isSpringConfig;
-    private isEasingConfig;
-    private isActionConfig;
-    private isSelectConfig;
-    private isColorConfig;
-    private isTextConfig;
-    private isHexColor;
-    private formatLabel;
     private inferRange;
-    private inferStep;
     private normalizePreservedValue;
-    private roundToStep;
-    private stepPrecision;
-    private mapControlsByPath;
     /**
-     * Detects and unwraps a `{ value, visibleWhen }` wrapper produced by
-     * {@link withVisibility}. Returns the inner control plus the rule (or
-     * `undefined` for `visibleWhen` if the input was not a wrapper).
+     * Rebuild the filtered control tree against the panel's current values.
+     * When the set of visible paths changed, swap `panel.controls` and bump
+     * the global listeners: `getPanels()` snapshots are cached by identity,
+     * so a per-panel notify alone would leave DialRoot rendering the old tree.
      */
-    private unwrapVisibilityWithRule;
-    /** Evaluate a visibility rule against a flat value map. */
-    private isVisible;
-    /**
-     * Recursively filter a control tree by evaluating each control's
-     * `visibleWhen` against the current values. Folders that become empty
-     * after filtering their children are pruned.
-     *
-     * KNOWN LIMITATION — folder collapsed state across hide/show cycles:
-     * Folder open/closed state lives in `Folder`'s local `useState`, not in
-     * the store. When a folder's `visibleWhen` fails, its DOM node unmounts
-     * and that local state is lost. Re-showing the folder mounts a fresh
-     * instance with `defaultOpen`, so a user-collapsed folder will re-open
-     * after a visibility cycle. Sibling visibility changes do NOT trigger
-     * this (motion.div keys are stable by path), only the wrapped folder
-     * itself hiding. This is a pre-existing architectural constraint of
-     * DialKit's folder state model, not introduced by this feature — any
-     * mechanism that unmounts a folder would behave the same. Lifting
-     * folder state into the store is a possible follow-up.
-     */
-    private filterByVisibility;
-    /**
-     * Cheap structural comparison used to decide whether visibility flipped
-     * after an updateValue. We only care about the set of visible paths —
-     * labels/options/etc can't change between snapshots of the same tree.
-     */
-    private sameControlPaths;
+    private refilterVisibility;
 }
 declare const DialStore: DialStoreClass;
 
 interface UseDialOptions {
     id?: string;
+    defaultCollapsed?: boolean;
     persist?: DialKitPersistOptions;
     onAction?: (action: string) => void;
     shortcuts?: Record<string, ShortcutConfig>;
@@ -339,6 +337,8 @@ interface DialKitController<T extends DialConfig> {
     setValue: (path: string, value: DialValue) => void;
     setValues: (values: DialKitValueUpdates<T>) => void;
     resetValues: () => void;
+    setOpen: (open: boolean) => void;
+    getOpen: () => boolean | undefined;
     getValues: () => ResolvedValues<T>;
 }
 declare function useDialKit<T extends DialConfig>(name: string, config: T, options?: UseDialOptions): ComputedRef<ResolvedValues<T>>;
@@ -655,8 +655,8 @@ declare const DialTimeline: vue.DefineComponent<vue.ExtractPropTypes<{
     };
 }>> & Readonly<{}>, {
     defaultOpen: boolean;
-    visible: boolean | undefined;
     theme: DialTheme;
+    visible: boolean | undefined;
     productionEnabled: boolean;
     defaultVisible: boolean;
 }, {}, {}, {}, string, vue.ComponentProvideOptions, true, {}, any>;
@@ -808,6 +808,10 @@ declare const Folder: vue.DefineComponent<vue.ExtractPropTypes<{
         type: StringConstructor;
         required: true;
     };
+    open: {
+        type: BooleanConstructor;
+        default: undefined;
+    };
     defaultOpen: {
         type: BooleanConstructor;
         default: boolean;
@@ -836,6 +840,10 @@ declare const Folder: vue.DefineComponent<vue.ExtractPropTypes<{
         type: StringConstructor;
         required: true;
     };
+    open: {
+        type: BooleanConstructor;
+        default: undefined;
+    };
     defaultOpen: {
         type: BooleanConstructor;
         default: boolean;
@@ -861,6 +869,7 @@ declare const Folder: vue.DefineComponent<vue.ExtractPropTypes<{
     onOpenChange?: ((...args: any[]) => any) | undefined;
 }>, {
     defaultOpen: boolean;
+    open: boolean;
     isRoot: boolean;
     inline: boolean;
     toolbar: (() => VNodeChild) | null;
@@ -1006,11 +1015,20 @@ declare const TransitionControl: vue.DefineComponent<vue.ExtractPropTypes<{
     hideDuration: boolean;
 }, {}, {}, {}, string, vue.ComponentProvideOptions, true, {}, any>;
 
+type BezierPoints = EasingConfig['ease'];
+
+interface EasingVisualizationProps {
+    easing: EasingConfig;
+    /** Enables pointer and keyboard editing of the two control points. */
+    onChange?: (ease: BezierPoints) => void;
+}
+
 declare const EasingVisualization: vue.DefineComponent<vue.ExtractPropTypes<{
     easing: {
         type: PropType<EasingConfig>;
         required: true;
     };
+    onChange: PropType<EasingVisualizationProps["onChange"]>;
 }>, () => vue.VNode<vue.RendererNode, vue.RendererElement, {
     [key: string]: any;
 }>, {}, {}, {}, vue.ComponentOptionsMixin, vue.ComponentOptionsMixin, {}, string, vue.PublicProps, Readonly<vue.ExtractPropTypes<{
@@ -1018,6 +1036,7 @@ declare const EasingVisualization: vue.DefineComponent<vue.ExtractPropTypes<{
         type: PropType<EasingConfig>;
         required: true;
     };
+    onChange: PropType<EasingVisualizationProps["onChange"]>;
 }>> & Readonly<{}>, {}, {}, {}, {}, string, vue.ComponentProvideOptions, true, {}, any>;
 
 declare const TextControl: vue.DefineComponent<vue.ExtractPropTypes<{
@@ -1112,6 +1131,62 @@ declare const ColorControl: vue.DefineComponent<vue.ExtractPropTypes<{
     onChange?: ((...args: any[]) => any) | undefined;
 }>, {}, {}, {}, {}, string, vue.ComponentProvideOptions, true, {}, any>;
 
+declare const ImageControl: vue.DefineComponent<vue.ExtractPropTypes<{
+    options: PropType<ImageOption[]>;
+    label: {
+        type: StringConstructor;
+        required: true;
+    };
+    value: {
+        type: StringConstructor;
+        required: true;
+    };
+}>, () => vue.VNode<vue.RendererNode, vue.RendererElement, {
+    [key: string]: any;
+}>, {}, {}, {}, vue.ComponentOptionsMixin, vue.ComponentOptionsMixin, "change"[], "change", vue.PublicProps, Readonly<vue.ExtractPropTypes<{
+    options: PropType<ImageOption[]>;
+    label: {
+        type: StringConstructor;
+        required: true;
+    };
+    value: {
+        type: StringConstructor;
+        required: true;
+    };
+}>> & Readonly<{
+    onChange?: ((...args: any[]) => any) | undefined;
+}>, {}, {}, {}, {}, string, vue.ComponentProvideOptions, true, {}, any>;
+
+declare const DialPad: vue.DefineComponent<vue.ExtractPropTypes<{
+    label: {
+        type: StringConstructor;
+        required: true;
+    };
+    value: {
+        type: PropType<DialPadValue>;
+        required: true;
+    };
+    x: PropType<DialPadAxis>;
+    y: PropType<DialPadAxis>;
+    labels: PropType<DialPadConfig["labels"]>;
+}>, () => vue.VNode<vue.RendererNode, vue.RendererElement, {
+    [key: string]: any;
+}>, {}, {}, {}, vue.ComponentOptionsMixin, vue.ComponentOptionsMixin, "change"[], "change", vue.PublicProps, Readonly<vue.ExtractPropTypes<{
+    label: {
+        type: StringConstructor;
+        required: true;
+    };
+    value: {
+        type: PropType<DialPadValue>;
+        required: true;
+    };
+    x: PropType<DialPadAxis>;
+    y: PropType<DialPadAxis>;
+    labels: PropType<DialPadConfig["labels"]>;
+}>> & Readonly<{
+    onChange?: ((...args: any[]) => any) | undefined;
+}>, {}, {}, {}, {}, string, vue.ComponentProvideOptions, true, {}, any>;
+
 declare const PresetManager: vue.DefineComponent<vue.ExtractPropTypes<{
     panelId: {
         type: StringConstructor;
@@ -1178,4 +1253,4 @@ declare const ControlRenderer: vue.DefineComponent<vue.ExtractPropTypes<{
     transitionDuration: PropType<TransitionDurationControl>;
 }>> & Readonly<{}>, {}, {}, {}, {}, string, vue.ComponentProvideOptions, true, {}, any>;
 
-export { type ActionConfig, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type DialConfig, type DialKitController, type DialKitDirectiveOptions, type DialKitDirectiveValue, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineValues, type DialValue, type EasingConfig, EasingVisualization, Folder, type PanelConfig, type Preset, PresetManager, type ResolvedValues, type SelectConfig, SelectControl, type ShortcutConfig, ShortcutKey, ShortcutListener, type ShortcutState, ShortcutsMenu, Slider, type SpringConfig, SpringControl, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, Toggle, type TransitionConfig, TransitionControl, type UseDialOptions, type UseDialTimelineOptions, type VisibleWhen, type VisibleWhenValue, unwrapVisibility, useDialKit, useDialKitController, useDialTimeline, useShortcutContext, vDialKit, withVisibility };
+export { type ActionConfig, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type DialConfig, type DialKitController, type DialKitDirectiveOptions, type DialKitDirectiveValue, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineValues, type DialValue, type EasingConfig, EasingVisualization, Folder, type ImageConfig, ImageControl, type ImageOption, type PanelConfig, type Preset, PresetManager, type ResolvedValues, type SelectConfig, SelectControl, type ShortcutConfig, ShortcutKey, ShortcutListener, type ShortcutState, ShortcutsMenu, Slider, type SpringConfig, SpringControl, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, Toggle, type TransitionConfig, TransitionControl, type UseDialOptions, type UseDialTimelineOptions, type VisibleWhen, type VisibleWhenValue, unwrapVisibility, useDialKit, useDialKitController, useDialTimeline, useShortcutContext, vDialKit, withVisibility };

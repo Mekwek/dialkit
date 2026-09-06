@@ -1,3 +1,5 @@
+import { activateOnKey } from '../control-keyboard';
+import { measurePanelHeight } from '../panel-size';
 import { useState, useRef, useEffect, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ICON_PANEL, ICON_CHEVRON } from '../icons';
@@ -6,20 +8,11 @@ interface FolderProps {
   title: string;
   children: ReactNode;
   defaultOpen?: boolean;
+  open?: boolean;
   isRoot?: boolean;
   inline?: boolean;
   onOpenChange?: (isOpen: boolean) => void;
   toolbar?: ReactNode;
-  /**
-   * Controlled open state. When provided, the folder derives its open state
-   * from this prop instead of internal state, and `onToggle` is called on
-   * header clicks instead of mutating local state. Used by `Panel` to drive
-   * accordion behavior across first-level folders. Omit for the default
-   * uncontrolled behavior.
-   */
-  open?: boolean;
-  /** Toggle handler for controlled mode. Receives the requested next state. */
-  onToggle?: (next: boolean) => void;
   /**
    * Vertical slack (px) added to the measured content height when sizing the
    * root panel. The measurement uses offsetHeight, which excludes margins that
@@ -31,11 +24,10 @@ interface FolderProps {
   panelHeightOffset?: number;
 }
 
-export function Folder({ title, children, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, open, onToggle, panelHeightOffset = 10 }: FolderProps) {
-  const controlled = open !== undefined;
-  const [internalOpen, setInternalOpen] = useState(defaultOpen);
-  const isOpen = controlled ? open : internalOpen;
-  const [isCollapsed, setIsCollapsed] = useState(!defaultOpen);
+export function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, panelHeightOffset = 0 }: FolderProps) {
+  const [localOpen, setIsOpen] = useState(defaultOpen);
+  const isOpen = open ?? localOpen;
+  const isCollapsed = !isOpen;
   const contentRef = useRef<HTMLDivElement>(null);
   const [contentHeight, setContentHeight] = useState<number | undefined>(undefined);
   const [windowHeight, setWindowHeight] = useState(typeof window !== 'undefined' ? window.innerHeight : 800);
@@ -53,7 +45,7 @@ export function Folder({ title, children, defaultOpen = true, isRoot = false, in
     if (!el) return;
     const ro = new ResizeObserver(() => {
       if (isOpen) {
-        const h = el.offsetHeight;
+        const h = measurePanelHeight(el);
         setContentHeight(prev => prev === h ? prev : h);
       }
     });
@@ -64,17 +56,7 @@ export function Folder({ title, children, defaultOpen = true, isRoot = false, in
   const handleToggle = () => {
     if (inline && isRoot) return;
     const next = !isOpen;
-    if (controlled) {
-      onToggle?.(next);
-      onOpenChange?.(next);
-      return;
-    }
-    setInternalOpen(next);
-    if (next) {
-      setIsCollapsed(false);
-    } else {
-      setIsCollapsed(true);
-    }
+    setIsOpen(next);
     onOpenChange?.(next);
   };
 
@@ -85,7 +67,7 @@ export function Folder({ title, children, defaultOpen = true, isRoot = false, in
       data-open={String(isOpen)}
     >
       <div className={`dialkit-folder-header ${isRoot ? 'dialkit-panel-header' : ''}`} onClick={handleToggle}>
-        <div className="dialkit-folder-header-top">
+        <div className="dialkit-folder-header-top" role={inline && isRoot ? undefined : "button"} tabIndex={inline && isRoot ? undefined : 0} aria-label={title} aria-expanded={isOpen} onKeyDown={(e) => activateOnKey(e, handleToggle)}>
           {isRoot ? (
             isOpen && (
               <div className="dialkit-folder-title-row">
@@ -171,6 +153,7 @@ export function Folder({ title, children, defaultOpen = true, isRoot = false, in
     return (
       <motion.div
         className="dialkit-panel-inner"
+        tabIndex={-1}
         style={panelStyle}
         onClick={!isOpen ? handleToggle : undefined}
         data-collapsed={isCollapsed}
