@@ -2037,9 +2037,10 @@ Apply these values as the new defaults in the ${hookName} call.`;
         const button2 = element("button", "dialkit-segmented-button dialkit-color-format", FORMAT_LABEL[f]);
         button2.setAttribute("role", "radio");
         button2.addEventListener("click", () => {
+          format = f;
           writeMode(f);
-          commit(color, f);
           rebuildFields();
+          commit(color, f);
         });
         formats.append(button2);
         return button2;
@@ -2138,6 +2139,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
         syncChannels();
       };
       syncChannels = () => {
+        if (channelInputs.length !== (format === "hex" ? 1 : 3)) return;
         const focused = document.activeElement;
         if (format === "hex") {
           if (focused !== channelInputs[0]) channelInputs[0].value = colorToHexSix(color);

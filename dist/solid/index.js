@@ -3672,9 +3672,10 @@ function mountColorControl(host, initial, presentation = "popover") {
       const button = element("button", "dialkit-segmented-button dialkit-color-format", FORMAT_LABEL[f]);
       button.setAttribute("role", "radio");
       button.addEventListener("click", () => {
+        format = f;
         writeMode(f);
-        commit(color, f);
         rebuildFields();
+        commit(color, f);
       });
       formats.append(button);
       return button;
@@ -3773,6 +3774,7 @@ function mountColorControl(host, initial, presentation = "popover") {
       syncChannels();
     };
     syncChannels = () => {
+      if (channelInputs.length !== (format === "hex" ? 1 : 3)) return;
       const focused = document.activeElement;
       if (format === "hex") {
         if (focused !== channelInputs[0]) channelInputs[0].value = colorToHexSix(color);

@@ -214,7 +214,8 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
     const formatButtons = FORMATS.map(f => {
       const button = element('button', 'dialkit-segmented-button dialkit-color-format', FORMAT_LABEL[f]);
       button.setAttribute('role', 'radio');
-      button.addEventListener('click', () => { writeMode(f); commit(color, f); rebuildFields(); });
+      // Build the new mode's fields first; the commit then syncs them.
+      button.addEventListener('click', () => { format = f; writeMode(f); rebuildFields(); commit(color, f); });
       formats.append(button);
       return button;
     });
@@ -297,6 +298,7 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
       syncChannels();
     };
     syncChannels = () => {
+      if (channelInputs.length !== (format === 'hex' ? 1 : 3)) return;
       const focused = document.activeElement;
       if (format === 'hex') {
         if (focused !== channelInputs[0]) channelInputs[0].value = colorToHexSix(color);
