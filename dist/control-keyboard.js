@@ -11,6 +11,15 @@ function sliderKeyValue(key, value, min, max, step, shift = false) {
   const next = min + nextStep * step;
   return Math.max(min, Math.min(max, Number(next.toPrecision(14))));
 }
+function stepInputKey(event, draft, value, min, max, step, wrap = false) {
+  if (!["ArrowUp", "ArrowDown"].includes(event.key) || event.altKey || event.metaKey || event.ctrlKey) return void 0;
+  event.preventDefault();
+  const parsed = parseFloat(draft);
+  const base = Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : value;
+  const up = event.key === "ArrowUp";
+  if (wrap && (up && base >= max || !up && base <= min)) return up ? min : max;
+  return sliderKeyValue(event.key, base, min, max, step, event.shiftKey);
+}
 function handleSliderKey(event, value, min, max, step, change, edit) {
   if (event.target !== event.currentTarget || event.altKey || event.metaKey || event.ctrlKey) return;
   const next = sliderKeyValue(event.key, value, min, max, step, event.shiftKey);
@@ -76,6 +85,7 @@ export {
   labelSegmentedControl,
   openDropdownOnKey,
   optionKeyIndex,
-  sliderKeyValue
+  sliderKeyValue,
+  stepInputKey
 };
 //# sourceMappingURL=control-keyboard.js.map

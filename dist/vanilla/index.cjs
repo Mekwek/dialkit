@@ -1762,6 +1762,15 @@ function sliderKeyValue(key, value, min, max, step, shift = false) {
   const next = min + nextStep * step;
   return Math.max(min, Math.min(max, Number(next.toPrecision(14))));
 }
+function stepInputKey(event, draft, value, min, max, step, wrap = false) {
+  if (!["ArrowUp", "ArrowDown"].includes(event.key) || event.altKey || event.metaKey || event.ctrlKey) return void 0;
+  event.preventDefault();
+  const parsed = parseFloat(draft);
+  const base = Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : value;
+  const up = event.key === "ArrowUp";
+  if (wrap && (up && base >= max || !up && base <= min)) return up ? min : max;
+  return sliderKeyValue(event.key, base, min, max, step, event.shiftKey);
+}
 function handleSliderKey(event, value, min, max, step, change, edit) {
   if (event.target !== event.currentTarget || event.altKey || event.metaKey || event.ctrlKey) return;
   const next = sliderKeyValue(event.key, value, min, max, step, event.shiftKey);
@@ -1828,19 +1837,19 @@ var HEX_RE = /^#?([\da-f]{3}|[\da-f]{4}|[\da-f]{6}|[\da-f]{8})$/i;
 var EYEDROPPER_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m2 22 1-1h3l9-9"/><path d="M3 21v-3l9-9"/><path d="m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4Z"/></svg>';
 var CHANNELS = {
   rgb: [
-    { key: "r", label: "Red", min: 0, max: 255, digits: 0, width: 4 },
-    { key: "g", label: "Green", min: 0, max: 255, digits: 0, width: 4 },
-    { key: "b", label: "Blue", min: 0, max: 255, digits: 0, width: 4 }
+    { key: "r", label: "Red", min: 0, max: 255, step: 1, digits: 0, width: 4 },
+    { key: "g", label: "Green", min: 0, max: 255, step: 1, digits: 0, width: 4 },
+    { key: "b", label: "Blue", min: 0, max: 255, step: 1, digits: 0, width: 4 }
   ],
   hsl: [
-    { key: "h", label: "Hue", min: 0, max: 360, digits: 0, width: 4 },
-    { key: "s", label: "Saturation", min: 0, max: 100, digits: 0, unit: "%", width: 4 },
-    { key: "l", label: "Lightness", min: 0, max: 100, digits: 0, unit: "%", width: 4 }
+    { key: "h", label: "Hue", min: 0, max: 360, step: 1, digits: 0, width: 4, wrap: true },
+    { key: "s", label: "Saturation", min: 0, max: 100, step: 1, digits: 0, unit: "%", width: 4 },
+    { key: "l", label: "Lightness", min: 0, max: 100, step: 1, digits: 0, unit: "%", width: 4 }
   ],
   oklch: [
-    { key: "l", label: "Lightness", min: 0, max: 1, digits: 3, width: 6 },
-    { key: "c", label: "Chroma", min: 0, max: 0.4, digits: 3, width: 6 },
-    { key: "h", label: "Hue", min: 0, max: 360, digits: 1, width: 6 }
+    { key: "l", label: "Lightness", min: 0, max: 1, step: 0.01, digits: 3, width: 5 },
+    { key: "c", label: "Chroma", min: 0, max: 0.4, step: 5e-3, digits: 3, width: 5 },
+    { key: "h", label: "Hue", min: 0, max: 360, step: 1, digits: 1, width: 5, wrap: true }
   ]
 };
 function element(tag, className, text) {
@@ -1905,16 +1914,14 @@ function mountColorControl(host, initial, presentation = "popover") {
   let rebuildFields = () => {
   };
   const row = element("div", "dialkit-color-control");
-  const box = element("div", "dialkit-color-box");
   const label = element("span", "dialkit-color-label");
   const inputs = element("div", "dialkit-color-inputs");
   const valueInput = textInput("dialkit-color-value", "color value");
   const swatch = element("button", "dialkit-color-swatch");
   swatch.setAttribute("aria-haspopup", "dialog");
   swatch.setAttribute("aria-expanded", "false");
-  inputs.append(valueInput);
-  box.append(label, inputs);
-  row.append(box, swatch);
+  inputs.append(valueInput, swatch);
+  row.append(label, inputs);
   host.append(row);
   if (inline) row.style.display = "none";
   const rememberHue = (next) => {
@@ -2013,14 +2020,13 @@ function mountColorControl(host, initial, presentation = "popover") {
     const tracks = element("div", "dialkit-color-tracks");
     function track(name, max, step, className) {
       const line = element("label", "dialkit-color-track-row");
-      const nameEl = element("span", "", name);
       const input = element("input", `dialkit-color-track ${className}`);
       input.type = "range";
       input.min = "0";
       input.max = String(max);
       input.step = String(step);
       input.setAttribute("aria-label", name);
-      line.append(nameEl, input);
+      line.append(input);
       tracks.append(line);
       return input;
     }
@@ -2047,6 +2053,7 @@ function mountColorControl(host, initial, presentation = "popover") {
       formats.append(button2);
       return button2;
     });
+    const fieldsRow = element("div", "dialkit-color-fields-row");
     const fields = element("div", "dialkit-color-fields");
     const EyeDropperApi = window.EyeDropper;
     const eyedropper = element("button", "dialkit-color-eyedropper");
@@ -2067,8 +2074,9 @@ function mountColorControl(host, initial, presentation = "popover") {
     const alphaInput = textInput("dialkit-color-channel dialkit-color-alpha-input", "Alpha percentage", 3);
     const alphaUnit = element("span", "dialkit-color-unit", "%");
     alphaBox.append(alphaInput, alphaUnit);
-    if (EyeDropperApi) fields.append(eyedropper);
+    if (EyeDropperApi) fieldsRow.append(eyedropper);
     fields.append(channelBox, alphaBox);
+    fieldsRow.append(fields);
     let channelInputs = [];
     let syncChannels = () => {
     };
@@ -2101,7 +2109,7 @@ function mountColorControl(host, initial, presentation = "popover") {
         commit(hslToColor({ h: a, s: b / 100, l: c / 100 }, color.a));
       } else commit({ l: a, c: b, h: wrapHue(c), a: color.a });
     };
-    const bindField = (input, onCommit) => {
+    const bindField = (input, onCommit, range, current) => {
       input.addEventListener("change", onCommit);
       input.addEventListener("blur", () => {
         input.removeAttribute("aria-invalid");
@@ -2119,8 +2127,15 @@ function mountColorControl(host, initial, presentation = "popover") {
           syncChannels();
           input.blur();
         }
+        if (!range || !current) return;
+        const stepped = stepInputKey(e, input.value.replace("%", ""), current(), range.min, range.max, range.step, range.wrap);
+        if (stepped === void 0) return;
+        input.value = stepped.toFixed(range.digits);
+        input.removeAttribute("aria-invalid");
+        onCommit();
       });
     };
+    const channelValues = () => format === "hex" ? [] : format === "rgb" ? colorToRgb255(color) : format === "hsl" ? (({ h, s, l }) => [h, s * 100, l * 100])(colorToHsl(color, srgbHue)) : [color.l, color.c, color.h];
     rebuildFields = () => {
       channelBox.replaceChildren();
       if (format === "hex") {
@@ -2137,7 +2152,10 @@ function mountColorControl(host, initial, presentation = "popover") {
           return input;
         });
       }
-      channelInputs.forEach((input) => bindField(input, commitChannels));
+      channelInputs.forEach((input, i) => {
+        const channel = format === "hex" ? void 0 : CHANNELS[format][i];
+        bindField(input, commitChannels, channel, channel && (() => channelValues()[i]));
+      });
       syncChannels();
     };
     syncChannels = () => {
@@ -2146,7 +2164,7 @@ function mountColorControl(host, initial, presentation = "popover") {
       if (format === "hex") {
         if (focused !== channelInputs[0]) channelInputs[0].value = colorToHexSix(color);
       } else {
-        const values = format === "rgb" ? colorToRgb255(color) : format === "hsl" ? (({ h, s, l }) => [h, s * 100, l * 100])(colorToHsl(color, srgbHue)) : [color.l, color.c, color.h];
+        const values = channelValues();
         CHANNELS[format].forEach((channel, i) => {
           if (focused !== channelInputs[i]) channelInputs[i].value = values[i].toFixed(channel.digits);
         });
@@ -2160,15 +2178,7 @@ function mountColorControl(host, initial, presentation = "popover") {
         return;
       }
       commit({ ...color, a: clamp(percent, 0, 100) / 100 });
-    });
-    const output = textInput("dialkit-color-css-input", "CSS color");
-    output.addEventListener("change", () => acceptText(output));
-    output.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        acceptText(output);
-      }
-    });
+    }, { min: 0, max: 100, step: 1, digits: 0 }, () => percentByte(color.a));
     let space = fieldSpace(format);
     let lastPaintKey = "";
     let lastHueTrack = "";
@@ -2256,11 +2266,6 @@ function mountColorControl(host, initial, presentation = "popover") {
         if (active2) formatPill.style.transform = `translateX(${i * 100}%)`;
       });
       syncChannels();
-      if (document.activeElement !== output) {
-        output.value = props.value;
-        output.removeAttribute("aria-invalid");
-      }
-      output.title = props.value;
       cancelAnimationFrame(paintFrame);
       paintFrame = requestAnimationFrame(paint);
     };
@@ -2309,14 +2314,14 @@ function mountColorControl(host, initial, presentation = "popover") {
       }
       if (e.key === "Tab") {
         const first = formatButtons.find((button2) => button2.tabIndex === 0);
-        if (e.shiftKey && document.activeElement === first || !e.shiftKey && document.activeElement === output) {
+        if (e.shiftKey && document.activeElement === first || !e.shiftKey && document.activeElement === alphaInput) {
           swatch.focus({ preventScroll: true });
           close();
         }
       }
       e.stopPropagation();
     });
-    popup.append(formatRow, plane, tracks, fields, output);
+    popup.append(formatRow, plane, tracks, fieldsRow);
     root.append(popup);
     rebuildFields();
     const updatePosition = () => {
@@ -3619,6 +3624,13 @@ function mountSlider(host, initial) {
   input.addEventListener("pointerdown", (event) => event.stopPropagation());
   input.addEventListener("keydown", (event) => {
     event.stopPropagation();
+    const { min, max, step } = range();
+    const stepped = stepInputKey(event, input.value, props.value, min, max, step);
+    if (stepped !== void 0) {
+      commit(stepped);
+      input.value = stepped.toFixed(decimalsForStep(step, min, max));
+      return;
+    }
     if (event.key === "Enter" || event.key === "Escape") {
       event.preventDefault();
       finishEdit(event.key === "Escape");

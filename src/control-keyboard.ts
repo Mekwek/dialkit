@@ -15,6 +15,18 @@ export function sliderKeyValue(key: string, value: number, min: number, max: num
   return Math.max(min, Math.min(max, Number(next.toPrecision(14))));
 }
 
+/** Arrow Up/Down inside a number text field: step from the typed draft (or the live value),
+ *  Shift by ten steps, clamped to the range. `wrap` jumps from one end to the other, for hues. */
+export function stepInputKey(event: KeyEvent, draft: string, value: number, min: number, max: number, step: number, wrap = false): number | undefined {
+  if (!['ArrowUp', 'ArrowDown'].includes(event.key) || event.altKey || event.metaKey || event.ctrlKey) return undefined;
+  event.preventDefault();
+  const parsed = parseFloat(draft);
+  const base = Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : value;
+  const up = event.key === 'ArrowUp';
+  if (wrap && ((up && base >= max) || (!up && base <= min))) return up ? min : max;
+  return sliderKeyValue(event.key, base, min, max, step, event.shiftKey);
+}
+
 export function handleSliderKey(event: KeyEvent, value: number, min: number, max: number, step: number, change: (value: number) => void, edit: () => void): void {
   if (event.target !== event.currentTarget || event.altKey || event.metaKey || event.ctrlKey) return;
   const next = sliderKeyValue(event.key, value, min, max, step, event.shiftKey);

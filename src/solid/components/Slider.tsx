@@ -1,4 +1,4 @@
-import { handleSliderKey } from '../../control-keyboard';
+import { handleSliderKey, stepInputKey } from '../../control-keyboard';
 import { createSignal, createEffect, onMount, onCleanup, Show } from 'solid-js';
 import { animate, motionValue } from 'motion';
 import type { ShortcutConfig } from '../../store/DialStore';
@@ -287,6 +287,12 @@ export function Slider(props: SliderProps) {
 
   const handleInputKeyDown = (e: KeyboardEvent) => {
     e.stopPropagation();
+    const stepped = stepInputKey(e, inputValue(), props.value, min(), max(), step());
+    if (stepped !== undefined) {
+      props.onChange(stepped);
+      setInputValue(stepped.toFixed(decimalsForStep(step(), min(), max())));
+      return;
+    }
     if (e.key !== 'Enter' && e.key !== 'Escape') return;
     e.preventDefault();
     if (e.key === 'Enter') handleInputSubmit();

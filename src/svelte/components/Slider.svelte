@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { handleSliderKey } from '../../control-keyboard';
+  import { handleSliderKey, stepInputKey } from '../../control-keyboard';
 
   import { tick } from 'svelte';
   import { Spring } from 'svelte/motion';
@@ -329,6 +329,12 @@
         oninput={(e) => (inputValue = (e.currentTarget as HTMLInputElement).value)}
         onkeydown={(e) => {
           e.stopPropagation();
+          const stepped = stepInputKey(e, inputValue, value, min, max, step);
+          if (stepped !== undefined) {
+            onChange(stepped);
+            inputValue = stepped.toFixed(decimalsForStep(step, min, max));
+            return;
+          }
           if (e.key !== 'Enter' && e.key !== 'Escape') return;
           e.preventDefault();
           if (e.key === 'Enter') handleInputSubmit();

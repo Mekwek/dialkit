@@ -1,4 +1,4 @@
-import { handleSliderKey } from '../control-keyboard';
+import { handleSliderKey, stepInputKey } from '../control-keyboard';
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { motion, useMotionValue, useTransform, animate } from 'motion/react';
 import type { ShortcutConfig } from '../store/DialStore';
@@ -312,6 +312,12 @@ export function Slider({
 
   const handleInputKeyDown = (e: React.KeyboardEvent) => {
     e.stopPropagation();
+    const stepped = stepInputKey(e, inputValue, value, min, max, step);
+    if (stepped !== undefined) {
+      onChange(stepped);
+      setInputValue(stepped.toFixed(decimalsForStep(step, min, max)));
+      return;
+    }
     if (e.key !== 'Enter' && e.key !== 'Escape') return;
     e.preventDefault();
     if (e.key === 'Enter') handleInputSubmit();

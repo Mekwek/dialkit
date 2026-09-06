@@ -1,4 +1,4 @@
-import { activateOnKey, handleSegmentKey, handleSliderKey, labelSegmentedControl } from '../control-keyboard';
+import { activateOnKey, handleSegmentKey, handleSliderKey, labelSegmentedControl, stepInputKey } from '../control-keyboard';
 import { decimalsForStep, roundValue, snapToDecile, formatSliderShortcut, formatToggleShortcut } from '../shortcut-utils';
 import { observeTextSize } from '../text-autosize';
 import { ICON_CHEVRON, ICON_PANEL } from '../icons';
@@ -428,6 +428,13 @@ export function mountSlider(host: HTMLElement, initial: SliderProps): Mounted<Sl
   input.addEventListener('pointerdown', event => event.stopPropagation());
   input.addEventListener('keydown', event => {
     event.stopPropagation();
+    const { min, max, step } = range();
+    const stepped = stepInputKey(event, input.value, props.value, min, max, step);
+    if (stepped !== undefined) {
+      commit(stepped);
+      input.value = stepped.toFixed(decimalsForStep(step, min, max));
+      return;
+    }
     if (event.key === 'Enter' || event.key === 'Escape') {
       event.preventDefault();
       finishEdit(event.key === 'Escape');

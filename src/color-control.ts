@@ -3,7 +3,7 @@ import {
   hslToColor, hsvToColor, maxChroma, parseColor, rgb255ToColor, wrapHue, type Color, type ColorFormat, type ColorSpace,
 } from './color';
 import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition } from './dropdown-position';
-import { handleSegmentKey } from './control-keyboard';
+import { handleSegmentKey, stepInputKey } from './control-keyboard';
 
 export type ColorControlProps = { label: string; value: string; onChange: (value: string) => void };
 
@@ -14,22 +14,22 @@ const HEX_RE = /^#?([\da-f]{3}|[\da-f]{4}|[\da-f]{6}|[\da-f]{8})$/i;
 const EYEDROPPER_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m2 22 1-1h3l9-9"/><path d="M3 21v-3l9-9"/><path d="m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4Z"/></svg>';
 
 type EyeDropperCtor = new () => { open: () => Promise<{ sRGBHex: string }> };
-type Channel = { key: string; label: string; min: number; max: number; digits: number; unit?: string; width: number };
+type Channel = { key: string; label: string; min: number; max: number; step: number; digits: number; unit?: string; width: number; wrap?: boolean };
 const CHANNELS: Record<Exclude<ColorFormat, 'hex'>, Channel[]> = {
   rgb: [
-    { key: 'r', label: 'Red', min: 0, max: 255, digits: 0, width: 4 },
-    { key: 'g', label: 'Green', min: 0, max: 255, digits: 0, width: 4 },
-    { key: 'b', label: 'Blue', min: 0, max: 255, digits: 0, width: 4 },
+    { key: 'r', label: 'Red', min: 0, max: 255, step: 1, digits: 0, width: 4 },
+    { key: 'g', label: 'Green', min: 0, max: 255, step: 1, digits: 0, width: 4 },
+    { key: 'b', label: 'Blue', min: 0, max: 255, step: 1, digits: 0, width: 4 },
   ],
   hsl: [
-    { key: 'h', label: 'Hue', min: 0, max: 360, digits: 0, width: 4 },
-    { key: 's', label: 'Saturation', min: 0, max: 100, digits: 0, unit: '%', width: 4 },
-    { key: 'l', label: 'Lightness', min: 0, max: 100, digits: 0, unit: '%', width: 4 },
+    { key: 'h', label: 'Hue', min: 0, max: 360, step: 1, digits: 0, width: 4, wrap: true },
+    { key: 's', label: 'Saturation', min: 0, max: 100, step: 1, digits: 0, unit: '%', width: 4 },
+    { key: 'l', label: 'Lightness', min: 0, max: 100, step: 1, digits: 0, unit: '%', width: 4 },
   ],
   oklch: [
-    { key: 'l', label: 'Lightness', min: 0, max: 1, digits: 3, width: 6 },
-    { key: 'c', label: 'Chroma', min: 0, max: 0.4, digits: 3, width: 6 },
-    { key: 'h', label: 'Hue', min: 0, max: 360, digits: 1, width: 6 },
+    { key: 'l', label: 'Lightness', min: 0, max: 1, step: 0.01, digits: 3, width: 5 },
+    { key: 'c', label: 'Chroma', min: 0, max: 0.4, step: 0.005, digits: 3, width: 5 },
+    { key: 'h', label: 'Hue', min: 0, max: 360, step: 1, digits: 1, width: 5, wrap: true },
   ],
 };
 
@@ -86,19 +86,15 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
   let paintFrame = 0;
   let updatePicker = () => {};
   let rebuildFields = () => {};
-  // The row is a bare flex line: the label and the value share a surface box,
-  // and the swatch stands beside that box as its own element.
   const row = element('div', 'dialkit-color-control');
-  const box = element('div', 'dialkit-color-box');
   const label = element('span', 'dialkit-color-label');
   const inputs = element('div', 'dialkit-color-inputs');
   const valueInput = textInput('dialkit-color-value', 'color value');
   const swatch = element('button', 'dialkit-color-swatch');
   swatch.setAttribute('aria-haspopup', 'dialog');
   swatch.setAttribute('aria-expanded', 'false');
-  inputs.append(valueInput);
-  box.append(label, inputs);
-  row.append(box, swatch);
+  inputs.append(valueInput, swatch);
+  row.append(label, inputs);
   host.append(row);
   if (inline) row.style.display = 'none';
 
@@ -194,12 +190,12 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
     // The hue and opacity strips.
     const tracks = element('div', 'dialkit-color-tracks');
     function track(name: string, max: number, step: number, className: string) {
+      // No visible name: the strips speak for themselves and take the full row.
       const line = element('label', 'dialkit-color-track-row');
-      const nameEl = element('span', '', name);
       const input = element('input', `dialkit-color-track ${className}`);
       input.type = 'range'; input.min = '0'; input.max = String(max); input.step = String(step);
       input.setAttribute('aria-label', name);
-      line.append(nameEl, input); tracks.append(line);
+      line.append(input); tracks.append(line);
       return input;
     }
     const hue = track('Hue', 360, 0.1, 'dialkit-color-hue');
@@ -225,6 +221,8 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
     });
 
     // The inputs row: eyedropper, the mode's channel fields, then alpha.
+    // The eyedropper is its own box beside the fields row, at the row's height.
+    const fieldsRow = element('div', 'dialkit-color-fields-row');
     const fields = element('div', 'dialkit-color-fields');
     const EyeDropperApi = (window as unknown as { EyeDropper?: EyeDropperCtor }).EyeDropper;
     const eyedropper = element('button', 'dialkit-color-eyedropper');
@@ -245,8 +243,9 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
     const alphaInput = textInput('dialkit-color-channel dialkit-color-alpha-input', 'Alpha percentage', 3);
     const alphaUnit = element('span', 'dialkit-color-unit', '%');
     alphaBox.append(alphaInput, alphaUnit);
-    if (EyeDropperApi) fields.append(eyedropper);
+    if (EyeDropperApi) fieldsRow.append(eyedropper);
     fields.append(channelBox, alphaBox);
+    fieldsRow.append(fields);
     let channelInputs: HTMLInputElement[] = [];
     let syncChannels = () => {};
 
@@ -274,14 +273,26 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
       else if (format === 'hsl') { srgbHue = wrapHue(a); commit(hslToColor({ h: a, s: b / 100, l: c / 100 }, color.a)); }
       else commit({ l: a, c: b, h: wrapHue(c), a: color.a });
     };
-    const bindField = (input: HTMLInputElement, onCommit: () => void) => {
+    type Range = Pick<Channel, 'min' | 'max' | 'step' | 'digits' | 'wrap'>;
+    /** `range` and `current` make the arrow keys step the number in place; the hex field has neither. */
+    const bindField = (input: HTMLInputElement, onCommit: () => void, range?: Range, current?: () => number) => {
       input.addEventListener('change', onCommit);
       input.addEventListener('blur', () => { input.removeAttribute('aria-invalid'); syncChannels(); });
       input.addEventListener('keydown', e => {
         if (e.key === 'Enter') { e.preventDefault(); onCommit(); input.blur(); }
         if (e.key === 'Escape') { e.preventDefault(); input.removeAttribute('aria-invalid'); syncChannels(); input.blur(); }
+        if (!range || !current) return;
+        const stepped = stepInputKey(e, input.value.replace('%', ''), current(), range.min, range.max, range.step, range.wrap);
+        if (stepped === undefined) return;
+        input.value = stepped.toFixed(range.digits);
+        input.removeAttribute('aria-invalid');
+        onCommit();
       });
     };
+    /** The mode's channel numbers for the current colour, in the fields' order. */
+    const channelValues = (): number[] => format === 'hex' ? [] : format === 'rgb' ? colorToRgb255(color)
+      : format === 'hsl' ? (({ h, s, l }) => [h, s * 100, l * 100])(colorToHsl(color, srgbHue))
+      : [color.l, color.c, color.h];
     rebuildFields = () => {
       channelBox.replaceChildren();
       if (format === 'hex') {
@@ -298,7 +309,10 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
           return input;
         });
       }
-      channelInputs.forEach(input => bindField(input, commitChannels));
+      channelInputs.forEach((input, i) => {
+        const channel = format === 'hex' ? undefined : CHANNELS[format][i];
+        bindField(input, commitChannels, channel, channel && (() => channelValues()[i]));
+      });
       syncChannels();
     };
     syncChannels = () => {
@@ -307,9 +321,7 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
       if (format === 'hex') {
         if (focused !== channelInputs[0]) channelInputs[0].value = colorToHexSix(color);
       } else {
-        const values = format === 'rgb' ? colorToRgb255(color)
-          : format === 'hsl' ? (({ h, s, l }) => [h, s * 100, l * 100])(colorToHsl(color, srgbHue))
-          : [color.l, color.c, color.h];
+        const values = channelValues();
         CHANNELS[format].forEach((channel, i) => {
           if (focused !== channelInputs[i]) channelInputs[i].value = values[i].toFixed(channel.digits);
         });
@@ -320,12 +332,7 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
       const percent = Number.parseFloat(alphaInput.value.replace('%', '').trim());
       if (!Number.isFinite(percent)) { alphaInput.setAttribute('aria-invalid', 'true'); return; }
       commit({ ...color, a: clamp(percent, 0, 100) / 100 });
-    });
-
-    // The full CSS value, for copy and paste of any colour string.
-    const output = textInput('dialkit-color-css-input', 'CSS color');
-    output.addEventListener('change', () => acceptText(output));
-    output.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); acceptText(output); } });
+    }, { min: 0, max: 100, step: 1, digits: 0 }, () => percentByte(color.a));
 
     // Field geometry per space: x and y in 0..1, y from the top.
     let space: ColorSpace = fieldSpace(format);
@@ -413,8 +420,6 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
         if (active) formatPill.style.transform = `translateX(${i * 100}%)`;
       });
       syncChannels();
-      if (document.activeElement !== output) { output.value = props.value; output.removeAttribute('aria-invalid'); }
-      output.title = props.value;
       cancelAnimationFrame(paintFrame);
       paintFrame = requestAnimationFrame(paint);
     };
@@ -457,14 +462,14 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
       if (e.key === 'Escape') { e.preventDefault(); close(true); }
       if (e.key === 'Tab') {
         const first = formatButtons.find(button => button.tabIndex === 0);
-        if ((e.shiftKey && document.activeElement === first) || (!e.shiftKey && document.activeElement === output)) {
+        if ((e.shiftKey && document.activeElement === first) || (!e.shiftKey && document.activeElement === alphaInput)) {
           swatch.focus({ preventScroll: true });
           close();
         }
       }
       e.stopPropagation();
     });
-    popup.append(formatRow, plane, tracks, fields, output);
+    popup.append(formatRow, plane, tracks, fieldsRow);
     root.append(popup);
     rebuildFields();
     const updatePosition = () => {

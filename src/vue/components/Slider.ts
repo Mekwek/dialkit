@@ -1,4 +1,4 @@
-import { handleSliderKey } from '../../control-keyboard';
+import { handleSliderKey, stepInputKey } from '../../control-keyboard';
 import { defineComponent, h, computed, nextTick, onMounted, onUnmounted, ref, watch, type PropType } from 'vue';
 import { animate, motionValue } from 'motion-v';
 import type { ShortcutConfig } from '../../store/DialStore';
@@ -272,6 +272,12 @@ export const Slider = defineComponent({
 
     const handleInputKeydown = (event: KeyboardEvent) => {
       event.stopPropagation();
+      const stepped = stepInputKey(event, inputValue.value, props.value, min.value, max.value, step.value);
+      if (stepped !== undefined) {
+        emit('change', stepped);
+        inputValue.value = stepped.toFixed(decimalsForStep(step.value, min.value, max.value));
+        return;
+      }
       if (event.key !== 'Enter' && event.key !== 'Escape') return;
       event.preventDefault();
       if (event.key === 'Enter') handleInputSubmit();
