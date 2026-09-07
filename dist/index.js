@@ -3403,10 +3403,10 @@ function observeDropdownKeyboard(trigger, getPopup, close, kind = "select") {
   let dispose;
   let stopped = false;
   const connect = () => {
-    if (stopped) return;
+    if (stopped || dispose) return;
     const popup = getPopup();
     if (!popup?.isConnected) {
-      frame = requestAnimationFrame(connect);
+      frame = requestAnimationFrame(() => connect());
       return;
     }
     popup.inert = false;
@@ -3553,7 +3553,7 @@ function observeDropdownKeyboard(trigger, getPopup, close, kind = "select") {
       trigger.removeAttribute("aria-controls");
     };
   };
-  frame = requestAnimationFrame(connect);
+  frame = requestAnimationFrame(() => connect());
   return () => {
     stopped = true;
     cancelAnimationFrame(frame);

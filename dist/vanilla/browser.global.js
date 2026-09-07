@@ -3711,10 +3711,10 @@ Apply these values as the new defaults in the ${hookName} call.`;
     let dispose;
     let stopped = false;
     const connect = () => {
-      if (stopped) return;
+      if (stopped || dispose) return;
       const popup = getPopup();
       if (!popup?.isConnected) {
-        frame = requestAnimationFrame(connect);
+        frame = requestAnimationFrame(() => connect());
         return;
       }
       popup.inert = false;
@@ -3861,7 +3861,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
         trigger.removeAttribute("aria-controls");
       };
     };
-    frame = requestAnimationFrame(connect);
+    frame = requestAnimationFrame(() => connect());
     return () => {
       stopped = true;
       cancelAnimationFrame(frame);

@@ -8,10 +8,17 @@ export function observeDropdownKeyboard(trigger: HTMLElement, getPopup: () => HT
   let frame = 0;
   let dispose: (() => void) | undefined;
   let stopped = false;
+  // Runs once per open. A host that patches requestAnimationFrame into a
+  // per-frame loop (Tempus does this for any callback whose source reads
+  // `requestAnimationFrame(<its own name>)`) must never start a second
+  // session: the extra sessions leak document focusin listeners that close
+  // the next popup the moment focus lands in it. Hence the `dispose` guard
+  // and the arrow-wrapped retry below, which keeps the callback text free of
+  // that pattern.
   const connect = () => {
-    if (stopped) return;
+    if (stopped || dispose) return;
     const popup = getPopup();
-    if (!popup?.isConnected) { frame = requestAnimationFrame(connect); return; }
+    if (!popup?.isConnected) { frame = requestAnimationFrame(() => connect()); return; }
     popup.inert = false;
     popup.removeAttribute('aria-hidden');
     popup.id ||= `dialkit-dropdown-${++dropdownId}`;
@@ -142,6 +149,6 @@ export function observeDropdownKeyboard(trigger: HTMLElement, getPopup: () => HT
       trigger.removeAttribute('aria-controls');
     };
   };
-  frame = requestAnimationFrame(connect);
+  frame = requestAnimationFrame(() => connect());
   return () => { stopped = true; cancelAnimationFrame(frame); dispose?.(); };
 }
