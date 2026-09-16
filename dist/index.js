@@ -361,6 +361,7 @@ function getFirstOptionValue(options) {
   if (first === void 0) return "";
   return typeof first === "string" ? first : first.value;
 }
+var PARSED_CONFIG_CACHE_LIMIT = 16;
 var DialStoreClass = class {
   constructor() {
     this.panelOpenListeners = /* @__PURE__ */ new Set();
@@ -388,9 +389,19 @@ var DialStoreClass = class {
      * flip back when a dependent value changes.
      */
     this.allControls = /* @__PURE__ */ new Map();
+    /**
+     * Parsed configs per panel id, keyed by the serialized config + shortcuts.
+     * Hosts that swap between a few configs (layout presets) re-register the
+     * same shape repeatedly; the parsed tree is immutable after parse (the
+     * filtered tree and value maps are fresh copies), so it can be shared.
+     */
+    this.parsedConfigs = /* @__PURE__ */ new Map();
+    /** Cache key of the config each registered panel currently holds. */
+    this.panelConfigKeys = /* @__PURE__ */ new Map();
   }
   registerPanel(id, name, config, shortcuts, options = {}) {
-    const { controls: allControls, controlsByPath, defaultValues } = this.parseConfig(config, shortcuts);
+    const { key, parsed: { controls: allControls, controlsByPath, defaultValues } } = this.parseCached(id, config, shortcuts);
+    this.panelConfigKeys.set(id, key);
     if (!this.panelOpenStates.has(id) && options.defaultCollapsed !== void 0) {
       this.panelOpenStates.set(id, !options.defaultCollapsed);
     }
@@ -442,8 +453,14 @@ var DialStoreClass = class {
       this.registerPanel(id, name, config, shortcuts, options);
       return;
     }
-    const { controls: allControls, controlsByPath, defaultValues } = this.parseConfig(config, shortcuts ?? existing.shortcuts);
+    const { key, parsed: { controls: allControls, controlsByPath, defaultValues } } = this.parseCached(id, config, shortcuts ?? existing.shortcuts);
+    const unchanged = this.panelConfigKeys.get(id) === key && name === existing.name && (options.kind ?? existing.kind) === existing.kind && (options.group ?? existing.group) === existing.group && (options.presetsEditable ?? existing.presetsEditable) === existing.presetsEditable && (options.presetsLockable ?? existing.presetsLockable) === existing.presetsLockable;
     this.configurePanelRetention(id, options);
+    if (unchanged) {
+      this.persistPanel(id);
+      return;
+    }
+    this.panelConfigKeys.set(id, key);
     const nextValues = this.reconcileValues(defaultValues, existing.values, controlsByPath);
     this.allControls.set(id, allControls);
     const controls = filterByVisibility(allControls, nextValues);
@@ -494,6 +511,8 @@ var DialStoreClass = class {
       this.activePreset.delete(id);
       this.persistConfigs.delete(id);
       this.allControls.delete(id);
+      this.parsedConfigs.delete(id);
+      this.panelConfigKeys.delete(id);
     }
     this.notifyGlobal();
   }
@@ -893,6 +912,32 @@ var DialStoreClass = class {
     this.timelinePanelsSnapshot = this.panelsSnapshot.filter((panel) => panel.kind === "timeline");
     this.globalListeners.forEach((fn) => fn());
   }
+  /**
+   * Parse through the per-panel cache. The key is computed first and the
+   * result is only stored after a successful parse, so an invalid config
+   * still throws before any store mutation.
+   */
+  parseCached(id, config, shortcuts) {
+    const key = JSON.stringify(config) + "\n" + JSON.stringify(shortcuts ?? {});
+    let cache = this.parsedConfigs.get(id);
+    const hit = cache?.get(key);
+    if (cache && hit) {
+      cache.delete(key);
+      cache.set(key, hit);
+      return { key, parsed: hit };
+    }
+    const parsed = this.parseConfig(config, shortcuts);
+    if (!cache) {
+      cache = /* @__PURE__ */ new Map();
+      this.parsedConfigs.set(id, cache);
+    }
+    cache.set(key, parsed);
+    if (cache.size > PARSED_CONFIG_CACHE_LIMIT) {
+      const oldest = cache.keys().next().value;
+      if (oldest !== void 0) cache.delete(oldest);
+    }
+    return { key, parsed };
+  }
   /** Compile controls, defaults, and the lookup index in one walk. */
   parseConfig(config, shortcuts) {
     const defaultValues = {};
@@ -1224,7 +1269,7 @@ function useDialKitController(name, config, options) {
 }
 
 // src/components/DialRoot.tsx
-import { useEffect as useEffect13, useState as useState9, useRef as useRef17, useCallback as useCallback12, useMemo as useMemo2 } from "react";
+import { useEffect as useEffect12, useState as useState9, useRef as useRef16, useCallback as useCallback12, useMemo as useMemo2 } from "react";
 import { createPortal as createPortal3 } from "react-dom";
 
 // src/store/TimelineStore.ts
@@ -1547,17 +1592,8 @@ function adjacentTabStop(trigger, backwards = false) {
   return index < 0 ? void 0 : stops[index + (backwards ? -1 : 1)];
 }
 
-// src/panel-size.ts
-function measurePanelHeight(content) {
-  const panel = content.parentElement;
-  if (!panel) return content.offsetHeight;
-  const style = getComputedStyle(panel);
-  const chrome = style.boxSizing === "border-box" ? [style.paddingTop, style.paddingBottom, style.borderTopWidth, style.borderBottomWidth].reduce((total, value) => total + (parseFloat(value) || 0), 0) : 0;
-  return content.offsetHeight + chrome;
-}
-
 // src/components/Folder.tsx
-import { useState, useRef as useRef3, useEffect as useEffect3 } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 
 // src/icons.ts
@@ -1625,31 +1661,10 @@ var ICON_PANEL = {
 
 // src/components/Folder.tsx
 import { jsx, jsxs } from "react/jsx-runtime";
-function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, panelHeightOffset = 0 }) {
+function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar }) {
   const [localOpen, setIsOpen] = useState(defaultOpen);
   const isOpen = open ?? localOpen;
   const isCollapsed = !isOpen;
-  const contentRef = useRef3(null);
-  const [contentHeight, setContentHeight] = useState(void 0);
-  const [windowHeight, setWindowHeight] = useState(typeof window !== "undefined" ? window.innerHeight : 800);
-  useEffect3(() => {
-    if (!isRoot) return;
-    const onResize = () => setWindowHeight(window.innerHeight);
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [isRoot]);
-  useEffect3(() => {
-    const el = contentRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => {
-      if (isOpen) {
-        const h = measurePanelHeight(el);
-        setContentHeight((prev) => prev === h ? prev : h);
-      }
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [isOpen]);
   const handleToggle = () => {
     if (inline && isRoot) return;
     const next = !isOpen;
@@ -1659,7 +1674,6 @@ function Folder({ title, children, open, defaultOpen = true, isRoot = false, inl
   const folderContent = /* @__PURE__ */ jsxs(
     "div",
     {
-      ref: isRoot ? contentRef : void 0,
       className: `dialkit-folder ${isRoot ? "dialkit-folder-root" : ""}`,
       "data-open": String(isOpen),
       children: [
@@ -1716,7 +1730,7 @@ function Folder({ title, children, open, defaultOpen = true, isRoot = false, inl
     if (inline) {
       return /* @__PURE__ */ jsx("div", { className: "dialkit-panel-inner dialkit-panel-inline", children: folderContent });
     }
-    const panelStyle = isOpen ? { width: 280, height: contentHeight !== void 0 ? Math.min(contentHeight + panelHeightOffset, windowHeight - 32) : "auto", borderRadius: 14, boxShadow: "var(--dial-shadow)", cursor: void 0, overflowY: "auto" } : { width: 42, height: 42, borderRadius: "50%", boxSizing: "border-box", boxShadow: "var(--dial-shadow-collapsed)", overflow: "hidden", cursor: "pointer" };
+    const panelStyle = isOpen ? { width: 280, height: "auto", maxHeight: "calc(100dvh - 32px)", overflowY: "auto", borderRadius: 14, boxShadow: "var(--dial-shadow)", cursor: void 0 } : { width: 42, height: 42, borderRadius: "50%", boxSizing: "border-box", boxShadow: "var(--dial-shadow-collapsed)", overflow: "hidden", cursor: "pointer" };
     return /* @__PURE__ */ jsx(
       motion.div,
       {
@@ -1735,7 +1749,7 @@ function Folder({ title, children, open, defaultOpen = true, isRoot = false, inl
 }
 
 // src/components/Panel.tsx
-import { useCallback as useCallback10, useEffect as useEffect12, useRef as useRef16, useState as useState8, useSyncExternalStore as useSyncExternalStore4 } from "react";
+import { useCallback as useCallback10, useEffect as useEffect11, useRef as useRef15, useState as useState8, useSyncExternalStore as useSyncExternalStore4 } from "react";
 import { motion as motion6, AnimatePresence as AnimatePresence5 } from "motion/react";
 
 // src/copy-instruction.ts
@@ -1787,7 +1801,7 @@ var CONTROL_ANIM = {
 };
 
 // src/components/ShortcutListener.tsx
-import { createContext, useEffect as useEffect4, useRef as useRef4, useState as useState2, useCallback as useCallback3 } from "react";
+import { createContext, useEffect as useEffect3, useRef as useRef3, useState as useState2, useCallback as useCallback3 } from "react";
 
 // src/shortcut-utils.ts
 function getEffectiveStep(control, shortcut) {
@@ -1871,10 +1885,10 @@ import { jsx as jsx2 } from "react/jsx-runtime";
 var ShortcutContext = createContext({ activePanelId: null, activePath: null });
 function ShortcutListener({ children }) {
   const [activeShortcut, setActiveShortcut] = useState2({ activePanelId: null, activePath: null });
-  const activeKeysRef = useRef4(/* @__PURE__ */ new Set());
-  const isDraggingRef = useRef4(false);
-  const lastMouseXRef = useRef4(null);
-  const dragAccumulatorRef = useRef4(0);
+  const activeKeysRef = useRef3(/* @__PURE__ */ new Set());
+  const isDraggingRef = useRef3(false);
+  const lastMouseXRef = useRef3(null);
+  const dragAccumulatorRef = useRef3(0);
   const resolveActiveTarget = useCallback3((interaction) => {
     for (const key of activeKeysRef.current) {
       const panels = DialStore.getPanels();
@@ -1892,7 +1906,7 @@ function ShortcutListener({ children }) {
     }
     return null;
   }, []);
-  useEffect4(() => {
+  useEffect3(() => {
     const handleKeyDown = (e) => {
       if (isInputFocused()) return;
       const key = e.key.toLowerCase();
@@ -2054,7 +2068,7 @@ function ShortcutListener({ children }) {
 }
 
 // src/components/Slider.tsx
-import { useRef as useRef5, useState as useState3, useCallback as useCallback4, useEffect as useEffect5 } from "react";
+import { useRef as useRef4, useState as useState3, useCallback as useCallback4, useEffect as useEffect4 } from "react";
 import { motion as motion2, useMotionValue, useTransform, animate } from "motion/react";
 import { jsx as jsx3, jsxs as jsxs2 } from "react/jsx-runtime";
 var CLICK_THRESHOLD = 3;
@@ -2073,12 +2087,12 @@ function Slider({
   shortcutActive
 }) {
   if (typeof value !== "number" || !Number.isFinite(value)) value = min;
-  const wrapperRef = useRef5(null);
-  const trackRef = useRef5(null);
-  const inputRef = useRef5(null);
-  const editingEnded = useRef5(false);
-  const labelRef = useRef5(null);
-  const valueSpanRef = useRef5(null);
+  const wrapperRef = useRef4(null);
+  const trackRef = useRef4(null);
+  const inputRef = useRef4(null);
+  const editingEnded = useRef4(false);
+  const labelRef = useRef4(null);
+  const valueSpanRef = useRef4(null);
   const [isInteracting, setIsInteracting] = useState3(false);
   const [isDragging, setIsDragging] = useState3(false);
   const [isHovered, setIsHovered] = useState3(false);
@@ -2086,12 +2100,12 @@ function Slider({
   const [isValueEditable, setIsValueEditable] = useState3(false);
   const [showInput, setShowInput] = useState3(false);
   const [inputValue, setInputValue] = useState3("");
-  const hoverTimeoutRef = useRef5(null);
-  const pointerDownPos = useRef5(null);
-  const isClickRef = useRef5(true);
-  const animRef = useRef5(null);
-  const wrapperRectRef = useRef5(null);
-  const scaleRef = useRef5(1);
+  const hoverTimeoutRef = useRef4(null);
+  const pointerDownPos = useRef4(null);
+  const isClickRef = useRef4(true);
+  const animRef = useRef4(null);
+  const wrapperRectRef = useRef4(null);
+  const scaleRef = useRef4(1);
   const percentage = (value - min) / (max - min) * 100;
   const isActive = isInteracting || isHovered;
   const fillPercent = useMotionValue(percentage);
@@ -2109,7 +2123,7 @@ function Slider({
     rubberStretchPx,
     (stretch) => stretch < 0 ? stretch : 0
   );
-  useEffect5(() => {
+  useEffect4(() => {
     if (!isInteracting && !animRef.current) {
       fillPercent.jump(percentage);
     }
@@ -2253,10 +2267,10 @@ function Slider({
     setIsDragging(false);
     pointerDownPos.current = null;
   };
-  useEffect5(() => () => {
+  useEffect4(() => () => {
     animRef.current?.stop();
   }, []);
-  useEffect5(() => {
+  useEffect4(() => {
     if (isValueHovered && !showInput && !isValueEditable) {
       hoverTimeoutRef.current = setTimeout(() => {
         setIsValueEditable(true);
@@ -2274,7 +2288,7 @@ function Slider({
       }
     };
   }, [isValueHovered, showInput, isValueEditable]);
-  useEffect5(() => {
+  useEffect4(() => {
     if (showInput && inputRef.current) {
       inputRef.current.focus();
       inputRef.current.select();
@@ -2464,15 +2478,15 @@ function Slider({
 }
 
 // src/components/SegmentedControl.tsx
-import { useRef as useRef6, useState as useState4, useLayoutEffect, useCallback as useCallback5 } from "react";
+import { useRef as useRef5, useState as useState4, useLayoutEffect, useCallback as useCallback5 } from "react";
 import { jsx as jsx4, jsxs as jsxs3 } from "react/jsx-runtime";
 function SegmentedControl({
   options,
   value,
   onChange
 }) {
-  const containerRef = useRef6(null);
-  const hasAnimated = useRef6(false);
+  const containerRef = useRef5(null);
+  const hasAnimated = useRef5(false);
   const [pillStyle, setPillStyle] = useState4(null);
   const measure = useCallback5(() => {
     const container = containerRef.current;
@@ -2709,7 +2723,7 @@ function SpringVisualization({ spring, isSimpleMode }) {
 }
 
 // src/components/SpringControl.tsx
-import { useCallback as useCallback6, useRef as useRef7, useSyncExternalStore as useSyncExternalStore2 } from "react";
+import { useCallback as useCallback6, useRef as useRef6, useSyncExternalStore as useSyncExternalStore2 } from "react";
 import { Fragment, jsx as jsx7, jsxs as jsxs6 } from "react/jsx-runtime";
 function SpringControl({ panelId, path, label, spring, onChange }) {
   const subscribe = useCallback6(
@@ -2722,7 +2736,7 @@ function SpringControl({ panelId, path, label, spring, onChange }) {
   );
   const mode = useSyncExternalStore2(subscribe, getSnapshot, getSnapshot);
   const isSimpleMode = mode === "simple";
-  const cache = useRef7({
+  const cache = useRef6({
     simple: spring.visualDuration !== void 0 ? spring : { type: "spring", visualDuration: 0.3, bounce: 0.2 },
     advanced: spring.stiffness !== void 0 ? spring : { type: "spring", stiffness: 200, damping: 25, mass: 1 }
   });
@@ -2885,7 +2899,7 @@ function easingGuideEnd(start, handle, radius = 5) {
 }
 
 // src/components/EasingVisualization.tsx
-import { useEffect as useEffect6, useRef as useRef8 } from "react";
+import { useEffect as useEffect5, useRef as useRef7 } from "react";
 
 // src/easing-control.ts
 var nextId = 0;
@@ -3039,22 +3053,22 @@ function mountEasingVisualization(host, initial) {
 // src/components/EasingVisualization.tsx
 import { jsx as jsx8 } from "react/jsx-runtime";
 function EasingVisualization(props) {
-  const host = useRef8(null);
-  const control = useRef8();
-  const latest = useRef8(props);
+  const host = useRef7(null);
+  const control = useRef7();
+  const latest = useRef7(props);
   latest.current = props;
-  useEffect6(() => {
+  useEffect5(() => {
     control.current = mountEasingVisualization(host.current, latest.current);
     return () => control.current?.destroy();
   }, []);
-  useEffect6(() => {
+  useEffect5(() => {
     control.current?.update(props);
   });
   return /* @__PURE__ */ jsx8("div", { ref: host, className: "dialkit-easing-host" });
 }
 
 // src/components/TransitionControl.tsx
-import { useCallback as useCallback7, useRef as useRef9, useState as useState5, useSyncExternalStore as useSyncExternalStore3 } from "react";
+import { useCallback as useCallback7, useRef as useRef8, useState as useState5, useSyncExternalStore as useSyncExternalStore3 } from "react";
 import { Fragment as Fragment2, jsx as jsx9, jsxs as jsxs7 } from "react/jsx-runtime";
 function TransitionControl({
   panelId,
@@ -3077,7 +3091,7 @@ function TransitionControl({
   const mode = useSyncExternalStore3(subscribe, getSnapshot, getSnapshot);
   const isEasing = mode === "easing";
   const isSimpleSpring = mode === "simple";
-  const cache = useRef9({
+  const cache = useRef8({
     easing: value.type === "easing" ? value : { type: "easing", duration: 0.3, ease: [1, -0.4, 0.5, 1] },
     simple: value.type === "spring" && value.visualDuration !== void 0 ? value : { type: "spring", visualDuration: 0.3, bounce: 0.2 },
     advanced: value.type === "spring" && value.stiffness !== void 0 ? value : { type: "spring", stiffness: 200, damping: 25, mass: 1 }
@@ -3206,7 +3220,7 @@ function EaseTextInput({ ease, onChange }) {
 }
 
 // src/components/TextControl.tsx
-import { useLayoutEffect as useLayoutEffect2, useRef as useRef10 } from "react";
+import { useLayoutEffect as useLayoutEffect2, useRef as useRef9 } from "react";
 
 // src/text-autosize.ts
 function observeTextSize(input) {
@@ -3291,8 +3305,8 @@ function observeTextSize(input) {
 // src/components/TextControl.tsx
 import { jsx as jsx10, jsxs as jsxs8 } from "react/jsx-runtime";
 function TextControl({ label, value, onChange, placeholder }) {
-  const inputRef = useRef10(null);
-  const sizeRef = useRef10();
+  const inputRef = useRef9(null);
+  const sizeRef = useRef9();
   useLayoutEffect2(() => {
     sizeRef.current = observeTextSize(inputRef.current);
     return () => sizeRef.current?.destroy();
@@ -3562,7 +3576,7 @@ function observeDropdownKeyboard(trigger, getPopup, close, kind = "select") {
 }
 
 // src/components/SelectControl.tsx
-import { useState as useState6, useRef as useRef11, useEffect as useEffect7, useCallback as useCallback8 } from "react";
+import { useState as useState6, useRef as useRef10, useEffect as useEffect6, useCallback as useCallback8 } from "react";
 import { createPortal } from "react-dom";
 import { motion as motion3, AnimatePresence as AnimatePresence2 } from "motion/react";
 import { jsx as jsx11, jsxs as jsxs9 } from "react/jsx-runtime";
@@ -3576,8 +3590,8 @@ function normalizeOptions(options) {
 }
 function SelectControl({ label, value, options, onChange }) {
   const [isOpen, setIsOpen] = useState6(false);
-  const triggerRef = useRef11(null);
-  const dropdownRef = useRef11(null);
+  const triggerRef = useRef10(null);
+  const dropdownRef = useRef10(null);
   const [portalTarget, setPortalTarget] = useState6(null);
   const [pos, setPos] = useState6(null);
   const normalized = normalizeOptions(options);
@@ -3588,10 +3602,10 @@ function SelectControl({ label, value, options, onChange }) {
     const dropdownHeight = dropdownRef.current ? dropdownRef.current.scrollHeight + 2 : 10 + normalized.length * 36;
     setPos(getDropdownPosition(el, portalTarget, { dropdownHeight, fixed: true }));
   }, [normalized.length, portalTarget]);
-  useEffect7(() => {
+  useEffect6(() => {
     setPortalTarget(getDialKitPortalRoot(triggerRef.current) ?? document.body);
   }, []);
-  useEffect7(() => {
+  useEffect6(() => {
     if (!isOpen) return;
     if (!triggerRef.current) return;
     const stopPosition = observeDropdownPosition(triggerRef.current, updatePos, () => dropdownRef.current);
@@ -3601,7 +3615,7 @@ function SelectControl({ label, value, options, onChange }) {
       stopPosition();
     };
   }, [isOpen, updatePos]);
-  useEffect7(() => {
+  useEffect6(() => {
     if (!isOpen) return;
     const handleClick = (e) => {
       const target = e.target;
@@ -3687,7 +3701,7 @@ function SelectControl({ label, value, options, onChange }) {
 }
 
 // src/components/ColorControl.tsx
-import { useEffect as useEffect8, useRef as useRef12 } from "react";
+import { useEffect as useEffect7, useRef as useRef11 } from "react";
 
 // src/color-control.ts
 var FORMATS = ["hex", "rgb", "hsl", "oklch"];
@@ -4225,22 +4239,22 @@ function mountColorControl(host, initial, presentation = "popover") {
 // src/components/ColorControl.tsx
 import { jsx as jsx12 } from "react/jsx-runtime";
 function ColorControl(props) {
-  const host = useRef12(null);
-  const control = useRef12();
-  const latest = useRef12(props);
+  const host = useRef11(null);
+  const control = useRef11();
+  const latest = useRef11(props);
   latest.current = props;
-  useEffect8(() => {
+  useEffect7(() => {
     control.current = mountColorControl(host.current, latest.current);
     return () => control.current?.destroy();
   }, []);
-  useEffect8(() => {
+  useEffect7(() => {
     control.current?.update(props);
   });
   return /* @__PURE__ */ jsx12("div", { ref: host, className: "dialkit-color-host" });
 }
 
 // src/components/ImageControl.tsx
-import { useEffect as useEffect9, useRef as useRef13 } from "react";
+import { useEffect as useEffect8, useRef as useRef12 } from "react";
 
 // src/image-control.ts
 var imageControlId = 0;
@@ -4611,22 +4625,22 @@ function mountImageControl(host, initial, presentation = "popover") {
 // src/components/ImageControl.tsx
 import { jsx as jsx13 } from "react/jsx-runtime";
 function ImageControl(props) {
-  const host = useRef13(null);
-  const control = useRef13();
-  const latest = useRef13(props);
+  const host = useRef12(null);
+  const control = useRef12();
+  const latest = useRef12(props);
   latest.current = props;
-  useEffect9(() => {
+  useEffect8(() => {
     control.current = mountImageControl(host.current, latest.current);
     return () => control.current?.destroy();
   }, []);
-  useEffect9(() => {
+  useEffect8(() => {
     control.current?.update(props);
   });
   return /* @__PURE__ */ jsx13("div", { ref: host, className: "dialkit-image-host" });
 }
 
 // src/components/DialPad.tsx
-import { useEffect as useEffect10, useRef as useRef14 } from "react";
+import { useEffect as useEffect9, useRef as useRef13 } from "react";
 
 // src/dial-pad-control.ts
 var nextId2 = 0;
@@ -4838,15 +4852,15 @@ function mountDialPad(host, initial) {
 // src/components/DialPad.tsx
 import { jsx as jsx14 } from "react/jsx-runtime";
 function DialPad(props) {
-  const host = useRef14(null);
-  const control = useRef14();
-  const latest = useRef14(props);
+  const host = useRef13(null);
+  const control = useRef13();
+  const latest = useRef13(props);
   latest.current = props;
-  useEffect10(() => {
+  useEffect9(() => {
     control.current = mountDialPad(host.current, latest.current);
     return () => control.current?.destroy();
   }, []);
-  useEffect10(() => {
+  useEffect9(() => {
     control.current?.update(props);
   });
   return /* @__PURE__ */ jsx14("div", { ref: host, className: "dialkit-pad-host" });
@@ -5013,7 +5027,7 @@ function ControlRenderer({
 }
 
 // src/components/PresetManager.tsx
-import { useState as useState7, useRef as useRef15, useEffect as useEffect11, useCallback as useCallback9 } from "react";
+import { useState as useState7, useRef as useRef14, useEffect as useEffect10, useCallback as useCallback9 } from "react";
 import { createPortal as createPortal2 } from "react-dom";
 import { motion as motion5, AnimatePresence as AnimatePresence4 } from "motion/react";
 import { Fragment as Fragment4, jsx as jsx16, jsxs as jsxs10 } from "react/jsx-runtime";
@@ -5021,16 +5035,16 @@ var DRAG_LIFT_PX = 4;
 var PRESET_DROPDOWN_MAX_WIDTH = 280;
 function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassName }) {
   const [isOpen, setIsOpen] = useState7(false);
-  const triggerRef = useRef15(null);
-  const dropdownRef = useRef15(null);
+  const triggerRef = useRef14(null);
+  const dropdownRef = useRef14(null);
   const [pos, setPos] = useState7({ top: 0, left: 0, width: 0, above: false });
   const [editingId, setEditingId] = useState7(null);
   const [draft, setDraft] = useState7("");
-  const cancelledRef = useRef15(false);
+  const cancelledRef = useRef14(false);
   const [draggingId, setDraggingId] = useState7(null);
   const [cueTop, setCueTop] = useState7(null);
-  const dragRef = useRef15(null);
-  const suppressClickRef = useRef15(false);
+  const dragRef = useRef14(null);
+  const suppressClickRef = useRef14(false);
   const editable = DialStore.isPresetsEditable(panelId);
   const lockable = editable && DialStore.isPresetsLockable(panelId);
   const hasPresets = presets.length > 0;
@@ -5053,7 +5067,7 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassN
     if (isOpen) close();
     else open();
   }, [isOpen, open, close]);
-  useEffect11(() => {
+  useEffect10(() => {
     if (!isOpen) return;
     const handler = (e) => {
       const target = e.target;
@@ -5326,8 +5340,8 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassN
 import { Fragment as Fragment5, jsx as jsx17, jsxs as jsxs11 } from "react/jsx-runtime";
 function Panel({ panel, defaultOpen = true, inline = false, folderMode = "independent", onOpenChange, variant = "root", toolbarExtra }) {
   const [copied, setCopied] = useState8(false);
-  const copyTimeout = useRef16();
-  useEffect12(() => () => clearTimeout(copyTimeout.current), []);
+  const copyTimeout = useRef15();
+  useEffect11(() => () => clearTimeout(copyTimeout.current), []);
   const subscribe = useCallback10(
     (callback) => DialStore.subscribe(panel.id, callback),
     [panel.id]
@@ -5353,7 +5367,7 @@ function Panel({ panel, defaultOpen = true, inline = false, folderMode = "indepe
   const values = useSyncExternalStore4(subscribe, getSnapshot, getSnapshot);
   const storeOpen = useSyncExternalStore4(subscribe, getOpenSnapshot, getOpenSnapshot);
   const isOpen = storeOpen ?? defaultOpen;
-  useEffect12(() => {
+  useEffect11(() => {
     DialStore.initPanelOpen(panel.id, defaultOpen);
   }, [panel.id, defaultOpen]);
   const presets = DialStore.getPresets(panel.id);
@@ -5657,19 +5671,19 @@ function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover"
   const inline = mode === "inline";
   const [shellOpen, setShellOpen] = useState9(inline || defaultOpen);
   const [groupOpen, setGroupOpen] = useState9({});
-  const panelRef = useRef17(null);
+  const panelRef = useRef16(null);
   const [dragOffset, setDragOffset] = useState9(null);
   const [activePosition, setActivePosition] = useState9(position);
-  const lastDragOffset = useRef17(null);
-  const draggingRef = useRef17(false);
-  const dragStartRef = useRef17(null);
-  const didDragRef = useRef17(false);
-  const dragTargetRef = useRef17(null);
-  const panelOpenStatesRef = useRef17(/* @__PURE__ */ new Map());
-  const rootOpenRef = useRef17(null);
+  const lastDragOffset = useRef16(null);
+  const draggingRef = useRef16(false);
+  const dragStartRef = useRef16(null);
+  const didDragRef = useRef16(false);
+  const dragTargetRef = useRef16(null);
+  const panelOpenStatesRef = useRef16(/* @__PURE__ */ new Map());
+  const rootOpenRef = useRef16(null);
   const rootEntries = useMemo2(() => partitionPanels(panels), [panels]);
   const rootKeys = useMemo2(() => rootEntries.map((entry) => entry.key), [rootEntries]);
-  useEffect13(() => {
+  useEffect12(() => {
     setMounted(true);
     setPanels(DialStore.getPanels("panel"));
     setTimelineCount(TimelineStore.getTimelines().length);
@@ -5684,7 +5698,7 @@ function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover"
       unsubscribeTimelines();
     };
   }, []);
-  useEffect13(() => {
+  useEffect12(() => {
     const fallbackOpen = inline || defaultOpen;
     const nextStates = /* @__PURE__ */ new Map();
     for (const key of rootKeys) {
@@ -5693,7 +5707,7 @@ function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover"
     panelOpenStatesRef.current = nextStates;
     rootOpenRef.current = Array.from(nextStates.values()).some(Boolean);
   }, [defaultOpen, inline, rootKeys]);
-  useEffect13(() => {
+  useEffect12(() => {
     if (!panelRef.current || inline) return;
     const observer = new MutationObserver(() => {
       const inners = panelRef.current?.querySelectorAll(".dialkit-panel-inner");
@@ -5769,7 +5783,7 @@ function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover"
     setGroupOpen((prev) => prev[group] === open ? prev : { ...prev, [group]: open });
     handlePanelOpenChange(groupRootKey(group), open);
   }, [handlePanelOpenChange]);
-  useEffect13(() => DialStore.subscribePanelOpen((id, open) => {
+  useEffect12(() => DialStore.subscribePanelOpen((id, open) => {
     const panel = panels.find((p) => p.id === id);
     if (!panel) return;
     if (panel.group) {
@@ -5818,7 +5832,6 @@ function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover"
         defaultOpen: inline || defaultOpen,
         isRoot: true,
         inline,
-        panelHeightOffset: 2,
         onOpenChange: (open) => handleGroupOpenChange(group, open),
         children: entry.panels.map((p) => /* @__PURE__ */ jsx19(
           Panel,
@@ -5869,7 +5882,7 @@ function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover"
 }
 
 // src/hooks/useDialTimeline.ts
-import { useCallback as useCallback13, useEffect as useEffect14, useMemo as useMemo3, useRef as useRef18, useSyncExternalStore as useSyncExternalStore6 } from "react";
+import { useCallback as useCallback13, useEffect as useEffect13, useMemo as useMemo3, useRef as useRef17, useSyncExternalStore as useSyncExternalStore6 } from "react";
 
 // src/timeline-core.ts
 var CLIP_VALUE_STEP = 0.01;
@@ -6823,9 +6836,9 @@ function useDialTimeline(name, config, options) {
   );
   const timelineDuration = staticTimeline.duration;
   const staticClips = staticTimeline.clips;
-  const parsedRef = useRef18(parsed);
+  const parsedRef = useRef17(parsed);
   parsedRef.current = parsed;
-  const optionsRef = useRef18(options);
+  const optionsRef = useRef17(options);
   optionsRef.current = options;
   const { enabled: loopEnabled, start: loopStart } = resolveTimelineLoop(options?.loop);
   const buildMeta = useCallback13(
@@ -6840,14 +6853,14 @@ function useDialTimeline(name, config, options) {
     ),
     [panelId, name, timelineDuration, loopEnabled, loopStart, options?.track, options?.pinStart]
   );
-  const buildMetaRef = useRef18(buildMeta);
+  const buildMetaRef = useRef17(buildMeta);
   buildMetaRef.current = buildMeta;
-  useEffect14(() => {
+  useEffect13(() => {
     TimelineStore.register(buildMetaRef.current(), { autoplay: optionsRef.current?.autoplay ?? true });
     return () => TimelineStore.unregister(panelId);
   }, [panelId, name]);
-  const mountedRef = useRef18(false);
-  useEffect14(() => {
+  const mountedRef = useRef17(false);
+  useEffect13(() => {
     if (!mountedRef.current) {
       mountedRef.current = true;
       return;
@@ -6876,7 +6889,7 @@ function useDialTimeline(name, config, options) {
 }
 
 // src/components/Timeline/DialTimeline.tsx
-import { memo, useCallback as useCallback14, useEffect as useEffect15, useLayoutEffect as useLayoutEffect3, useRef as useRef19, useState as useState10, useSyncExternalStore as useSyncExternalStore7 } from "react";
+import { memo, useCallback as useCallback14, useEffect as useEffect14, useLayoutEffect as useLayoutEffect3, useRef as useRef18, useState as useState10, useSyncExternalStore as useSyncExternalStore7 } from "react";
 import { createPortal as createPortal4 } from "react-dom";
 import { AnimatePresence as AnimatePresence6, motion as motion8 } from "motion/react";
 import { Fragment as Fragment6, jsx as jsx20, jsxs as jsxs12 } from "react/jsx-runtime";
@@ -6950,25 +6963,25 @@ function DialTimelineDock({
 }) {
   const [mounted, setMounted] = useState10(false);
   const [dockMaxHeight, setDockMaxHeight] = useState10(DEFAULT_DOCK_MAX_HEIGHT);
-  const visibilityControllerId = useRef19(/* @__PURE__ */ Symbol("dialkit-timeline-visibility"));
-  const dockRef = useRef19(null);
-  const resizeCleanupRef = useRef19(null);
-  useEffect15(() => TimelineUiStore.registerController(visibilityControllerId.current, {
+  const visibilityControllerId = useRef18(/* @__PURE__ */ Symbol("dialkit-timeline-visibility"));
+  const dockRef = useRef18(null);
+  const resizeCleanupRef = useRef18(null);
+  useEffect14(() => TimelineUiStore.registerController(visibilityControllerId.current, {
     visible,
     defaultVisible,
     onVisibilityChange
   }), []);
-  useEffect15(() => {
+  useEffect14(() => {
     TimelineUiStore.updateController(visibilityControllerId.current, {
       visible,
       defaultVisible,
       onVisibilityChange
     });
   }, [defaultVisible, onVisibilityChange, visible]);
-  useEffect15(() => {
+  useEffect14(() => {
     setMounted(true);
   }, []);
-  useEffect15(() => () => resizeCleanupRef.current?.(), []);
+  useEffect14(() => () => resizeCleanupRef.current?.(), []);
   const handleResizePointerDown = useCallback14((e) => {
     const dock = dockRef.current;
     if (!dock) return;
@@ -6999,7 +7012,7 @@ function DialTimelineDock({
     getTimelineVisibility,
     getTimelineVisibility
   );
-  useEffect15(() => {
+  useEffect14(() => {
     const dock = dockRef.current;
     if (!dock) return;
     const root = document.documentElement;
@@ -7146,8 +7159,8 @@ function TimelinePlayheadFlag({
   const subscribe = useTransportSubscribe(id);
   const getTime = useCallback14(() => TimelineStore.getTransport(id).time, [id]);
   const time = useSyncExternalStore7(subscribe, getTime, getTime);
-  const scrubRef = useRef19(null);
-  const cleanupScrubRef = useRef19(null);
+  const scrubRef = useRef18(null);
+  const cleanupScrubRef = useRef18(null);
   const seekFromClientX = useCallback14((clientX) => {
     const rect = scrubRef.current?.rect;
     const scrub = scrubRef.current;
@@ -7193,7 +7206,7 @@ function TimelinePlayheadFlag({
     window.addEventListener("pointercancel", finishWindowScrub);
     cleanupScrubRef.current = finishWindowScrub;
   }, [duration, id, onResetView, rulerRef, seekFromClientX, viewEnd, viewStart]);
-  useEffect15(() => () => cleanupScrubRef.current?.(), []);
+  useEffect14(() => () => cleanupScrubRef.current?.(), []);
   if (time < viewStart || time > viewEnd || laneWidth <= 0) return null;
   const x = clamp2(
     (time - viewStart) * pxPerSecond,
@@ -7277,7 +7290,7 @@ function TimelineOverview({
   const subscribe = useTransportSubscribe(id);
   const getTime = useCallback14(() => TimelineStore.getTransport(id).time, [id]);
   const time = useSyncExternalStore7(subscribe, getTime, getTime);
-  const scrubRef = useRef19(null);
+  const scrubRef = useRef18(null);
   const seekFromClientX = useCallback14((clientX) => {
     const rect = scrubRef.current?.rect;
     if (!rect || rect.width <= 0 || duration <= 0) return;
@@ -7354,11 +7367,11 @@ var TimelineSection = memo(function TimelineSection2({
   const [viewStart, setViewStart] = useState10(0);
   const singleTrack = Boolean(meta.singleTrack) && meta.clips.every((clip) => !clip.stepKeys?.length && !clip.tracks?.length && !clip.group);
   const [selectedKeys, setSelectedKeys] = useState10(() => /* @__PURE__ */ new Set());
-  const selectedKeysRef = useRef19(selectedKeys);
+  const selectedKeysRef = useRef18(selectedKeys);
   selectedKeysRef.current = selectedKeys;
   const [liftedKeys, setLiftedKeys] = useState10(null);
   const [cueTime, setCueTime] = useState10(null);
-  const singleDragRef = useRef19(null);
+  const singleDragRef = useRef18(null);
   const subscribeValues = useCallback14(
     (callback) => DialStore.subscribe(meta.id, callback),
     [meta.id]
@@ -7367,8 +7380,8 @@ var TimelineSection = memo(function TimelineSection2({
   const values = useSyncExternalStore7(subscribeValues, getValues, getValues);
   const presets = DialStore.getPresets(meta.id);
   const activePresetId = DialStore.getActivePresetId(meta.id);
-  const laneAreaRef = useRef19(null);
-  const horizontalScrollRef = useRef19(null);
+  const laneAreaRef = useRef18(null);
+  const horizontalScrollRef = useRef18(null);
   const [laneWidth, setLaneWidth] = useState10(0);
   useLayoutEffect3(() => {
     if (!open) return;
@@ -7388,10 +7401,10 @@ var TimelineSection = memo(function TimelineSection2({
   const pxPerSecond = visibleDuration > 0 && laneWidth > 0 ? laneWidth / visibleDuration : 0;
   const millisecondReadableZoom = laneWidth > 0 && meta.duration > 0 ? MAJOR_TICK_TARGET_PX * meta.duration / (MILLISECOND_STEP * 10 * laneWidth) : MIN_TIMELINE_MAX_ZOOM;
   const maxZoom = Math.max(MIN_TIMELINE_MAX_ZOOM, millisecondReadableZoom);
-  useEffect15(() => {
+  useEffect14(() => {
     setZoom((current) => clamp2(current, 1, maxZoom));
   }, [maxZoom]);
-  useEffect15(() => {
+  useEffect14(() => {
     setViewStart((current) => clampViewStart(current, meta.duration, meta.duration / zoom));
   }, [meta.duration, zoom]);
   useLayoutEffect3(() => {
@@ -7402,10 +7415,10 @@ var TimelineSection = memo(function TimelineSection2({
       scroller.scrollLeft = nextScrollLeft;
     }
   }, [open, pxPerSecond, safeViewStart]);
-  useEffect15(() => {
+  useEffect14(() => {
     if (!dockVisible) setPopover(null);
   }, [dockVisible]);
-  useEffect15(() => {
+  useEffect14(() => {
     if (!singleTrack) return;
     const onPointerDown = (e) => {
       const target = e.target;
@@ -7449,8 +7462,8 @@ var TimelineSection = memo(function TimelineSection2({
       nextVisibleDuration
     ));
   }, [meta.duration]);
-  const bodyRef = useRef19(null);
-  const wheelHandlerRef = useRef19(() => {
+  const bodyRef = useRef18(null);
+  const wheelHandlerRef = useRef18(() => {
   });
   wheelHandlerRef.current = (e) => {
     if (e.altKey) {
@@ -7476,15 +7489,15 @@ var TimelineSection = memo(function TimelineSection2({
     e.preventDefault();
     scroller.scrollLeft += horizontalDelta;
   };
-  useEffect15(() => {
+  useEffect14(() => {
     const body = bodyRef.current;
     if (!open || !body) return;
     const onWheel = (e) => wheelHandlerRef.current(e);
     body.addEventListener("wheel", onWheel, { passive: false });
     return () => body.removeEventListener("wheel", onWheel);
   }, [open]);
-  const zoomDragRef = useRef19(null);
-  const rulerScrubRef = useRef19(null);
+  const zoomDragRef = useRef18(null);
+  const rulerScrubRef = useRef18(null);
   const seekRulerFromClientX = useCallback14((clientX) => {
     const scrub = rulerScrubRef.current;
     const contentWidth = scrub?.rect.width ?? 0;
@@ -7558,7 +7571,7 @@ var TimelineSection = memo(function TimelineSection2({
     rulerScrubRef.current = null;
     zoomDragRef.current = null;
   }, [meta.id]);
-  const trackScrubRef = useRef19(null);
+  const trackScrubRef = useRef18(null);
   const seekTrackFromClientX = useCallback14((clientX) => {
     const scrub = trackScrubRef.current;
     const contentWidth = scrub?.rect.width ?? 0;
@@ -8180,7 +8193,7 @@ function ClipPopover({
   maxClipDuration,
   onClose
 }) {
-  const ref = useRef19(null);
+  const ref = useRef18(null);
   const [naturalHeight, setNaturalHeight] = useState10(0);
   const [viewport, setViewport] = useState10(() => ({
     width: window.visualViewport?.width ?? window.innerWidth,
@@ -8198,7 +8211,7 @@ function ClipPopover({
     observer.observe(body ?? element4);
     return () => observer.disconnect();
   }, [popover.clip.key, popover.stepKey]);
-  useEffect15(() => {
+  useEffect14(() => {
     const updateViewport = () => setViewport({
       width: window.visualViewport?.width ?? window.innerWidth,
       height: window.visualViewport?.height ?? window.innerHeight,
@@ -8214,7 +8227,7 @@ function ClipPopover({
       window.visualViewport?.removeEventListener("scroll", updateViewport);
     };
   }, []);
-  useEffect15(() => {
+  useEffect14(() => {
     const handlePointerDown = (e) => {
       const target = e.target;
       if (ref.current?.contains(target)) return;
@@ -8376,7 +8389,7 @@ function TimelineClip({
   onDrag,
   single
 }) {
-  const dragRef = useRef19(null);
+  const dragRef = useRef18(null);
   const [dragging, setDragging] = useState10(false);
   const [hovered, setHovered] = useState10(false);
   const isSteps = Boolean(steps?.length);
@@ -8696,7 +8709,7 @@ function ButtonGroup({ buttons }) {
 }
 
 // src/components/ShortcutsMenu.tsx
-import { useState as useState11, useRef as useRef20, useEffect as useEffect16, useCallback as useCallback15 } from "react";
+import { useState as useState11, useRef as useRef19, useEffect as useEffect15, useCallback as useCallback15 } from "react";
 import { createPortal as createPortal5 } from "react-dom";
 import { motion as motion9, AnimatePresence as AnimatePresence7 } from "motion/react";
 import { Fragment as Fragment7, jsx as jsx22, jsxs as jsxs13 } from "react/jsx-runtime";
@@ -8721,14 +8734,14 @@ function formatInteraction(sc) {
 function ShortcutsMenu({ panelId }) {
   const [isOpen, setIsOpen] = useState11(false);
   const [panel, setPanel] = useState11(() => DialStore.getPanel(panelId));
-  useEffect16(() => {
+  useEffect15(() => {
     const update = () => setPanel(DialStore.getPanel(panelId));
     const stop = DialStore.subscribeGlobal(update);
     update();
     return stop;
   }, [panelId]);
-  const triggerRef = useRef20(null);
-  const dropdownRef = useRef20(null);
+  const triggerRef = useRef19(null);
+  const dropdownRef = useRef19(null);
   const [pos, setPos] = useState11({ top: 0, right: 0 });
   const open = useCallback15(() => {
     const rect = triggerRef.current?.getBoundingClientRect();
@@ -8742,7 +8755,7 @@ function ShortcutsMenu({ panelId }) {
     if (isOpen) close();
     else open();
   }, [isOpen, open, close]);
-  useEffect16(() => {
+  useEffect15(() => {
     if (!isOpen) return;
     const handler = (e) => {
       const target = e.target;

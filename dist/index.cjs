@@ -411,6 +411,7 @@ function getFirstOptionValue(options) {
   if (first === void 0) return "";
   return typeof first === "string" ? first : first.value;
 }
+var PARSED_CONFIG_CACHE_LIMIT = 16;
 var DialStoreClass = class {
   constructor() {
     this.panelOpenListeners = /* @__PURE__ */ new Set();
@@ -438,9 +439,19 @@ var DialStoreClass = class {
      * flip back when a dependent value changes.
      */
     this.allControls = /* @__PURE__ */ new Map();
+    /**
+     * Parsed configs per panel id, keyed by the serialized config + shortcuts.
+     * Hosts that swap between a few configs (layout presets) re-register the
+     * same shape repeatedly; the parsed tree is immutable after parse (the
+     * filtered tree and value maps are fresh copies), so it can be shared.
+     */
+    this.parsedConfigs = /* @__PURE__ */ new Map();
+    /** Cache key of the config each registered panel currently holds. */
+    this.panelConfigKeys = /* @__PURE__ */ new Map();
   }
   registerPanel(id, name, config, shortcuts, options = {}) {
-    const { controls: allControls, controlsByPath, defaultValues } = this.parseConfig(config, shortcuts);
+    const { key, parsed: { controls: allControls, controlsByPath, defaultValues } } = this.parseCached(id, config, shortcuts);
+    this.panelConfigKeys.set(id, key);
     if (!this.panelOpenStates.has(id) && options.defaultCollapsed !== void 0) {
       this.panelOpenStates.set(id, !options.defaultCollapsed);
     }
@@ -492,8 +503,14 @@ var DialStoreClass = class {
       this.registerPanel(id, name, config, shortcuts, options);
       return;
     }
-    const { controls: allControls, controlsByPath, defaultValues } = this.parseConfig(config, shortcuts ?? existing.shortcuts);
+    const { key, parsed: { controls: allControls, controlsByPath, defaultValues } } = this.parseCached(id, config, shortcuts ?? existing.shortcuts);
+    const unchanged = this.panelConfigKeys.get(id) === key && name === existing.name && (options.kind ?? existing.kind) === existing.kind && (options.group ?? existing.group) === existing.group && (options.presetsEditable ?? existing.presetsEditable) === existing.presetsEditable && (options.presetsLockable ?? existing.presetsLockable) === existing.presetsLockable;
     this.configurePanelRetention(id, options);
+    if (unchanged) {
+      this.persistPanel(id);
+      return;
+    }
+    this.panelConfigKeys.set(id, key);
     const nextValues = this.reconcileValues(defaultValues, existing.values, controlsByPath);
     this.allControls.set(id, allControls);
     const controls = filterByVisibility(allControls, nextValues);
@@ -544,6 +561,8 @@ var DialStoreClass = class {
       this.activePreset.delete(id);
       this.persistConfigs.delete(id);
       this.allControls.delete(id);
+      this.parsedConfigs.delete(id);
+      this.panelConfigKeys.delete(id);
     }
     this.notifyGlobal();
   }
@@ -942,6 +961,32 @@ var DialStoreClass = class {
     this.standardPanelsSnapshot = this.panelsSnapshot.filter((panel) => panel.kind !== "timeline");
     this.timelinePanelsSnapshot = this.panelsSnapshot.filter((panel) => panel.kind === "timeline");
     this.globalListeners.forEach((fn) => fn());
+  }
+  /**
+   * Parse through the per-panel cache. The key is computed first and the
+   * result is only stored after a successful parse, so an invalid config
+   * still throws before any store mutation.
+   */
+  parseCached(id, config, shortcuts) {
+    const key = JSON.stringify(config) + "\n" + JSON.stringify(shortcuts ?? {});
+    let cache = this.parsedConfigs.get(id);
+    const hit = cache?.get(key);
+    if (cache && hit) {
+      cache.delete(key);
+      cache.set(key, hit);
+      return { key, parsed: hit };
+    }
+    const parsed = this.parseConfig(config, shortcuts);
+    if (!cache) {
+      cache = /* @__PURE__ */ new Map();
+      this.parsedConfigs.set(id, cache);
+    }
+    cache.set(key, parsed);
+    if (cache.size > PARSED_CONFIG_CACHE_LIMIT) {
+      const oldest = cache.keys().next().value;
+      if (oldest !== void 0) cache.delete(oldest);
+    }
+    return { key, parsed };
   }
   /** Compile controls, defaults, and the lookup index in one walk. */
   parseConfig(config, shortcuts) {
@@ -1598,15 +1643,6 @@ function adjacentTabStop(trigger, backwards = false) {
   return index < 0 ? void 0 : stops[index + (backwards ? -1 : 1)];
 }
 
-// src/panel-size.ts
-function measurePanelHeight(content) {
-  const panel = content.parentElement;
-  if (!panel) return content.offsetHeight;
-  const style = getComputedStyle(panel);
-  const chrome = style.boxSizing === "border-box" ? [style.paddingTop, style.paddingBottom, style.borderTopWidth, style.borderBottomWidth].reduce((total, value) => total + (parseFloat(value) || 0), 0) : 0;
-  return content.offsetHeight + chrome;
-}
-
 // src/components/Folder.tsx
 var import_react3 = require("react");
 var import_react4 = require("motion/react");
@@ -1676,31 +1712,10 @@ var ICON_PANEL = {
 
 // src/components/Folder.tsx
 var import_jsx_runtime = require("react/jsx-runtime");
-function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, panelHeightOffset = 0 }) {
+function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar }) {
   const [localOpen, setIsOpen] = (0, import_react3.useState)(defaultOpen);
   const isOpen = open ?? localOpen;
   const isCollapsed = !isOpen;
-  const contentRef = (0, import_react3.useRef)(null);
-  const [contentHeight, setContentHeight] = (0, import_react3.useState)(void 0);
-  const [windowHeight, setWindowHeight] = (0, import_react3.useState)(typeof window !== "undefined" ? window.innerHeight : 800);
-  (0, import_react3.useEffect)(() => {
-    if (!isRoot) return;
-    const onResize = () => setWindowHeight(window.innerHeight);
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [isRoot]);
-  (0, import_react3.useEffect)(() => {
-    const el = contentRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => {
-      if (isOpen) {
-        const h = measurePanelHeight(el);
-        setContentHeight((prev) => prev === h ? prev : h);
-      }
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [isOpen]);
   const handleToggle = () => {
     if (inline && isRoot) return;
     const next = !isOpen;
@@ -1710,7 +1725,6 @@ function Folder({ title, children, open, defaultOpen = true, isRoot = false, inl
   const folderContent = /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
     "div",
     {
-      ref: isRoot ? contentRef : void 0,
       className: `dialkit-folder ${isRoot ? "dialkit-folder-root" : ""}`,
       "data-open": String(isOpen),
       children: [
@@ -1767,7 +1781,7 @@ function Folder({ title, children, open, defaultOpen = true, isRoot = false, inl
     if (inline) {
       return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dialkit-panel-inner dialkit-panel-inline", children: folderContent });
     }
-    const panelStyle = isOpen ? { width: 280, height: contentHeight !== void 0 ? Math.min(contentHeight + panelHeightOffset, windowHeight - 32) : "auto", borderRadius: 14, boxShadow: "var(--dial-shadow)", cursor: void 0, overflowY: "auto" } : { width: 42, height: 42, borderRadius: "50%", boxSizing: "border-box", boxShadow: "var(--dial-shadow-collapsed)", overflow: "hidden", cursor: "pointer" };
+    const panelStyle = isOpen ? { width: 280, height: "auto", maxHeight: "calc(100dvh - 32px)", overflowY: "auto", borderRadius: 14, boxShadow: "var(--dial-shadow)", cursor: void 0 } : { width: 42, height: 42, borderRadius: "50%", boxSizing: "border-box", boxShadow: "var(--dial-shadow-collapsed)", overflow: "hidden", cursor: "pointer" };
     return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
       import_react4.motion.div,
       {
@@ -5869,7 +5883,6 @@ function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover"
         defaultOpen: inline || defaultOpen,
         isRoot: true,
         inline,
-        panelHeightOffset: 2,
         onOpenChange: (open) => handleGroupOpenChange(group, open),
         children: entry.panels.map((p) => /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
           Panel,

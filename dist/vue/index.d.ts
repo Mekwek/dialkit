@@ -251,6 +251,15 @@ declare class DialStoreClass {
      * flip back when a dependent value changes.
      */
     private allControls;
+    /**
+     * Parsed configs per panel id, keyed by the serialized config + shortcuts.
+     * Hosts that swap between a few configs (layout presets) re-register the
+     * same shape repeatedly; the parsed tree is immutable after parse (the
+     * filtered tree and value maps are fresh copies), so it can be shared.
+     */
+    private parsedConfigs;
+    /** Cache key of the config each registered panel currently holds. */
+    private panelConfigKeys;
     registerPanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, options?: DialStorePanelOptions): void;
     updatePanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, options?: DialStorePanelOptions): void;
     unregisterPanel(id: string): void;
@@ -311,6 +320,12 @@ declare class DialStoreClass {
     private getStorage;
     private notify;
     private notifyGlobal;
+    /**
+     * Parse through the per-panel cache. The key is computed first and the
+     * result is only stored after a successful parse, so an invalid config
+     * still throws before any store mutation.
+     */
+    private parseCached;
     /** Compile controls, defaults, and the lookup index in one walk. */
     private parseConfig;
     private inferRange;

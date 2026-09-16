@@ -1,6 +1,5 @@
 import { activateOnKey } from '../control-keyboard';
-import { measurePanelHeight } from '../panel-size';
-import { useState, useRef, useEffect, ReactNode } from 'react';
+import { useState, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ICON_PANEL, ICON_CHEVRON } from '../icons';
 
@@ -13,45 +12,12 @@ interface FolderProps {
   inline?: boolean;
   onOpenChange?: (isOpen: boolean) => void;
   toolbar?: ReactNode;
-  /**
-   * Vertical slack (px) added to the measured content height when sizing the
-   * root panel. The measurement uses offsetHeight, which excludes margins that
-   * collapse through the content chain, so this offset covers that gap and
-   * prevents a spurious scrollbar. Defaults to 10 for a single-panel shell; a
-   * merged shell sets it a little higher (~12) because each stacked section
-   * folder contributes outer margins that escape the measurement.
-   */
-  panelHeightOffset?: number;
 }
 
-export function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, panelHeightOffset = 0 }: FolderProps) {
+export function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar }: FolderProps) {
   const [localOpen, setIsOpen] = useState(defaultOpen);
   const isOpen = open ?? localOpen;
   const isCollapsed = !isOpen;
-  const contentRef = useRef<HTMLDivElement>(null);
-  const [contentHeight, setContentHeight] = useState<number | undefined>(undefined);
-  const [windowHeight, setWindowHeight] = useState(typeof window !== 'undefined' ? window.innerHeight : 800);
-
-  useEffect(() => {
-    if (!isRoot) return;
-    const onResize = () => setWindowHeight(window.innerHeight);
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, [isRoot]);
-
-  // Track content height for explicit panel sizing (no height: 'auto')
-  useEffect(() => {
-    const el = contentRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => {
-      if (isOpen) {
-        const h = measurePanelHeight(el);
-        setContentHeight(prev => prev === h ? prev : h);
-      }
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [isOpen]);
 
   const handleToggle = () => {
     if (inline && isRoot) return;
@@ -62,7 +28,6 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
 
   const folderContent = (
     <div
-      ref={isRoot ? contentRef : undefined}
       className={`dialkit-folder ${isRoot ? 'dialkit-folder-root' : ''}`}
       data-open={String(isOpen)}
     >
@@ -147,7 +112,7 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
     }
 
     const panelStyle = isOpen
-      ? { width: 280, height: contentHeight !== undefined ? Math.min(contentHeight + panelHeightOffset, windowHeight - 32) : 'auto' as const, borderRadius: 14, boxShadow: 'var(--dial-shadow)', cursor: undefined as string | undefined, overflowY: 'auto' as const }
+      ? { width: 280, height: 'auto' as const, maxHeight: 'calc(100dvh - 32px)', overflowY: 'auto' as const, borderRadius: 14, boxShadow: 'var(--dial-shadow)', cursor: undefined as string | undefined }
       : { width: 42, height: 42, borderRadius: '50%', boxSizing: 'border-box' as const, boxShadow: 'var(--dial-shadow-collapsed)', overflow: 'hidden' as const, cursor: 'pointer' as const };
 
     return (

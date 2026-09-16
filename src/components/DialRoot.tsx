@@ -256,7 +256,6 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
           defaultOpen={inline || defaultOpen}
           isRoot
           inline={inline}
-          panelHeightOffset={2}
           onOpenChange={(open) => handleGroupOpenChange(group, open)}
         >
           {entry.panels.map((p) => (

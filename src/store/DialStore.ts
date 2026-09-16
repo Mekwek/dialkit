@@ -462,6 +462,15 @@ function getFirstOptionValue(options: (string | { value: string; label: string }
   return typeof first === 'string' ? first : first.value;
 }
 
+type ParsedConfig = {
+  controls: ControlMeta[];
+  defaultValues: Record<string, DialValue>;
+  controlsByPath: Map<string, ControlMeta>;
+};
+
+/** Distinct configs remembered per panel id before the oldest is evicted. */
+const PARSED_CONFIG_CACHE_LIMIT = 16;
+
 class DialStoreClass {
   private panelOpenListeners = new Set<(panelId: string, open: boolean) => void>();
   private panelOpenStates = new Map<string, boolean>();
@@ -488,9 +497,19 @@ class DialStoreClass {
    * flip back when a dependent value changes.
    */
   private allControls: Map<string, ControlMeta[]> = new Map();
+  /**
+   * Parsed configs per panel id, keyed by the serialized config + shortcuts.
+   * Hosts that swap between a few configs (layout presets) re-register the
+   * same shape repeatedly; the parsed tree is immutable after parse (the
+   * filtered tree and value maps are fresh copies), so it can be shared.
+   */
+  private parsedConfigs = new Map<string, Map<string, ParsedConfig>>();
+  /** Cache key of the config each registered panel currently holds. */
+  private panelConfigKeys = new Map<string, string>();
 
   registerPanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, options: DialStorePanelOptions = {}): void {
-    const { controls: allControls, controlsByPath, defaultValues } = this.parseConfig(config, shortcuts);
+    const { key, parsed: { controls: allControls, controlsByPath, defaultValues } } = this.parseCached(id, config, shortcuts);
+    this.panelConfigKeys.set(id, key);
     if (!this.panelOpenStates.has(id) && options.defaultCollapsed !== undefined) {
       this.panelOpenStates.set(id, !options.defaultCollapsed);
     }
@@ -553,8 +572,23 @@ class DialStoreClass {
       return;
     }
 
-    const { controls: allControls, controlsByPath, defaultValues } = this.parseConfig(config, shortcuts ?? existing.shortcuts);
+    const { key, parsed: { controls: allControls, controlsByPath, defaultValues } } = this.parseCached(id, config, shortcuts ?? existing.shortcuts);
+    const unchanged =
+      this.panelConfigKeys.get(id) === key &&
+      name === existing.name &&
+      (options.kind ?? existing.kind) === existing.kind &&
+      (options.group ?? existing.group) === existing.group &&
+      (options.presetsEditable ?? existing.presetsEditable) === existing.presetsEditable &&
+      (options.presetsLockable ?? existing.presetsLockable) === existing.presetsLockable;
     this.configurePanelRetention(id, options);
+    if (unchanged) {
+      // Same config, same identity: nothing the panel renders can differ, so
+      // skip the rebuild and the notify (a host re-render would otherwise
+      // cascade into every panel through the global listeners).
+      this.persistPanel(id);
+      return;
+    }
+    this.panelConfigKeys.set(id, key);
     const nextValues = this.reconcileValues(defaultValues, existing.values, controlsByPath);
 
     // Store the unfiltered tree, filter against the reconciled next values.
@@ -618,6 +652,8 @@ class DialStoreClass {
       this.activePreset.delete(id);
       this.persistConfigs.delete(id);
       this.allControls.delete(id);
+      this.parsedConfigs.delete(id);
+      this.panelConfigKeys.delete(id);
     }
     // Retained panels keep their allControls entry so a later re-registration
     // (or a visibility re-eval before re-registration) has the full tree.
@@ -1158,8 +1194,38 @@ class DialStoreClass {
     this.globalListeners.forEach(fn => fn());
   }
 
+  /**
+   * Parse through the per-panel cache. The key is computed first and the
+   * result is only stored after a successful parse, so an invalid config
+   * still throws before any store mutation.
+   */
+  private parseCached(id: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>): { key: string; parsed: ParsedConfig } {
+    // Registration stores `shortcuts ?? {}` and update reads it back, so an
+    // absent map and an empty one must key the same.
+    const key = JSON.stringify(config) + '\n' + JSON.stringify(shortcuts ?? {});
+    let cache = this.parsedConfigs.get(id);
+    const hit = cache?.get(key);
+    if (cache && hit) {
+      // Re-insert so Map order tracks recency for the eviction below.
+      cache.delete(key);
+      cache.set(key, hit);
+      return { key, parsed: hit };
+    }
+    const parsed = this.parseConfig(config, shortcuts);
+    if (!cache) {
+      cache = new Map();
+      this.parsedConfigs.set(id, cache);
+    }
+    cache.set(key, parsed);
+    if (cache.size > PARSED_CONFIG_CACHE_LIMIT) {
+      const oldest = cache.keys().next().value;
+      if (oldest !== undefined) cache.delete(oldest);
+    }
+    return { key, parsed };
+  }
+
   /** Compile controls, defaults, and the lookup index in one walk. */
-  private parseConfig(config: DialConfig, shortcuts?: Record<string, ShortcutConfig>) {
+  private parseConfig(config: DialConfig, shortcuts?: Record<string, ShortcutConfig>): ParsedConfig {
     const defaultValues: Record<string, DialValue> = {};
     const modes: Record<string, DialValue> = {};
     const controlsByPath = new Map<string, ControlMeta>();
