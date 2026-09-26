@@ -25,6 +25,12 @@ export type TimelineClipMeta = {
    * says keeps running after the clip's own duration. Drawn as a fading
    * tail in single-track mode and counted into the timeline's end. */
   tail?: number;
+  /** Single track: the extra row this clip lives on (unset = main lane). */
+  lane?: string;
+  /** Single track: row label for `lane`. */
+  laneLabel?: string;
+  /** Single track: fixed in/out parts (seconds); resizing edits only idle. */
+  segments?: { in: number; out: number };
 };
 
 export type TimelineMeta = {
@@ -57,6 +63,12 @@ export type TimelineMeta = {
    * config is rebuilt whenever the clip list changes.
    */
   highlightedClip?: string | null;
+  /**
+   * Called with the clip's key when a clip bar is clicked (pressed and
+   * released under the drag threshold). Set through the hook's
+   * `onClipClick` option; the React dock fires it.
+   */
+  onClipClick?: (key: string) => void;
 };
 
 export type TimelineTransport = {

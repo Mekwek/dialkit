@@ -101,6 +101,29 @@ type TimelineClipBase = {
    * is not something anyone wants to read on a timeline.
    */
   label?: string;
+  /**
+   * Single track: puts the clip on its own row below the main lane. Clips
+   * sharing a `lane` value share that row (no overlap within it); rows are
+   * ordered by first appearance in the config. Lane clips never clamp or
+   * snap against main-lane clips (and vice versa), never take the
+   * `pinStart` pin, and count toward the timeline's end like any clip.
+   * Ignored in rows mode, where every clip has its own row anyway.
+   */
+  lane?: string;
+  /** Row label for the clip's `lane`. Falls back to the clip's `label`. */
+  laneLabel?: string;
+  /**
+   * Single track: draws the bar as three parts — `in` (seconds), idle (the
+   * rest), `out` (seconds). Resizing either edge changes only the idle part;
+   * the bar can never be shorter than `in + out`.
+   */
+  segments?: TimelineClipSegments;
+};
+
+/** The fixed in/out parts of a segmented clip, in seconds. */
+export type TimelineClipSegments = {
+  in: number;
+  out: number;
 };
 
 // The three clip shapes are mutually exclusive, encoded with optional-never
@@ -372,6 +395,53 @@ function defaultClipDuration(clip: TimelineClipConfig): number {
   return clip.from || clip.to ? transitionDefaultDuration(DEFAULT_CLIP_TRANSITION) : 0;
 }
 
+/** Normalizes a clip's `segments` config: both parts non-negative seconds.
+ *  Returns undefined when absent, malformed, or both parts are zero. */
+export function parseClipSegments(value: unknown): TimelineClipSegments | undefined {
+  if (!isPlainObject(value)) return undefined;
+  const segIn = nonNegativeFinite(value.in);
+  const segOut = nonNegativeFinite(value.out);
+  return segIn + segOut > 0 ? { in: segIn, out: segOut } : undefined;
+}
+
+/** The shortest a bar may be: `in + out` for a segmented clip (idle ≥ 0),
+ *  the standard minimum otherwise. */
+export function segmentedMinDuration(segments: TimelineClipSegments | undefined): number {
+  return segments
+    ? // Ceil to 2dp: bar edits round to 2dp, and rounding down would let
+      // idle dip below zero.
+      Math.max(TIMELINE_MIN_CLIP_DURATION, Math.ceil((segments.in + segments.out) * 100 - 1e-6) / 100)
+    : TIMELINE_MIN_CLIP_DURATION;
+}
+
+/** How a bar of `duration` splits into in / idle / out. When the bar is
+ *  shorter than `in + out` (a stale stored value), in and out shrink in
+ *  proportion and idle is 0, so the parts never overflow the bar. */
+export function segmentWidths(
+  duration: number,
+  segments: TimelineClipSegments
+): { in: number; idle: number; out: number } {
+  const span = Math.max(0, duration);
+  const fixed = segments.in + segments.out;
+  if (fixed <= 0) return { in: 0, idle: span, out: 0 };
+  if (fixed > span) {
+    const scale = span / fixed;
+    return { in: segments.in * scale, idle: 0, out: segments.out * scale };
+  }
+  return { in: segments.in, idle: span - fixed, out: segments.out };
+}
+
+// A segmented clip's bar covers at least its in + out parts.
+function clipBarDuration(clip: TimelineClipConfig): number {
+  const base = defaultClipDuration(clip);
+  const segments = parseClipSegments(clip.segments);
+  return segments ? Math.max(base, segments.in + segments.out) : base;
+}
+
+function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
 export function normalizeLoopMode(value: unknown): TimelineClipLoop {
   // `mirror` no longer exists — sequences whose last step returns home
   // replaced it. Legacy values fold into `repeat`.
@@ -454,7 +524,7 @@ export function parseTimelineConfig(config: TimelineConfig): ParsedTimeline {
   for (const { clip } of entries) {
     maxEnd = Math.max(
       maxEnd,
-      nonNegativeFinite(clip.at) + defaultClipDuration(clip) + nonNegativeFinite(clip.tail)
+      nonNegativeFinite(clip.at) + clipBarDuration(clip) + nonNegativeFinite(clip.tail)
     );
   }
 
@@ -494,7 +564,7 @@ export function parseTimelineConfig(config: TimelineConfig): ParsedTimeline {
     const hasSteps = Boolean(clip.steps?.length) && !clip.props;
     const hasProps = Boolean(clip.props);
     const single = isTransitionConfig(clip.transition) ? clip.transition : undefined;
-    const total = defaultClipDuration(clip);
+    const total = clipBarDuration(clip);
     const defaultCurve = single ?? DEFAULT_CLIP_TRANSITION;
     const clipAt = nonNegativeFinite(clip.at);
 
@@ -614,6 +684,10 @@ export function parseTimelineConfig(config: TimelineConfig): ParsedTimeline {
 
     setDialPath(dialConfig, path, clipDial);
 
+    const lane = nonEmptyString(raw.lane);
+    const laneLabel = nonEmptyString(raw.laneLabel);
+    const segments = parseClipSegments(raw.segments);
+
     clips.push({
       key: path,
       label:
@@ -626,6 +700,9 @@ export function parseTimelineConfig(config: TimelineConfig): ParsedTimeline {
       stepKeys,
       tracks,
       ...(nonNegativeFinite(clip.tail) > 0 ? { tail: nonNegativeFinite(clip.tail) } : {}),
+      ...(lane ? { lane } : {}),
+      ...(lane && laneLabel ? { laneLabel } : {}),
+      ...(segments ? { segments } : {}),
     });
   });
 
@@ -1344,7 +1421,33 @@ export type SingleTrackClipSpan = {
   /** Seconds the clip keeps acting past its bar end (0 or absent = none).
    *  Only the stepped drag reads it. */
   tail?: number;
+  /** The clip's lane (unset = main lane). Only `singleTrackLaneSpans` reads
+   *  it — every other helper assumes its input is already one lane. */
+  lane?: string;
+  /** Shortest the bar may be resized to — `segmentedMinDuration` for a
+   *  segmented clip. Defaults to TIMELINE_MIN_CLIP_DURATION. */
+  minDuration?: number;
 };
+
+/** The distinct `lane` values of a clip list, in config order. The main
+ *  lane (unset) is not included. */
+export function singleTrackLanes(clips: { lane?: string }[]): string[] {
+  const lanes: string[] = [];
+  for (const clip of clips) {
+    if (clip.lane !== undefined && !lanes.includes(clip.lane)) lanes.push(clip.lane);
+  }
+  return lanes;
+}
+
+/** One lane's spans, sorted by `at` — the input every single-track clamp
+ *  expects. `lane` undefined selects the main lane. Clips on other lanes
+ *  never limit, snap, or reorder against this one. */
+export function singleTrackLaneSpans(
+  spans: SingleTrackClipSpan[],
+  lane: string | undefined
+): SingleTrackClipSpan[] {
+  return spans.filter((span) => span.lane === lane).sort((a, b) => a.at - b.at);
+}
 
 /** The room a block move has: `lo`..`hi` seconds before a selected clip
  *  would cross an unselected neighbor. `lo > hi` means fully wedged. */
@@ -1453,18 +1556,17 @@ export function singleTrackSteppedResizeEnd(
   const wanted = span.duration + delta;
   const max = nextStart === undefined ? Number.POSITIVE_INFINITY : nextStart - span.at;
   const tail = span.tail ?? 0;
+  const min = span.minDuration ?? TIMELINE_MIN_CLIP_DURATION;
   let best: number | null = null;
   for (const target of targets) {
     const candidates = [target - span.at];
     if (tail > 0) candidates.push(target - span.at - tail);
     for (const d of candidates) {
-      if (d < TIMELINE_MIN_CLIP_DURATION - SNAP_EPS || d > max + SNAP_EPS) continue;
+      if (d < min - SNAP_EPS || d > max + SNAP_EPS) continue;
       if (best === null || Math.abs(d - wanted) < Math.abs(best - wanted)) best = d;
     }
   }
-  return best === null
-    ? clampSingleTrackResizeEnd(wanted, span.at, nextStart)
-    : clampSingleTrackResizeEnd(best, span.at, nextStart);
+  return clampSingleTrackResizeEnd(best ?? wanted, span.at, nextStart, min);
 }
 
 /** Stepped start-edge resize: the start lands on the reachable target
@@ -1478,13 +1580,14 @@ export function singleTrackSteppedResizeStart(
 ): { at: number; duration: number } {
   const wanted = span.at + delta;
   const floor = Math.max(0, prevEnd ?? 0);
-  const ceil = span.at + span.duration - TIMELINE_MIN_CLIP_DURATION;
+  const min = span.minDuration ?? TIMELINE_MIN_CLIP_DURATION;
+  const ceil = span.at + span.duration - min;
   let best: number | null = null;
   for (const target of targets) {
     if (target < floor - SNAP_EPS || target > ceil + SNAP_EPS) continue;
     if (best === null || Math.abs(target - wanted) < Math.abs(best - wanted)) best = target;
   }
-  return clampSingleTrackResizeStart(best ?? wanted, span.at, span.duration, prevEnd);
+  return clampSingleTrackResizeStart(best ?? wanted, span.at, span.duration, prevEnd, min);
 }
 
 /**
@@ -1520,26 +1623,30 @@ export function singleTrackReorderAts(
 }
 
 /** End-edge resize: the end moves, neighbors stay put — growth caps when
- * the gap to the next clip hits zero (butted). Last clip: unlimited. */
+ * the gap to the next clip hits zero (butted). Last clip: unlimited.
+ * `minDuration` floors the bar (`segmentedMinDuration` for a segmented
+ * clip, so only its idle part shrinks). */
 export function clampSingleTrackResizeEnd(
   duration: number,
   at: number,
-  nextStart: number | undefined
+  nextStart: number | undefined,
+  minDuration = TIMELINE_MIN_CLIP_DURATION
 ): number {
-  const max = nextStart === undefined ? Number.POSITIVE_INFINITY : Math.max(TIMELINE_MIN_CLIP_DURATION, nextStart - at);
-  return clamp(round2(duration), TIMELINE_MIN_CLIP_DURATION, max);
+  const max = nextStart === undefined ? Number.POSITIVE_INFINITY : Math.max(minDuration, nextStart - at);
+  return clamp(round2(duration), minDuration, max);
 }
 
 /** Start-edge resize: the start moves, the END stays fixed — capped at the
- * previous clip's end (butted) and at the minimum clip length. */
+ * previous clip's end (butted) and at `minDuration` (see above). */
 export function clampSingleTrackResizeStart(
   newAt: number,
   at: number,
   duration: number,
-  prevEnd: number | undefined
+  prevEnd: number | undefined,
+  minDuration = TIMELINE_MIN_CLIP_DURATION
 ): { at: number; duration: number } {
   const floor = Math.max(0, prevEnd ?? 0);
-  const clampedAt = clamp(round2(newAt), floor, at + duration - TIMELINE_MIN_CLIP_DURATION);
+  const clampedAt = clamp(round2(newAt), floor, at + duration - minDuration);
   return { at: clampedAt, duration: round2(at + duration - clampedAt) };
 }
 

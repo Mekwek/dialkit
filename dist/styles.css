@@ -2572,6 +2572,10 @@
   /* The mark that says which clip the panel is editing. */
   --dial-timeline-highlight: rgba(255, 255, 255, 0.35);
   --dial-timeline-accent: #E30613;
+  /* Segmented bars: the in/out parts ramp toward this shade, and a hairline
+     marks where idle begins and ends. */
+  --dial-timeline-seg-shade: rgba(0, 0, 0, 0.35);
+  --dial-timeline-seg-line: rgba(255, 255, 255, 0.14);
 }
 
 /* Light mode mirrors the relationships, not the values: the ground is
@@ -2598,6 +2602,8 @@
   --dial-timeline-tail-border: rgba(0, 0, 0, 0.3);
   --dial-timeline-tail-fill: rgba(0, 0, 0, 0.05);
   --dial-timeline-highlight: rgba(0, 0, 0, 0.45);
+  --dial-timeline-seg-shade: rgba(255, 255, 255, 0.5);
+  --dial-timeline-seg-line: rgba(0, 0, 0, 0.14);
 }
 
 @media (prefers-color-scheme: light) {
@@ -2621,6 +2627,8 @@
     --dial-timeline-tail-border: rgba(0, 0, 0, 0.3);
     --dial-timeline-tail-fill: rgba(0, 0, 0, 0.05);
     --dial-timeline-highlight: rgba(0, 0, 0, 0.45);
+    --dial-timeline-seg-shade: rgba(255, 255, 255, 0.5);
+    --dial-timeline-seg-line: rgba(0, 0, 0, 0.14);
   }
 }
 
@@ -2730,6 +2738,43 @@
    lights its tail the same way. */
 .dialkit-timeline-clip-tail[data-lit] {
   opacity: 1;
+}
+
+/* Extra lanes (clips with a `lane`) get a label column so each row can
+   say what it holds. Every row, the ruler, and the playhead read the same
+   variable, so the lanes stay aligned. */
+.dialkit-timeline-section[data-single-track][data-lanes] {
+  --dial-timeline-label-w: 72px;
+}
+
+.dialkit-timeline-section[data-single-track] .dialkit-timeline-single-row[data-lane] .dialkit-timeline-label {
+  font-size: 11px;
+}
+
+/* Segmented bars: in and out are fixed-length parts at each end, drawn as
+   a ramp toward the lane so they read as the clip appearing and leaving.
+   Idle is the plain bar between them. */
+.dialkit-timeline-clip-seg {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.dialkit-timeline-clip-seg[data-seg="in"] {
+  left: 0;
+  background: linear-gradient(90deg, var(--dial-timeline-seg-shade), transparent);
+  box-shadow: inset -1px 0 0 var(--dial-timeline-seg-line);
+}
+
+.dialkit-timeline-clip-seg[data-seg="out"] {
+  right: 0;
+  background: linear-gradient(270deg, var(--dial-timeline-seg-shade), transparent);
+  box-shadow: inset 1px 0 0 var(--dial-timeline-seg-line);
+}
+
+.dialkit-timeline-section[data-single-track] .dialkit-timeline-clip[data-selected] .dialkit-timeline-clip-seg {
+  --dial-timeline-seg-line: var(--dial-timeline-sel-grip);
 }
 
 /* Reorder insertion cue. */

@@ -5037,6 +5037,20 @@ Apply these values as the new defaults in the ${hookName} call.`;
     if (isTransitionConfig(clip.transition)) return transitionDefaultDuration(clip.transition);
     return clip.from || clip.to ? transitionDefaultDuration(DEFAULT_CLIP_TRANSITION) : 0;
   }
+  function parseClipSegments(value) {
+    if (!isPlainObject(value)) return void 0;
+    const segIn = nonNegativeFinite(value.in);
+    const segOut = nonNegativeFinite(value.out);
+    return segIn + segOut > 0 ? { in: segIn, out: segOut } : void 0;
+  }
+  function clipBarDuration(clip) {
+    const base = defaultClipDuration(clip);
+    const segments = parseClipSegments(clip.segments);
+    return segments ? Math.max(base, segments.in + segments.out) : base;
+  }
+  function nonEmptyString(value) {
+    return typeof value === "string" && value.trim() ? value.trim() : void 0;
+  }
   function normalizeLoopMode(value) {
     if (value === true || value === "mirror" || value === "repeat") return "repeat";
     return "off";
@@ -5100,7 +5114,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
     for (const { clip } of entries) {
       maxEnd = Math.max(
         maxEnd,
-        nonNegativeFinite(clip.at) + defaultClipDuration(clip) + nonNegativeFinite(clip.tail)
+        nonNegativeFinite(clip.at) + clipBarDuration(clip) + nonNegativeFinite(clip.tail)
       );
     }
     const duration = typeof config.duration === "number" && Number.isFinite(config.duration) && config.duration > 0 ? config.duration : maxEnd > 0 ? Math.ceil(maxEnd * 100 - 1e-4) / 100 : 1;
@@ -5120,7 +5134,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
       const hasSteps = Boolean(clip.steps?.length) && !clip.props;
       const hasProps = Boolean(clip.props);
       const single = isTransitionConfig(clip.transition) ? clip.transition : void 0;
-      const total = defaultClipDuration(clip);
+      const total = clipBarDuration(clip);
       const defaultCurve = single ?? DEFAULT_CLIP_TRANSITION;
       const clipAt = nonNegativeFinite(clip.at);
       const clipDial = {
@@ -5222,6 +5236,9 @@ Apply these values as the new defaults in the ${hookName} call.`;
         });
       }
       setDialPath(dialConfig, path, clipDial);
+      const lane = nonEmptyString(raw.lane);
+      const laneLabel = nonEmptyString(raw.laneLabel);
+      const segments = parseClipSegments(raw.segments);
       clips.push({
         key: path,
         label: typeof raw.label === "string" && raw.label.trim() ? raw.label.trim() : formatLabel(childKey),
@@ -5230,7 +5247,10 @@ Apply these values as the new defaults in the ${hookName} call.`;
         group,
         stepKeys,
         tracks,
-        ...nonNegativeFinite(clip.tail) > 0 ? { tail: nonNegativeFinite(clip.tail) } : {}
+        ...nonNegativeFinite(clip.tail) > 0 ? { tail: nonNegativeFinite(clip.tail) } : {},
+        ...lane ? { lane } : {},
+        ...lane && laneLabel ? { laneLabel } : {},
+        ...segments ? { segments } : {}
       });
     });
     return { duration, dialConfig, clips };
@@ -5754,7 +5774,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
     }
     return { enabled: Boolean(loop), start: 0 };
   }
-  function buildTimelineMeta(id, name, duration, parsed, loop, track, pinStart) {
+  function buildTimelineMeta(id, name, duration, parsed, loop, track, pinStart, onClipClick) {
     const resolvedLoop = resolveTimelineLoop(loop);
     return {
       id,
@@ -5764,7 +5784,8 @@ Apply these values as the new defaults in the ${hookName} call.`;
       loopStart: resolvedLoop.start,
       clips: parsed.clips,
       ...track === "single" ? { singleTrack: true } : {},
-      ...track === "single" && pinStart ? { pinStart: true } : {}
+      ...track === "single" && pinStart ? { pinStart: true } : {},
+      ...onClipClick ? { onClipClick } : {}
     };
   }
   function buildTimelineValues(staticClips, transport, timelineDuration, loopStart, actions) {

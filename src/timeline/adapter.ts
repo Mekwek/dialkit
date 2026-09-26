@@ -46,6 +46,15 @@ export interface DialTimelineOptions {
    * by default; the host opts in per panel.
    */
   presetsLockable?: boolean;
+  /**
+   * Called with a clip's key when its bar is clicked (pressed and released
+   * without dragging past the click threshold). Fires for every clip,
+   * before the dock's own click handling (the clip editor popover). React
+   * dock only for now. To mark a clip as selected, name it with
+   * `TimelineStore.setHighlight(id, key)` — the same edit highlight the
+   * single track already draws.
+   */
+  onClipClick?: (key: string) => void;
 }
 
 export type TimelineActions = {
@@ -75,7 +84,8 @@ export function buildTimelineMeta(
   parsed: ParsedTimeline,
   loop: DialTimelineOptions['loop'],
   track?: DialTimelineOptions['track'],
-  pinStart?: DialTimelineOptions['pinStart']
+  pinStart?: DialTimelineOptions['pinStart'],
+  onClipClick?: DialTimelineOptions['onClipClick']
 ): TimelineMeta {
   const resolvedLoop = resolveTimelineLoop(loop);
   return {
@@ -87,6 +97,7 @@ export function buildTimelineMeta(
     clips: parsed.clips,
     ...(track === 'single' ? { singleTrack: true } : {}),
     ...(track === 'single' && pinStart ? { pinStart: true } : {}),
+    ...(onClipClick ? { onClipClick } : {}),
   };
 }
 

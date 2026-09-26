@@ -131,6 +131,15 @@ type TimelineClipMeta = {
      * says keeps running after the clip's own duration. Drawn as a fading
      * tail in single-track mode and counted into the timeline's end. */
     tail?: number;
+    /** Single track: the extra row this clip lives on (unset = main lane). */
+    lane?: string;
+    /** Single track: row label for `lane`. */
+    laneLabel?: string;
+    /** Single track: fixed in/out parts (seconds); resizing edits only idle. */
+    segments?: {
+        in: number;
+        out: number;
+    };
 };
 type TimelineMeta = {
     id: string;
@@ -162,6 +171,12 @@ type TimelineMeta = {
      * config is rebuilt whenever the clip list changes.
      */
     highlightedClip?: string | null;
+    /**
+     * Called with the clip's key when a clip bar is clicked (pressed and
+     * released under the drag threshold). Set through the hook's
+     * `onClipClick` option; the React dock fires it.
+     */
+    onClipClick?: (key: string) => void;
 };
 type TimelineTransport = {
     time: number;
@@ -270,6 +285,28 @@ type TimelineClipBase = {
      * is not something anyone wants to read on a timeline.
      */
     label?: string;
+    /**
+     * Single track: puts the clip on its own row below the main lane. Clips
+     * sharing a `lane` value share that row (no overlap within it); rows are
+     * ordered by first appearance in the config. Lane clips never clamp or
+     * snap against main-lane clips (and vice versa), never take the
+     * `pinStart` pin, and count toward the timeline's end like any clip.
+     * Ignored in rows mode, where every clip has its own row anyway.
+     */
+    lane?: string;
+    /** Row label for the clip's `lane`. Falls back to the clip's `label`. */
+    laneLabel?: string;
+    /**
+     * Single track: draws the bar as three parts — `in` (seconds), idle (the
+     * rest), `out` (seconds). Resizing either edge changes only the idle part;
+     * the bar can never be shorter than `in + out`.
+     */
+    segments?: TimelineClipSegments;
+};
+/** The fixed in/out parts of a segmented clip, in seconds. */
+type TimelineClipSegments = {
+    in: number;
+    out: number;
 };
 type TimelineClipConfig = TimelineClipBase & ({
     from?: DialConfig;
@@ -527,6 +564,15 @@ interface DialTimelineOptions {
      * by default; the host opts in per panel.
      */
     presetsLockable?: boolean;
+    /**
+     * Called with a clip's key when its bar is clicked (pressed and released
+     * without dragging past the click threshold). Fires for every clip,
+     * before the dock's own click handling (the clip editor popover). React
+     * dock only for now. To mark a clip as selected, name it with
+     * `TimelineStore.setHighlight(id, key)` — the same edit highlight the
+     * single track already draws.
+     */
+    onClipClick?: (key: string) => void;
 }
 type TimelineActions = {
     play: () => void;
@@ -539,7 +585,7 @@ declare function resolveTimelineLoop(loop: DialTimelineOptions['loop']): {
     enabled: boolean;
     start: number;
 };
-declare function buildTimelineMeta(id: string, name: string, duration: number, parsed: ParsedTimeline, loop: DialTimelineOptions['loop'], track?: DialTimelineOptions['track'], pinStart?: DialTimelineOptions['pinStart']): TimelineMeta;
+declare function buildTimelineMeta(id: string, name: string, duration: number, parsed: ParsedTimeline, loop: DialTimelineOptions['loop'], track?: DialTimelineOptions['track'], pinStart?: DialTimelineOptions['pinStart'], onClipClick?: DialTimelineOptions['onClipClick']): TimelineMeta;
 /**
  * Framework-neutral frame pass. Adapters only own lifecycle and reactivity;
  * the value shape and loop-cycle math stay identical everywhere.

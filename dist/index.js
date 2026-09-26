@@ -5953,6 +5953,37 @@ function defaultClipDuration(clip) {
   if (isTransitionConfig(clip.transition)) return transitionDefaultDuration(clip.transition);
   return clip.from || clip.to ? transitionDefaultDuration(DEFAULT_CLIP_TRANSITION) : 0;
 }
+function parseClipSegments(value) {
+  if (!isPlainObject(value)) return void 0;
+  const segIn = nonNegativeFinite(value.in);
+  const segOut = nonNegativeFinite(value.out);
+  return segIn + segOut > 0 ? { in: segIn, out: segOut } : void 0;
+}
+function segmentedMinDuration(segments) {
+  return segments ? (
+    // Ceil to 2dp: bar edits round to 2dp, and rounding down would let
+    // idle dip below zero.
+    Math.max(TIMELINE_MIN_CLIP_DURATION, Math.ceil((segments.in + segments.out) * 100 - 1e-6) / 100)
+  ) : TIMELINE_MIN_CLIP_DURATION;
+}
+function segmentWidths(duration, segments) {
+  const span = Math.max(0, duration);
+  const fixed = segments.in + segments.out;
+  if (fixed <= 0) return { in: 0, idle: span, out: 0 };
+  if (fixed > span) {
+    const scale = span / fixed;
+    return { in: segments.in * scale, idle: 0, out: segments.out * scale };
+  }
+  return { in: segments.in, idle: span - fixed, out: segments.out };
+}
+function clipBarDuration(clip) {
+  const base = defaultClipDuration(clip);
+  const segments = parseClipSegments(clip.segments);
+  return segments ? Math.max(base, segments.in + segments.out) : base;
+}
+function nonEmptyString(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : void 0;
+}
 function normalizeLoopMode(value) {
   if (value === true || value === "mirror" || value === "repeat") return "repeat";
   return "off";
@@ -6016,7 +6047,7 @@ function parseTimelineConfig(config) {
   for (const { clip } of entries) {
     maxEnd = Math.max(
       maxEnd,
-      nonNegativeFinite(clip.at) + defaultClipDuration(clip) + nonNegativeFinite(clip.tail)
+      nonNegativeFinite(clip.at) + clipBarDuration(clip) + nonNegativeFinite(clip.tail)
     );
   }
   const duration = typeof config.duration === "number" && Number.isFinite(config.duration) && config.duration > 0 ? config.duration : maxEnd > 0 ? Math.ceil(maxEnd * 100 - 1e-4) / 100 : 1;
@@ -6036,7 +6067,7 @@ function parseTimelineConfig(config) {
     const hasSteps = Boolean(clip.steps?.length) && !clip.props;
     const hasProps = Boolean(clip.props);
     const single = isTransitionConfig(clip.transition) ? clip.transition : void 0;
-    const total = defaultClipDuration(clip);
+    const total = clipBarDuration(clip);
     const defaultCurve = single ?? DEFAULT_CLIP_TRANSITION;
     const clipAt = nonNegativeFinite(clip.at);
     const clipDial = {
@@ -6138,6 +6169,9 @@ function parseTimelineConfig(config) {
       });
     }
     setDialPath(dialConfig, path, clipDial);
+    const lane = nonEmptyString(raw.lane);
+    const laneLabel = nonEmptyString(raw.laneLabel);
+    const segments = parseClipSegments(raw.segments);
     clips.push({
       key: path,
       label: typeof raw.label === "string" && raw.label.trim() ? raw.label.trim() : formatLabel(childKey),
@@ -6146,7 +6180,10 @@ function parseTimelineConfig(config) {
       group,
       stepKeys,
       tracks,
-      ...nonNegativeFinite(clip.tail) > 0 ? { tail: nonNegativeFinite(clip.tail) } : {}
+      ...nonNegativeFinite(clip.tail) > 0 ? { tail: nonNegativeFinite(clip.tail) } : {},
+      ...lane ? { lane } : {},
+      ...lane && laneLabel ? { laneLabel } : {},
+      ...segments ? { segments } : {}
     });
   });
   return { duration, dialConfig, clips };
@@ -6600,6 +6637,16 @@ function clampClipResizeStart(newAt, at, duration) {
   const clampedAt = clamp2(round2(newAt), 0, at + duration - TIMELINE_MIN_CLIP_DURATION);
   return { at: clampedAt, duration: round2(at + duration - clampedAt) };
 }
+function singleTrackLanes(clips) {
+  const lanes = [];
+  for (const clip of clips) {
+    if (clip.lane !== void 0 && !lanes.includes(clip.lane)) lanes.push(clip.lane);
+  }
+  return lanes;
+}
+function singleTrackLaneSpans(spans, lane) {
+  return spans.filter((span) => span.lane === lane).sort((a, b) => a.at - b.at);
+}
 function singleTrackMoveBounds(clips) {
   let lo = Number.NEGATIVE_INFINITY;
   let hi = Number.POSITIVE_INFINITY;
@@ -6662,27 +6709,29 @@ function singleTrackSteppedResizeEnd(span, nextStart, delta, targets) {
   const wanted = span.duration + delta;
   const max = nextStart === void 0 ? Number.POSITIVE_INFINITY : nextStart - span.at;
   const tail = span.tail ?? 0;
+  const min = span.minDuration ?? TIMELINE_MIN_CLIP_DURATION;
   let best = null;
   for (const target of targets) {
     const candidates = [target - span.at];
     if (tail > 0) candidates.push(target - span.at - tail);
     for (const d of candidates) {
-      if (d < TIMELINE_MIN_CLIP_DURATION - SNAP_EPS || d > max + SNAP_EPS) continue;
+      if (d < min - SNAP_EPS || d > max + SNAP_EPS) continue;
       if (best === null || Math.abs(d - wanted) < Math.abs(best - wanted)) best = d;
     }
   }
-  return best === null ? clampSingleTrackResizeEnd(wanted, span.at, nextStart) : clampSingleTrackResizeEnd(best, span.at, nextStart);
+  return clampSingleTrackResizeEnd(best ?? wanted, span.at, nextStart, min);
 }
 function singleTrackSteppedResizeStart(span, prevEnd, delta, targets) {
   const wanted = span.at + delta;
   const floor = Math.max(0, prevEnd ?? 0);
-  const ceil = span.at + span.duration - TIMELINE_MIN_CLIP_DURATION;
+  const min = span.minDuration ?? TIMELINE_MIN_CLIP_DURATION;
+  const ceil = span.at + span.duration - min;
   let best = null;
   for (const target of targets) {
     if (target < floor - SNAP_EPS || target > ceil + SNAP_EPS) continue;
     if (best === null || Math.abs(target - wanted) < Math.abs(best - wanted)) best = target;
   }
-  return clampSingleTrackResizeStart(best ?? wanted, span.at, span.duration, prevEnd);
+  return clampSingleTrackResizeStart(best ?? wanted, span.at, span.duration, prevEnd, min);
 }
 function singleTrackReorderAts(clips, slot) {
   const gaps = clips.map(
@@ -6705,13 +6754,13 @@ function singleTrackReorderAts(clips, slot) {
   });
   return ats;
 }
-function clampSingleTrackResizeEnd(duration, at, nextStart) {
-  const max = nextStart === void 0 ? Number.POSITIVE_INFINITY : Math.max(TIMELINE_MIN_CLIP_DURATION, nextStart - at);
-  return clamp2(round2(duration), TIMELINE_MIN_CLIP_DURATION, max);
+function clampSingleTrackResizeEnd(duration, at, nextStart, minDuration = TIMELINE_MIN_CLIP_DURATION) {
+  const max = nextStart === void 0 ? Number.POSITIVE_INFINITY : Math.max(minDuration, nextStart - at);
+  return clamp2(round2(duration), minDuration, max);
 }
-function clampSingleTrackResizeStart(newAt, at, duration, prevEnd) {
+function clampSingleTrackResizeStart(newAt, at, duration, prevEnd, minDuration = TIMELINE_MIN_CLIP_DURATION) {
   const floor = Math.max(0, prevEnd ?? 0);
-  const clampedAt = clamp2(round2(newAt), floor, at + duration - TIMELINE_MIN_CLIP_DURATION);
+  const clampedAt = clamp2(round2(newAt), floor, at + duration - minDuration);
   return { at: clampedAt, duration: round2(at + duration - clampedAt) };
 }
 function clampStepResize(duration, at, otherStepsTotal, timelineDuration) {
@@ -6784,7 +6833,7 @@ function resolveTimelineLoop(loop) {
   }
   return { enabled: Boolean(loop), start: 0 };
 }
-function buildTimelineMeta(id, name, duration, parsed, loop, track, pinStart) {
+function buildTimelineMeta(id, name, duration, parsed, loop, track, pinStart, onClipClick) {
   const resolvedLoop = resolveTimelineLoop(loop);
   return {
     id,
@@ -6794,7 +6843,8 @@ function buildTimelineMeta(id, name, duration, parsed, loop, track, pinStart) {
     loopStart: resolvedLoop.start,
     clips: parsed.clips,
     ...track === "single" ? { singleTrack: true } : {},
-    ...track === "single" && pinStart ? { pinStart: true } : {}
+    ...track === "single" && pinStart ? { pinStart: true } : {},
+    ...onClipClick ? { onClipClick } : {}
   };
 }
 function buildTimelineValues(staticClips, transport, timelineDuration, loopStart, actions) {
@@ -6841,6 +6891,8 @@ function useDialTimeline(name, config, options) {
   const optionsRef = useRef17(options);
   optionsRef.current = options;
   const { enabled: loopEnabled, start: loopStart } = resolveTimelineLoop(options?.loop);
+  const hasClipClick = typeof options?.onClipClick === "function";
+  const handleClipClick = useCallback13((key) => optionsRef.current?.onClipClick?.(key), []);
   const buildMeta = useCallback13(
     () => buildTimelineMeta(
       panelId,
@@ -6849,9 +6901,10 @@ function useDialTimeline(name, config, options) {
       parsedRef.current,
       loopEnabled ? { from: loopStart } : false,
       options?.track,
-      options?.pinStart
+      options?.pinStart,
+      hasClipClick ? handleClipClick : void 0
     ),
-    [panelId, name, timelineDuration, loopEnabled, loopStart, options?.track, options?.pinStart]
+    [panelId, name, timelineDuration, loopEnabled, loopStart, options?.track, options?.pinStart, hasClipClick, handleClipClick]
   );
   const buildMetaRef = useRef17(buildMeta);
   buildMetaRef.current = buildMeta;
@@ -7370,7 +7423,7 @@ var TimelineSection = memo(function TimelineSection2({
   const selectedKeysRef = useRef18(selectedKeys);
   selectedKeysRef.current = selectedKeys;
   const [liftedKeys, setLiftedKeys] = useState10(null);
-  const [cueTime, setCueTime] = useState10(null);
+  const [cue, setCue] = useState10(null);
   const singleDragRef = useRef18(null);
   const subscribeValues = useCallback14(
     (callback) => DialStore.subscribe(meta.id, callback),
@@ -7655,15 +7708,17 @@ var TimelineSection = memo(function TimelineSection2({
       return next;
     });
   }, []);
+  const onClipClick = meta.onClipClick;
   const handleBarClick = useCallback14(
     (clip, rect, stepKey) => {
+      onClipClick?.(clip.key);
       if (!stepKey && clip.tracks?.length) {
         toggleTracks(clip.key);
         return;
       }
       openClipPopover(clip, rect, stepKey);
     },
-    [openClipPopover, toggleTracks]
+    [onClipClick, openClipPopover, toggleTracks]
   );
   const toggleGroup = useCallback14((group) => {
     setCollapsedGroups((prev) => {
@@ -7673,16 +7728,21 @@ var TimelineSection = memo(function TimelineSection2({
       return next;
     });
   }, []);
-  const snapshotSingleSpans = (selection) => meta.clips.map((clip) => {
-    const stat = computeClipStaticFromValues(DialStore.getValues(meta.id), clip, meta.duration);
-    return {
-      key: clip.key,
-      at: stat.at,
-      duration: stat.duration,
-      selected: selection.has(clip.key),
-      tail: clip.tail ?? 0
-    };
-  }).sort((a, b) => a.at - b.at);
+  const snapshotSingleSpans = (selection, lane) => singleTrackLaneSpans(
+    meta.clips.map((clip) => {
+      const stat = computeClipStaticFromValues(DialStore.getValues(meta.id), clip, meta.duration);
+      return {
+        key: clip.key,
+        at: stat.at,
+        duration: stat.duration,
+        selected: selection.has(clip.key),
+        tail: clip.tail ?? 0,
+        lane: clip.lane,
+        minDuration: segmentedMinDuration(clip.segments)
+      };
+    }),
+    lane
+  );
   const singleSnapTargets = (spans) => {
     const transport = TimelineStore.getTransport(meta.id);
     return singleTrackSnapTargets(spans, transport.playing ? void 0 : transport.time);
@@ -7693,7 +7753,8 @@ var TimelineSection = memo(function TimelineSection2({
       selection = /* @__PURE__ */ new Set([key]);
       setSelectedKeys(selection);
     }
-    singleDragRef.current = { spans: snapshotSingleSpans(selection), slot: null };
+    const lane = meta.clips.find((clip) => clip.key === key)?.lane;
+    singleDragRef.current = { spans: snapshotSingleSpans(selection, lane), lane, slot: null };
   };
   const singleToggleSelect = (key) => {
     setSelectedKeys((prev) => {
@@ -7737,15 +7798,16 @@ var TimelineSection = memo(function TimelineSection2({
       }
     }
     drag.slot = slot;
-    setCueTime(
-      slot < others.length ? others[slot].at : others.length ? others[others.length - 1].at + others[others.length - 1].duration : 0
-    );
+    setCue({
+      time: slot < others.length ? others[slot].at : others.length ? others[others.length - 1].at + others[others.length - 1].duration : 0,
+      lane: drag.lane
+    });
   };
   const singleReorderDrop = () => {
     const drag = singleDragRef.current;
     singleDragRef.current = null;
     setLiftedKeys(null);
-    setCueTime(null);
+    setCue(null);
     if (!drag || drag.slot === null) return;
     const ats = singleTrackReorderAts(drag.spans, drag.slot);
     const writes = {};
@@ -7762,7 +7824,7 @@ var TimelineSection = memo(function TimelineSection2({
     DialStore.updateValue(
       meta.id,
       `${key}.duration`,
-      stepped ? singleTrackSteppedResizeEnd(span, next?.at, dt, singleSnapTargets(drag.spans)) : clampSingleTrackResizeEnd(span.duration + dt, span.at, next?.at)
+      stepped ? singleTrackSteppedResizeEnd(span, next?.at, dt, singleSnapTargets(drag.spans)) : clampSingleTrackResizeEnd(span.duration + dt, span.at, next?.at, span.minDuration)
     );
   };
   const singleResizeStart = (key, dt, stepped) => {
@@ -7773,7 +7835,7 @@ var TimelineSection = memo(function TimelineSection2({
     const span = drag.spans[index];
     const prev = drag.spans[index - 1];
     const prevEnd = prev ? prev.at + prev.duration : 0;
-    const next = stepped ? singleTrackSteppedResizeStart(span, prevEnd, dt, singleSnapTargets(drag.spans)) : clampSingleTrackResizeStart(span.at + dt, span.at, span.duration, prevEnd);
+    const next = stepped ? singleTrackSteppedResizeStart(span, prevEnd, dt, singleSnapTargets(drag.spans)) : clampSingleTrackResizeStart(span.at + dt, span.at, span.duration, prevEnd, span.minDuration);
     DialStore.updateValues(meta.id, {
       [`${key}.at`]: next.at,
       [`${key}.duration`]: next.duration
@@ -7802,61 +7864,74 @@ var TimelineSection = memo(function TimelineSection2({
     else fineTicks.push(tick);
   }
   const rows = [];
-  if (singleTrack) {
+  const lanes = singleTrack ? singleTrackLanes(meta.clips) : [];
+  const renderSingleLane = (lane) => {
+    const laneClips = meta.clips.filter((clip) => clip.lane === lane);
+    const stats = laneClips.map((clip) => ({
+      clip,
+      stat: computeClipStaticFromValues(values, clip, meta.duration)
+    }));
+    const pinnedKey = lane === void 0 && meta.pinStart && stats.length ? stats.reduce((a, b) => b.stat.at < a.stat.at ? b : a).clip.key : null;
+    const label = lane === void 0 ? null : laneClips.find((clip) => clip.laneLabel)?.laneLabel ?? laneClips[0]?.label ?? lane;
     rows.push(
-      /* @__PURE__ */ jsxs12("div", { className: "dialkit-timeline-row dialkit-timeline-single-row", children: [
-        /* @__PURE__ */ jsx20("div", { className: "dialkit-timeline-label" }),
-        /* @__PURE__ */ jsxs12("div", { className: "dialkit-timeline-lane", children: [
-          (() => {
-            const stats = meta.clips.map((clip) => ({
-              clip,
-              stat: computeClipStaticFromValues(values, clip, meta.duration)
-            }));
-            const pinnedKey = meta.pinStart && stats.length ? stats.reduce((a, b) => b.stat.at < a.stat.at ? b : a).clip.key : null;
-            return stats.map(({ clip, stat }) => /* @__PURE__ */ jsx20(
-              TimelineClip,
-              {
-                timelineId: meta.id,
-                clip,
-                at: stat.at,
-                duration: stat.duration,
-                loop: stat.loop,
-                fixedDuration: stat.isPhysics,
-                pxPerSecond,
-                viewStart: safeViewStart,
-                timelineDuration: meta.duration,
-                selected: selectedKeys.has(clip.key),
-                highlighted: clip.key === meta.highlightedClip,
-                onClick: handleBarClick,
-                onDrag: closePopover,
-                single: {
-                  tail: clip.tail ?? 0,
-                  lifted: liftedKeys?.has(clip.key) ?? false,
-                  pinned: clip.key === pinnedKey,
-                  onPress: singlePress,
-                  onToggleSelect: singleToggleSelect,
-                  onMove: singleMove,
-                  onLift: singleLift,
-                  onReorderHover: singleReorderHover,
-                  onReorderDrop: singleReorderDrop,
-                  onResizeEnd: singleResizeEnd,
-                  onResizeStart: singleResizeStart,
-                  onRelease: singleRelease
+      /* @__PURE__ */ jsxs12(
+        "div",
+        {
+          className: "dialkit-timeline-row dialkit-timeline-single-row",
+          "data-lane": lane === void 0 ? void 0 : "",
+          children: [
+            /* @__PURE__ */ jsx20("div", { className: "dialkit-timeline-label", title: label ?? void 0, children: label }),
+            /* @__PURE__ */ jsxs12("div", { className: "dialkit-timeline-lane", children: [
+              stats.map(({ clip, stat }) => /* @__PURE__ */ jsx20(
+                TimelineClip,
+                {
+                  timelineId: meta.id,
+                  clip,
+                  at: stat.at,
+                  duration: stat.duration,
+                  loop: stat.loop,
+                  fixedDuration: stat.isPhysics,
+                  pxPerSecond,
+                  viewStart: safeViewStart,
+                  timelineDuration: meta.duration,
+                  selected: selectedKeys.has(clip.key),
+                  highlighted: clip.key === meta.highlightedClip,
+                  onClick: handleBarClick,
+                  onDrag: closePopover,
+                  single: {
+                    tail: clip.tail ?? 0,
+                    lifted: liftedKeys?.has(clip.key) ?? false,
+                    pinned: clip.key === pinnedKey,
+                    onPress: singlePress,
+                    onToggleSelect: singleToggleSelect,
+                    onMove: singleMove,
+                    onLift: singleLift,
+                    onReorderHover: singleReorderHover,
+                    onReorderDrop: singleReorderDrop,
+                    onResizeEnd: singleResizeEnd,
+                    onResizeStart: singleResizeStart,
+                    onRelease: singleRelease
+                  }
+                },
+                clip.key
+              )),
+              cue !== null && cue.lane === lane && /* @__PURE__ */ jsx20(
+                "div",
+                {
+                  className: "dialkit-timeline-single-cue",
+                  style: { left: (cue.time - safeViewStart) * pxPerSecond }
                 }
-              },
-              clip.key
-            ));
-          })(),
-          cueTime !== null && /* @__PURE__ */ jsx20(
-            "div",
-            {
-              className: "dialkit-timeline-single-cue",
-              style: { left: (cueTime - safeViewStart) * pxPerSecond }
-            }
-          )
-        ] })
-      ] }, "single-track")
+              )
+            ] })
+          ]
+        },
+        lane === void 0 ? "single-track" : `lane:${lane}`
+      )
     );
+  };
+  if (singleTrack) {
+    renderSingleLane(void 0);
+    for (const lane of lanes) renderSingleLane(lane);
   }
   let lastGroup;
   for (const clip of singleTrack ? [] : meta.clips) {
@@ -7979,211 +8054,219 @@ var TimelineSection = memo(function TimelineSection2({
       }
     }
   }
-  return /* @__PURE__ */ jsxs12("div", { className: "dialkit-timeline-section", "data-single-track": singleTrack || void 0, children: [
-    /* @__PURE__ */ jsxs12("div", { className: "dialkit-timeline-header", "data-open": open || void 0, children: [
-      /* @__PURE__ */ jsxs12("div", { className: "dialkit-timeline-transport", children: [
-        /* @__PURE__ */ jsx20(PlayPauseButton, { id: meta.id }),
-        /* @__PURE__ */ jsx20(ReplayButton, { onReplay: handleReplay }),
-        /* @__PURE__ */ jsx20(LoopButton, { id: meta.id, loop: meta.loop })
-      ] }),
-      !open && /* @__PURE__ */ jsx20(
-        TimelineOverview,
-        {
-          id: meta.id,
-          duration: meta.duration,
-          viewStart: safeViewStart,
-          viewEnd,
-          onNavigate: centerViewAt
-        }
-      ),
-      /* @__PURE__ */ jsxs12("div", { className: "dialkit-timeline-actions", children: [
-        /* @__PURE__ */ jsx20(
-          motion8.button,
-          {
-            className: "dialkit-toolbar-add",
-            onClick: handleAddPreset,
-            title: "Add timeline version",
-            "aria-label": "Add timeline version",
-            whileTap: { scale: 0.9 },
-            transition: { type: "spring", visualDuration: 0.15, bounce: 0.3 },
-            children: /* @__PURE__ */ jsx20("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true", children: ICON_ADD_PRESET.map((d, i) => /* @__PURE__ */ jsx20("path", { d }, i)) })
-          }
-        ),
-        /* @__PURE__ */ jsx20(
-          PresetManager,
-          {
-            panelId: meta.id,
-            presets,
-            activePresetId,
-            onAdd: handleAddPreset,
-            dropdownClassName: "dialkit-timeline-preset-dropdown"
-          }
-        ),
-        /* @__PURE__ */ jsx20(
-          motion8.button,
-          {
-            className: "dialkit-toolbar-add",
-            onClick: handleCopy,
-            title: "Copy parameters",
-            "aria-label": copied ? "Copied parameters" : "Copy parameters",
-            whileTap: { scale: 0.9 },
-            transition: { type: "spring", visualDuration: 0.15, bounce: 0.3 },
-            children: /* @__PURE__ */ jsx20("span", { style: { position: "relative", width: 16, height: 16 }, children: /* @__PURE__ */ jsx20(AnimatePresence6, { initial: false, mode: "wait", children: copied ? /* @__PURE__ */ jsx20(
-              motion8.svg,
-              {
-                viewBox: "0 0 24 24",
-                fill: "none",
-                stroke: "currentColor",
-                strokeWidth: "2",
-                strokeLinecap: "round",
-                strokeLinejoin: "round",
-                "aria-hidden": "true",
-                style: { position: "absolute", inset: 0, width: 16, height: 16, color: "var(--dial-text-label)" },
-                initial: { scale: 0.8, opacity: 0 },
-                animate: { scale: 1, opacity: 1 },
-                exit: { scale: 0.8, opacity: 0 },
-                transition: { duration: 0.08 },
-                children: /* @__PURE__ */ jsx20("path", { d: ICON_CHECK })
-              },
-              "check"
-            ) : /* @__PURE__ */ jsxs12(
-              motion8.svg,
-              {
-                viewBox: "0 0 24 24",
-                fill: "none",
-                "aria-hidden": "true",
-                style: { position: "absolute", inset: 0, width: 16, height: 16, color: "var(--dial-text-label)" },
-                initial: { scale: 0.8, opacity: 0 },
-                animate: { scale: 1, opacity: 1 },
-                exit: { scale: 0.8, opacity: 0 },
-                transition: { duration: 0.08 },
-                children: [
-                  /* @__PURE__ */ jsx20("path", { d: ICON_CLIPBOARD.board, stroke: "currentColor", strokeWidth: "2", strokeLinejoin: "round" }),
-                  /* @__PURE__ */ jsx20("path", { d: ICON_CLIPBOARD.sparkle, fill: "currentColor" }),
-                  /* @__PURE__ */ jsx20("path", { d: ICON_CLIPBOARD.body, stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" })
-                ]
-              },
-              "clipboard"
-            ) }) })
-          }
-        ),
-        onExport && /* @__PURE__ */ jsxs12(
-          motion8.button,
-          {
-            className: "dialkit-toolbar-add dialkit-timeline-export",
-            onClick: onExport,
-            title: "Export video",
-            "aria-label": "Export video",
-            whileTap: { scale: 0.9 },
-            transition: { type: "spring", visualDuration: 0.15, bounce: 0.3 },
-            children: [
-              /* @__PURE__ */ jsxs12("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true", children: [
-                /* @__PURE__ */ jsx20("path", { d: "M12 3v12" }),
-                /* @__PURE__ */ jsx20("path", { d: "m7 10 5 5 5-5" }),
-                /* @__PURE__ */ jsx20("path", { d: "M5 21h14" })
-              ] }),
-              /* @__PURE__ */ jsx20("span", { children: "Export" })
-            ]
-          }
-        ),
-        /* @__PURE__ */ jsx20(
-          "button",
-          {
-            className: "dialkit-timeline-chevron",
-            "data-open": open,
-            "aria-expanded": open,
-            onClick: () => setOpen(!open),
-            title: open ? "Collapse timeline" : "Expand timeline",
-            children: /* @__PURE__ */ jsx20("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round", children: /* @__PURE__ */ jsx20("path", { d: ICON_CHEVRON }) })
-          }
-        )
-      ] })
-    ] }),
-    open && /* @__PURE__ */ jsxs12(
-      "div",
-      {
-        ref: bodyRef,
-        className: "dialkit-timeline-body",
-        onPointerDown: handleTrackPointerDown,
-        onPointerMove: handleTrackPointerMove,
-        onPointerUp: finishTrackScrub,
-        onPointerCancel: finishTrackScrub,
-        onLostPointerCapture: finishTrackScrub,
-        children: [
-          /* @__PURE__ */ jsxs12("div", { className: "dialkit-timeline-grid", children: [
-            /* @__PURE__ */ jsxs12("div", { className: "dialkit-timeline-row dialkit-timeline-ruler-row", children: [
-              /* @__PURE__ */ jsx20("div", { className: "dialkit-timeline-label" }),
-              /* @__PURE__ */ jsxs12(
-                "div",
-                {
-                  ref: laneAreaRef,
-                  className: "dialkit-timeline-ruler",
-                  onPointerDown: handleRulerPointerDown,
-                  onPointerMove: handleRulerPointerMove,
-                  onPointerUp: handleRulerPointerUp,
-                  onPointerCancel: handleRulerPointerCancel,
-                  onLostPointerCapture: handleRulerPointerCancel,
-                  title: "Drag to seek \xB7 Option-drag or Option-scroll to zoom \xB7 Shift-click to reset zoom",
-                  children: [
-                    fineTicks.map((t) => /* @__PURE__ */ jsx20("div", { className: "dialkit-timeline-tick dialkit-timeline-tick-fine", style: { left: (t - safeViewStart) * pxPerSecond } }, `fine:${t}`)),
-                    mediumTicks.map((t) => /* @__PURE__ */ jsx20("div", { className: "dialkit-timeline-tick dialkit-timeline-tick-medium", style: { left: (t - safeViewStart) * pxPerSecond } }, `medium:${t}`)),
-                    majorTicks.map((t) => /* @__PURE__ */ jsx20("div", { className: "dialkit-timeline-tick", style: { left: (t - safeViewStart) * pxPerSecond } }, t)),
-                    majorTicks.map((t) => /* @__PURE__ */ jsx20(
-                      "span",
-                      {
-                        className: "dialkit-timeline-tick-label",
-                        style: { left: (t - safeViewStart) * pxPerSecond },
-                        children: formatRulerSeconds(t, majorStep)
-                      },
-                      `label:${t}`
-                    ))
-                  ]
-                }
-              )
-            ] }),
-            rows,
-            pxPerSecond > 0 && /* @__PURE__ */ jsx20(
-              TimelinePlayheadFlag,
-              {
-                id: meta.id,
-                duration: meta.duration,
-                pxPerSecond,
-                viewStart: safeViewStart,
-                viewEnd,
-                laneWidth,
-                rulerRef: laneAreaRef,
-                onResetView: resetView
-              }
-            )
+  return /* @__PURE__ */ jsxs12(
+    "div",
+    {
+      className: "dialkit-timeline-section",
+      "data-single-track": singleTrack || void 0,
+      "data-lanes": singleTrack && lanes.length > 0 || void 0,
+      children: [
+        /* @__PURE__ */ jsxs12("div", { className: "dialkit-timeline-header", "data-open": open || void 0, children: [
+          /* @__PURE__ */ jsxs12("div", { className: "dialkit-timeline-transport", children: [
+            /* @__PURE__ */ jsx20(PlayPauseButton, { id: meta.id }),
+            /* @__PURE__ */ jsx20(ReplayButton, { onReplay: handleReplay }),
+            /* @__PURE__ */ jsx20(LoopButton, { id: meta.id, loop: meta.loop })
           ] }),
-          zoom > 1 && /* @__PURE__ */ jsxs12("div", { className: "dialkit-timeline-scroll-row", children: [
-            /* @__PURE__ */ jsx20("div", { className: "dialkit-timeline-label" }),
+          !open && /* @__PURE__ */ jsx20(
+            TimelineOverview,
+            {
+              id: meta.id,
+              duration: meta.duration,
+              viewStart: safeViewStart,
+              viewEnd,
+              onNavigate: centerViewAt
+            }
+          ),
+          /* @__PURE__ */ jsxs12("div", { className: "dialkit-timeline-actions", children: [
             /* @__PURE__ */ jsx20(
-              "div",
+              motion8.button,
               {
-                ref: horizontalScrollRef,
-                className: "dialkit-timeline-horizontal-scroll",
-                onScroll: handleHorizontalScroll,
-                "aria-label": "Timeline horizontal scroll",
-                children: /* @__PURE__ */ jsx20("div", { style: { width: laneWidth * zoom } })
+                className: "dialkit-toolbar-add",
+                onClick: handleAddPreset,
+                title: "Add timeline version",
+                "aria-label": "Add timeline version",
+                whileTap: { scale: 0.9 },
+                transition: { type: "spring", visualDuration: 0.15, bounce: 0.3 },
+                children: /* @__PURE__ */ jsx20("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true", children: ICON_ADD_PRESET.map((d, i) => /* @__PURE__ */ jsx20("path", { d }, i)) })
+              }
+            ),
+            /* @__PURE__ */ jsx20(
+              PresetManager,
+              {
+                panelId: meta.id,
+                presets,
+                activePresetId,
+                onAdd: handleAddPreset,
+                dropdownClassName: "dialkit-timeline-preset-dropdown"
+              }
+            ),
+            /* @__PURE__ */ jsx20(
+              motion8.button,
+              {
+                className: "dialkit-toolbar-add",
+                onClick: handleCopy,
+                title: "Copy parameters",
+                "aria-label": copied ? "Copied parameters" : "Copy parameters",
+                whileTap: { scale: 0.9 },
+                transition: { type: "spring", visualDuration: 0.15, bounce: 0.3 },
+                children: /* @__PURE__ */ jsx20("span", { style: { position: "relative", width: 16, height: 16 }, children: /* @__PURE__ */ jsx20(AnimatePresence6, { initial: false, mode: "wait", children: copied ? /* @__PURE__ */ jsx20(
+                  motion8.svg,
+                  {
+                    viewBox: "0 0 24 24",
+                    fill: "none",
+                    stroke: "currentColor",
+                    strokeWidth: "2",
+                    strokeLinecap: "round",
+                    strokeLinejoin: "round",
+                    "aria-hidden": "true",
+                    style: { position: "absolute", inset: 0, width: 16, height: 16, color: "var(--dial-text-label)" },
+                    initial: { scale: 0.8, opacity: 0 },
+                    animate: { scale: 1, opacity: 1 },
+                    exit: { scale: 0.8, opacity: 0 },
+                    transition: { duration: 0.08 },
+                    children: /* @__PURE__ */ jsx20("path", { d: ICON_CHECK })
+                  },
+                  "check"
+                ) : /* @__PURE__ */ jsxs12(
+                  motion8.svg,
+                  {
+                    viewBox: "0 0 24 24",
+                    fill: "none",
+                    "aria-hidden": "true",
+                    style: { position: "absolute", inset: 0, width: 16, height: 16, color: "var(--dial-text-label)" },
+                    initial: { scale: 0.8, opacity: 0 },
+                    animate: { scale: 1, opacity: 1 },
+                    exit: { scale: 0.8, opacity: 0 },
+                    transition: { duration: 0.08 },
+                    children: [
+                      /* @__PURE__ */ jsx20("path", { d: ICON_CLIPBOARD.board, stroke: "currentColor", strokeWidth: "2", strokeLinejoin: "round" }),
+                      /* @__PURE__ */ jsx20("path", { d: ICON_CLIPBOARD.sparkle, fill: "currentColor" }),
+                      /* @__PURE__ */ jsx20("path", { d: ICON_CLIPBOARD.body, stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" })
+                    ]
+                  },
+                  "clipboard"
+                ) }) })
+              }
+            ),
+            onExport && /* @__PURE__ */ jsxs12(
+              motion8.button,
+              {
+                className: "dialkit-toolbar-add dialkit-timeline-export",
+                onClick: onExport,
+                title: "Export video",
+                "aria-label": "Export video",
+                whileTap: { scale: 0.9 },
+                transition: { type: "spring", visualDuration: 0.15, bounce: 0.3 },
+                children: [
+                  /* @__PURE__ */ jsxs12("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true", children: [
+                    /* @__PURE__ */ jsx20("path", { d: "M12 3v12" }),
+                    /* @__PURE__ */ jsx20("path", { d: "m7 10 5 5 5-5" }),
+                    /* @__PURE__ */ jsx20("path", { d: "M5 21h14" })
+                  ] }),
+                  /* @__PURE__ */ jsx20("span", { children: "Export" })
+                ]
+              }
+            ),
+            /* @__PURE__ */ jsx20(
+              "button",
+              {
+                className: "dialkit-timeline-chevron",
+                "data-open": open,
+                "aria-expanded": open,
+                onClick: () => setOpen(!open),
+                title: open ? "Collapse timeline" : "Expand timeline",
+                children: /* @__PURE__ */ jsx20("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round", children: /* @__PURE__ */ jsx20("path", { d: ICON_CHEVRON }) })
               }
             )
           ] })
-        ]
-      }
-    ),
-    popover && /* @__PURE__ */ jsx20(
-      ClipPopover,
-      {
-        panelId: meta.id,
-        popover,
-        values,
-        theme,
-        maxClipDuration: singleTrack && !popover.stepKey ? singleTrackNeighborCap(meta, values, popover.clip.key) : void 0,
-        onClose: closePopover
-      }
-    )
-  ] });
+        ] }),
+        open && /* @__PURE__ */ jsxs12(
+          "div",
+          {
+            ref: bodyRef,
+            className: "dialkit-timeline-body",
+            onPointerDown: handleTrackPointerDown,
+            onPointerMove: handleTrackPointerMove,
+            onPointerUp: finishTrackScrub,
+            onPointerCancel: finishTrackScrub,
+            onLostPointerCapture: finishTrackScrub,
+            children: [
+              /* @__PURE__ */ jsxs12("div", { className: "dialkit-timeline-grid", children: [
+                /* @__PURE__ */ jsxs12("div", { className: "dialkit-timeline-row dialkit-timeline-ruler-row", children: [
+                  /* @__PURE__ */ jsx20("div", { className: "dialkit-timeline-label" }),
+                  /* @__PURE__ */ jsxs12(
+                    "div",
+                    {
+                      ref: laneAreaRef,
+                      className: "dialkit-timeline-ruler",
+                      onPointerDown: handleRulerPointerDown,
+                      onPointerMove: handleRulerPointerMove,
+                      onPointerUp: handleRulerPointerUp,
+                      onPointerCancel: handleRulerPointerCancel,
+                      onLostPointerCapture: handleRulerPointerCancel,
+                      title: "Drag to seek \xB7 Option-drag or Option-scroll to zoom \xB7 Shift-click to reset zoom",
+                      children: [
+                        fineTicks.map((t) => /* @__PURE__ */ jsx20("div", { className: "dialkit-timeline-tick dialkit-timeline-tick-fine", style: { left: (t - safeViewStart) * pxPerSecond } }, `fine:${t}`)),
+                        mediumTicks.map((t) => /* @__PURE__ */ jsx20("div", { className: "dialkit-timeline-tick dialkit-timeline-tick-medium", style: { left: (t - safeViewStart) * pxPerSecond } }, `medium:${t}`)),
+                        majorTicks.map((t) => /* @__PURE__ */ jsx20("div", { className: "dialkit-timeline-tick", style: { left: (t - safeViewStart) * pxPerSecond } }, t)),
+                        majorTicks.map((t) => /* @__PURE__ */ jsx20(
+                          "span",
+                          {
+                            className: "dialkit-timeline-tick-label",
+                            style: { left: (t - safeViewStart) * pxPerSecond },
+                            children: formatRulerSeconds(t, majorStep)
+                          },
+                          `label:${t}`
+                        ))
+                      ]
+                    }
+                  )
+                ] }),
+                rows,
+                pxPerSecond > 0 && /* @__PURE__ */ jsx20(
+                  TimelinePlayheadFlag,
+                  {
+                    id: meta.id,
+                    duration: meta.duration,
+                    pxPerSecond,
+                    viewStart: safeViewStart,
+                    viewEnd,
+                    laneWidth,
+                    rulerRef: laneAreaRef,
+                    onResetView: resetView
+                  }
+                )
+              ] }),
+              zoom > 1 && /* @__PURE__ */ jsxs12("div", { className: "dialkit-timeline-scroll-row", children: [
+                /* @__PURE__ */ jsx20("div", { className: "dialkit-timeline-label" }),
+                /* @__PURE__ */ jsx20(
+                  "div",
+                  {
+                    ref: horizontalScrollRef,
+                    className: "dialkit-timeline-horizontal-scroll",
+                    onScroll: handleHorizontalScroll,
+                    "aria-label": "Timeline horizontal scroll",
+                    children: /* @__PURE__ */ jsx20("div", { style: { width: laneWidth * zoom } })
+                  }
+                )
+              ] })
+            ]
+          }
+        ),
+        popover && /* @__PURE__ */ jsx20(
+          ClipPopover,
+          {
+            panelId: meta.id,
+            popover,
+            values,
+            theme,
+            maxClipDuration: singleTrack && !popover.stepKey ? singleTrackNeighborCap(meta, values, popover.clip.key) : void 0,
+            onClose: closePopover
+          }
+        )
+      ]
+    }
+  );
 });
 function ClipPopover({
   panelId,
@@ -8266,7 +8349,10 @@ function ClipPopover({
   const targetPath = stepKey ? `${clip.key}.${stepKey}` : clip.key;
   const durationMeta = getControlAt(panelId, `${targetPath}.duration`);
   const durationValue = durationMeta ? values[durationMeta.path] : void 0;
-  const durationMin = Math.max(TIMELINE_MIN_CLIP_DURATION, durationMeta?.min ?? 0);
+  const durationMin = Math.max(
+    stepKey ? TIMELINE_MIN_CLIP_DURATION : segmentedMinDuration(clip.segments),
+    durationMeta?.min ?? 0
+  );
   const durationMax = maxClipDuration !== void 0 ? Math.min(durationMeta?.max ?? Number.POSITIVE_INFINITY, maxClipDuration) : durationMeta?.max;
   const transitionDuration = durationMeta?.type === "slider" && typeof durationValue === "number" ? {
     value: durationValue,
@@ -8338,7 +8424,8 @@ function ClipPopover({
   );
 }
 function singleTrackNeighborCap(meta, values, clipKey) {
-  const spans = meta.clips.map((clip) => ({
+  const lane = meta.clips.find((clip) => clip.key === clipKey)?.lane;
+  const spans = meta.clips.filter((clip) => clip.lane === lane).map((clip) => ({
     key: clip.key,
     at: computeClipStaticFromValues(values, clip, meta.duration).at
   })).sort((a, b) => a.at - b.at);
@@ -8586,7 +8673,8 @@ function TimelineClip({
       boundaryOffsets.push(cumulative);
     }
   }
-  const barTitle = composite ? `${clip.label} \u2014 composite of its property tracks${looping ? " \xB7 repeats through timeline" : ""} \xB7 click to expand` : `${clip.label} \u2014 ${formatSeconds(at)} for ${durationText}${fixedDuration ? " (duration set by spring physics)" : ""}${looping ? " \xB7 repeats through timeline" : ""}${delayMode ? " \xB7 drag to phase-shift" : ""}`;
+  const segmentParts = single && clip.segments ? segmentWidths(duration, clip.segments) : null;
+  const barTitle = composite ? `${clip.label} \u2014 composite of its property tracks${looping ? " \xB7 repeats through timeline" : ""} \xB7 click to expand` : `${clip.label} \u2014 ${formatSeconds(at)} for ${durationText}${fixedDuration ? " (duration set by spring physics)" : ""}${looping ? " \xB7 repeats through timeline" : ""}${delayMode ? " \xB7 drag to phase-shift" : ""}${segmentParts ? ` \xB7 in ${formatSeconds(segmentParts.in)}, idle ${formatSeconds(segmentParts.idle)}, out ${formatSeconds(segmentParts.out)}` : ""}`;
   return /* @__PURE__ */ jsxs12(Fragment6, { children: [
     ghostCycles.map((cycle) => {
       const ghostWidth = Math.max(1, cycle.duration * pxPerSecond - 2);
@@ -8634,6 +8722,7 @@ function TimelineClip({
         "data-dragging": dragging || void 0,
         "data-lifted": single?.lifted || void 0,
         "data-pinned": single?.pinned || void 0,
+        "data-segmented": segmentParts ? "" : void 0,
         style: {
           // Hairline: single-track bars draw 1px short of their span on
           // each side, so butted pairs keep a sliver of lane between them.
@@ -8651,6 +8740,26 @@ function TimelineClip({
         title: barTitle,
         children: single ? /* @__PURE__ */ jsxs12(Fragment6, { children: [
           /* @__PURE__ */ jsx20(ClipFill, { id: timelineId, at, duration }),
+          segmentParts && /* @__PURE__ */ jsxs12(Fragment6, { children: [
+            /* @__PURE__ */ jsx20(
+              "span",
+              {
+                className: "dialkit-timeline-clip-seg",
+                "data-seg": "in",
+                style: { width: segmentParts.in * pxPerSecond },
+                "aria-hidden": "true"
+              }
+            ),
+            /* @__PURE__ */ jsx20(
+              "span",
+              {
+                className: "dialkit-timeline-clip-seg",
+                "data-seg": "out",
+                style: { width: segmentParts.out * pxPerSecond },
+                "aria-hidden": "true"
+              }
+            )
+          ] }),
           resizable && !single.pinned && /* @__PURE__ */ jsx20("div", { className: "dialkit-timeline-clip-handle", "data-edge": "start" }),
           /* @__PURE__ */ jsx20("span", { className: "dialkit-timeline-clip-name", children: clip.label }),
           width > 56 && /* @__PURE__ */ jsx20("span", { className: "dialkit-timeline-clip-duration", children: durationText }),
