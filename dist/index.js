@@ -973,7 +973,7 @@ var DialStoreClass = class {
         } else if (isActionConfigValue(value)) {
           control = { type: "action", path, label: value.label || label };
         } else if (isSelectConfigValue(value)) {
-          control = { type: "select", path, label, options: value.options };
+          control = { type: "select", path, label, options: value.options, display: value.display };
         } else if (isColorConfigValue(value)) {
           control = { type: "color", path, label };
         } else if (isImageConfigValue(value)) {
@@ -3588,6 +3588,12 @@ function normalizeOptions(options) {
     (opt) => typeof opt === "string" ? { value: opt, label: toTitleCase(opt) } : opt
   );
 }
+function SelectPills({ label, value, options, onChange }) {
+  return /* @__PURE__ */ jsxs9("div", { className: "dialkit-labeled-control", children: [
+    /* @__PURE__ */ jsx11("span", { className: "dialkit-labeled-control-label", children: label }),
+    /* @__PURE__ */ jsx11(SegmentedControl, { options: normalizeOptions(options), value, onChange })
+  ] });
+}
 function SelectControl({ label, value, options, onChange }) {
   const [isOpen, setIsOpen] = useState6(false);
   const triggerRef = useRef10(null);
@@ -4955,6 +4961,18 @@ function ControlRenderer({
           control.path
         );
       case "select":
+        if (control.display === "pills") {
+          return /* @__PURE__ */ jsx15(
+            SelectPills,
+            {
+              label: control.label,
+              value,
+              options: control.options ?? [],
+              onChange: (v) => DialStore.updateValue(panelId, control.path, v)
+            },
+            control.path
+          );
+        }
         return /* @__PURE__ */ jsx15(
           SelectControl,
           {

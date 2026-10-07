@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition, type DropdownPosition } from '../dropdown-position';
 import { ICON_CHEVRON } from '../icons';
+import { SegmentedControl } from './SegmentedControl';
 
 type SelectOption = string | { value: string; label: string };
 
@@ -22,6 +23,16 @@ function toTitleCase(s: string): string {
 function normalizeOptions(options: SelectOption[]): { value: string; label: string }[] {
   return options.map((opt) =>
     typeof opt === 'string' ? { value: opt, label: toTitleCase(opt) } : opt
+  );
+}
+
+/** A select shown as one row of pills, laid out like the toggle row. */
+export function SelectPills({ label, value, options, onChange }: SelectControlProps) {
+  return (
+    <div className="dialkit-labeled-control">
+      <span className="dialkit-labeled-control-label">{label}</span>
+      <SegmentedControl options={normalizeOptions(options)} value={value} onChange={onChange} />
+    </div>
   );
 }
 

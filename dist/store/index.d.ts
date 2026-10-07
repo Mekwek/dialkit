@@ -41,6 +41,9 @@ type SelectConfig = {
         label: string;
     })[];
     default?: string;
+    /** `'pills'` shows the options as one row of pills instead of a
+     *  dropdown. React only; other renderers keep the dropdown. */
+    display?: 'dropdown' | 'pills';
 };
 type ColorConfig = {
     type: 'color';
@@ -151,6 +154,8 @@ type ControlMeta = {
         value: string;
         label: string;
     })[];
+    /** Select only: how the options show. See {@link SelectConfig.display}. */
+    display?: SelectConfig['display'];
     placeholder?: string;
     pad?: DialPadConfig;
     shortcut?: ShortcutConfig;

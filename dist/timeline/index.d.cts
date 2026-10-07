@@ -41,6 +41,9 @@ type SelectConfig = {
         label: string;
     })[];
     default?: string;
+    /** `'pills'` shows the options as one row of pills instead of a
+     *  dropdown. React only; other renderers keep the dropdown. */
+    display?: 'dropdown' | 'pills';
 };
 type ColorConfig = {
     type: 'color';

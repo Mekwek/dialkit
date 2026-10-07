@@ -9,7 +9,7 @@ import { Toggle } from './Toggle';
 import { SpringControl } from './SpringControl';
 import { TransitionControl } from './TransitionControl';
 import { TextControl } from './TextControl';
-import { SelectControl } from './SelectControl';
+import { SelectControl, SelectPills } from './SelectControl';
 import { ColorControl } from './ColorControl';
 import { ImageControl } from './ImageControl';
 import { DialPad } from './DialPad';
@@ -151,6 +151,17 @@ export function ControlRenderer({
         );
 
       case 'select':
+        if (control.display === 'pills') {
+          return (
+            <SelectPills
+              key={control.path}
+              label={control.label}
+              value={value as string}
+              options={control.options ?? []}
+              onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
+            />
+          );
+        }
         return (
           <SelectControl
             key={control.path}

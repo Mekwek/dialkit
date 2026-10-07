@@ -607,7 +607,10 @@
   top: 2px;
   bottom: 2px;
   background: var(--dial-surface-active);
-  border-radius: 6px;
+  /* Concentric with the row: the pill sits 4px inside the row on every
+     side (2px row padding, 2px track padding), so its corners are 4px
+     less round than the row's. */
+  border-radius: max(0px, calc(var(--dial-radius) - 4px));
   z-index: 0;
   pointer-events: none;
 }
@@ -745,7 +748,21 @@
 
 .dialkit-labeled-control .dialkit-segmented {
   flex-shrink: 0;
-  margin-right: -6px;
+  /* The track fills the row's height, so the pill follows the row height. */
+  align-self: stretch;
+  /* Pulls the track to 2px from the row's right edge, so the pill keeps
+     the same 4px gap on the right as at the top and bottom. */
+  margin-right: -8px;
+}
+
+/* The track sets the button height here, so the buttons center their text
+   instead of padding it. Fixed top padding pushed the text below the row
+   at small row heights. */
+.dialkit-labeled-control .dialkit-segmented-button {
+  display: flex;
+  align-items: center;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .dialkit-action-button {

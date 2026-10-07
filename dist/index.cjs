@@ -1023,7 +1023,7 @@ var DialStoreClass = class {
         } else if (isActionConfigValue(value)) {
           control = { type: "action", path, label: value.label || label };
         } else if (isSelectConfigValue(value)) {
-          control = { type: "select", path, label, options: value.options };
+          control = { type: "select", path, label, options: value.options, display: value.display };
         } else if (isColorConfigValue(value)) {
           control = { type: "color", path, label };
         } else if (isImageConfigValue(value)) {
@@ -3639,6 +3639,12 @@ function normalizeOptions(options) {
     (opt) => typeof opt === "string" ? { value: opt, label: toTitleCase(opt) } : opt
   );
 }
+function SelectPills({ label, value, options, onChange }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dialkit-labeled-control", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "dialkit-labeled-control-label", children: label }),
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(SegmentedControl, { options: normalizeOptions(options), value, onChange })
+  ] });
+}
 function SelectControl({ label, value, options, onChange }) {
   const [isOpen, setIsOpen] = (0, import_react13.useState)(false);
   const triggerRef = (0, import_react13.useRef)(null);
@@ -5006,6 +5012,18 @@ function ControlRenderer({
           control.path
         );
       case "select":
+        if (control.display === "pills") {
+          return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
+            SelectPills,
+            {
+              label: control.label,
+              value,
+              options: control.options ?? [],
+              onChange: (v) => DialStore.updateValue(panelId, control.path, v)
+            },
+            control.path
+          );
+        }
         return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
           SelectControl,
           {

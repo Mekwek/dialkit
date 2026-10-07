@@ -31,6 +31,9 @@ export type SelectConfig = {
   type: 'select';
   options: (string | { value: string; label: string })[];
   default?: string;
+  /** `'pills'` shows the options as one row of pills instead of a
+   *  dropdown. React only; other renderers keep the dropdown. */
+  display?: 'dropdown' | 'pills';
 };
 
 export type ColorConfig = {
@@ -192,6 +195,8 @@ export type ControlMeta = {
   children?: ControlMeta[];
   defaultOpen?: boolean;
   options?: (string | { value: string; label: string })[];
+  /** Select only: how the options show. See {@link SelectConfig.display}. */
+  display?: SelectConfig['display'];
   placeholder?: string;
   pad?: DialPadConfig;
   shortcut?: ShortcutConfig;
@@ -1267,7 +1272,7 @@ class DialStoreClass {
         } else if (isActionConfigValue(value)) {
           control = { type: 'action', path, label: value.label || label };
         } else if (isSelectConfigValue(value)) {
-          control = { type: 'select', path, label, options: value.options };
+          control = { type: 'select', path, label, options: value.options, display: value.display };
         } else if (isColorConfigValue(value)) {
           control = { type: 'color', path, label };
         } else if (isImageConfigValue(value)) {
