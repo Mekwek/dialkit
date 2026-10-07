@@ -7,7 +7,7 @@ import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition, typ
 import { ICON_CHEVRON } from '../icons';
 import { SegmentedControl } from './SegmentedControl';
 
-type SelectOption = string | { value: string; label: string };
+type SelectOption = string | { value: string; label: string; icon?: string };
 
 interface SelectControlProps {
   label: string;
@@ -20,14 +20,24 @@ function toTitleCase(s: string): string {
   return s.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function normalizeOptions(options: SelectOption[]): { value: string; label: string }[] {
+function normalizeOptions(options: SelectOption[]): Exclude<SelectOption, string>[] {
   return options.map((opt) =>
     typeof opt === 'string' ? { value: opt, label: toTitleCase(opt) } : opt
   );
 }
 
-/** A select shown as one row of pills, laid out like the toggle row. */
-export function SelectPills({ label, value, options, onChange }: SelectControlProps) {
+interface SelectPillsProps extends SelectControlProps {
+  hideLabel?: boolean;
+}
+
+/** A select shown as pills: next to its label like the toggle row, or
+ *  filling the row with no label. */
+export function SelectPills({ label, value, options, onChange, hideLabel = false }: SelectPillsProps) {
+  if (hideLabel) {
+    return (
+      <SegmentedControl options={normalizeOptions(options)} value={value} onChange={onChange} fill ariaLabel={label} />
+    );
+  }
   return (
     <div className="dialkit-labeled-control">
       <span className="dialkit-labeled-control-label">{label}</span>

@@ -1023,7 +1023,7 @@ var DialStoreClass = class {
         } else if (isActionConfigValue(value)) {
           control = { type: "action", path, label: value.label || label };
         } else if (isSelectConfigValue(value)) {
-          control = { type: "select", path, label, options: value.options, display: value.display };
+          control = { type: "select", path, label, options: value.options, display: value.display, hideLabel: value.hideLabel };
         } else if (isColorConfigValue(value)) {
           control = { type: "color", path, label };
         } else if (isImageConfigValue(value)) {
@@ -2534,7 +2534,9 @@ var import_jsx_runtime4 = require("react/jsx-runtime");
 function SegmentedControl({
   options,
   value,
-  onChange
+  onChange,
+  fill = false,
+  ariaLabel
 }) {
   const containerRef = (0, import_react8.useRef)(null);
   const hasAnimated = (0, import_react8.useRef)(false);
@@ -2555,7 +2557,7 @@ function SegmentedControl({
   }, [value, options.length, measure]);
   const shouldAnimate = hasAnimated.current;
   hasAnimated.current = true;
-  return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "dialkit-segmented", ref: containerRef, role: "radiogroup", onKeyDown: handleSegmentKey, children: [
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "dialkit-segmented", ref: containerRef, role: "radiogroup", "aria-label": ariaLabel, "data-fill": fill || void 0, onKeyDown: handleSegmentKey, children: [
     pillStyle && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
       "div",
       {
@@ -2569,6 +2571,7 @@ function SegmentedControl({
     ),
     options.map((option) => {
       const isActive = value === option.value;
+      const icon2 = option.icon;
       return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
         "button",
         {
@@ -2579,7 +2582,9 @@ function SegmentedControl({
           role: "radio",
           "aria-checked": isActive,
           tabIndex: isActive ? 0 : -1,
-          children: option.label
+          "aria-label": icon2 ? option.label : void 0,
+          title: icon2 ? option.label : void 0,
+          children: icon2 ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("svg", { className: "dialkit-segmented-icon", viewBox: "0 0 16 16", "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("path", { d: icon2 }) }) : /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "dialkit-segmented-text", children: option.label })
         },
         option.value
       );
@@ -3639,7 +3644,10 @@ function normalizeOptions(options) {
     (opt) => typeof opt === "string" ? { value: opt, label: toTitleCase(opt) } : opt
   );
 }
-function SelectPills({ label, value, options, onChange }) {
+function SelectPills({ label, value, options, onChange, hideLabel = false }) {
+  if (hideLabel) {
+    return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(SegmentedControl, { options: normalizeOptions(options), value, onChange, fill: true, ariaLabel: label });
+  }
   return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "dialkit-labeled-control", children: [
     /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "dialkit-labeled-control-label", children: label }),
     /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(SegmentedControl, { options: normalizeOptions(options), value, onChange })
@@ -5019,7 +5027,8 @@ function ControlRenderer({
               label: control.label,
               value,
               options: control.options ?? [],
-              onChange: (v) => DialStore.updateValue(panelId, control.path, v)
+              onChange: (v) => DialStore.updateValue(panelId, control.path, v),
+              hideLabel: control.hideLabel
             },
             control.path
           );

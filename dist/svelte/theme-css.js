@@ -758,6 +758,54 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   margin-right: -8px;
 }
 
+/* Pill icons: a 16px stroke drawing instead of the text. */
+.dialkit-segmented-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dialkit-segmented-icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Full-width pills (no row label): the track is a row of its own, on the
+   row surface, and the segments share its width equally. The pill stays
+   concentric: 4px inside the track, corners 4px less round. */
+.dialkit-segmented[data-fill] {
+  height: var(--dial-row-height);
+  padding: 4px;
+  box-sizing: border-box;
+  background: var(--dial-surface);
+}
+
+.dialkit-segmented[data-fill] .dialkit-segmented-button {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0 4px;
+}
+
+/* A name that does not fit its equal share ends in an ellipsis instead of
+   running over the next segment. */
+.dialkit-segmented-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dialkit-segmented[data-fill] .dialkit-segmented-pill {
+  top: 4px;
+  bottom: 4px;
+}
+
 /* The track sets the button height here, so the buttons center their text
    instead of padding it. Fixed top padding pushed the text below the row
    at small row heights. */

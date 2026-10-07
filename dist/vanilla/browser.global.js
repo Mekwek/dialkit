@@ -1035,7 +1035,7 @@ var DialKit = (() => {
           } else if (isActionConfigValue(value)) {
             control = { type: "action", path, label: value.label || label };
           } else if (isSelectConfigValue(value)) {
-            control = { type: "select", path, label, options: value.options, display: value.display };
+            control = { type: "select", path, label, options: value.options, display: value.display, hideLabel: value.hideLabel };
           } else if (isColorConfigValue(value)) {
             control = { type: "color", path, label };
           } else if (isImageConfigValue(value)) {

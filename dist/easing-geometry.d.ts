@@ -1,4 +1,4 @@
-import { E as EasingConfig } from './DialStore-BiH8B8Di.js';
+import { E as EasingConfig } from './DialStore-DdcCDUqW.js';
 import './dial-pad.js';
 
 type BezierPoints = EasingConfig['ease'];

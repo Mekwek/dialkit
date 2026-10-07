@@ -159,6 +159,7 @@ export function ControlRenderer({
               value={value as string}
               options={control.options ?? []}
               onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
+              hideLabel={control.hideLabel}
             />
           );
         }

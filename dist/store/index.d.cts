@@ -34,16 +34,24 @@ type ActionConfig = {
     type: 'action';
     label?: string;
 };
+/** A select option. `icon` is SVG path data in a 16 × 16 box, drawn as a
+ *  1.5px stroke. A pill with an icon shows the icon instead of the label,
+ *  and the label becomes its hover name. Dropdowns ignore it. */
+type SelectOption = string | {
+    value: string;
+    label: string;
+    icon?: string;
+};
 type SelectConfig = {
     type: 'select';
-    options: (string | {
-        value: string;
-        label: string;
-    })[];
+    options: SelectOption[];
     default?: string;
     /** `'pills'` shows the options as one row of pills instead of a
      *  dropdown. React only; other renderers keep the dropdown. */
     display?: 'dropdown' | 'pills';
+    /** Pills only: no row label; the pills fill the row and the label
+     *  becomes the group's accessible name. */
+    hideLabel?: boolean;
 };
 type ColorConfig = {
     type: 'color';
@@ -150,12 +158,11 @@ type ControlMeta = {
     step?: number;
     children?: ControlMeta[];
     defaultOpen?: boolean;
-    options?: (string | {
-        value: string;
-        label: string;
-    })[];
+    options?: SelectOption[];
     /** Select only: how the options show. See {@link SelectConfig.display}. */
     display?: SelectConfig['display'];
+    /** Select pills only. See {@link SelectConfig.hideLabel}. */
+    hideLabel?: boolean;
     placeholder?: string;
     pad?: DialPadConfig;
     shortcut?: ShortcutConfig;
@@ -352,4 +359,4 @@ declare class DialStoreClass {
 }
 declare const DialStore: DialStoreClass;
 
-export { type ActionConfig, type ColorConfig, type ControlMeta, type ControlWithVisibility, type DialConfig, type DialKitPersistOptions, type DialKitValueUpdates, type DialPadAxis, type DialPadConfig, type DialPadValue, DialStore, type DialStorePanelOptions, type DialValue, type EasingConfig, type ImageConfig, type ImageOption, type PanelConfig, type Preset, type ResolvedValues, type SelectConfig, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, type SpringConfig, type TextConfig, type TransitionConfig, type VisibleWhen, type VisibleWhenValue, flattenDialValueUpdates, formatLabel, inferStep, isEasingConfigValue, isHexColor, isLeafConfigValue, isSpringConfigValue, resolveDialValues, unwrapVisibility, withVisibility };
+export { type ActionConfig, type ColorConfig, type ControlMeta, type ControlWithVisibility, type DialConfig, type DialKitPersistOptions, type DialKitValueUpdates, type DialPadAxis, type DialPadConfig, type DialPadValue, DialStore, type DialStorePanelOptions, type DialValue, type EasingConfig, type ImageConfig, type ImageOption, type PanelConfig, type Preset, type ResolvedValues, type SelectConfig, type SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, type SpringConfig, type TextConfig, type TransitionConfig, type VisibleWhen, type VisibleWhenValue, flattenDialValueUpdates, formatLabel, inferStep, isEasingConfigValue, isHexColor, isLeafConfigValue, isSpringConfigValue, resolveDialValues, unwrapVisibility, withVisibility };

@@ -38,16 +38,24 @@ type ActionConfig = {
     type: 'action';
     label?: string;
 };
+/** A select option. `icon` is SVG path data in a 16 × 16 box, drawn as a
+ *  1.5px stroke. A pill with an icon shows the icon instead of the label,
+ *  and the label becomes its hover name. Dropdowns ignore it. */
+type SelectOption$1 = string | {
+    value: string;
+    label: string;
+    icon?: string;
+};
 type SelectConfig = {
     type: 'select';
-    options: (string | {
-        value: string;
-        label: string;
-    })[];
+    options: SelectOption$1[];
     default?: string;
     /** `'pills'` shows the options as one row of pills instead of a
      *  dropdown. React only; other renderers keep the dropdown. */
     display?: 'dropdown' | 'pills';
+    /** Pills only: no row label; the pills fill the row and the label
+     *  becomes the group's accessible name. */
+    hideLabel?: boolean;
 };
 type ColorConfig = {
     type: 'color';
@@ -154,12 +162,11 @@ type ControlMeta = {
     step?: number;
     children?: ControlMeta[];
     defaultOpen?: boolean;
-    options?: (string | {
-        value: string;
-        label: string;
-    })[];
+    options?: SelectOption$1[];
     /** Select only: how the options show. See {@link SelectConfig.display}. */
     display?: SelectConfig['display'];
+    /** Select pills only. See {@link SelectConfig.hideLabel}. */
+    hideLabel?: boolean;
     placeholder?: string;
     pad?: DialPadConfig;
     shortcut?: ShortcutConfig;
@@ -903,6 +910,7 @@ declare function TextControl({ label, value, onChange, placeholder }: TextContro
 type SelectOption = string | {
     value: string;
     label: string;
+    icon?: string;
 };
 interface SelectControlProps {
     label: string;
@@ -953,4 +961,4 @@ interface ShortcutsMenuProps {
 }
 declare function ShortcutsMenu({ panelId }: ShortcutsMenuProps): react_jsx_runtime.JSX.Element | null;
 
-export { type ActionConfig, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, type EasingConfig, EasingVisualization, Folder, type FolderMode, type ImageConfig, ImageControl, type ImageOption, type PanelConfig, type Preset, PresetManager, type ResolvedValues, type SelectConfig, SelectControl, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipMeta, type TimelineClipTrackMeta, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelineMeta, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, TimelineStore, type TimelineTransport, Toggle, type TransitionConfig, TransitionControl, type UseDialOptions, type UseDialTimelineOptions, type VisibleWhen, type VisibleWhenValue, formatClock, unwrapVisibility, useDialKit, useDialKitController, useDialTimeline, withVisibility };
+export { type ActionConfig, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, type EasingConfig, EasingVisualization, Folder, type FolderMode, type ImageConfig, ImageControl, type ImageOption, type PanelConfig, type Preset, PresetManager, type ResolvedValues, type SelectConfig, SelectControl, type SelectOption$1 as SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipMeta, type TimelineClipTrackMeta, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelineMeta, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, TimelineStore, type TimelineTransport, Toggle, type TransitionConfig, TransitionControl, type UseDialOptions, type UseDialTimelineOptions, type VisibleWhen, type VisibleWhenValue, formatClock, unwrapVisibility, useDialKit, useDialKitController, useDialTimeline, withVisibility };
