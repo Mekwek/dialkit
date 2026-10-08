@@ -115,7 +115,7 @@ type FieldsConfig = {
     decimals?: number;
 };
 /** Folder keys that configure the folder instead of adding a control. */
-declare const FOLDER_META_KEYS: readonly ["_collapsed", "_fields"];
+declare const FOLDER_META_KEYS: readonly ["_collapsed", "_fields", "_reset"];
 type FolderMetaKey = (typeof FOLDER_META_KEYS)[number];
 /**
  * Wraps a control with a visibility rule. The control is only added to the
@@ -185,6 +185,14 @@ type ControlMeta = {
      * children are the fields, and a boolean child is a lock icon.
      */
     fields?: FieldsConfig;
+    /**
+     * Folder only: `_reset` shows a reset icon in the folder's header. The
+     * icon puts every value inside back to its default. With `_reset: 'key'`
+     * it first runs the folder's action `key`, whose row is hidden. Here it
+     * is the action's full path. Nested folders with their own `_reset`
+     * reset too.
+     */
+    reset?: true | string;
     children?: ControlMeta[];
     defaultOpen?: boolean;
     options?: SelectOption$1[];
@@ -279,6 +287,8 @@ declare class DialStoreClass {
     private activePreset;
     private baseValues;
     private defaultValues;
+    /** Host values a reset returns to, over the defaults. See setResetValues. */
+    private hostResetValues;
     private registrationCounts;
     private retainedPanels;
     private persistConfigs;
@@ -313,8 +323,36 @@ declare class DialStoreClass {
     updateValue(panelId: string, path: string, value: DialValue): void;
     updateValues(panelId: string, updates: Record<string, DialValue>): void;
     resetValues(panelId: string): void;
-    /** Put the given paths back to their default values. */
+    /**
+     * The values a reset returns to, by path, when they are not the config's
+     * defaults: for example when the host passes saved values as defaults, so
+     * a panel opens on them, but a reset goes back to its own defaults. Each
+     * call replaces the last. Once set, a reset and hasChanges use only these
+     * paths: a path left out is one no reset returns to a default.
+     */
+    setResetValues(panelId: string, values: Record<string, DialValue>): void;
+    /** The value a reset puts at each path: setResetValues, else defaults. */
+    private resetTargets;
+    /** Put the given paths back to their reset values. */
     resetPaths(panelId: string, paths: string[]): void;
+    /**
+     * Run a folder's section reset (see {@link ControlMeta.reset}): every
+     * value inside goes back to its reset value. A folder with a reset action
+     * runs the action first, so it can reset values its own way, for example
+     * with an animation, and the values it did not reset follow. Nested
+     * folders with their own reset go last, and find nothing left to change
+     * where the action already reset them. Values inside a nested folder
+     * without its own reset belong to the parent.
+     */
+    resetSection(panelId: string, path: string): void;
+    /**
+     * True when a value the folder's section reset would return differs from
+     * its reset value: every value inside, nested folders and hidden rows
+     * included, the same values resetSection resets.
+     */
+    sectionHasChanges(panelId: string, path: string): boolean;
+    /** True when a value at one of the paths differs from its reset value. */
+    hasChanges(panelId: string, paths: string[]): boolean;
     updateSpringMode(panelId: string, path: string, mode: 'simple' | 'advanced'): void;
     getSpringMode(panelId: string, path: string): 'simple' | 'advanced';
     updateTransitionMode(panelId: string, path: string, mode: 'easing' | 'simple' | 'advanced'): void;
@@ -847,8 +885,9 @@ interface FieldRowProps {
     values: Record<string, DialValue>;
 }
 /**
- * An X / Y / Z group: a folder set with `_fields: true`. The label, the lock
- * and the reset sit on a line above one row of short number fields. The
+ * An X / Y / Z group: a folder set with `_fields: true`. The label and its
+ * reset sit on a line above one row of short number fields, with the lock at
+ * the right end of that line. The
  * folder's number children are the fields. A boolean child is a lock: the
  * host decides what a lock does, this row only shows and switches it.
  */
@@ -872,8 +911,12 @@ interface FolderProps {
     inline?: boolean;
     onOpenChange?: (isOpen: boolean) => void;
     toolbar?: ReactNode;
+    /** Shows a reset icon in a section header. See ControlMeta.reset. */
+    onReset?: () => void;
+    /** True when a value inside differs from its default. */
+    changed?: boolean;
 }
-declare function Folder({ title, children, open, defaultOpen, isRoot, inline, onOpenChange, toolbar }: FolderProps): react_jsx_runtime.JSX.Element;
+declare function Folder({ title, children, open, defaultOpen, isRoot, inline, onOpenChange, toolbar, onReset, changed }: FolderProps): react_jsx_runtime.JSX.Element;
 
 interface ButtonGroupProps {
     buttons: Array<{
@@ -889,8 +932,12 @@ interface SpringControlProps {
     label: string;
     spring: SpringConfig;
     onChange: (spring: SpringConfig) => void;
+    /** Shows a reset icon in the header. See Folder.onReset. */
+    onReset?: () => void;
+    /** True when the value differs from its default. */
+    changed?: boolean;
 }
-declare function SpringControl({ panelId, path, label, spring, onChange }: SpringControlProps): react_jsx_runtime.JSX.Element;
+declare function SpringControl({ panelId, path, label, spring, onChange, onReset, changed }: SpringControlProps): react_jsx_runtime.JSX.Element;
 
 interface SpringVisualizationProps {
     spring: SpringConfig;
@@ -926,8 +973,12 @@ interface TransitionControlProps {
      * already-over settle is always allowed.
      */
     physicsSettleCap?: number;
+    /** Shows a reset icon in the header. See Folder.onReset. */
+    onReset?: () => void;
+    /** True when the value differs from its default. */
+    changed?: boolean;
 }
-declare function TransitionControl({ panelId, path, label, value, onChange, hideDuration, durationControl, physicsSettleCap, }: TransitionControlProps): react_jsx_runtime.JSX.Element;
+declare function TransitionControl({ panelId, path, label, value, onChange, hideDuration, durationControl, physicsSettleCap, onReset, changed, }: TransitionControlProps): react_jsx_runtime.JSX.Element;
 
 type BezierPoints = EasingConfig['ease'];
 

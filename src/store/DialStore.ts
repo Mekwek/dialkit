@@ -108,8 +108,18 @@ function fieldsConfigOf(value: unknown): FieldsConfig | undefined {
   return undefined;
 }
 
+/**
+ * A section reset: set `_reset` on a folder to show a reset icon in its
+ * header. See {@link ControlMeta.reset}.
+ */
+function resetConfigOf(value: unknown, folderPath: string): true | string | undefined {
+  if (value === true) return true;
+  if (typeof value === 'string' && value) return `${folderPath}.${value}`;
+  return undefined;
+}
+
 /** Folder keys that configure the folder instead of adding a control. */
-const FOLDER_META_KEYS = ['_collapsed', '_fields'] as const;
+const FOLDER_META_KEYS = ['_collapsed', '_fields', '_reset'] as const;
 type FolderMetaKey = (typeof FOLDER_META_KEYS)[number];
 
 export function isFolderMetaKey(key: string): boolean {
@@ -238,6 +248,14 @@ export type ControlMeta = {
    * children are the fields, and a boolean child is a lock icon.
    */
   fields?: FieldsConfig;
+  /**
+   * Folder only: `_reset` shows a reset icon in the folder's header. The
+   * icon puts every value inside back to its default. With `_reset: 'key'`
+   * it first runs the folder's action `key`, whose row is hidden. Here it
+   * is the action's full path. Nested folders with their own `_reset`
+   * reset too.
+   */
+  reset?: true | string;
   children?: ControlMeta[];
   defaultOpen?: boolean;
   options?: SelectOption[];
@@ -452,6 +470,23 @@ function sameControlValue(previous: unknown, next: unknown, control?: ControlMet
     isRecord(previous) && isRecord(next) && previous.x === next.x && previous.y === next.y);
 }
 
+/** Equal values, with objects and arrays compared by their content. Zero
+ *  and minus zero are equal: a rounded -0.4 is -0, and shows as 0. */
+function sameValue(a: unknown, b: unknown): boolean {
+  if (a === b || Object.is(a, b)) return true;
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((item, i) => sameValue(item, b[i]));
+  }
+  if (isRecord(a) && isRecord(b)) return sameRecord(a, b);
+  return false;
+}
+
+function sameRecord(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
+  const keys = Object.keys(a);
+  return keys.length === Object.keys(b).length &&
+    keys.every((key) => key in b && sameValue(a[key], b[key]));
+}
+
 function hasType(value: unknown, type: string): boolean {
   return typeof value === 'object' && value !== null && 'type' in value && (value as { type: string }).type === type;
 }
@@ -540,6 +575,8 @@ class DialStoreClass {
   private activePreset: Map<string, string | null> = new Map();
   private baseValues: Map<string, Record<string, DialValue>> = new Map();
   private defaultValues: Map<string, Record<string, DialValue>> = new Map();
+  /** Host values a reset returns to, over the defaults. See setResetValues. */
+  private hostResetValues: Map<string, Record<string, DialValue>> = new Map();
   private registrationCounts: Map<string, number> = new Map();
   private retainedPanels: Set<string> = new Set();
   private persistConfigs: Map<string, PersistConfig> = new Map();
@@ -701,6 +738,7 @@ class DialStoreClass {
       this.snapshots.delete(id);
       this.baseValues.delete(id);
       this.defaultValues.delete(id);
+      this.hostResetValues.delete(id);
       this.presets.delete(id);
       this.activePreset.delete(id);
       this.persistConfigs.delete(id);
@@ -826,15 +864,95 @@ class DialStoreClass {
     this.refilterVisibility(panelId);
   }
 
-  /** Put the given paths back to their default values. */
+  /**
+   * The values a reset returns to, by path, when they are not the config's
+   * defaults: for example when the host passes saved values as defaults, so
+   * a panel opens on them, but a reset goes back to its own defaults. Each
+   * call replaces the last. Once set, a reset and hasChanges use only these
+   * paths: a path left out is one no reset returns to a default.
+   */
+  setResetValues(panelId: string, values: Record<string, DialValue>): void {
+    const previous = this.hostResetValues.get(panelId);
+    if (previous && sameRecord(previous, values)) return;
+    this.hostResetValues.set(panelId, { ...values });
+    // Section headers show whether they changed: draw them again.
+    this.notifyGlobal();
+  }
+
+  /** The value a reset puts at each path: setResetValues, else defaults. */
+  private resetTargets(panelId: string): Record<string, DialValue> | undefined {
+    return this.hostResetValues.get(panelId) ?? this.defaultValues.get(panelId);
+  }
+
+  /** Put the given paths back to their reset values. */
   resetPaths(panelId: string, paths: string[]): void {
-    const defaults = this.defaultValues.get(panelId);
-    if (!defaults) return;
+    const targets = this.resetTargets(panelId);
+    if (!targets) return;
     const updates: Record<string, DialValue> = {};
     for (const path of paths) {
-      if (path in defaults) updates[path] = defaults[path];
+      if (path in targets) updates[path] = targets[path];
     }
     this.updateValues(panelId, updates);
+  }
+
+  /**
+   * Run a folder's section reset (see {@link ControlMeta.reset}): every
+   * value inside goes back to its reset value. A folder with a reset action
+   * runs the action first, so it can reset values its own way, for example
+   * with an animation, and the values it did not reset follow. Nested
+   * folders with their own reset go last, and find nothing left to change
+   * where the action already reset them. Values inside a nested folder
+   * without its own reset belong to the parent.
+   */
+  resetSection(panelId: string, path: string): void {
+    const panel = this.panels.get(panelId);
+    const folder = panel ? this.controlsByPanel.get(panel)?.get(path) : undefined;
+    if (folder?.type !== 'folder' || !folder.reset) return;
+    const own: string[] = [];
+    const nested: string[] = [];
+    const walk = (control: ControlMeta) => {
+      for (const child of control.children ?? []) {
+        if (child.type === 'folder') {
+          if (child.reset) nested.push(child.path);
+          else walk(child);
+        } else if (child.type !== 'action') {
+          own.push(child.path);
+        }
+      }
+    };
+    walk(folder);
+    if (folder.reset !== true) this.triggerAction(panelId, folder.reset);
+    this.resetPaths(panelId, own);
+    for (const child of nested) this.resetSection(panelId, child);
+  }
+
+  /**
+   * True when a value the folder's section reset would return differs from
+   * its reset value: every value inside, nested folders and hidden rows
+   * included, the same values resetSection resets.
+   */
+  sectionHasChanges(panelId: string, path: string): boolean {
+    const panel = this.panels.get(panelId);
+    const folder = panel ? this.controlsByPanel.get(panel)?.get(path) : undefined;
+    if (!folder) return false;
+    const paths: string[] = [];
+    const walk = (control: ControlMeta) => {
+      for (const child of control.children ?? []) {
+        if (child.type === 'folder') walk(child);
+        else if (child.type !== 'action') paths.push(child.path);
+      }
+    };
+    walk(folder);
+    return this.hasChanges(panelId, paths);
+  }
+
+  /** True when a value at one of the paths differs from its reset value. */
+  hasChanges(panelId: string, paths: string[]): boolean {
+    const panel = this.panels.get(panelId);
+    const targets = this.resetTargets(panelId);
+    if (!panel || !targets) return false;
+    return paths.some((path) => path in targets &&
+      !sameValue(panel.values[path], targets[path]));
   }
 
   updateSpringMode(panelId: string, path: string, mode: 'simple' | 'advanced'): void {
@@ -1358,6 +1476,7 @@ class DialStoreClass {
             label,
             defaultOpen,
             fields: fieldsConfigOf(folderConfig._fields),
+            reset: resetConfigOf(folderConfig._reset, path),
             children: visit(folderConfig, path),
           };
         }

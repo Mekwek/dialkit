@@ -1,4 +1,4 @@
-import { C as ControlMeta, S as ShortcutConfig } from './DialStore-Xs6cYnwJ.js';
+import { C as ControlMeta, S as ShortcutConfig } from './DialStore-BJOEdmFh.js';
 import './dial-pad.js';
 
 /** Decimal places needed by a step or range endpoint, including scientific notation. */

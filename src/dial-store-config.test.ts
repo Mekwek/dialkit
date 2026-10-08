@@ -164,6 +164,77 @@ describe('DialStore config lifecycle', () => {
     } finally { DialStore.unregisterPanel(id); }
   });
 
+  it('resets a section, its nested sections first, and runs an action reset', () => {
+    const id = 'config-section-reset';
+    const config = {
+      display: {
+        _reset: true,
+        radius: [8, 0, 24, 1],
+        inner: { gap: [2, 0, 10, 1] },
+        displacement: { _reset: true, amount: [0.5, 0, 1, 0.1] },
+        camera: { _reset: 'resetCamera', fov: [50, 10, 120, 1], resetCamera: { type: 'action' } },
+      },
+      other: [5, 0, 10],
+    } satisfies DialConfig;
+    const actions: string[] = [];
+    try {
+      DialStore.registerPanel(id, 'Config', config);
+      const unsubscribe = DialStore.subscribeActions(id, (path) => actions.push(path));
+      const display = DialStore.getPanel(id)?.controls.find(c => c.path === 'display');
+      assert.equal(display?.reset, true);
+      assert.equal(display?.children?.find(c => c.path === 'display.camera')?.reset, 'display.camera.resetCamera');
+      assert.equal(DialStore.hasChanges(id, ['display.radius', 'other']), false);
+      DialStore.updateValues(id, { 'display.radius': 20, 'display.inner.gap': 9, 'display.displacement.amount': 1, 'display.camera.fov': 90, other: 8 });
+      assert.equal(DialStore.hasChanges(id, ['display.radius']), true);
+      assert.equal(DialStore.sectionHasChanges(id, 'display'), true);
+      assert.equal(DialStore.sectionHasChanges(id, 'display.displacement'), true);
+      DialStore.resetSection(id, 'display.displacement');
+      assert.equal(DialStore.getValue(id, 'display.displacement.amount'), 0.5);
+      assert.equal(DialStore.getValue(id, 'display.radius'), 20);
+      DialStore.updateValue(id, 'display.displacement.amount', 1);
+      DialStore.resetSection(id, 'display');
+      assert.deepEqual(actions, ['display.camera.resetCamera']);
+      assert.deepEqual(DialStore.getValues(id), {
+        'display.radius': 8, 'display.inner.gap': 2, 'display.displacement.amount': 0.5,
+        // After its action, a section resets the values the action left.
+        'display.camera.fov': 50, 'display.camera.resetCamera': DialStore.getValue(id, 'display.camera.resetCamera'),
+        other: 8,
+      });
+      unsubscribe();
+    } finally { DialStore.unregisterPanel(id); }
+  });
+
+  it('resets to the host reset values, and compares objects by content', () => {
+    const id = 'config-reset-values';
+    const config = {
+      // The host opens the panel on saved values: they are the defaults.
+      layout: { _reset: true, gap: [12, 0, 50, 1], ease: { type: 'easing', duration: 0.6, ease: [0.4, 0, 0.2, 1] } },
+      other: [5, 0, 10],
+    } satisfies DialConfig;
+    try {
+      DialStore.registerPanel(id, 'Config', config);
+      const paths = ['layout.gap', 'layout.ease'];
+      assert.equal(DialStore.hasChanges(id, paths), false);
+      DialStore.setResetValues(id, { 'layout.gap': 4, 'layout.ease': { type: 'easing', duration: 0.3, ease: [0.4, 0, 0.2, 1] } });
+      DialStore.updateValue(id, 'layout.gap', -0);
+      DialStore.setResetValues(id, { 'layout.gap': 0, 'layout.ease': { type: 'easing', duration: 0.3, ease: [0.4, 0, 0.2, 1] } });
+      assert.equal(DialStore.hasChanges(id, ['layout.gap']), false);
+      DialStore.setResetValues(id, { 'layout.gap': 4, 'layout.ease': { type: 'easing', duration: 0.3, ease: [0.4, 0, 0.2, 1] } });
+      // A path the reset values leave out is never reset and never changed.
+      assert.equal(DialStore.hasChanges(id, ['other']), false);
+      assert.equal(DialStore.hasChanges(id, ['layout.gap']), true);
+      DialStore.resetSection(id, 'layout');
+      assert.equal(DialStore.getValue(id, 'layout.gap'), 4);
+      // A new object with the same content counts as unchanged.
+      DialStore.updateValue(id, 'layout.ease', { type: 'easing', duration: 0.3, ease: [0.4, 0, 0.2, 1] });
+      assert.equal(DialStore.hasChanges(id, paths), false);
+      DialStore.updateValue(id, 'other', 9);
+      DialStore.resetPaths(id, ['other']);
+      assert.equal(DialStore.getValue(id, 'other'), 9);
+      assert.equal(DialStore.hasChanges(id, ['other']), false);
+    } finally { DialStore.unregisterPanel(id); }
+  });
+
   it('does not retain an extra registration when an invalid config is rejected', () => {
     const id = 'config-rejected-owner';
     DialStore.registerPanel(id, 'Original', { amount: 1 });

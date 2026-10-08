@@ -104,6 +104,7 @@ export function ControlRenderer({
             label={control.label}
             spring={value as SpringConfig}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
+            {...valueResetProps(control.path)}
           />
         );
 
@@ -118,6 +119,7 @@ export function ControlRenderer({
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
             durationControl={transitionDuration}
             physicsSettleCap={physicsSettleCap}
+            {...valueResetProps(control.path)}
           />
         );
 
@@ -136,9 +138,18 @@ export function ControlRenderer({
                 onOpenChange: (next: boolean) => onAccordionToggle(control.path, next),
               }
             : {};
-        const children = control.children?.map((child) => renderControl(child, depth + 1));
+        // A section reset that runs an action hides that action's row.
+        const children = control.children
+          ?.filter((child) => child.path !== control.reset)
+          .map((child) => renderControl(child, depth + 1));
+        const resetProps = control.reset
+          ? {
+              onReset: () => DialStore.resetSection(panelId, control.path),
+              changed: DialStore.sectionHasChanges(panelId, control.path),
+            }
+          : {};
         return (
-          <Folder key={control.path} title={control.label} defaultOpen={control.defaultOpen ?? true} {...controlledProps}>
+          <Folder key={control.path} title={control.label} defaultOpen={control.defaultOpen ?? true} {...controlledProps} {...resetProps}>
             {animateControls ? <AnimatePresence initial={false}>{children}</AnimatePresence> : children}
           </Folder>
         );
@@ -227,6 +238,13 @@ export function ControlRenderer({
         return null;
     }
   };
+
+  // A spring or transition control draws a section header, so it gets the
+  // section reset icon too. The icon puts its one value back to the default.
+  const valueResetProps = (path: string) => ({
+    onReset: () => DialStore.resetPaths(panelId, [path]),
+    changed: DialStore.hasChanges(panelId, [path]),
+  });
 
   const renderControl = (control: ControlMeta, depth = 0) => {
     const inner = renderControlInner(control, depth);

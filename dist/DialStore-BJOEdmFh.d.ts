@@ -111,6 +111,14 @@ type ControlMeta = {
      * children are the fields, and a boolean child is a lock icon.
      */
     fields?: FieldsConfig;
+    /**
+     * Folder only: `_reset` shows a reset icon in the folder's header. The
+     * icon puts every value inside back to its default. With `_reset: 'key'`
+     * it first runs the folder's action `key`, whose row is hidden. Here it
+     * is the action's full path. Nested folders with their own `_reset`
+     * reset too.
+     */
+    reset?: true | string;
     children?: ControlMeta[];
     defaultOpen?: boolean;
     options?: SelectOption[];

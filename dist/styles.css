@@ -23,6 +23,7 @@
   --dial-text-unit: rgba(255, 255, 255, 0.4); /* Slider units (s, °, %) */
   --dial-unit-gap: 2px; /* Space before a unit that is a word (s), not a sign (°) */
   --dial-field-gap: 4px; /* Space between the fields of an X / Y / Z row */
+  --dial-section-reset-size: 20px; /* The reset button in a section header */
   --dial-field-padding: 8px; /* Space inside each field, left and right */
   --dial-nested-line-style: dashed; /* Dividers of folders inside folders, so the depth reads at a glance */
   /* The timeline pan bar's thumb — quieter than text so it reads as a
@@ -353,6 +354,32 @@
   margin-bottom: 0;
 }
 
+/* A panel shown as a section of a group (Panel.tsx) sits on the divider
+   above it, with no extra space: no margin, and no row gap between the
+   sections. */
+.dialkit-panel-section > .dialkit-folder {
+  margin-top: 0;
+}
+
+.dialkit-folder-inner:has(> .dialkit-panel-section) {
+  gap: 0;
+}
+
+/* The last section of a panel ends on the panel's own bottom padding, so
+   it drops its own. */
+.dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder:last-child > .dialkit-folder-content > .dialkit-folder-inner,
+.dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-control-wrap:last-child > .dialkit-folder > .dialkit-folder-content > .dialkit-folder-inner,
+.dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-panel-section:last-child > .dialkit-folder > .dialkit-folder-content > .dialkit-folder-inner {
+  padding-bottom: 0;
+}
+
+/* A section whose last item is a folder ends on that folder: a closed one
+   ends on its header, like any other closed section, and an open one on its
+   own bottom padding. The section drops its own bottom padding. */
+.dialkit-folder:not(.dialkit-folder-root) > .dialkit-folder-content > .dialkit-folder-inner:has(> .dialkit-control-wrap:last-child > .dialkit-folder, > .dialkit-folder:last-child) {
+  padding-bottom: 0;
+}
+
 /*
  * Wrapped folders. Panel.tsx wraps every control in a motion.div, so each
  * folder is the :last-child of its own wrapper and the rule above strips
@@ -430,6 +457,28 @@
 
 /* A sole group that comes first can share the panel header's divider. */
 .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder:first-child:not(:has(~ .dialkit-folder)) {
+  border-top: none;
+  margin-top: 0;
+}
+
+/* A panel whose first item is a section or an X / Y / Z group: that item
+   shares the panel header's line, so the header keeps no space below it
+   and the item draws no line of its own. A panel that starts with a plain row keeps
+   the space, so the row does not touch the line. */
+.dialkit-folder-root > .dialkit-panel-header:has(+ .dialkit-folder-content > .dialkit-folder-inner > :is(.dialkit-folder, .dialkit-control-wrap-folder, .dialkit-panel-section, .dialkit-fields-group, .dialkit-control-wrap-fields):first-child) {
+  margin-bottom: 0;
+}
+
+/* The same for an X / Y / Z group that comes first. It keeps its top
+   padding, so its label does not touch the line. */
+.dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-fields-group:first-child,
+.dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-control-wrap-fields:first-child > .dialkit-fields-group {
+  border-top: none;
+}
+
+.dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder:first-child,
+.dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-control-wrap-folder:first-child > .dialkit-folder,
+.dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-panel-section:first-child > .dialkit-folder {
   border-top: none;
   margin-top: 0;
 }
@@ -613,9 +662,34 @@
  * folder's divider, so it uses the nested line style. Set as a variable so
  * it never brings back a line the rule above removed. */
 .dialkit-folder:not(.dialkit-folder-root) { --dial-fields-line-style: var(--dial-nested-line-style); }
-.dialkit-fields-label { display: flex; align-items: center; justify-content: space-between; gap: 2px; min-width: 0; color: var(--dial-text-label); font-size: 13px; font-weight: 500; }
+.dialkit-fields-label { display: flex; align-items: center; gap: 4px; min-width: 0; color: var(--dial-text-label); font-size: 13px; font-weight: 500; }
 .dialkit-fields-label-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dialkit-fields-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+/* A section reset (`_reset`): an icon right of the section title, shown
+   only when a value inside differs from its default. It sits on its own
+   line over the header, outside the header button, so a click resets
+   without opening or closing. The line holds a hidden copy of the title in
+   the title's font, which puts the icon right after the title. */
+.dialkit-folder-header[data-reset] { position: relative; }
+.dialkit-folder-header[data-reset] .dialkit-folder-title-row { padding-right: calc(var(--dial-section-reset-size) + 4px); }
+.dialkit-section-reset-line { position: absolute; inset: 0 20px 0 0; display: flex; align-items: center; min-width: 0; pointer-events: none; }
+.dialkit-section-reset-line > .dialkit-folder-title { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
+.dialkit-section-reset-spacer { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; visibility: hidden; }
+.dialkit-section-reset { flex-shrink: 0; display: grid; place-items: center; width: var(--dial-section-reset-size); height: var(--dial-section-reset-size); padding: 3px; box-sizing: border-box; border: 0; border-radius: 5px; background: none; color: var(--dial-text-tertiary); cursor: pointer; pointer-events: auto; transition: color 0.15s, background 0.15s; }
+.dialkit-section-reset svg { width: 100%; height: 100%; }
+.dialkit-section-reset:hover, .dialkit-section-reset:focus-visible { color: var(--dial-text-focus); background: var(--dial-surface-hover); }
+
+/* A reset next to a title shows only when its values changed. */
+.dialkit-section-reset:not([data-changed]),
+.dialkit-fields-reset:not([data-changed]) { visibility: hidden; }
+
+/* An icon next to a title centers on the lowercase letters, where a word
+   looks centered, not on the capitals: it moves down by half a cap height
+   minus half an x height, in the title's own font. The last 0.04px puts
+   the icon 0.46px above the middle of the lowercase letters (measured). */
+.dialkit-section-reset,
+.dialkit-fields-button { font: inherit; translate: 0 calc(0.5cap - 0.5ex - 0.04px); }
+
+.dialkit-fields-lock { margin-left: auto; }
 .dialkit-fields-button { flex-shrink: 0; display: grid; place-items: center; width: 20px; height: 20px; padding: 3px; border: 0; border-radius: 5px; background: none; color: var(--dial-text-tertiary); cursor: pointer; transition: color 0.15s, background 0.15s; }
 .dialkit-fields-button svg { width: 100%; height: 100%; }
 .dialkit-fields-button:hover, .dialkit-fields-button:focus-visible { color: var(--dial-text-focus); background: var(--dial-surface-hover); }

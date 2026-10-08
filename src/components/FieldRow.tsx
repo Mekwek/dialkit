@@ -24,8 +24,9 @@ function StrokeIcon({ paths }: { paths: string[] }) {
 }
 
 /**
- * An X / Y / Z group: a folder set with `_fields: true`. The label, the lock
- * and the reset sit on a line above one row of short number fields. The
+ * An X / Y / Z group: a folder set with `_fields: true`. The label and its
+ * reset sit on a line above one row of short number fields, with the lock at
+ * the right end of that line. The
  * folder's number children are the fields. A boolean child is a lock: the
  * host decides what a lock does, this row only shows and switches it.
  */
@@ -34,34 +35,34 @@ export function FieldRow({ panelId, control, values }: FieldRowProps) {
   const axes = children.filter((child) => child.type === 'slider');
   const lock = children.find((child) => child.type === 'toggle');
   const locked = lock ? values[lock.path] === true : false;
+  const paths = children.map((child) => child.path);
 
   return (
     <div className="dialkit-fields-group">
       <div className="dialkit-fields-label">
         <span className="dialkit-fields-label-text">{control.label}</span>
-        <span className="dialkit-fields-actions">
-          {lock && (
-            <button
-              type="button"
-              className="dialkit-fields-button dialkit-fields-lock"
-              aria-label={`${lock.label} ${control.label}`}
-              aria-pressed={locked}
-              title={lock.label}
-              onClick={() => DialStore.updateValue(panelId, lock.path, !locked)}
-            >
-              <StrokeIcon paths={ICON_LINK} />
-            </button>
-          )}
+        <button
+          type="button"
+          className="dialkit-fields-button dialkit-fields-reset"
+          aria-label={`Reset ${control.label}`}
+          title="Reset"
+          data-changed={DialStore.hasChanges(panelId, paths) || undefined}
+          onClick={() => DialStore.resetPaths(panelId, paths)}
+        >
+          <StrokeIcon paths={ICON_RESET} />
+        </button>
+        {lock && (
           <button
             type="button"
-            className="dialkit-fields-button"
-            aria-label={`Reset ${control.label}`}
-            title="Reset"
-            onClick={() => DialStore.resetPaths(panelId, children.map((child) => child.path))}
+            className="dialkit-fields-button dialkit-fields-lock"
+            aria-label={`${lock.label} ${control.label}`}
+            aria-pressed={locked}
+            title={lock.label}
+            onClick={() => DialStore.updateValue(panelId, lock.path, !locked)}
           >
-            <StrokeIcon paths={ICON_RESET} />
+            <StrokeIcon paths={ICON_LINK} />
           </button>
-        </span>
+        )}
       </div>
       <div className="dialkit-fields">
         {axes.map((axis) => (

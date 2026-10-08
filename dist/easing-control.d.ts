@@ -1,4 +1,4 @@
-import { E as EasingConfig } from './DialStore-Xs6cYnwJ.js';
+import { E as EasingConfig } from './DialStore-BJOEdmFh.js';
 import { BezierPoints } from './easing-geometry.js';
 import './dial-pad.js';
 

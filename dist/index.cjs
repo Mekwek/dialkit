@@ -309,7 +309,12 @@ function fieldsConfigOf(value) {
   if (typeof value === "object" && value !== null && !Array.isArray(value)) return value;
   return void 0;
 }
-var FOLDER_META_KEYS = ["_collapsed", "_fields"];
+function resetConfigOf(value, folderPath) {
+  if (value === true) return true;
+  if (typeof value === "string" && value) return `${folderPath}.${value}`;
+  return void 0;
+}
+var FOLDER_META_KEYS = ["_collapsed", "_fields", "_reset"];
 function isFolderMetaKey(key) {
   return FOLDER_META_KEYS.includes(key);
 }
@@ -384,6 +389,18 @@ function isRecord(value) {
 function sameControlValue(previous, next, control) {
   return Object.is(previous, next) || control?.type === "pad" && isRecord(previous) && isRecord(next) && previous.x === next.x && previous.y === next.y;
 }
+function sameValue(a, b) {
+  if (a === b || Object.is(a, b)) return true;
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((item, i) => sameValue(item, b[i]));
+  }
+  if (isRecord(a) && isRecord(b)) return sameRecord(a, b);
+  return false;
+}
+function sameRecord(a, b) {
+  const keys = Object.keys(a);
+  return keys.length === Object.keys(b).length && keys.every((key) => key in b && sameValue(a[key], b[key]));
+}
 function hasType(value, type) {
   return typeof value === "object" && value !== null && "type" in value && value.type === type;
 }
@@ -447,6 +464,8 @@ var DialStoreClass = class {
     this.activePreset = /* @__PURE__ */ new Map();
     this.baseValues = /* @__PURE__ */ new Map();
     this.defaultValues = /* @__PURE__ */ new Map();
+    /** Host values a reset returns to, over the defaults. See setResetValues. */
+    this.hostResetValues = /* @__PURE__ */ new Map();
     this.registrationCounts = /* @__PURE__ */ new Map();
     this.retainedPanels = /* @__PURE__ */ new Set();
     this.persistConfigs = /* @__PURE__ */ new Map();
@@ -575,6 +594,7 @@ var DialStoreClass = class {
       this.snapshots.delete(id);
       this.baseValues.delete(id);
       this.defaultValues.delete(id);
+      this.hostResetValues.delete(id);
       this.presets.delete(id);
       this.activePreset.delete(id);
       this.persistConfigs.delete(id);
@@ -665,15 +685,88 @@ var DialStoreClass = class {
     this.notify(panelId);
     this.refilterVisibility(panelId);
   }
-  /** Put the given paths back to their default values. */
+  /**
+   * The values a reset returns to, by path, when they are not the config's
+   * defaults: for example when the host passes saved values as defaults, so
+   * a panel opens on them, but a reset goes back to its own defaults. Each
+   * call replaces the last. Once set, a reset and hasChanges use only these
+   * paths: a path left out is one no reset returns to a default.
+   */
+  setResetValues(panelId, values) {
+    const previous = this.hostResetValues.get(panelId);
+    if (previous && sameRecord(previous, values)) return;
+    this.hostResetValues.set(panelId, { ...values });
+    this.notifyGlobal();
+  }
+  /** The value a reset puts at each path: setResetValues, else defaults. */
+  resetTargets(panelId) {
+    return this.hostResetValues.get(panelId) ?? this.defaultValues.get(panelId);
+  }
+  /** Put the given paths back to their reset values. */
   resetPaths(panelId, paths) {
-    const defaults = this.defaultValues.get(panelId);
-    if (!defaults) return;
+    const targets = this.resetTargets(panelId);
+    if (!targets) return;
     const updates = {};
     for (const path of paths) {
-      if (path in defaults) updates[path] = defaults[path];
+      if (path in targets) updates[path] = targets[path];
     }
     this.updateValues(panelId, updates);
+  }
+  /**
+   * Run a folder's section reset (see {@link ControlMeta.reset}): every
+   * value inside goes back to its reset value. A folder with a reset action
+   * runs the action first, so it can reset values its own way, for example
+   * with an animation, and the values it did not reset follow. Nested
+   * folders with their own reset go last, and find nothing left to change
+   * where the action already reset them. Values inside a nested folder
+   * without its own reset belong to the parent.
+   */
+  resetSection(panelId, path) {
+    const panel = this.panels.get(panelId);
+    const folder = panel ? this.controlsByPanel.get(panel)?.get(path) : void 0;
+    if (folder?.type !== "folder" || !folder.reset) return;
+    const own = [];
+    const nested = [];
+    const walk = (control) => {
+      for (const child of control.children ?? []) {
+        if (child.type === "folder") {
+          if (child.reset) nested.push(child.path);
+          else walk(child);
+        } else if (child.type !== "action") {
+          own.push(child.path);
+        }
+      }
+    };
+    walk(folder);
+    if (folder.reset !== true) this.triggerAction(panelId, folder.reset);
+    this.resetPaths(panelId, own);
+    for (const child of nested) this.resetSection(panelId, child);
+  }
+  /**
+   * True when a value the folder's section reset would return differs from
+   * its reset value: every value inside, nested folders and hidden rows
+   * included, the same values resetSection resets.
+   */
+  sectionHasChanges(panelId, path) {
+    const panel = this.panels.get(panelId);
+    const folder = panel ? this.controlsByPanel.get(panel)?.get(path) : void 0;
+    if (!folder) return false;
+    const paths = [];
+    const walk = (control) => {
+      for (const child of control.children ?? []) {
+        if (child.type === "folder") walk(child);
+        else if (child.type !== "action") paths.push(child.path);
+      }
+    };
+    walk(folder);
+    return this.hasChanges(panelId, paths);
+  }
+  /** True when a value at one of the paths differs from its reset value. */
+  hasChanges(panelId, paths) {
+    const panel = this.panels.get(panelId);
+    const targets = this.resetTargets(panelId);
+    if (!panel || !targets) return false;
+    return paths.some((path) => path in targets && !sameValue(panel.values[path], targets[path]));
   }
   updateSpringMode(panelId, path, mode) {
     this.updateTransitionMode(panelId, path, mode);
@@ -1076,6 +1169,7 @@ var DialStoreClass = class {
             label,
             defaultOpen,
             fields: fieldsConfigOf(folderConfig._fields),
+            reset: resetConfigOf(folderConfig._reset, path),
             children: visit(folderConfig, path)
           };
         }
@@ -1747,7 +1841,7 @@ var ICON_LINK = [
 
 // src/components/Folder.tsx
 var import_jsx_runtime = require("react/jsx-runtime");
-function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar }) {
+function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, onReset, changed }) {
   const [localOpen, setIsOpen] = (0, import_react3.useState)(defaultOpen);
   const isOpen = open ?? localOpen;
   const isCollapsed = !isOpen;
@@ -1763,7 +1857,7 @@ function Folder({ title, children, open, defaultOpen = true, isRoot = false, inl
       className: `dialkit-folder ${isRoot ? "dialkit-folder-root" : ""}`,
       "data-open": String(isOpen),
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: `dialkit-folder-header ${isRoot ? "dialkit-panel-header" : ""}`, onClick: handleToggle, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: `dialkit-folder-header ${isRoot ? "dialkit-panel-header" : ""}`, "data-reset": !isRoot && onReset ? "" : void 0, onClick: handleToggle, children: [
           /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "dialkit-folder-header-top", role: inline && isRoot ? void 0 : "button", tabIndex: inline && isRoot ? void 0 : 0, "aria-label": title, "aria-expanded": isOpen, onKeyDown: (e) => activateOnKey(e, handleToggle), children: [
             isRoot ? isOpen && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dialkit-folder-title-row", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dialkit-folder-title dialkit-folder-title-root", children: title }) }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dialkit-folder-title-row", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dialkit-folder-title", children: title }) }),
             isRoot && !inline && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
@@ -1795,6 +1889,25 @@ function Folder({ title, children, open, defaultOpen = true, isRoot = false, inl
               }
             )
           ] }),
+          !isRoot && onReset && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dialkit-section-reset-line", children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "dialkit-folder-title", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "dialkit-section-reset-spacer", "aria-hidden": "true", children: title }),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "dialkit-section-reset",
+                "aria-label": `Reset ${title}`,
+                title: "Reset",
+                "data-changed": changed || void 0,
+                onClick: (e) => {
+                  e.stopPropagation();
+                  onReset();
+                },
+                onKeyDown: (e) => e.stopPropagation(),
+                children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true", children: ICON_RESET.map((d) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d }, d)) })
+              }
+            )
+          ] }) }),
           isRoot && toolbar && isOpen && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "dialkit-panel-toolbar", onClick: (e) => e.stopPropagation(), children: toolbar })
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)(import_react4.AnimatePresence, { initial: false, children: isOpen && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
@@ -2578,34 +2691,34 @@ function FieldRow({ panelId, control, values }) {
   const axes = children.filter((child) => child.type === "slider");
   const lock = children.find((child) => child.type === "toggle");
   const locked = lock ? values[lock.path] === true : false;
+  const paths = children.map((child) => child.path);
   return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "dialkit-fields-group", children: [
     /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "dialkit-fields-label", children: [
       /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "dialkit-fields-label-text", children: control.label }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { className: "dialkit-fields-actions", children: [
-        lock && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-          "button",
-          {
-            type: "button",
-            className: "dialkit-fields-button dialkit-fields-lock",
-            "aria-label": `${lock.label} ${control.label}`,
-            "aria-pressed": locked,
-            title: lock.label,
-            onClick: () => DialStore.updateValue(panelId, lock.path, !locked),
-            children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(StrokeIcon, { paths: ICON_LINK })
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-          "button",
-          {
-            type: "button",
-            className: "dialkit-fields-button",
-            "aria-label": `Reset ${control.label}`,
-            title: "Reset",
-            onClick: () => DialStore.resetPaths(panelId, children.map((child) => child.path)),
-            children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(StrokeIcon, { paths: ICON_RESET })
-          }
-        )
-      ] })
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+        "button",
+        {
+          type: "button",
+          className: "dialkit-fields-button dialkit-fields-reset",
+          "aria-label": `Reset ${control.label}`,
+          title: "Reset",
+          "data-changed": DialStore.hasChanges(panelId, paths) || void 0,
+          onClick: () => DialStore.resetPaths(panelId, paths),
+          children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(StrokeIcon, { paths: ICON_RESET })
+        }
+      ),
+      lock && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+        "button",
+        {
+          type: "button",
+          className: "dialkit-fields-button dialkit-fields-lock",
+          "aria-label": `${lock.label} ${control.label}`,
+          "aria-pressed": locked,
+          title: lock.label,
+          onClick: () => DialStore.updateValue(panelId, lock.path, !locked),
+          children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(StrokeIcon, { paths: ICON_LINK })
+        }
+      )
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "dialkit-fields", children: axes.map((axis) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
       NumberField,
@@ -2982,7 +3095,7 @@ function SpringVisualization({ spring, isSimpleMode }) {
 // src/components/SpringControl.tsx
 var import_react10 = require("react");
 var import_jsx_runtime8 = require("react/jsx-runtime");
-function SpringControl({ panelId, path, label, spring, onChange }) {
+function SpringControl({ panelId, path, label, spring, onChange, onReset, changed }) {
   const subscribe = (0, import_react10.useCallback)(
     (callback) => DialStore.subscribe(panelId, callback),
     [panelId]
@@ -3019,7 +3132,7 @@ function SpringControl({ panelId, path, label, spring, onChange }) {
       onChange({ ...rest, [key]: value });
     }
   };
-  return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(Folder, { title: label, defaultOpen: true, children: /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { style: { display: "flex", flexDirection: "column", gap: 6 }, children: [
+  return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(Folder, { title: label, defaultOpen: true, onReset, changed, children: /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { style: { display: "flex", flexDirection: "column", gap: 6 }, children: [
     /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(SpringVisualization, { spring, isSimpleMode }),
     /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "dialkit-labeled-control", children: [
       /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { className: "dialkit-labeled-control-label", children: "Type" }),
@@ -3335,7 +3448,9 @@ function TransitionControl({
   onChange,
   hideDuration = false,
   durationControl,
-  physicsSettleCap
+  physicsSettleCap,
+  onReset,
+  changed
 }) {
   const subscribe = (0, import_react12.useCallback)(
     (callback) => DialStore.subscribe(panelId, callback),
@@ -3400,7 +3515,7 @@ function TransitionControl({
       unit: "s"
     }
   ) : null;
-  return /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Folder, { title: label, defaultOpen: true, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { style: { display: "flex", flexDirection: "column", gap: 6 }, children: [
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Folder, { title: label, defaultOpen: true, onReset, changed, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { style: { display: "flex", flexDirection: "column", gap: 6 }, children: [
     isEasing ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(EasingVisualization, { easing, onChange: (ease) => onChange({ ...easing, ease }) }) : /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(SpringVisualization, { spring, isSimpleMode: isSimpleSpring }),
     /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "dialkit-labeled-control", children: [
       /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { className: "dialkit-labeled-control-label", children: "Type" }),
@@ -5184,7 +5299,8 @@ function ControlRenderer({
             path: control.path,
             label: control.label,
             spring: value,
-            onChange: (v) => DialStore.updateValue(panelId, control.path, v)
+            onChange: (v) => DialStore.updateValue(panelId, control.path, v),
+            ...valueResetProps(control.path)
           },
           control.path
         );
@@ -5198,7 +5314,8 @@ function ControlRenderer({
             value,
             onChange: (v) => DialStore.updateValue(panelId, control.path, v),
             durationControl: transitionDuration,
-            physicsSettleCap
+            physicsSettleCap,
+            ...valueResetProps(control.path)
           },
           control.path
         );
@@ -5210,8 +5327,12 @@ function ControlRenderer({
           open: accordionOpenPath === control.path,
           onOpenChange: (next) => onAccordionToggle(control.path, next)
         } : {};
-        const children = control.children?.map((child) => renderControl(child, depth + 1));
-        return /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Folder, { title: control.label, defaultOpen: control.defaultOpen ?? true, ...controlledProps, children: animateControls ? /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(import_react20.AnimatePresence, { initial: false, children }) : children }, control.path);
+        const children = control.children?.filter((child) => child.path !== control.reset).map((child) => renderControl(child, depth + 1));
+        const resetProps = control.reset ? {
+          onReset: () => DialStore.resetSection(panelId, control.path),
+          changed: DialStore.sectionHasChanges(panelId, control.path)
+        } : {};
+        return /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Folder, { title: control.label, defaultOpen: control.defaultOpen ?? true, ...controlledProps, ...resetProps, children: animateControls ? /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(import_react20.AnimatePresence, { initial: false, children }) : children }, control.path);
       }
       case "text":
         return /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
@@ -5296,6 +5417,10 @@ function ControlRenderer({
         return null;
     }
   };
+  const valueResetProps = (path) => ({
+    onReset: () => DialStore.resetPaths(panelId, [path]),
+    changed: DialStore.hasChanges(panelId, [path])
+  });
   const renderControl = (control, depth = 0) => {
     const inner = renderControlInner(control, depth);
     if (inner === null || !animateControls) return inner;

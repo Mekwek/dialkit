@@ -1,7 +1,7 @@
 import { activateOnKey } from '../control-keyboard';
 import { useState, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ICON_PANEL, ICON_CHEVRON } from '../icons';
+import { ICON_PANEL, ICON_CHEVRON, ICON_RESET } from '../icons';
 
 interface FolderProps {
   title: string;
@@ -12,9 +12,13 @@ interface FolderProps {
   inline?: boolean;
   onOpenChange?: (isOpen: boolean) => void;
   toolbar?: ReactNode;
+  /** Shows a reset icon in a section header. See ControlMeta.reset. */
+  onReset?: () => void;
+  /** True when a value inside differs from its default. */
+  changed?: boolean;
 }
 
-export function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar }: FolderProps) {
+export function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, onReset, changed }: FolderProps) {
   const [localOpen, setIsOpen] = useState(defaultOpen);
   const isOpen = open ?? localOpen;
   const isCollapsed = !isOpen;
@@ -31,7 +35,7 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
       className={`dialkit-folder ${isRoot ? 'dialkit-folder-root' : ''}`}
       data-open={String(isOpen)}
     >
-      <div className={`dialkit-folder-header ${isRoot ? 'dialkit-panel-header' : ''}`} onClick={handleToggle}>
+      <div className={`dialkit-folder-header ${isRoot ? 'dialkit-panel-header' : ''}`} data-reset={!isRoot && onReset ? '' : undefined} onClick={handleToggle}>
         <div className="dialkit-folder-header-top" role={inline && isRoot ? undefined : "button"} tabIndex={inline && isRoot ? undefined : 0} aria-label={title} aria-expanded={isOpen} onKeyDown={(e) => activateOnKey(e, handleToggle)}>
           {isRoot ? (
             isOpen && (
@@ -77,6 +81,35 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
             </motion.svg>
           )}
         </div>
+
+        {/* The reset sits right of the title, but outside the header
+            button: a button inside a button cannot be reached. A hidden
+            copy of the title, in the title's own font, sets its place. */}
+        {!isRoot && onReset && (
+          <div className="dialkit-section-reset-line">
+            <span className="dialkit-folder-title">
+              <span className="dialkit-section-reset-spacer" aria-hidden="true">
+                {title}
+              </span>
+              <button
+                type="button"
+                className="dialkit-section-reset"
+                aria-label={`Reset ${title}`}
+                title="Reset"
+                data-changed={changed || undefined}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onReset();
+                }}
+                onKeyDown={(e) => e.stopPropagation()}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  {ICON_RESET.map((d) => <path key={d} d={d} />)}
+                </svg>
+              </button>
+            </span>
+          </div>
+        )}
 
         {isRoot && toolbar && isOpen && (
           <div className="dialkit-panel-toolbar" onClick={(e) => e.stopPropagation()}>

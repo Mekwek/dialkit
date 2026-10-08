@@ -11,9 +11,13 @@ interface SpringControlProps {
   label: string;
   spring: SpringConfig;
   onChange: (spring: SpringConfig) => void;
+  /** Shows a reset icon in the header. See Folder.onReset. */
+  onReset?: () => void;
+  /** True when the value differs from its default. */
+  changed?: boolean;
 }
 
-export function SpringControl({ panelId, path, label, spring, onChange }: SpringControlProps) {
+export function SpringControl({ panelId, path, label, spring, onChange, onReset, changed }: SpringControlProps) {
   const subscribe = useCallback(
     (callback: () => void) => DialStore.subscribe(panelId, callback),
     [panelId]
@@ -64,7 +68,7 @@ export function SpringControl({ panelId, path, label, spring, onChange }: Spring
   };
 
   return (
-    <Folder title={label} defaultOpen={true}>
+    <Folder title={label} defaultOpen={true} onReset={onReset} changed={changed}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <SpringVisualization spring={spring} isSimpleMode={isSimpleMode} />
 
