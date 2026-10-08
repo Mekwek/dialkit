@@ -54,6 +54,12 @@ export type { DialPadProps } from './dial-pad-control';
 export { PresetManager } from './components/PresetManager';
 export { ShortcutsMenu } from './components/ShortcutsMenu';
 
+// Transition presets: the named curves and spring presets, and the user's
+// saved curves and springs.
+export { TransitionLibrary } from './store/TransitionLibrary';
+export { EASING_CURVES, SPRING_PRESETS } from './transition-presets';
+export type { CustomSpring, EasingCurve, SpringMode, SpringPreset } from './transition-presets';
+
 // Store (for advanced usage)
 export { DialStore, withVisibility, unwrapVisibility } from './store/DialStore';
 export type {

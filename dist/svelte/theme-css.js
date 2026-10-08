@@ -25,6 +25,8 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   --dial-unit-gap: 2px; /* Space before a unit that is a word (s), not a sign (°) */
   --dial-field-gap: 4px; /* Space between the fields of an X / Y / Z row */
   --dial-section-reset-size: 20px; /* The reset button in a section header */
+  --dial-preset-thumb-width: 24px; /* The curve picture in a preset row */
+  --dial-preset-list-height: 240px; /* The tallest a preset list grows before it scrolls */
   --dial-field-padding: 8px; /* Space inside each field, left and right */
   --dial-nested-line-style: dashed; /* Dividers of folders inside folders, so the depth reads at a glance */
   /* The timeline pan bar's thumb — quieter than text so it reads as a
@@ -992,6 +994,30 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   background: var(--dial-surface);
   overflow: visible;
 }
+
+/* The transition control: the Type control, the curve box or spring
+   picture, the values, then the named presets (TransitionPresets.tsx). */
+.dialkit-transition { display: flex; flex-direction: column; gap: 6px; }
+.dialkit-ease-fields { display: flex; gap: var(--dial-field-gap); min-width: 0; }
+.dialkit-ease-field { flex: 1 1 0; min-width: 0; height: var(--dial-row-height); padding: 0 4px; border: 0; border-radius: var(--dial-radius); background: var(--dial-surface); color: var(--dial-text-label); font: 500 13px 'Geist Mono', monospace; text-align: center; outline: none; transition: background 0.15s, color 0.15s; }
+.dialkit-ease-field:hover, .dialkit-ease-field:focus { background: var(--dial-surface-hover); color: var(--dial-text-focus); }
+.dialkit-folder-meta { flex-shrink: 0; margin-right: 6px; font-size: 13px; font-weight: 500; color: var(--dial-text-tertiary); white-space: nowrap; }
+.dialkit-curve-picker { display: flex; flex-direction: column; gap: 6px; }
+.dialkit-presets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; align-content: start; max-height: var(--dial-preset-list-height); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.dialkit-preset { position: relative; display: flex; min-width: 0; }
+.dialkit-preset-pick { flex: 1; min-width: 0; display: flex; flex-direction: row-reverse; align-items: center; justify-content: flex-end; gap: 8px; height: var(--dial-row-height); padding: 0 8px; border: 0; border-radius: var(--dial-radius); background: var(--dial-surface); color: var(--dial-text-label); font: inherit; font-size: 13px; font-weight: 500; text-align: left; cursor: pointer; transition: background 0.15s, color 0.15s; }
+.dialkit-preset-pick:hover, .dialkit-preset-pick:focus-visible { background: var(--dial-surface-hover); color: var(--dial-text-focus); }
+.dialkit-preset[data-active] .dialkit-preset-pick { background: var(--dial-surface-active); color: var(--dial-text-focus); }
+.dialkit-preset-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dialkit-preset-thumb { flex-shrink: 0; width: var(--dial-preset-thumb-width); height: auto; fill: none; stroke: currentColor; stroke-width: 1.25; stroke-linecap: round; opacity: 0.8; }
+.dialkit-preset-remove { position: absolute; top: 0; bottom: 0; right: 4px; margin: auto 0; display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 5px; background: var(--dial-surface-hover); color: var(--dial-text-label); cursor: pointer; opacity: 0; transition: opacity 0.15s, color 0.15s; }
+.dialkit-preset-remove svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+.dialkit-preset-remove:hover { color: var(--dial-text-focus); }
+.dialkit-preset:hover .dialkit-preset-remove, .dialkit-preset-remove:focus-visible { opacity: 1; }
+.dialkit-preset-empty { margin: 4px 0; font-size: 12px; color: var(--dial-text-tertiary); text-align: center; }
+.dialkit-preset-save { height: var(--dial-row-height); padding: 0 12px; text-align: center; border: 1px dashed var(--dial-border); border-radius: var(--dial-radius); background: none; color: var(--dial-text-label); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; transition: color 0.15s, border-color 0.15s; }
+.dialkit-preset-save:hover:not(:disabled) { color: var(--dial-text-focus); border-color: var(--dial-border-hover); }
+.dialkit-preset-save:disabled { cursor: default; opacity: 0.6; }
 
 .dialkit-easing-viz {
   position: relative;

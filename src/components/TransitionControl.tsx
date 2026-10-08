@@ -1,4 +1,4 @@
-import { formatEase, parseEase } from '../easing-geometry';
+import type { BezierPoints } from '../easing-geometry';
 import { SpringConfig, EasingConfig, TransitionConfig, DialStore } from '../store/DialStore';
 import { springParams, springSettleDuration } from '../transition-math';
 import { Folder } from './Folder';
@@ -6,7 +6,9 @@ import { Slider } from './Slider';
 import { SegmentedControl } from './SegmentedControl';
 import { SpringVisualization } from './SpringVisualization';
 import { EasingVisualization } from './EasingVisualization';
-import { useCallback, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { CURVE_MORPH_MS, EASING_CURVES, curveNameFor, customSpringNameFor, intensityEase, sameEase, springPresetNameFor } from '../transition-presets';
+import { CurvePicker, EaseFields, SpringPresetPicker, useCustomCurves, useCustomSprings } from './TransitionPresets';
 
 interface TransitionControlProps {
   panelId: string;
@@ -121,6 +123,67 @@ export function TransitionControl({
     }
   };
 
+  const customCurves = useCustomCurves();
+  const customSprings = useCustomSprings();
+
+  // A picked curve moves the line and the handles to its shape: the store
+  // gets the new curve at once, the curve box shows the steps between.
+  const [shownEase, setShownEase] = useState<BezierPoints | null>(null);
+  const morph = useRef<{ frame: number; cancelled: boolean } | null>(null);
+  const stopMorph = () => {
+    if (morph.current) {
+      morph.current.cancelled = true;
+      cancelAnimationFrame(morph.current.frame);
+      morph.current = null;
+    }
+    setShownEase(null);
+  };
+  useEffect(() => () => stopMorph(), []);
+
+  // Movo's Intensity: a percentage of the curve it started from. Any other
+  // change of the curve starts again from that curve at 50%.
+  const [intensity, setIntensity] = useState(50);
+  const intensityBase = useRef<BezierPoints>(easing.ease);
+  if (!sameEase(intensityEase(intensityBase.current, intensity), easing.ease)) {
+    intensityBase.current = easing.ease;
+    if (intensity !== 50) setIntensity(50);
+  }
+
+  const setEase = (ease: BezierPoints) => {
+    stopMorph();
+    onChange({ ...easing, ease });
+  };
+
+  const pickEase = (target: BezierPoints) => {
+    stopMorph();
+    const from = shownEase ?? easing.ease;
+    // Show the start of the move in the same render as the new value, or the
+    // box draws the new curve for one frame, then jumps back.
+    setShownEase(from);
+    onChange({ ...easing, ease: target });
+    const state = { frame: 0, cancelled: false };
+    morph.current = state;
+    // The clock starts on the first drawn frame, so no frame is spent
+    // before the move. Ease in and out: no leap on the first frame.
+    let start: number | null = null;
+    // A fresh arrow each frame: Theca's Tempus turns a callback that
+    // schedules itself by name into a loop that never stops.
+    const step = (now: number) => {
+      if (state.cancelled) return;
+      start ??= now - 1000 / 60;
+      const t = Math.min(1, (now - start) / CURVE_MORPH_MS);
+      const k = t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
+      if (t >= 1) {
+        morph.current = null;
+        setShownEase(null);
+        return;
+      }
+      setShownEase(from.map((value, index) => value + (target[index] - value) * k) as BezierPoints);
+      state.frame = requestAnimationFrame((time) => step(time));
+    };
+    state.frame = requestAnimationFrame((time) => step(time));
+  };
+
   const durationSlider = !hideDuration && (isEasing || isSimpleSpring) ? (
     <Slider
       label="Duration"
@@ -136,31 +199,58 @@ export function TransitionControl({
     />
   ) : null;
 
+  const typeOptions = [
+    { value: 'easing' as const, label: 'Easing' },
+    { value: 'simple' as const, label: 'Time' },
+    { value: 'advanced' as const, label: 'Physics' },
+  ];
+  const typeControl = (
+    <SegmentedControl fill ariaLabel="Type" options={typeOptions} value={mode} onChange={handleModeChange} />
+  );
+
+  const presetPicker = isEasing ? (
+    <CurvePicker ease={easing.ease} onPick={pickEase} />
+  ) : (
+    <SpringPresetPicker
+      spring={spring}
+      mode={isSimpleSpring ? 'simple' : 'advanced'}
+      onPick={(next) => onChange(next)}
+    />
+  );
+  // The name a Curves or Presets folder shows: the matching default, else
+  // the matching saved curve, else Custom.
+  const presetName = isEasing
+    ? curveNameFor(easing.ease, EASING_CURVES) ?? curveNameFor(easing.ease, customCurves) ?? 'Custom'
+    : springPresetNameFor(spring, isSimpleSpring ? 'simple' : 'advanced') ??
+      customSpringNameFor(spring, isSimpleSpring ? 'simple' : 'advanced', customSprings) ??
+      'Custom';
+
   return (
     <Folder title={label} defaultOpen={true} onReset={onReset} changed={changed}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div className="dialkit-transition">
+        {typeControl}
         {isEasing ? (
-          <EasingVisualization easing={easing} onChange={(ease) => onChange({ ...easing, ease })} />
+          <EasingVisualization easing={{ ...easing, ease: shownEase ?? easing.ease }} onChange={setEase} />
         ) : (
           <SpringVisualization spring={spring} isSimpleMode={isSimpleSpring} />
         )}
 
-        <div className="dialkit-labeled-control">
-          <span className="dialkit-labeled-control-label">Type</span>
-          <SegmentedControl
-            options={[
-              { value: 'easing' as const, label: 'Easing' },
-              { value: 'simple' as const, label: 'Time' },
-              { value: 'advanced' as const, label: 'Physics' },
-            ]}
-            value={mode}
-            onChange={handleModeChange}
-          />
-        </div>
-
         {isEasing ? (
           <>
-            <EaseTextInput ease={easing.ease} onChange={(newEase) => onChange({ ...easing, ease: newEase })} />
+            <EaseFields ease={easing.ease} onChange={setEase} />
+            <Slider
+                label="Intensity"
+                value={intensity}
+                onChange={(next) => {
+                  stopMorph();
+                  setIntensity(next);
+                  onChange({ ...easing, ease: intensityEase(intensityBase.current, next) });
+                }}
+                min={0}
+                max={100}
+                step={1}
+                unit="%"
+              />
           </>
         ) : isSimpleSpring ? (
           <Slider label="Bounce" value={spring.bounce ?? 0.2} onChange={(v) => handleSpringUpdate('bounce', v)} min={0} max={1} step={0.05} />
@@ -172,6 +262,9 @@ export function TransitionControl({
           </>
         )}
         {durationSlider}
+        <Folder title={isEasing ? 'Curves' : 'Presets'} defaultOpen={true} meta={presetName}>
+          {presetPicker}
+        </Folder>
       </div>
     </Folder>
   );
@@ -210,43 +303,4 @@ function clampPhysicsParam(
     else bad = mid;
   }
   return good;
-}
-
-function EaseTextInput({ ease, onChange }: { ease: [number, number, number, number]; onChange: (ease: [number, number, number, number]) => void }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState('');
-
-  const handleFocus = () => {
-    setDraft(formatEase(ease));
-    setEditing(true);
-  };
-
-  const handleBlur = () => {
-    const parsed = parseEase(draft);
-    if (parsed) onChange(parsed);
-    setEditing(false);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      (e.target as HTMLInputElement).blur();
-    }
-  };
-
-  return (
-    <div className="dialkit-labeled-control">
-      <span className="dialkit-labeled-control-label">Ease</span>
-      <input
-        type="text"
-        aria-label="Bézier coordinates"
-        className="dialkit-text-input"
-        value={editing ? draft : formatEase(ease)}
-        onChange={(e) => setDraft(e.target.value)}
-        onFocus={handleFocus}
-        onBlur={handleBlur}
-        onKeyDown={handleKeyDown}
-        spellCheck={false}
-      />
-    </div>
-  );
 }

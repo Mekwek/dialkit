@@ -16,9 +16,11 @@ interface FolderProps {
   onReset?: () => void;
   /** True when a value inside differs from its default. */
   changed?: boolean;
+  /** Short text on the right of a section header, left of the arrow. */
+  meta?: ReactNode;
 }
 
-export function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, onReset, changed }: FolderProps) {
+export function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, onReset, changed, meta }: FolderProps) {
   const [localOpen, setIsOpen] = useState(defaultOpen);
   const isOpen = open ?? localOpen;
   const isCollapsed = !isOpen;
@@ -64,6 +66,7 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
               ))}
             </svg>
           )}
+          {!isRoot && meta != null && <span className="dialkit-folder-meta">{meta}</span>}
           {!isRoot && (
             <motion.svg
               className="dialkit-folder-icon"

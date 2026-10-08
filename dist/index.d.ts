@@ -232,7 +232,7 @@ type PanelConfig = {
      */
     presetsLockable?: boolean;
 };
-type Listener$1 = () => void;
+type Listener$2 = () => void;
 type ActionListener = (action: string) => void;
 type Preset = {
     id: string;
@@ -361,8 +361,8 @@ declare class DialStoreClass {
     getValues(panelId: string): Record<string, DialValue>;
     getPanels(kind?: 'panel' | 'timeline'): PanelConfig[];
     getPanel(id: string): PanelConfig | undefined;
-    subscribe(panelId: string, listener: Listener$1): () => void;
-    subscribeGlobal(listener: Listener$1): () => void;
+    subscribe(panelId: string, listener: Listener$2): () => void;
+    subscribeGlobal(listener: Listener$2): () => void;
     subscribeActions(panelId: string, listener: ActionListener): () => void;
     triggerAction(panelId: string, path: string): void;
     savePreset(panelId: string, name: string): string;
@@ -551,7 +551,7 @@ type TimelineTransport = {
      * timeline wraps. Reset by seek/replay so scrubbing stays deterministic. */
     wraps: number;
 };
-type Listener = () => void;
+type Listener$1 = () => void;
 declare class TimelineStoreClass {
     private timelines;
     private transports;
@@ -579,8 +579,8 @@ declare class TimelineStoreClass {
     getTransport(id: string): TimelineTransport;
     getTimeline(id: string): TimelineMeta | undefined;
     getTimelines(): TimelineMeta[];
-    subscribe(id: string, listener: Listener): () => void;
-    subscribeGlobal(listener: Listener): () => void;
+    subscribe(id: string, listener: Listener$1): () => void;
+    subscribeGlobal(listener: Listener$1): () => void;
     private applyMeta;
     private ensureLoop;
     private tick;
@@ -915,8 +915,10 @@ interface FolderProps {
     onReset?: () => void;
     /** True when a value inside differs from its default. */
     changed?: boolean;
+    /** Short text on the right of a section header, left of the arrow. */
+    meta?: ReactNode;
 }
-declare function Folder({ title, children, open, defaultOpen, isRoot, inline, onOpenChange, toolbar, onReset, changed }: FolderProps): react_jsx_runtime.JSX.Element;
+declare function Folder({ title, children, open, defaultOpen, isRoot, inline, onOpenChange, toolbar, onReset, changed, meta }: FolderProps): react_jsx_runtime.JSX.Element;
 
 interface ButtonGroupProps {
     buttons: Array<{
@@ -1052,4 +1054,60 @@ interface ShortcutsMenuProps {
 }
 declare function ShortcutsMenu({ panelId }: ShortcutsMenuProps): react_jsx_runtime.JSX.Element | null;
 
-export { type ActionConfig, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, type EasingConfig, EasingVisualization, FieldRow, type FieldsConfig, Folder, type FolderMode, type ImageConfig, ImageControl, type ImageOption, type PanelConfig, type Preset, PresetManager, type RangeConfig, type ResolvedValues, type SelectConfig, SelectControl, type SelectOption$1 as SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipMeta, type TimelineClipTrackMeta, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelineMeta, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, TimelineStore, type TimelineTransport, Toggle, type TransitionConfig, TransitionControl, type UseDialOptions, type UseDialTimelineOptions, type VisibleWhen, type VisibleWhenValue, formatClock, unwrapVisibility, useDialKit, useDialKitController, useDialTimeline, withVisibility };
+interface EasingCurve {
+    name: string;
+    ease: BezierPoints;
+}
+/**
+ * The named default curves: Arqé's named curves first, then Movo's, then
+ * the standard Quad, Cubic, Quart, Expo and Sine families. Duplicates are
+ * merged: Movo's Linear draws the same line as Arqé's, Movo's Glide is
+ * almost Arqé's Flow, and Expo In Out is the same curve as Snap. Movo's
+ * Smooth is named Coast here, because Arqé's Smooth is another curve.
+ */
+declare const EASING_CURVES: EasingCurve[];
+interface SpringPreset {
+    name: string;
+    /** Physics: React Spring's tension and friction, with mass 1. */
+    physics: Required<Pick<SpringConfig, 'stiffness' | 'damping' | 'mass'>>;
+    /** Time: bounce from the damping ratio, and the duration whose settle
+     *  time matches the physics spring's (transition-math). */
+    time: Required<Pick<SpringConfig, 'visualDuration' | 'bounce'>>;
+}
+/** React Spring's six named configs. */
+declare const SPRING_PRESETS: SpringPreset[];
+type SpringMode = 'simple' | 'advanced';
+/** A spring the user saved: a Time spring or a Physics spring. */
+interface CustomSpring {
+    name: string;
+    mode: SpringMode;
+    spring: SpringConfig;
+}
+
+type Listener = () => void;
+/**
+ * The user's saved custom curves and springs, shared by every transition
+ * control. Saved curves and springs live
+ * here for the session; a host that stores them calls setCustomCurves and
+ * setCustomSprings on load and listens with subscribe to save changes.
+ */
+declare class TransitionLibraryClass {
+    private curves;
+    private springs;
+    private listeners;
+    subscribe: (listener: Listener) => (() => void);
+    private notify;
+    getCustomCurves: () => EasingCurve[];
+    setCustomCurves(curves: EasingCurve[]): void;
+    /** Saves `ease` as "Custom N", the first free number, and returns it. */
+    saveCustomCurve(ease: BezierPoints): EasingCurve;
+    removeCustomCurve(name: string): void;
+    getCustomSprings: () => CustomSpring[];
+    setCustomSprings(springs: CustomSpring[]): void;
+    /** Saves a Time or Physics spring as "Custom N", numbered per mode. */
+    saveCustomSpring(spring: SpringConfig, mode: SpringMode): CustomSpring;
+    removeCustomSpring(name: string, mode: SpringMode): void;
+}
+declare const TransitionLibrary: TransitionLibraryClass;
+
+export { type ActionConfig, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type CustomSpring, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, EASING_CURVES, type EasingConfig, type EasingCurve, EasingVisualization, FieldRow, type FieldsConfig, Folder, type FolderMode, type ImageConfig, ImageControl, type ImageOption, type PanelConfig, type Preset, PresetManager, type RangeConfig, type ResolvedValues, SPRING_PRESETS, type SelectConfig, SelectControl, type SelectOption$1 as SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, type SpringMode, type SpringPreset, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipMeta, type TimelineClipTrackMeta, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelineMeta, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, TimelineStore, type TimelineTransport, Toggle, type TransitionConfig, TransitionControl, TransitionLibrary, type UseDialOptions, type UseDialTimelineOptions, type VisibleWhen, type VisibleWhenValue, formatClock, unwrapVisibility, useDialKit, useDialKitController, useDialTimeline, withVisibility };
