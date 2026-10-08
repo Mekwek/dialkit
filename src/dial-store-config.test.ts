@@ -144,6 +144,26 @@ describe('DialStore config lifecycle', () => {
     } finally { DialStore.unregisterPanel(id); }
   });
 
+  it('reads a fields row and resets only its paths', () => {
+    const id = 'config-fields';
+    const config = {
+      position: { _fields: { decimals: 0 }, x: [1.5, -10, 10, 0.01] },
+      scale: { _fields: true, uniform: true, x: [1, 0, 10, 0.1], y: [1, 0, 10, 0.1] },
+      other: [5, 0, 10],
+    } satisfies DialConfig;
+    try {
+      DialStore.registerPanel(id, 'Config', config);
+      const folder = DialStore.getPanel(id)?.controls.find(c => c.path === 'scale');
+      assert.deepEqual(folder?.fields, {});
+      assert.deepEqual(DialStore.getPanel(id)?.controls.find(c => c.path === 'position')?.fields, { decimals: 0 });
+      assert.deepEqual(folder?.children?.map(c => c.path), ['scale.uniform', 'scale.x', 'scale.y']);
+      DialStore.updateValues(id, { 'scale.x': 4, 'scale.uniform': false, other: 8 });
+      DialStore.resetPaths(id, ['scale.uniform', 'scale.x', 'scale.y']);
+      assert.deepEqual(DialStore.getValues(id), { 'position.x': 1.5, 'scale.uniform': true, 'scale.x': 1, 'scale.y': 1, other: 8 });
+      assert.deepEqual(resolveDialValues(config, DialStore.getValues(id)), { position: { x: 1.5 }, scale: { uniform: true, x: 1, y: 1 }, other: 8 });
+    } finally { DialStore.unregisterPanel(id); }
+  });
+
   it('does not retain an extra registration when an invalid config is rejected', () => {
     const id = 'config-rejected-owner';
     DialStore.registerPanel(id, 'Original', { amount: 1 });

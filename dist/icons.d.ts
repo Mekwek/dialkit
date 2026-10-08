@@ -23,5 +23,9 @@ declare const ICON_PANEL: {
         r: string;
     }[];
 };
+/** Stroke icons, 24 × 24: put a group back to its defaults. */
+declare const ICON_RESET: string[];
+/** Stroke icons, 24 × 24: a chain that locks values together. */
+declare const ICON_LINK: string[];
 
-export { ICON_ADD_PRESET, ICON_CHECK, ICON_CHEVRON, ICON_CLIPBOARD, ICON_LOCK, ICON_LOCK_OPEN, ICON_LOOP, ICON_PANEL, ICON_PAUSE, ICON_PENCIL, ICON_PLAY, ICON_REPLAY, ICON_TIMELINE, ICON_TRASH };
+export { ICON_ADD_PRESET, ICON_CHECK, ICON_CHEVRON, ICON_CLIPBOARD, ICON_LINK, ICON_LOCK, ICON_LOCK_OPEN, ICON_LOOP, ICON_PANEL, ICON_PAUSE, ICON_PENCIL, ICON_PLAY, ICON_REPLAY, ICON_RESET, ICON_TIMELINE, ICON_TRASH };

@@ -115,6 +115,15 @@ function normalizePadValue(value, config = {}) {
 }
 
 // src/store/DialStore.ts
+function fieldsConfigOf(value) {
+  if (value === true) return {};
+  if (typeof value === "object" && value !== null && !Array.isArray(value)) return value;
+  return void 0;
+}
+var FOLDER_META_KEYS = ["_collapsed", "_fields"];
+function isFolderMetaKey(key) {
+  return FOLDER_META_KEYS.includes(key);
+}
 function withVisibility(control, rule) {
   return { value: control, visibleWhen: rule };
 }
@@ -138,7 +147,7 @@ function flattenDialValueUpdates(config, updates) {
 function resolveConfigValues(config, flatValues, prefix) {
   const result = {};
   for (const [key, rawConfigValue] of Object.entries(config)) {
-    if (key === "_collapsed") continue;
+    if (isFolderMetaKey(key)) continue;
     const path = prefix ? `${prefix}.${key}` : key;
     const configValue = unwrapVisibility(rawConfigValue);
     if (isLeafConfigValue(configValue)) {
@@ -151,7 +160,7 @@ function resolveConfigValues(config, flatValues, prefix) {
 }
 function flattenConfigUpdates(config, updates, prefix, values) {
   for (const [key, rawConfigValue] of Object.entries(config)) {
-    if (key === "_collapsed" || !(key in updates)) continue;
+    if (isFolderMetaKey(key) || !(key in updates)) continue;
     const nextValue = updates[key];
     if (nextValue === void 0) continue;
     const path = prefix ? `${prefix}.${key}` : key;
@@ -466,6 +475,16 @@ var DialStoreClass = class {
     this.persistPanel(panelId);
     this.notify(panelId);
     this.refilterVisibility(panelId);
+  }
+  /** Put the given paths back to their default values. */
+  resetPaths(panelId, paths) {
+    const defaults = this.defaultValues.get(panelId);
+    if (!defaults) return;
+    const updates = {};
+    for (const path of paths) {
+      if (path in defaults) updates[path] = defaults[path];
+    }
+    this.updateValues(panelId, updates);
   }
   updateSpringMode(panelId, path, mode) {
     this.updateTransitionMode(panelId, path, mode);
@@ -816,7 +835,7 @@ var DialStoreClass = class {
     const visit = (config2, prefix) => {
       const controls2 = [];
       for (const [key, rawValue] of Object.entries(config2)) {
-        if (key === "_collapsed") continue;
+        if (isFolderMetaKey(key)) continue;
         const path = prefix ? `${prefix}.${key}` : key;
         const label = formatLabel(key);
         const shortcut = shortcuts?.[path];
@@ -867,6 +886,7 @@ var DialStoreClass = class {
             path,
             label,
             defaultOpen,
+            fields: fieldsConfigOf(folderConfig._fields),
             children: visit(folderConfig, path)
           };
         }
@@ -1024,6 +1044,7 @@ export {
   formatLabel,
   inferStep,
   isEasingConfigValue,
+  isFolderMetaKey,
   isHexColor,
   isLeafConfigValue,
   isSpringConfigValue,

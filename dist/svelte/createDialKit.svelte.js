@@ -1,4 +1,4 @@
-import { DialStore, flattenDialValueUpdates, isLeafConfigValue, resolveDialValues } from 'dialkit/store';
+import { DialStore, flattenDialValueUpdates, isFolderMetaKey, isLeafConfigValue, resolveDialValues } from 'dialkit/store';
 let dialKitInstance = 0;
 export function createDialKit(name, config, options) {
     return createDialKitController(name, config, options).values;
@@ -48,7 +48,7 @@ export function createDialKitController(name, config, options) {
 function buildReactiveValues(config, getValues, prefix) {
     const result = {};
     for (const [key, configValue] of Object.entries(config)) {
-        if (key === '_collapsed')
+        if (isFolderMetaKey(key))
             continue;
         const path = prefix ? `${prefix}.${key}` : key;
         if (typeof configValue === 'object' && configValue !== null && !isLeafConfigValue(configValue)) {

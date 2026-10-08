@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { decimalsForStep, roundValue } from './numeric';
+import { decimalsForStep, parseFieldInput, roundValue } from './numeric';
 import { applySliderDelta } from './shortcut-utils';
 import { DialStore } from './store/DialStore';
 
@@ -39,5 +39,24 @@ describe('slider numeric values', () => {
       assert.equal(DialStore.getValue(id, 'offset'), 0.98);
       assert.equal(DialStore.getValue(id, 'tiny'), 3e-7);
     } finally { DialStore.unregisterPanel(id); }
+  });
+});
+
+describe('typed field values', () => {
+  it('reads plain numbers, with or without the unit', () => {
+    assert.equal(parseFieldInput('12'), 12);
+    assert.equal(parseFieldInput(' -40.5 '), -40.5);
+    assert.equal(parseFieldInput('.5'), 0.5);
+    assert.equal(parseFieldInput('1e3'), 1000);
+    assert.equal(parseFieldInput('90°', '°'), 90);
+    assert.equal(parseFieldInput('2 ×', '×'), 2);
+  });
+
+  it('refuses entries that are not one plain number', () => {
+    assert.equal(parseFieldInput(''), null);
+    assert.equal(parseFieldInput('1,5'), null);
+    assert.equal(parseFieldInput('1 5'), null);
+    assert.equal(parseFieldInput('abc'), null);
+    assert.equal(parseFieldInput('12px', '°'), null);
   });
 });

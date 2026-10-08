@@ -79,6 +79,15 @@ type VisibleWhen = {
     is?: undefined;
     not?: undefined;
 });
+/**
+ * An X / Y / Z group: set `_fields: true` (or these options) on a folder.
+ * See {@link ControlMeta.fields}.
+ */
+type FieldsConfig = {
+    /** Most decimals a field shows. The value keeps its precision: only the
+     *  display rounds, and a click on the number shows the exact value. */
+    decimals?: number;
+};
 type ShortcutMode = 'fine' | 'normal' | 'coarse';
 type ShortcutInteraction = 'scroll' | 'drag' | 'move' | 'scroll-only';
 type ShortcutConfig = {
@@ -96,6 +105,12 @@ type ControlMeta = {
     step?: number;
     /** Slider only: the unit shown after the value. See {@link RangeConfig}. */
     unit?: string;
+    /**
+     * Folder only: `_fields` shows the folder as an X / Y / Z group. Its label
+     * and reset sit on a line above one row of short number fields. The number
+     * children are the fields, and a boolean child is a lock icon.
+     */
+    fields?: FieldsConfig;
     children?: ControlMeta[];
     defaultOpen?: boolean;
     options?: SelectOption[];

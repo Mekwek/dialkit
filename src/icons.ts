@@ -74,3 +74,12 @@ export const ICON_PANEL = {
     { cx: '9.75015', cy: '12.5', r: '0.997986' },
   ],
 };
+
+/** Stroke icons, 24 × 24: put a group back to its defaults. */
+export const ICON_RESET = ['M4.5 12a7.5 7.5 0 1 0 2.2-5.3', 'M4.5 4.5v3.75h3.75'];
+
+/** Stroke icons, 24 × 24: a chain that locks values together. */
+export const ICON_LINK = [
+  'M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1',
+  'M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1',
+];

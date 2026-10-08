@@ -102,6 +102,19 @@ type VisibleWhen = {
  */
 type RangeConfig = [number, number, number, number?, string?];
 /**
+ * An X / Y / Z group: set `_fields: true` (or these options) on a folder.
+ * See {@link ControlMeta.fields}.
+ */
+type FieldsConfig = {
+    /** Most decimals a field shows. The value keeps its precision: only the
+     *  display rounds, and a click on the number shows the exact value. */
+    decimals?: number;
+};
+/** Folder keys that configure the folder instead of adding a control. */
+declare const FOLDER_META_KEYS: readonly ["_collapsed", "_fields"];
+type FolderMetaKey = (typeof FOLDER_META_KEYS)[number];
+declare function isFolderMetaKey(key: string): boolean;
+/**
  * Wraps a control with a visibility rule. The control is only added to the
  * panel's rendered tree when its rule passes. Re-evaluated on every value
  * change. Use the {@link withVisibility} helper instead of building this by hand.
@@ -142,7 +155,7 @@ type ResolvedValues<T extends DialConfig> = {
     }>['value'] : never : T[K] extends RangeConfig ? number : T[K] extends SpringConfig ? TransitionConfig : T[K] extends EasingConfig ? TransitionConfig : T[K] extends SelectConfig ? string : T[K] extends ColorConfig | ImageConfig ? string : T[K] extends TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends DialConfig ? ResolvedValues<T[K]> : T[K];
 };
 type DialKitValueUpdates<T extends DialConfig> = {
-    [K in keyof T as K extends '_collapsed' ? never : K]?: T[K] extends ControlWithVisibility<infer U> ? U extends DialConfigValue ? DialKitValueUpdates<{
+    [K in keyof T as K extends FolderMetaKey ? never : K]?: T[K] extends ControlWithVisibility<infer U> ? U extends DialConfigValue ? DialKitValueUpdates<{
         value: U;
     }>['value'] : never : T[K] extends RangeConfig ? number : T[K] extends SpringConfig | EasingConfig ? TransitionConfig : T[K] extends ActionConfig ? never : T[K] extends SelectConfig | ColorConfig | ImageConfig | TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends DialConfig ? DialKitValueUpdates<T[K]> : T[K];
 };
@@ -163,6 +176,12 @@ type ControlMeta = {
     step?: number;
     /** Slider only: the unit shown after the value. See {@link RangeConfig}. */
     unit?: string;
+    /**
+     * Folder only: `_fields` shows the folder as an X / Y / Z group. Its label
+     * and reset sit on a line above one row of short number fields. The number
+     * children are the fields, and a boolean child is a lock icon.
+     */
+    fields?: FieldsConfig;
     children?: ControlMeta[];
     defaultOpen?: boolean;
     options?: SelectOption[];
@@ -301,6 +320,8 @@ declare class DialStoreClass {
     updateValue(panelId: string, path: string, value: DialValue): void;
     updateValues(panelId: string, updates: Record<string, DialValue>): void;
     resetValues(panelId: string): void;
+    /** Put the given paths back to their default values. */
+    resetPaths(panelId: string, paths: string[]): void;
     updateSpringMode(panelId: string, path: string, mode: 'simple' | 'advanced'): void;
     getSpringMode(panelId: string, path: string): 'simple' | 'advanced';
     updateTransitionMode(panelId: string, path: string, mode: 'easing' | 'simple' | 'advanced'): void;
@@ -366,4 +387,4 @@ declare class DialStoreClass {
 }
 declare const DialStore: DialStoreClass;
 
-export { type ActionConfig, type ColorConfig, type ControlMeta, type ControlWithVisibility, type DialConfig, type DialKitPersistOptions, type DialKitValueUpdates, type DialPadAxis, type DialPadConfig, type DialPadValue, DialStore, type DialStorePanelOptions, type DialValue, type EasingConfig, type ImageConfig, type ImageOption, type PanelConfig, type Preset, type RangeConfig, type ResolvedValues, type SelectConfig, type SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, type SpringConfig, type TextConfig, type TransitionConfig, type VisibleWhen, type VisibleWhenValue, flattenDialValueUpdates, formatLabel, inferStep, isEasingConfigValue, isHexColor, isLeafConfigValue, isSpringConfigValue, resolveDialValues, unwrapVisibility, withVisibility };
+export { type ActionConfig, type ColorConfig, type ControlMeta, type ControlWithVisibility, type DialConfig, type DialKitPersistOptions, type DialKitValueUpdates, type DialPadAxis, type DialPadConfig, type DialPadValue, DialStore, type DialStorePanelOptions, type DialValue, type EasingConfig, type FieldsConfig, type ImageConfig, type ImageOption, type PanelConfig, type Preset, type RangeConfig, type ResolvedValues, type SelectConfig, type SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, type SpringConfig, type TextConfig, type TransitionConfig, type VisibleWhen, type VisibleWhenValue, flattenDialValueUpdates, formatLabel, inferStep, isEasingConfigValue, isFolderMetaKey, isHexColor, isLeafConfigValue, isSpringConfigValue, resolveDialValues, unwrapVisibility, withVisibility };

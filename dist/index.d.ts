@@ -106,6 +106,18 @@ type VisibleWhen = {
  */
 type RangeConfig = [number, number, number, number?, string?];
 /**
+ * An X / Y / Z group: set `_fields: true` (or these options) on a folder.
+ * See {@link ControlMeta.fields}.
+ */
+type FieldsConfig = {
+    /** Most decimals a field shows. The value keeps its precision: only the
+     *  display rounds, and a click on the number shows the exact value. */
+    decimals?: number;
+};
+/** Folder keys that configure the folder instead of adding a control. */
+declare const FOLDER_META_KEYS: readonly ["_collapsed", "_fields"];
+type FolderMetaKey = (typeof FOLDER_META_KEYS)[number];
+/**
  * Wraps a control with a visibility rule. The control is only added to the
  * panel's rendered tree when its rule passes. Re-evaluated on every value
  * change. Use the {@link withVisibility} helper instead of building this by hand.
@@ -146,7 +158,7 @@ type ResolvedValues<T extends DialConfig> = {
     }>['value'] : never : T[K] extends RangeConfig ? number : T[K] extends SpringConfig ? TransitionConfig : T[K] extends EasingConfig ? TransitionConfig : T[K] extends SelectConfig ? string : T[K] extends ColorConfig | ImageConfig ? string : T[K] extends TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends DialConfig ? ResolvedValues<T[K]> : T[K];
 };
 type DialKitValueUpdates<T extends DialConfig> = {
-    [K in keyof T as K extends '_collapsed' ? never : K]?: T[K] extends ControlWithVisibility<infer U> ? U extends DialConfigValue ? DialKitValueUpdates<{
+    [K in keyof T as K extends FolderMetaKey ? never : K]?: T[K] extends ControlWithVisibility<infer U> ? U extends DialConfigValue ? DialKitValueUpdates<{
         value: U;
     }>['value'] : never : T[K] extends RangeConfig ? number : T[K] extends SpringConfig | EasingConfig ? TransitionConfig : T[K] extends ActionConfig ? never : T[K] extends SelectConfig | ColorConfig | ImageConfig | TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends DialConfig ? DialKitValueUpdates<T[K]> : T[K];
 };
@@ -167,6 +179,12 @@ type ControlMeta = {
     step?: number;
     /** Slider only: the unit shown after the value. See {@link RangeConfig}. */
     unit?: string;
+    /**
+     * Folder only: `_fields` shows the folder as an X / Y / Z group. Its label
+     * and reset sit on a line above one row of short number fields. The number
+     * children are the fields, and a boolean child is a lock icon.
+     */
+    fields?: FieldsConfig;
     children?: ControlMeta[];
     defaultOpen?: boolean;
     options?: SelectOption$1[];
@@ -295,6 +313,8 @@ declare class DialStoreClass {
     updateValue(panelId: string, path: string, value: DialValue): void;
     updateValues(panelId: string, updates: Record<string, DialValue>): void;
     resetValues(panelId: string): void;
+    /** Put the given paths back to their default values. */
+    resetPaths(panelId: string, paths: string[]): void;
     updateSpringMode(panelId: string, path: string, mode: 'simple' | 'advanced'): void;
     getSpringMode(panelId: string, path: string): 'simple' | 'advanced';
     updateTransitionMode(panelId: string, path: string, mode: 'easing' | 'simple' | 'advanced'): void;
@@ -821,6 +841,19 @@ interface SliderProps {
 }
 declare function Slider({ label, value, onChange, min, max, step, unit, shortcut, shortcutActive, }: SliderProps): react_jsx_runtime.JSX.Element;
 
+interface FieldRowProps {
+    panelId: string;
+    control: ControlMeta;
+    values: Record<string, DialValue>;
+}
+/**
+ * An X / Y / Z group: a folder set with `_fields: true`. The label, the lock
+ * and the reset sit on a line above one row of short number fields. The
+ * folder's number children are the fields. A boolean child is a lock: the
+ * host decides what a lock does, this row only shows and switches it.
+ */
+declare function FieldRow({ panelId, control, values }: FieldRowProps): react_jsx_runtime.JSX.Element;
+
 interface ToggleProps {
     label: string;
     checked: boolean;
@@ -968,4 +1001,4 @@ interface ShortcutsMenuProps {
 }
 declare function ShortcutsMenu({ panelId }: ShortcutsMenuProps): react_jsx_runtime.JSX.Element | null;
 
-export { type ActionConfig, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, type EasingConfig, EasingVisualization, Folder, type FolderMode, type ImageConfig, ImageControl, type ImageOption, type PanelConfig, type Preset, PresetManager, type RangeConfig, type ResolvedValues, type SelectConfig, SelectControl, type SelectOption$1 as SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipMeta, type TimelineClipTrackMeta, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelineMeta, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, TimelineStore, type TimelineTransport, Toggle, type TransitionConfig, TransitionControl, type UseDialOptions, type UseDialTimelineOptions, type VisibleWhen, type VisibleWhenValue, formatClock, unwrapVisibility, useDialKit, useDialKitController, useDialTimeline, withVisibility };
+export { type ActionConfig, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, type EasingConfig, EasingVisualization, FieldRow, type FieldsConfig, Folder, type FolderMode, type ImageConfig, ImageControl, type ImageOption, type PanelConfig, type Preset, PresetManager, type RangeConfig, type ResolvedValues, type SelectConfig, SelectControl, type SelectOption$1 as SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipMeta, type TimelineClipTrackMeta, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelineMeta, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, TimelineStore, type TimelineTransport, Toggle, type TransitionConfig, TransitionControl, type UseDialOptions, type UseDialTimelineOptions, type VisibleWhen, type VisibleWhenValue, formatClock, unwrapVisibility, useDialKit, useDialKitController, useDialTimeline, withVisibility };

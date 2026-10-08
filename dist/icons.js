@@ -60,11 +60,17 @@ var ICON_PANEL = {
     { cx: "9.75015", cy: "12.5", r: "0.997986" }
   ]
 };
+var ICON_RESET = ["M4.5 12a7.5 7.5 0 1 0 2.2-5.3", "M4.5 4.5v3.75h3.75"];
+var ICON_LINK = [
+  "M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1",
+  "M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"
+];
 export {
   ICON_ADD_PRESET,
   ICON_CHECK,
   ICON_CHEVRON,
   ICON_CLIPBOARD,
+  ICON_LINK,
   ICON_LOCK,
   ICON_LOCK_OPEN,
   ICON_LOOP,
@@ -73,6 +79,7 @@ export {
   ICON_PENCIL,
   ICON_PLAY,
   ICON_REPLAY,
+  ICON_RESET,
   ICON_TIMELINE,
   ICON_TRASH
 };

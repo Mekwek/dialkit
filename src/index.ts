@@ -37,6 +37,7 @@ export type {
 // Individual components (for advanced usage)
 export { ControlRenderer } from './components/ControlRenderer';
 export { Slider } from './components/Slider';
+export { FieldRow } from './components/FieldRow';
 export { Toggle } from './components/Toggle';
 export { Folder } from './components/Folder';
 export { ButtonGroup } from './components/ButtonGroup';
@@ -63,6 +64,7 @@ export type {
   SelectConfig,
   SelectOption,
   RangeConfig,
+  FieldsConfig,
   ColorConfig,
   ImageConfig,
   ImageOption,

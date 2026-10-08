@@ -5,6 +5,7 @@ import { CONTROL_ANIM } from './control-motion';
 import { ShortcutContext } from './ShortcutListener';
 import { Folder } from './Folder';
 import { Slider } from './Slider';
+import { FieldRow } from './FieldRow';
 import { Toggle } from './Toggle';
 import { SpringControl } from './SpringControl';
 import { TransitionControl } from './TransitionControl';
@@ -121,6 +122,9 @@ export function ControlRenderer({
         );
 
       case 'folder': {
+        if (control.fields) {
+          return <FieldRow key={control.path} panelId={panelId} control={control} values={values} />;
+        }
         // Controlled accordion open state only applies to depth-0 folders
         // when the caller opted into accordion mode by passing
         // onAccordionToggle. Nested folders always stay independent
@@ -233,10 +237,15 @@ export function ControlRenderer({
     // classes let theme.css target folder wrappers specifically (for the
     // adjacent-divider collapse rule) without needing :has(). Spring and
     // transition controls render as Folder internally.
-    const isFolder = control.type === 'folder' || control.type === 'spring' || control.type === 'transition';
+    // An X / Y / Z group is a folder in the store, but draws no Folder: it
+    // is a plain row and keeps the row gap.
+    const drawsFolder = control.type === 'folder' && !control.fields;
+    const isFolder = drawsFolder || control.type === 'spring' || control.type === 'transition';
     const wrapClassName = isFolder
       ? 'dialkit-control-wrap dialkit-control-wrap-folder'
-      : 'dialkit-control-wrap';
+      : control.fields
+        ? 'dialkit-control-wrap dialkit-control-wrap-fields'
+        : 'dialkit-control-wrap';
 
     return (
       <motion.div key={control.path} className={wrapClassName} {...CONTROL_ANIM}>

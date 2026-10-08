@@ -20,6 +20,9 @@
   --dial-text-tertiary: rgba(255, 255, 255, 0.4);
   --dial-text-unit: rgba(255, 255, 255, 0.4); /* Slider units (s, °, %) */
   --dial-unit-gap: 2px; /* Space before a unit that is a word (s), not a sign (°) */
+  --dial-field-gap: 4px; /* Space between the fields of an X / Y / Z row */
+  --dial-field-padding: 8px; /* Space inside each field, left and right */
+  --dial-nested-line-style: dashed; /* Dividers of folders inside folders, so the depth reads at a glance */
   /* The timeline pan bar's thumb — quieter than text so it reads as a
      position marker, not a control demanding attention. */
   --dial-timeline-scroll-thumb: rgba(255, 255, 255, 0.16);
@@ -336,9 +339,33 @@
   padding-bottom: 0;
 }
 
+/* A folder inside another non-root folder: its dividers use the nested
+ * line style, so the depth reads at a glance. */
+.dialkit-folder:not(.dialkit-folder-root) .dialkit-folder {
+  border-top-style: var(--dial-nested-line-style);
+  border-bottom-style: var(--dial-nested-line-style);
+}
+
 .dialkit-folder:not(.dialkit-folder-root):last-child {
   border-bottom: none;
   margin-bottom: 0;
+}
+
+/*
+ * Wrapped folders. Panel.tsx wraps every control in a motion.div, so each
+ * folder is the :last-child of its own wrapper and the rule above strips
+ * every bottom divider. A wrapped folder is only last when its wrapper is
+ * the last child of the list: give the others their divider back, the
+ * same as an unwrapped folder.
+ */
+.dialkit-folder-inner > .dialkit-control-wrap-folder:not(:last-child) > .dialkit-folder:not(.dialkit-folder-root) {
+  border-bottom: 1px solid var(--dial-surface-subtle);
+  margin-bottom: 4px;
+}
+/* The same divider for a wrapped folder inside another folder keeps the
+ * nested line style. */
+.dialkit-folder:not(.dialkit-folder-root) .dialkit-folder-inner > .dialkit-control-wrap-folder:not(:last-child) > .dialkit-folder {
+  border-bottom-style: var(--dial-nested-line-style);
 }
 
 /* Adjacent non-root folders collapse gap and share a single divider */
@@ -355,17 +382,16 @@
  * `.dialkit-control-wrap-folder` so we can target the adjacency using
  * a plain `+` combinator, no `:has()` needed.
  *
- * Natural distance between two adjacent folder wrappers is 10px
- * (0 folder-mb inside first wrapper + 6 flex gap + 4 folder-mt inside
- * second wrapper). The folder-mb is 0 (not 4) because each folder is
- * the :last-child inside its wrapper, triggering the base rule at
- * line ~156 which zeros margin-bottom. Applying -10 collapses the
- * spacing to 0, matching the original flush-adjacent look.
+ * Natural distance between two adjacent folder wrappers is 14px
+ * (4 folder-mb inside the first wrapper, from the wrapped-divider rule
+ * above + 6 flex gap + 4 folder-mt inside the second wrapper). Applying
+ * -14 collapses it to the first folder's 1px divider, the same as two
+ * unwrapped adjacent folders.
  */
 .dialkit-folder-inner
   > .dialkit-control-wrap-folder
   + .dialkit-control-wrap-folder {
-  margin-top: -10px;
+  margin-top: -14px;
 }
 .dialkit-folder-inner
   > .dialkit-control-wrap-folder
@@ -574,6 +600,30 @@
 .dialkit-slider-unit[data-spaced] {
   margin-left: var(--dial-unit-gap);
 }
+
+/* X / Y / Z groups (FieldRow) */
+/* One line above a run of X / Y / Z groups, like a folder's divider: the
+ * groups after the first keep no line. */
+.dialkit-fields-group { display: flex; flex-direction: column; gap: var(--dial-row-gap); padding-top: var(--dial-row-gap); border-top: 1px var(--dial-fields-line-style, solid) var(--dial-surface-subtle); }
+.dialkit-fields-group + .dialkit-fields-group,
+.dialkit-control-wrap-fields + .dialkit-control-wrap-fields > .dialkit-fields-group { padding-top: 0; border-top: none; }
+/* Inside a non-root folder the line sits at the same depth as a nested
+ * folder's divider, so it uses the nested line style. Set as a variable so
+ * it never brings back a line the rule above removed. */
+.dialkit-folder:not(.dialkit-folder-root) { --dial-fields-line-style: var(--dial-nested-line-style); }
+.dialkit-fields-label { display: flex; align-items: center; justify-content: space-between; gap: 2px; min-width: 0; color: var(--dial-text-label); font-size: 13px; font-weight: 500; }
+.dialkit-fields-label-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dialkit-fields-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.dialkit-fields-button { flex-shrink: 0; display: grid; place-items: center; width: 20px; height: 20px; padding: 3px; border: 0; border-radius: 5px; background: none; color: var(--dial-text-tertiary); cursor: pointer; transition: color 0.15s, background 0.15s; }
+.dialkit-fields-button svg { width: 100%; height: 100%; }
+.dialkit-fields-button:hover, .dialkit-fields-button:focus-visible { color: var(--dial-text-focus); background: var(--dial-surface-hover); }
+.dialkit-fields-lock[aria-pressed="true"] { color: var(--dial-text-focus); }
+.dialkit-fields { display: flex; gap: var(--dial-field-gap); min-width: 0; }
+.dialkit-field { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 4px; height: var(--dial-row-height); padding: 0 var(--dial-field-padding); border-radius: var(--dial-radius); background: var(--dial-surface); transition: background 0.15s; }
+.dialkit-field:hover, .dialkit-field:focus-within, .dialkit-field[data-editing] { background: var(--dial-surface-hover); }
+.dialkit-field-axis { flex-shrink: 0; font-size: 13px; font-weight: 500; color: var(--dial-text-label); cursor: ew-resize; touch-action: none; user-select: none; -webkit-user-select: none; }
+.dialkit-field-value { min-width: 0; margin-left: auto; padding: 0; border: 0; background: none; overflow: hidden; white-space: nowrap; color: var(--dial-text-label); font: 500 13px 'Geist Mono', monospace; text-align: right; cursor: text; }
+.dialkit-field-input { min-width: 0; width: 100%; padding: 0; border: 0; background: transparent; color: var(--dial-text-focus); font: 500 13px 'Geist Mono', monospace; text-align: right; outline: none; }
 
 .dialkit-slider-value-editable {
   border-bottom-color: var(--dial-text-label);
