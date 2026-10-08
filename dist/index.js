@@ -3855,7 +3855,7 @@ function TransitionControl({
       /* @__PURE__ */ jsx11(Slider, { label: "Mass", value: spring.mass ?? 1, onChange: (v) => handleSpringUpdate("mass", v), min: 0.1, max: 10, step: 0.1 })
     ] }),
     durationSlider,
-    /* @__PURE__ */ jsx11(Folder, { title: isEasing ? "Curves" : "Presets", defaultOpen: true, meta: presetName, children: presetPicker })
+    /* @__PURE__ */ jsx11(Folder, { title: "Curves", defaultOpen: false, meta: presetName, children: presetPicker })
   ] }) });
 }
 function clampPhysicsParam(current, key, requested, cap) {

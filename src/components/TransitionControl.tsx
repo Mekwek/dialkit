@@ -217,7 +217,7 @@ export function TransitionControl({
       onPick={(next) => onChange(next)}
     />
   );
-  // The name a Curves or Presets folder shows: the matching default, else
+  // The name the Curves folder shows: the matching default, else
   // the matching saved curve, else Custom.
   const presetName = isEasing
     ? curveNameFor(easing.ease, EASING_CURVES) ?? curveNameFor(easing.ease, customCurves) ?? 'Custom'
@@ -262,7 +262,7 @@ export function TransitionControl({
           </>
         )}
         {durationSlider}
-        <Folder title={isEasing ? 'Curves' : 'Presets'} defaultOpen={true} meta={presetName}>
+        <Folder title="Curves" defaultOpen={false} meta={presetName}>
           {presetPicker}
         </Folder>
       </div>
