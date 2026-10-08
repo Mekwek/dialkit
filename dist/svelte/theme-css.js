@@ -21,6 +21,8 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   --dial-text-primary: rgba(255, 255, 255, 0.95);
   --dial-text-secondary: rgba(255, 255, 255, 0.6);
   --dial-text-tertiary: rgba(255, 255, 255, 0.4);
+  --dial-text-unit: rgba(255, 255, 255, 0.4); /* Slider units (s, °, %) */
+  --dial-unit-gap: 2px; /* Space before a unit that is a word (s), not a sign (°) */
   /* The timeline pan bar's thumb — quieter than text so it reads as a
      position marker, not a control demanding attention. */
   --dial-timeline-scroll-thumb: rgba(255, 255, 255, 0.16);
@@ -566,6 +568,14 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   transition: color 0.15s, border-color 0.15s;
   border-bottom: 1px solid transparent;
   padding-bottom: 1px;
+}
+
+.dialkit-slider-unit {
+  color: var(--dial-text-unit);
+}
+
+.dialkit-slider-unit[data-spaced] {
+  margin-left: var(--dial-unit-gap);
 }
 
 .dialkit-slider-value-editable {
@@ -1887,6 +1897,7 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   --dial-text-primary: rgba(0, 0, 0, 0.9);
   --dial-text-secondary: rgba(0, 0, 0, 0.55);
   --dial-text-tertiary: rgba(0, 0, 0, 0.35);
+  --dial-text-unit: rgba(0, 0, 0, 0.35); /* Slider units (s, °, %) */
   /* The timeline pan bar's thumb — quieter than text so it reads as a
      position marker, not a control demanding attention. */
   --dial-timeline-scroll-thumb: rgba(0, 0, 0, 0.14);
@@ -1950,6 +1961,7 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
     --dial-text-primary: rgba(0, 0, 0, 0.9);
     --dial-text-secondary: rgba(0, 0, 0, 0.55);
     --dial-text-tertiary: rgba(0, 0, 0, 0.35);
+    --dial-text-unit: rgba(0, 0, 0, 0.35); /* Slider units (s, °, %) */
     /* The timeline pan bar's thumb — quieter than text so it reads as a
        position marker, not a control demanding attention. */
     --dial-timeline-scroll-thumb: rgba(0, 0, 0, 0.14);

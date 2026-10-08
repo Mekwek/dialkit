@@ -349,7 +349,7 @@ function flattenConfigUpdates(config, updates, prefix, values) {
   }
 }
 function isLeafConfigValue(value) {
-  return Array.isArray(value) && value.length <= 4 && typeof value[0] === "number" || typeof value === "number" || typeof value === "boolean" || typeof value === "string" || isSpringConfigValue(value) || isEasingConfigValue(value) || isActionConfigValue(value) || isSelectConfigValue(value) || isColorConfigValue(value) || isImageConfigValue(value) || isTextConfigValue(value) || isPadConfigValue(value);
+  return Array.isArray(value) && value.length <= 5 && typeof value[0] === "number" || typeof value === "number" || typeof value === "boolean" || typeof value === "string" || isSpringConfigValue(value) || isEasingConfigValue(value) || isActionConfigValue(value) || isSelectConfigValue(value) || isColorConfigValue(value) || isImageConfigValue(value) || isTextConfigValue(value) || isPadConfigValue(value);
 }
 function configDefaultValue(value) {
   if (Array.isArray(value)) return value[0];
@@ -1003,7 +1003,7 @@ var DialStoreClass = class {
         let control;
         const visibleWhen = isVisibilityWrapper(rawValue) ? rawValue.visibleWhen : void 0;
         const value = unwrapVisibility(rawValue);
-        if (Array.isArray(value) && value.length <= 4 && typeof value[0] === "number") {
+        if (Array.isArray(value) && value.length <= 5 && typeof value[0] === "number") {
           control = {
             type: "slider",
             path,
@@ -1011,6 +1011,7 @@ var DialStoreClass = class {
             min: value[1],
             max: value[2],
             step: value[3] ?? inferStep(value[1], value[2]),
+            unit: value[4],
             shortcut
           };
         } else if (typeof value === "number") {
@@ -2509,7 +2510,7 @@ function Slider({
             onClick: (e) => e.stopPropagation(),
             onMouseDown: (e) => e.stopPropagation()
           }
-        ) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+        ) : /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
           "span",
           {
             ref: valueSpanRef,
@@ -2520,7 +2521,10 @@ function Slider({
             onPointerDown: (e) => isValueEditable && e.stopPropagation(),
             onMouseDown: (e) => isValueEditable && e.stopPropagation(),
             style: { cursor: isValueEditable ? "text" : "default" },
-            children: displayValue
+            children: [
+              displayValue,
+              unit && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dialkit-slider-unit", "data-spaced": /^\p{L}/u.test(unit) || void 0, children: unit })
+            ]
           }
         )
       ]
@@ -4957,6 +4961,7 @@ function ControlRenderer({
             min: control.min,
             max: control.max,
             step: control.step,
+            unit: control.unit,
             shortcut: control.shortcut,
             shortcutActive: shortcutCtx.activePanelId === panelId && shortcutCtx.activePath === control.path
           },

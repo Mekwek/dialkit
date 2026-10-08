@@ -130,6 +130,20 @@ describe('DialStore config lifecycle', () => {
     } finally { DialStore.unregisterPanel(id); }
   });
 
+  it('keeps a slider unit and the plain number value', () => {
+    const id = 'config-unit';
+    const config = { angle: [12, -180, 180, 1, '°'], amount: [2, 0, 10] } satisfies DialConfig;
+    try {
+      DialStore.registerPanel(id, 'Config', config);
+      const controls = DialStore.getPanel(id)?.controls ?? [];
+      assert.equal(controls.find(c => c.path === 'angle')?.unit, '°');
+      assert.equal(controls.find(c => c.path === 'angle')?.step, 1);
+      assert.equal(controls.find(c => c.path === 'amount')?.unit, undefined);
+      assert.deepEqual(DialStore.getValues(id), { angle: 12, amount: 2 });
+      assert.deepEqual(resolveDialValues(config, {}), { angle: 12, amount: 2 });
+    } finally { DialStore.unregisterPanel(id); }
+  });
+
   it('does not retain an extra registration when an invalid config is rejected', () => {
     const id = 'config-rejected-owner';
     DialStore.registerPanel(id, 'Original', { amount: 1 });

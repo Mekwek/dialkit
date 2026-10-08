@@ -62,6 +62,7 @@ export type {
   ActionConfig,
   SelectConfig,
   SelectOption,
+  RangeConfig,
   ColorConfig,
   ImageConfig,
   ImageOption,

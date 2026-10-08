@@ -475,6 +475,11 @@ export function Slider({
             style={{ cursor: isValueEditable ? 'text' : 'default' }}
           >
             {displayValue}
+            {unit && (
+              <span className="dialkit-slider-unit" data-spaced={/^\p{L}/u.test(unit) || undefined}>
+                {unit}
+              </span>
+            )}
           </span>
         )}
       </motion.div>

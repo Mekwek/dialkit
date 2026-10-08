@@ -94,6 +94,8 @@ type ControlMeta = {
     min?: number;
     max?: number;
     step?: number;
+    /** Slider only: the unit shown after the value. See {@link RangeConfig}. */
+    unit?: string;
     children?: ControlMeta[];
     defaultOpen?: boolean;
     options?: SelectOption[];

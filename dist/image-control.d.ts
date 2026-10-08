@@ -1,4 +1,4 @@
-import { I as ImageOption } from './DialStore-DdcCDUqW.js';
+import { I as ImageOption } from './DialStore-C-mQmJZo.js';
 import './dial-pad.js';
 
 type ImageControlProps = {

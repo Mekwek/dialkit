@@ -97,11 +97,16 @@ type VisibleWhen = {
     not?: undefined;
 });
 /**
+ * A slider: `[default, min, max, step?, unit?]`. The unit shows after the
+ * value, for example `[12, -180, 180, 1, '°']` shows "12°".
+ */
+type RangeConfig = [number, number, number, number?, string?];
+/**
  * Wraps a control with a visibility rule. The control is only added to the
  * panel's rendered tree when its rule passes. Re-evaluated on every value
  * change. Use the {@link withVisibility} helper instead of building this by hand.
  */
-type ControlWithVisibility<T = DialValue | [number, number, number, number?] | DialConfig> = {
+type ControlWithVisibility<T = DialValue | RangeConfig | DialConfig> = {
     value: T;
     visibleWhen: VisibleWhen;
 };
@@ -115,9 +120,9 @@ type ControlWithVisibility<T = DialValue | [number, number, number, number?] | D
  *   radius: withVisibility([1, 0, 10], { field: 'layoutMode', is: 'sphere' }),
  * };
  */
-declare function withVisibility<T extends DialValue | [number, number, number, number?] | DialConfig>(control: T, rule: VisibleWhen): ControlWithVisibility<T>;
+declare function withVisibility<T extends DialValue | RangeConfig | DialConfig>(control: T, rule: VisibleWhen): ControlWithVisibility<T>;
 /** The union of all value shapes that can appear in a DialConfig entry. */
-type DialConfigValue = DialValue | [number, number, number, number?] | DialConfig;
+type DialConfigValue = DialValue | RangeConfig | DialConfig;
 /**
  * Detect and unwrap a `{ value, visibleWhen }` wrapper produced by
  * {@link withVisibility}. Returns the inner value if wrapped, or the
@@ -129,17 +134,17 @@ type DialConfigValue = DialValue | [number, number, number, number?] | DialConfi
  */
 declare function unwrapVisibility(raw: unknown): DialConfigValue;
 type DialConfig = {
-    [key: string]: DialValue | [number, number, number, number?] | DialConfig | ControlWithVisibility;
+    [key: string]: DialValue | RangeConfig | DialConfig | ControlWithVisibility;
 };
 type ResolvedValues<T extends DialConfig> = {
     [K in keyof T]: T[K] extends ControlWithVisibility<infer U> ? U extends DialConfigValue ? ResolvedValues<{
         value: U;
-    }>['value'] : never : T[K] extends [number, number, number, number?] ? number : T[K] extends SpringConfig ? TransitionConfig : T[K] extends EasingConfig ? TransitionConfig : T[K] extends SelectConfig ? string : T[K] extends ColorConfig | ImageConfig ? string : T[K] extends TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends DialConfig ? ResolvedValues<T[K]> : T[K];
+    }>['value'] : never : T[K] extends RangeConfig ? number : T[K] extends SpringConfig ? TransitionConfig : T[K] extends EasingConfig ? TransitionConfig : T[K] extends SelectConfig ? string : T[K] extends ColorConfig | ImageConfig ? string : T[K] extends TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends DialConfig ? ResolvedValues<T[K]> : T[K];
 };
 type DialKitValueUpdates<T extends DialConfig> = {
     [K in keyof T as K extends '_collapsed' ? never : K]?: T[K] extends ControlWithVisibility<infer U> ? U extends DialConfigValue ? DialKitValueUpdates<{
         value: U;
-    }>['value'] : never : T[K] extends [number, number, number, number?] ? number : T[K] extends SpringConfig | EasingConfig ? TransitionConfig : T[K] extends ActionConfig ? never : T[K] extends SelectConfig | ColorConfig | ImageConfig | TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends DialConfig ? DialKitValueUpdates<T[K]> : T[K];
+    }>['value'] : never : T[K] extends RangeConfig ? number : T[K] extends SpringConfig | EasingConfig ? TransitionConfig : T[K] extends ActionConfig ? never : T[K] extends SelectConfig | ColorConfig | ImageConfig | TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends DialConfig ? DialKitValueUpdates<T[K]> : T[K];
 };
 type ShortcutMode = 'fine' | 'normal' | 'coarse';
 type ShortcutInteraction = 'scroll' | 'drag' | 'move' | 'scroll-only';
@@ -156,6 +161,8 @@ type ControlMeta = {
     min?: number;
     max?: number;
     step?: number;
+    /** Slider only: the unit shown after the value. See {@link RangeConfig}. */
+    unit?: string;
     children?: ControlMeta[];
     defaultOpen?: boolean;
     options?: SelectOption[];
@@ -359,4 +366,4 @@ declare class DialStoreClass {
 }
 declare const DialStore: DialStoreClass;
 
-export { type ActionConfig, type ColorConfig, type ControlMeta, type ControlWithVisibility, type DialConfig, type DialKitPersistOptions, type DialKitValueUpdates, type DialPadAxis, type DialPadConfig, type DialPadValue, DialStore, type DialStorePanelOptions, type DialValue, type EasingConfig, type ImageConfig, type ImageOption, type PanelConfig, type Preset, type ResolvedValues, type SelectConfig, type SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, type SpringConfig, type TextConfig, type TransitionConfig, type VisibleWhen, type VisibleWhenValue, flattenDialValueUpdates, formatLabel, inferStep, isEasingConfigValue, isHexColor, isLeafConfigValue, isSpringConfigValue, resolveDialValues, unwrapVisibility, withVisibility };
+export { type ActionConfig, type ColorConfig, type ControlMeta, type ControlWithVisibility, type DialConfig, type DialKitPersistOptions, type DialKitValueUpdates, type DialPadAxis, type DialPadConfig, type DialPadValue, DialStore, type DialStorePanelOptions, type DialValue, type EasingConfig, type ImageConfig, type ImageOption, type PanelConfig, type Preset, type RangeConfig, type ResolvedValues, type SelectConfig, type SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, type SpringConfig, type TextConfig, type TransitionConfig, type VisibleWhen, type VisibleWhenValue, flattenDialValueUpdates, formatLabel, inferStep, isEasingConfigValue, isHexColor, isLeafConfigValue, isSpringConfigValue, resolveDialValues, unwrapVisibility, withVisibility };
