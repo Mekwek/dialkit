@@ -60,14 +60,20 @@ export interface SpringPreset {
   time: Required<Pick<SpringConfig, 'visualDuration' | 'bounce'>>;
 }
 
-/** React Spring's six named configs. */
+/**
+ * React Spring's six named configs. Molasses keeps React Spring's settle
+ * time (2.23s) with less damping than its 120: a step-by-step spring, like
+ * Theca's at 1/60s, cancels more than all of its speed in one step when
+ * damping over mass passes 60, and from 120 the motion never settles. The
+ * Physics sliders also stop damping at 100.
+ */
 export const SPRING_PRESETS: SpringPreset[] = [
   { name: 'Default', physics: { stiffness: 170, damping: 26, mass: 1 }, time: { visualDuration: 0.4, bounce: 0 } },
   { name: 'Gentle', physics: { stiffness: 120, damping: 14, mass: 1 }, time: { visualDuration: 0.5, bounce: 0.35 } },
   { name: 'Wobbly', physics: { stiffness: 180, damping: 12, mass: 1 }, time: { visualDuration: 0.4, bounce: 0.55 } },
   { name: 'Stiff', physics: { stiffness: 210, damping: 20, mass: 1 }, time: { visualDuration: 0.35, bounce: 0.3 } },
   { name: 'Slow', physics: { stiffness: 280, damping: 60, mass: 1 }, time: { visualDuration: 1.05, bounce: 0 } },
-  { name: 'Molasses', physics: { stiffness: 280, damping: 120, mass: 1 }, time: { visualDuration: 2.2, bounce: 0 } },
+  { name: 'Molasses', physics: { stiffness: 125, damping: 55, mass: 1 }, time: { visualDuration: 2.2, bounce: 0 } },
 ];
 
 const close = (a: number, b: number) => Math.abs(a - b) < 0.0051;

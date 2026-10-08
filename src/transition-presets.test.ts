@@ -30,6 +30,16 @@ describe('transition presets', () => {
     }
   });
 
+  it('keeps every spring preset inside the Physics slider ranges and stable at a 1/60s step', () => {
+    for (const { name, physics } of SPRING_PRESETS) {
+      assert.ok(physics.stiffness >= 1 && physics.stiffness <= 1000, `${name} stiffness`);
+      assert.ok(physics.damping >= 1 && physics.damping <= 100, `${name} damping`);
+      assert.ok(physics.mass >= 0.1 && physics.mass <= 10, `${name} mass`);
+      // One step of damping must not cancel more than all of the speed.
+      assert.ok(physics.damping / physics.mass / 60 <= 1, `${name} flips its speed every step`);
+    }
+  });
+
   it('saves custom curves under the first free number and removes them', () => {
     TransitionLibrary.setCustomCurves([]);
     assert.equal(TransitionLibrary.saveCustomCurve([0.1, 0, 0.2, 1]).name, 'Custom 1');

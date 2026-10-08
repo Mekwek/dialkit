@@ -1074,7 +1074,13 @@ interface SpringPreset {
      *  time matches the physics spring's (transition-math). */
     time: Required<Pick<SpringConfig, 'visualDuration' | 'bounce'>>;
 }
-/** React Spring's six named configs. */
+/**
+ * React Spring's six named configs. Molasses keeps React Spring's settle
+ * time (2.23s) with less damping than its 120: a step-by-step spring, like
+ * Theca's at 1/60s, cancels more than all of its speed in one step when
+ * damping over mass passes 60, and from 120 the motion never settles. The
+ * Physics sliders also stop damping at 100.
+ */
 declare const SPRING_PRESETS: SpringPreset[];
 type SpringMode = 'simple' | 'advanced';
 /** A spring the user saved: a Time spring or a Physics spring. */
