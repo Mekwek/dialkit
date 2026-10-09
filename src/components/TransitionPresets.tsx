@@ -1,4 +1,4 @@
-import { useState, useSyncExternalStore } from 'react';
+import { useRef, useState, useSyncExternalStore } from 'react';
 import { stepInputKey } from '../control-keyboard';
 import type { BezierPoints } from '../easing-geometry';
 import { TransitionLibrary } from '../store/TransitionLibrary';
@@ -27,10 +27,14 @@ function formatPart(value: number): string {
   return String(Number(value.toFixed(2)) || 0);
 }
 
+/** Pixels the pointer moves before a press becomes a drag. */
+const DRAG_THRESHOLD = 3;
+
 /**
  * The 4 bezier values as 4 fields in a row. X is 0 to 1, Y is -1 to 2.
- * Enter or leaving a field saves it, Escape cancels, the arrow keys step by
- * 0.01 (Shift by 0.1).
+ * Drag a field left or right to change its value by 0.01 a pixel (Shift
+ * moves ten times as far), or click it to type. Enter or leaving a field
+ * saves it, Escape cancels, the arrow keys step by 0.01 (Shift by 0.1).
  */
 export function EaseFields({ ease, onChange }: { ease: BezierPoints; onChange: (ease: BezierPoints) => void }) {
   return (
@@ -55,6 +59,7 @@ export function EaseFields({ ease, onChange }: { ease: BezierPoints; onChange: (
 
 function EaseField({ name, value, min, max, onChange }: { name: string; value: number; min: number; max: number; onChange: (value: number) => void }) {
   const [draft, setDraft] = useState<string | null>(null);
+  const press = useRef<{ id: number; x: number; start: number; moved: boolean } | null>(null);
   const commit = (text: string) => {
     const parsed = Number(text.trim().replace(',', '.'));
     if (text.trim() !== '' && Number.isFinite(parsed)) onChange(Number(Math.max(min, Math.min(max, parsed)).toFixed(3)));
@@ -69,6 +74,32 @@ function EaseField({ name, value, min, max, onChange }: { name: string; value: n
       aria-label={name}
       className="dialkit-ease-field"
       value={draft ?? formatPart(value)}
+      // A press on a field that is not open for typing waits: moved, it
+      // drags the value; released in place, it opens the field.
+      onPointerDown={(event) => {
+        if (event.button !== 0 || document.activeElement === event.currentTarget) return;
+        event.preventDefault();
+        press.current = { id: event.pointerId, x: event.clientX, start: value, moved: false };
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }}
+      onPointerMove={(event) => {
+        const p = press.current;
+        if (!p || event.pointerId !== p.id) return;
+        const dx = event.clientX - p.x;
+        if (!p.moved && Math.abs(dx) < DRAG_THRESHOLD) return;
+        p.moved = true;
+        const next = p.start + dx * 0.01 * (event.shiftKey ? 10 : 1);
+        onChange(Number(Math.max(min, Math.min(max, next)).toFixed(2)));
+      }}
+      onPointerUp={(event) => {
+        const p = press.current;
+        if (!p || event.pointerId !== p.id) return;
+        press.current = null;
+        if (!p.moved) event.currentTarget.focus();
+      }}
+      onPointerCancel={() => {
+        press.current = null;
+      }}
       onFocus={(event) => {
         setDraft(formatPart(value));
         event.currentTarget.select();

@@ -18,9 +18,11 @@ interface FolderProps {
   changed?: boolean;
   /** Short text on the right of a section header, left of the arrow. */
   meta?: ReactNode;
+  /** Buttons on the right of a section header, left of the arrow. */
+  actions?: ReactNode;
 }
 
-export function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, onReset, changed, meta }: FolderProps) {
+export function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, onReset, changed, meta, actions }: FolderProps) {
   const [localOpen, setIsOpen] = useState(defaultOpen);
   const isOpen = open ?? localOpen;
   const isCollapsed = !isOpen;
@@ -37,7 +39,7 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
       className={`dialkit-folder ${isRoot ? 'dialkit-folder-root' : ''}`}
       data-open={String(isOpen)}
     >
-      <div className={`dialkit-folder-header ${isRoot ? 'dialkit-panel-header' : ''}`} data-reset={!isRoot && onReset ? '' : undefined} onClick={handleToggle}>
+      <div className={`dialkit-folder-header ${isRoot ? 'dialkit-panel-header' : ''}`} data-reset={!isRoot && onReset ? '' : undefined} data-actions={!isRoot && actions ? '' : undefined} onClick={handleToggle}>
         <div className="dialkit-folder-header-top" role={inline && isRoot ? undefined : "button"} tabIndex={inline && isRoot ? undefined : 0} aria-label={title} aria-expanded={isOpen} onKeyDown={(e) => activateOnKey(e, handleToggle)}>
           {isRoot ? (
             isOpen && (
@@ -113,6 +115,9 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
             </span>
           </div>
         )}
+
+        {/* Outside the header button too, at the right end. */}
+        {!isRoot && actions && <div className="dialkit-folder-actions">{actions}</div>}
 
         {isRoot && toolbar && isOpen && (
           <div className="dialkit-panel-toolbar" onClick={(e) => e.stopPropagation()}>

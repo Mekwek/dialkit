@@ -65,6 +65,7 @@ var ICON_LINK = [
   "M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1",
   "M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"
 ];
+var ICON_MORE = ["M5 12h.01", "M12 12h.01", "M19 12h.01"];
 export {
   ICON_ADD_PRESET,
   ICON_CHECK,
@@ -74,6 +75,7 @@ export {
   ICON_LOCK,
   ICON_LOCK_OPEN,
   ICON_LOOP,
+  ICON_MORE,
   ICON_PANEL,
   ICON_PAUSE,
   ICON_PENCIL,

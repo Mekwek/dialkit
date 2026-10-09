@@ -917,8 +917,10 @@ interface FolderProps {
     changed?: boolean;
     /** Short text on the right of a section header, left of the arrow. */
     meta?: ReactNode;
+    /** Buttons on the right of a section header, left of the arrow. */
+    actions?: ReactNode;
 }
-declare function Folder({ title, children, open, defaultOpen, isRoot, inline, onOpenChange, toolbar, onReset, changed, meta }: FolderProps): react_jsx_runtime.JSX.Element;
+declare function Folder({ title, children, open, defaultOpen, isRoot, inline, onOpenChange, toolbar, onReset, changed, meta, actions }: FolderProps): react_jsx_runtime.JSX.Element;
 
 interface ButtonGroupProps {
     buttons: Array<{
@@ -979,8 +981,13 @@ interface TransitionControlProps {
     onReset?: () => void;
     /** True when the value differs from its default. */
     changed?: boolean;
+    /**
+     * Draws the control without its own header. A section whose only
+     * control is this one uses its header instead.
+     */
+    bare?: boolean;
 }
-declare function TransitionControl({ panelId, path, label, value, onChange, hideDuration, durationControl, physicsSettleCap, onReset, changed, }: TransitionControlProps): react_jsx_runtime.JSX.Element;
+declare function TransitionControl({ panelId, path, label, value, onChange, hideDuration, durationControl, physicsSettleCap, onReset, changed, bare, }: TransitionControlProps): react_jsx_runtime.JSX.Element;
 
 type BezierPoints = EasingConfig['ease'];
 
@@ -1059,11 +1066,17 @@ interface EasingCurve {
     ease: BezierPoints;
 }
 /**
- * The named default curves: Arqé's named curves first, then Movo's, then
- * the standard Quad, Cubic, Quart, Expo and Sine families. Duplicates are
- * merged: Movo's Linear draws the same line as Arqé's, Movo's Glide is
- * almost Arqé's Flow, and Expo In Out is the same curve as Snap. Movo's
- * Smooth is named Coast here, because Arqé's Smooth is another curve.
+ * The default curves: named curves first (Arqé's, Movo's, then easing.dev's), then the
+ * classic families in the order most tools list them. The classic values
+ * are the defaults of Flow, the After Effects curve editor: its Ease curves
+ * are After Effects' Easy Ease, and its Sine to Back curves are mostly the
+ * easings.net values, with Back from Ceaser. Each curve appears once:
+ * Arqé's Smooth is Quart In Out, and Movo's Bounce is close to Back Out.
+ * easing.dev's Overshoot Out is Back Out.
+ * Arqé's Ease and Ease Out are dropped as almost Expo In Out and Expo Out.
+ * Arqé's Flow and Movo's Glide are dropped as almost Circ In Out, and
+ * Movo's Linear as Linear.
+ * Movo's Smooth is named Coast here.
  */
 declare const EASING_CURVES: EasingCurve[];
 interface SpringPreset {
@@ -1075,11 +1088,20 @@ interface SpringPreset {
     time: Required<Pick<SpringConfig, 'visualDuration' | 'bounce'>>;
 }
 /**
- * React Spring's six named configs. Molasses keeps React Spring's settle
- * time (2.23s) with less damping than its 120: a step-by-step spring, like
- * Theca's at 1/60s, cancels more than all of its speed in one step when
- * damping over mass passes 60, and from 120 the motion never settles. The
- * Physics sliders also stop damping at 100.
+ * The default springs: Default first, then React Spring's named configs
+ * (its default renamed Crisp), then easing.dev's. Default is 150 / 30 / 1,
+ * Theca's own spring. easing.dev's Slow is named Drift here, next to React
+ * Spring's Slow, and its Bouyant is spelled Buoyant.
+ *
+ * Theca runs springs step by step, at most 1/60s per step. A spring
+ * cancels more than all of its speed in one step when damping over mass
+ * passes 60, and from 120 the motion never settles. React Spring's
+ * Molasses (damping 120) keeps its settle time (2.23s) with damping 55.
+ * easing.dev's Boingoingoing is left out: at 1/60s its Physics version
+ * overshoots 178% instead of 79%, and its Time version grows without end.
+ * The Time versions of Swift and Snap are a little longer than their
+ * Physics settle times, for the same reason. The Physics sliders also stop
+ * damping at 100.
  */
 declare const SPRING_PRESETS: SpringPreset[];
 type SpringMode = 'simple' | 'advanced';
@@ -1091,6 +1113,11 @@ interface CustomSpring {
 }
 
 type Listener = () => void;
+/** A copied transition: its value and the tab it was on. */
+interface CopiedTransition {
+    value: TransitionConfig;
+    mode: 'easing' | 'simple' | 'advanced';
+}
 /**
  * The user's saved custom curves and springs, shared by every transition
  * control. Saved curves and springs live
@@ -1101,6 +1128,7 @@ declare class TransitionLibraryClass {
     private curves;
     private springs;
     private listeners;
+    private copied;
     subscribe: (listener: Listener) => (() => void);
     private notify;
     getCustomCurves: () => EasingCurve[];
@@ -1113,7 +1141,10 @@ declare class TransitionLibraryClass {
     /** Saves a Time or Physics spring as "Custom N", numbered per mode. */
     saveCustomSpring(spring: SpringConfig, mode: SpringMode): CustomSpring;
     removeCustomSpring(name: string, mode: SpringMode): void;
+    /** The last copied transition, shared by every transition control. */
+    getCopied: () => CopiedTransition | null;
+    copyTransition(value: TransitionConfig, mode: CopiedTransition['mode']): void;
 }
 declare const TransitionLibrary: TransitionLibraryClass;
 
-export { type ActionConfig, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type CustomSpring, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, EASING_CURVES, type EasingConfig, type EasingCurve, EasingVisualization, FieldRow, type FieldsConfig, Folder, type FolderMode, type ImageConfig, ImageControl, type ImageOption, type PanelConfig, type Preset, PresetManager, type RangeConfig, type ResolvedValues, SPRING_PRESETS, type SelectConfig, SelectControl, type SelectOption$1 as SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, type SpringMode, type SpringPreset, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipMeta, type TimelineClipTrackMeta, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelineMeta, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, TimelineStore, type TimelineTransport, Toggle, type TransitionConfig, TransitionControl, TransitionLibrary, type UseDialOptions, type UseDialTimelineOptions, type VisibleWhen, type VisibleWhenValue, formatClock, unwrapVisibility, useDialKit, useDialKitController, useDialTimeline, withVisibility };
+export { type ActionConfig, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type CopiedTransition, type CustomSpring, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, EASING_CURVES, type EasingConfig, type EasingCurve, EasingVisualization, FieldRow, type FieldsConfig, Folder, type FolderMode, type ImageConfig, ImageControl, type ImageOption, type PanelConfig, type Preset, PresetManager, type RangeConfig, type ResolvedValues, SPRING_PRESETS, type SelectConfig, SelectControl, type SelectOption$1 as SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, type SpringMode, type SpringPreset, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipMeta, type TimelineClipTrackMeta, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelineMeta, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, TimelineStore, type TimelineTransport, Toggle, type TransitionConfig, TransitionControl, TransitionLibrary, type UseDialOptions, type UseDialTimelineOptions, type VisibleWhen, type VisibleWhenValue, formatClock, unwrapVisibility, useDialKit, useDialKitController, useDialTimeline, withVisibility };

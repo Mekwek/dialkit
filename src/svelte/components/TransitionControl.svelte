@@ -47,7 +47,7 @@
     simple: SpringConfig;
     advanced: SpringConfig;
   } = {
-    easing: value.type === 'easing' ? value : { type: 'easing', duration: 0.3, ease: [1, -0.4, 0.5, 1] },
+    easing: value.type === 'easing' ? value : { type: 'easing', duration: 0.3, ease: [0.76, 0, 0.24, 1] },
     simple: value.type === 'spring' && value.visualDuration !== undefined ? value : { type: 'spring', visualDuration: 0.3, bounce: 0.2 },
     advanced: value.type === 'spring' && value.stiffness !== undefined ? value : { type: 'spring', stiffness: 200, damping: 25, mass: 1 },
   };

@@ -57,6 +57,7 @@ export { ShortcutsMenu } from './components/ShortcutsMenu';
 // Transition presets: the named curves and spring presets, and the user's
 // saved curves and springs.
 export { TransitionLibrary } from './store/TransitionLibrary';
+export type { CopiedTransition } from './store/TransitionLibrary';
 export { EASING_CURVES, SPRING_PRESETS } from './transition-presets';
 export type { CustomSpring, EasingCurve, SpringMode, SpringPreset } from './transition-presets';
 

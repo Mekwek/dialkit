@@ -2,6 +2,7 @@ import type { BezierPoints } from '../easing-geometry';
 import { SpringConfig, EasingConfig, TransitionConfig, DialStore } from '../store/DialStore';
 import { springParams, springSettleDuration } from '../transition-math';
 import { Folder } from './Folder';
+import { TransitionCopyMenu } from './TransitionCopy';
 import { Slider } from './Slider';
 import { SegmentedControl } from './SegmentedControl';
 import { SpringVisualization } from './SpringVisualization';
@@ -42,6 +43,11 @@ interface TransitionControlProps {
   onReset?: () => void;
   /** True when the value differs from its default. */
   changed?: boolean;
+  /**
+   * Draws the control without its own header. A section whose only
+   * control is this one uses its header instead.
+   */
+  bare?: boolean;
 }
 
 type CurveMode = 'easing' | 'simple' | 'advanced';
@@ -57,6 +63,7 @@ export function TransitionControl({
   physicsSettleCap,
   onReset,
   changed,
+  bare = false,
 }: TransitionControlProps) {
   const subscribe = useCallback(
     (callback: () => void) => DialStore.subscribe(panelId, callback),
@@ -77,7 +84,7 @@ export function TransitionControl({
     simple: SpringConfig;
     advanced: SpringConfig;
   }>({
-    easing: value.type === 'easing' ? value : { type: 'easing', duration: 0.3, ease: [1, -0.4, 0.5, 1] },
+    easing: value.type === 'easing' ? value : { type: 'easing', duration: 0.3, ease: [0.76, 0, 0.24, 1] },
     simple: value.type === 'spring' && value.visualDuration !== undefined ? value : { type: 'spring', visualDuration: 0.3, bounce: 0.2 },
     advanced: value.type === 'spring' && value.stiffness !== undefined ? value : { type: 'spring', stiffness: 200, damping: 25, mass: 1 },
   });
@@ -225,8 +232,7 @@ export function TransitionControl({
       customSpringNameFor(spring, isSimpleSpring ? 'simple' : 'advanced', customSprings) ??
       'Custom';
 
-  return (
-    <Folder title={label} defaultOpen={true} onReset={onReset} changed={changed}>
+  const body = (
       <div className="dialkit-transition">
         {typeControl}
         {isEasing ? (
@@ -262,10 +268,16 @@ export function TransitionControl({
           </>
         )}
         {durationSlider}
-        <Folder title="Curves" defaultOpen={false} meta={presetName}>
+        <Folder title="Curve" defaultOpen={false} meta={presetName}>
           {presetPicker}
         </Folder>
       </div>
+  );
+
+  if (bare) return body;
+  return (
+    <Folder title={label} defaultOpen={true} onReset={onReset} changed={changed} actions={<TransitionCopyMenu panelId={panelId} path={path} value={value} />}>
+      {body}
     </Folder>
   );
 }

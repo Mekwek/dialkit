@@ -9,6 +9,7 @@ import { FieldRow } from './FieldRow';
 import { Toggle } from './Toggle';
 import { SpringControl } from './SpringControl';
 import { TransitionControl } from './TransitionControl';
+import { TransitionCopyMenu } from './TransitionCopy';
 import { TextControl } from './TextControl';
 import { SelectControl, SelectPills } from './SelectControl';
 import { ColorControl } from './ColorControl';
@@ -63,7 +64,7 @@ export function ControlRenderer({
 }: ControlRendererProps) {
   const shortcutCtx = useContext(ShortcutContext);
 
-  const renderControlInner = (control: ControlMeta, depth: number) => {
+  const renderControlInner = (control: ControlMeta, depth: number, bare: boolean) => {
     const value = values[control.path];
 
     switch (control.type) {
@@ -119,6 +120,7 @@ export function ControlRenderer({
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
             durationControl={transitionDuration}
             physicsSettleCap={physicsSettleCap}
+            bare={bare}
             {...valueResetProps(control.path)}
           />
         );
@@ -139,17 +141,28 @@ export function ControlRenderer({
               }
             : {};
         // A section reset that runs an action hides that action's row.
-        const children = control.children
-          ?.filter((child) => child.path !== control.reset)
-          .map((child) => renderControl(child, depth + 1));
+        const rows = control.children?.filter((child) => child.path !== control.reset) ?? [];
+        // A section whose only row is a transition shows one header: the
+        // section's. The transition draws no header of its own.
+        const only = rows.length === 1 && rows[0].type === 'transition' ? rows[0] : undefined;
+        const children = rows.map((child) => renderControl(child, depth + 1, child === only));
         const resetProps = control.reset
           ? {
               onReset: () => DialStore.resetSection(panelId, control.path),
               changed: DialStore.sectionHasChanges(panelId, control.path),
             }
-          : {};
+          : only
+            ? valueResetProps(only.path)
+            : {};
         return (
-          <Folder key={control.path} title={control.label} defaultOpen={control.defaultOpen ?? true} {...controlledProps} {...resetProps}>
+          <Folder
+            key={control.path}
+            title={control.label}
+            defaultOpen={control.defaultOpen ?? true}
+            {...controlledProps}
+            {...resetProps}
+            actions={only ? <TransitionCopyMenu panelId={panelId} path={only.path} value={values[only.path] as TransitionConfig} /> : undefined}
+          >
             {animateControls ? <AnimatePresence initial={false}>{children}</AnimatePresence> : children}
           </Folder>
         );
@@ -246,8 +259,8 @@ export function ControlRenderer({
     changed: DialStore.hasChanges(panelId, [path]),
   });
 
-  const renderControl = (control: ControlMeta, depth = 0) => {
-    const inner = renderControlInner(control, depth);
+  const renderControl = (control: ControlMeta, depth = 0, bare = false) => {
+    const inner = renderControlInner(control, depth, bare);
     if (inner === null || !animateControls) return inner;
 
     // Every control is wrapped in a motion.div so it can animate its
@@ -258,7 +271,7 @@ export function ControlRenderer({
     // An X / Y / Z group is a folder in the store, but draws no Folder: it
     // is a plain row and keeps the row gap.
     const drawsFolder = control.type === 'folder' && !control.fields;
-    const isFolder = drawsFolder || control.type === 'spring' || control.type === 'transition';
+    const isFolder = drawsFolder || control.type === 'spring' || (control.type === 'transition' && !bare);
     const wrapClassName = isFolder
       ? 'dialkit-control-wrap dialkit-control-wrap-folder'
       : control.fields

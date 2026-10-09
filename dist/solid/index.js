@@ -6364,7 +6364,7 @@ function TransitionControl(props) {
     easing: props.value.type === "easing" ? props.value : {
       type: "easing",
       duration: 0.3,
-      ease: [1, -0.4, 0.5, 1]
+      ease: [0.76, 0, 0.24, 1]
     },
     simple: props.value.type === "spring" && props.value.visualDuration !== void 0 ? props.value : {
       type: "spring",

@@ -1,8 +1,14 @@
 import type { BezierPoints } from '../easing-geometry';
-import type { SpringConfig } from './DialStore';
+import type { SpringConfig, TransitionConfig } from './DialStore';
 import type { CustomSpring, EasingCurve, SpringMode } from '../transition-presets';
 
 type Listener = () => void;
+
+/** A copied transition: its value and the tab it was on. */
+export interface CopiedTransition {
+  value: TransitionConfig;
+  mode: 'easing' | 'simple' | 'advanced';
+}
 
 /** "Custom N", with the first number not in `names`. */
 function nextCustomName(names: Iterable<string>): string {
@@ -22,6 +28,7 @@ class TransitionLibraryClass {
   private curves: EasingCurve[] = [];
   private springs: CustomSpring[] = [];
   private listeners = new Set<Listener>();
+  private copied: CopiedTransition | null = null;
 
   subscribe = (listener: Listener): (() => void) => {
     this.listeners.add(listener);
@@ -73,6 +80,14 @@ class TransitionLibraryClass {
 
   removeCustomSpring(name: string, mode: SpringMode): void {
     this.springs = this.springs.filter((saved) => !(saved.mode === mode && saved.name === name));
+    this.notify();
+  }
+
+  /** The last copied transition, shared by every transition control. */
+  getCopied = (): CopiedTransition | null => this.copied;
+
+  copyTransition(value: TransitionConfig, mode: CopiedTransition['mode']): void {
+    this.copied = { value: structuredClone(value), mode };
     this.notify();
   }
 }

@@ -39,7 +39,7 @@ export function TransitionControl(props: TransitionControlProps) {
   const cache: { easing: EasingConfig; simple: SpringConfig; advanced: SpringConfig } = {
     easing: props.value.type === 'easing'
       ? props.value
-      : { type: 'easing', duration: 0.3, ease: [1, -0.4, 0.5, 1] },
+      : { type: 'easing', duration: 0.3, ease: [0.76, 0, 0.24, 1] },
     simple: props.value.type === 'spring' && props.value.visualDuration !== undefined
       ? props.value
       : { type: 'spring', visualDuration: 0.3, bounce: 0.2 },
