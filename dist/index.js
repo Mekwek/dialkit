@@ -1900,7 +1900,7 @@ function Folder({ title, children, open, defaultOpen = true, isRoot = false, inl
 
 // src/components/Panel.tsx
 import { useCallback as useCallback10, useEffect as useEffect14, useRef as useRef18, useState as useState11, useSyncExternalStore as useSyncExternalStore6 } from "react";
-import { motion as motion6, AnimatePresence as AnimatePresence5 } from "motion/react";
+import { motion as motion7, AnimatePresence as AnimatePresence6 } from "motion/react";
 
 // src/copy-instruction.ts
 function buildCopyInstruction(hookName, panelName, values) {
@@ -1935,7 +1935,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
 
 // src/components/ControlRenderer.tsx
 import { useContext } from "react";
-import { motion as motion4, AnimatePresence as AnimatePresence3 } from "motion/react";
+import { motion as motion5, AnimatePresence as AnimatePresence4 } from "motion/react";
 
 // src/components/control-motion.ts
 var CONTROL_ANIM = {
@@ -3163,6 +3163,7 @@ function SpringControl({ panelId, path, label, spring, onChange, onReset, change
 
 // src/components/TransitionCopy.tsx
 import { useEffect as useEffect6, useRef as useRef8, useState as useState6, useSyncExternalStore as useSyncExternalStore3 } from "react";
+import { AnimatePresence as AnimatePresence2, motion as motion3 } from "motion/react";
 
 // src/store/TransitionLibrary.ts
 function nextCustomName(names) {
@@ -3390,10 +3391,21 @@ function TransitionCopyMenu({ panelId, path, value }) {
           children: /* @__PURE__ */ jsx9("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: done ? 2 : 3, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true", children: (done ? [ICON_CHECK] : ICON_MORE).map((d) => /* @__PURE__ */ jsx9("path", { d }, d)) })
         }
       ),
-      open && /* @__PURE__ */ jsxs8("div", { className: "dialkit-copy-menu", role: "menu", children: [
-        /* @__PURE__ */ jsx9("button", { type: "button", role: "menuitem", onClick: copy, children: "Copy" }),
-        /* @__PURE__ */ jsx9("button", { type: "button", role: "menuitem", disabled: !copied, onClick: paste, children: copied ? `Paste ${describeCopied(copied)}` : "Paste" })
-      ] })
+      /* @__PURE__ */ jsx9(AnimatePresence2, { children: open && /* @__PURE__ */ jsxs8(
+        motion3.div,
+        {
+          className: "dialkit-select-dropdown dialkit-copy-menu",
+          role: "menu",
+          initial: { opacity: 0, y: -8, scale: 0.95 },
+          animate: { opacity: 1, y: 0, scale: 1 },
+          exit: { opacity: 0, y: -8, scale: 0.95 },
+          transition: { type: "spring", visualDuration: 0.15, bounce: 0 },
+          children: [
+            /* @__PURE__ */ jsx9("button", { type: "button", role: "menuitem", className: "dialkit-select-option", onClick: copy, children: "Copy" }),
+            /* @__PURE__ */ jsx9("button", { type: "button", role: "menuitem", className: "dialkit-select-option", disabled: !copied, onClick: paste, children: copied ? `Paste ${describeCopied(copied)}` : "Paste" })
+          ]
+        }
+      ) })
     ] })
   );
 }
@@ -4364,7 +4376,7 @@ function observeDropdownKeyboard(trigger, getPopup, close2, kind = "select") {
 // src/components/SelectControl.tsx
 import { useState as useState9, useRef as useRef13, useEffect as useEffect9, useCallback as useCallback8 } from "react";
 import { createPortal } from "react-dom";
-import { motion as motion3, AnimatePresence as AnimatePresence2 } from "motion/react";
+import { motion as motion4, AnimatePresence as AnimatePresence3 } from "motion/react";
 import { jsx as jsx14, jsxs as jsxs12 } from "react/jsx-runtime";
 function toTitleCase(s) {
   return s.replace(/\b\w/g, (c) => c.toUpperCase());
@@ -4439,7 +4451,7 @@ function SelectControl({ label, value, options, onChange }) {
           /* @__PURE__ */ jsxs12("div", { className: "dialkit-select-right", children: [
             /* @__PURE__ */ jsx14("span", { className: "dialkit-select-value", children: selectedOption?.label ?? value }),
             /* @__PURE__ */ jsx14(
-              motion3.svg,
+              motion4.svg,
               {
                 className: "dialkit-select-chevron",
                 viewBox: "0 0 24 24",
@@ -4458,8 +4470,8 @@ function SelectControl({ label, value, options, onChange }) {
       }
     ),
     portalTarget && createPortal(
-      /* @__PURE__ */ jsx14(AnimatePresence2, { children: isOpen && pos && /* @__PURE__ */ jsx14(
-        motion3.div,
+      /* @__PURE__ */ jsx14(AnimatePresence3, { children: isOpen && pos && /* @__PURE__ */ jsx14(
+        motion4.div,
         {
           ref: dropdownRef,
           className: "dialkit-select-dropdown",
@@ -5757,7 +5769,7 @@ function ControlRenderer({
             ...controlledProps,
             ...resetProps,
             actions: only ? /* @__PURE__ */ jsx18(TransitionCopyMenu, { panelId, path: only.path, value: values[only.path] }) : void 0,
-            children: animateControls ? /* @__PURE__ */ jsx18(AnimatePresence3, { initial: false, children }) : children
+            children: animateControls ? /* @__PURE__ */ jsx18(AnimatePresence4, { initial: false, children }) : children
           },
           control.path
         );
@@ -5855,18 +5867,18 @@ function ControlRenderer({
     const drawsFolder = control.type === "folder" && !control.fields;
     const isFolder = drawsFolder || control.type === "spring" || control.type === "transition" && !bare;
     const wrapClassName = isFolder ? "dialkit-control-wrap dialkit-control-wrap-folder" : control.fields ? "dialkit-control-wrap dialkit-control-wrap-fields" : "dialkit-control-wrap";
-    return /* @__PURE__ */ jsx18(motion4.div, { className: wrapClassName, ...CONTROL_ANIM, children: inner }, control.path);
+    return /* @__PURE__ */ jsx18(motion5.div, { className: wrapClassName, ...CONTROL_ANIM, children: inner }, control.path);
   };
   if (!animateControls) {
     return /* @__PURE__ */ jsx18(Fragment4, { children: controls.map((control) => renderControl(control, 0)) });
   }
-  return /* @__PURE__ */ jsx18(AnimatePresence3, { initial: false, children: controls.map((control) => renderControl(control, 0)) });
+  return /* @__PURE__ */ jsx18(AnimatePresence4, { initial: false, children: controls.map((control) => renderControl(control, 0)) });
 }
 
 // src/components/PresetManager.tsx
 import { useState as useState10, useRef as useRef17, useEffect as useEffect13, useCallback as useCallback9 } from "react";
 import { createPortal as createPortal2 } from "react-dom";
-import { motion as motion5, AnimatePresence as AnimatePresence4 } from "motion/react";
+import { motion as motion6, AnimatePresence as AnimatePresence5 } from "motion/react";
 import { Fragment as Fragment5, jsx as jsx19, jsxs as jsxs13 } from "react/jsx-runtime";
 var DRAG_LIFT_PX = 4;
 var PRESET_DROPDOWN_MAX_WIDTH = 280;
@@ -6014,7 +6026,7 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassN
         children: [
           /* @__PURE__ */ jsx19("span", { className: "dialkit-preset-label", children: activePreset ? activePreset.name : "Version 1" }),
           /* @__PURE__ */ jsx19(
-            motion5.svg,
+            motion6.svg,
             {
               className: "dialkit-select-chevron",
               viewBox: "0 0 24 24",
@@ -6032,8 +6044,8 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassN
       }
     ),
     createPortal2(
-      /* @__PURE__ */ jsx19(AnimatePresence4, { children: isOpen && /* @__PURE__ */ jsxs13(
-        motion5.div,
+      /* @__PURE__ */ jsx19(AnimatePresence5, { children: isOpen && /* @__PURE__ */ jsxs13(
+        motion6.div,
         {
           ref: dropdownRef,
           className: `dialkit-root dialkit-preset-dropdown${dropdownClassName ? ` ${dropdownClassName}` : ""}`,
@@ -6244,7 +6256,7 @@ function Panel({ panel, defaultOpen = true, inline = false, folderMode = "indepe
   const iconTransition = { type: "spring", visualDuration: 0.4, bounce: 0.1 };
   const toolbar = /* @__PURE__ */ jsxs14(Fragment6, { children: [
     /* @__PURE__ */ jsx20(
-      motion6.button,
+      motion7.button,
       {
         className: "dialkit-toolbar-add",
         onClick: handleAddPreset,
@@ -6264,15 +6276,15 @@ function Panel({ panel, defaultOpen = true, inline = false, folderMode = "indepe
       }
     ),
     /* @__PURE__ */ jsx20(
-      motion6.button,
+      motion7.button,
       {
         className: "dialkit-toolbar-add",
         onClick: handleCopy,
         title: "Copy parameters",
         whileTap: { scale: 0.9 },
         transition: { type: "spring", visualDuration: 0.15, bounce: 0.3 },
-        children: /* @__PURE__ */ jsx20("span", { style: { position: "relative", width: 16, height: 16 }, children: /* @__PURE__ */ jsx20(AnimatePresence5, { initial: false, mode: "wait", children: copied ? /* @__PURE__ */ jsx20(
-          motion6.svg,
+        children: /* @__PURE__ */ jsx20("span", { style: { position: "relative", width: 16, height: 16 }, children: /* @__PURE__ */ jsx20(AnimatePresence6, { initial: false, mode: "wait", children: copied ? /* @__PURE__ */ jsx20(
+          motion7.svg,
           {
             viewBox: "0 0 24 24",
             fill: "none",
@@ -6289,7 +6301,7 @@ function Panel({ panel, defaultOpen = true, inline = false, folderMode = "indepe
           },
           "check"
         ) : /* @__PURE__ */ jsxs14(
-          motion6.svg,
+          motion7.svg,
           {
             viewBox: "0 0 24 24",
             fill: "none",
@@ -6321,7 +6333,7 @@ function Panel({ panel, defaultOpen = true, inline = false, folderMode = "indepe
 
 // src/components/Timeline/TimelineToggleButton.tsx
 import { useCallback as useCallback11, useSyncExternalStore as useSyncExternalStore7 } from "react";
-import { motion as motion7 } from "motion/react";
+import { motion as motion8 } from "motion/react";
 
 // src/store/TimelineUiStore.ts
 var TimelineUiStoreClass = class {
@@ -6396,7 +6408,7 @@ function TimelineToggleButton() {
   const visible = useSyncExternalStore7(subscribe, getVisible, getVisible);
   const label = visible ? "Hide timeline" : "Show timeline";
   return /* @__PURE__ */ jsx21(
-    motion7.button,
+    motion8.button,
     {
       className: "dialkit-toolbar-add dialkit-timeline-toolbar-toggle",
       "data-active": visible || void 0,
@@ -7781,7 +7793,7 @@ function useDialTimeline(name, config, options) {
 // src/components/Timeline/DialTimeline.tsx
 import { memo, useCallback as useCallback14, useEffect as useEffect17, useLayoutEffect as useLayoutEffect3, useRef as useRef21, useState as useState13, useSyncExternalStore as useSyncExternalStore9 } from "react";
 import { createPortal as createPortal4 } from "react-dom";
-import { AnimatePresence as AnimatePresence6, motion as motion8 } from "motion/react";
+import { AnimatePresence as AnimatePresence7, motion as motion9 } from "motion/react";
 import { Fragment as Fragment7, jsx as jsx23, jsxs as jsxs15 } from "react/jsx-runtime";
 var DRAG_THRESHOLD_PX = 3;
 var SINGLE_LIFT_PX = 12;
@@ -7966,7 +7978,7 @@ function PlayPauseButton({ id }) {
   const getPlaying = useCallback14(() => TimelineStore.getTransport(id).playing, [id]);
   const playing = useSyncExternalStore9(subscribe, getPlaying, getPlaying);
   return /* @__PURE__ */ jsx23(
-    motion8.button,
+    motion9.button,
     {
       className: "dialkit-toolbar-add",
       onClick: () => playing ? TimelineStore.pause(id) : TimelineStore.play(id),
@@ -7974,8 +7986,8 @@ function PlayPauseButton({ id }) {
       "aria-label": playing ? "Pause" : "Play",
       whileTap: { scale: 0.9 },
       transition: { type: "spring", visualDuration: 0.15, bounce: 0.3 },
-      children: /* @__PURE__ */ jsx23("span", { style: { position: "relative", width: 16, height: 16 }, children: /* @__PURE__ */ jsx23(AnimatePresence6, { initial: false, mode: "wait", children: playing ? /* @__PURE__ */ jsx23(
-        motion8.svg,
+      children: /* @__PURE__ */ jsx23("span", { style: { position: "relative", width: 16, height: 16 }, children: /* @__PURE__ */ jsx23(AnimatePresence7, { initial: false, mode: "wait", children: playing ? /* @__PURE__ */ jsx23(
+        motion9.svg,
         {
           viewBox: "0 0 24 24",
           fill: "none",
@@ -7989,7 +8001,7 @@ function PlayPauseButton({ id }) {
         },
         "pause"
       ) : /* @__PURE__ */ jsx23(
-        motion8.svg,
+        motion9.svg,
         {
           viewBox: "0 0 24 24",
           fill: "none",
@@ -8008,7 +8020,7 @@ function PlayPauseButton({ id }) {
 }
 function ReplayButton({ onReplay }) {
   return /* @__PURE__ */ jsx23(
-    motion8.button,
+    motion9.button,
     {
       className: "dialkit-toolbar-add",
       onClick: onReplay,
@@ -8022,7 +8034,7 @@ function ReplayButton({ onReplay }) {
 }
 function LoopButton({ id, loop }) {
   return /* @__PURE__ */ jsx23(
-    motion8.button,
+    motion9.button,
     {
       className: "dialkit-toolbar-add dialkit-timeline-toolbar-toggle",
       onClick: () => TimelineStore.setLoop(id, !loop),
@@ -8916,7 +8928,7 @@ var TimelineSection = memo(function TimelineSection2({
           ),
           /* @__PURE__ */ jsxs15("div", { className: "dialkit-timeline-actions", children: [
             /* @__PURE__ */ jsx23(
-              motion8.button,
+              motion9.button,
               {
                 className: "dialkit-toolbar-add",
                 onClick: handleAddPreset,
@@ -8938,7 +8950,7 @@ var TimelineSection = memo(function TimelineSection2({
               }
             ),
             /* @__PURE__ */ jsx23(
-              motion8.button,
+              motion9.button,
               {
                 className: "dialkit-toolbar-add",
                 onClick: handleCopy,
@@ -8946,8 +8958,8 @@ var TimelineSection = memo(function TimelineSection2({
                 "aria-label": copied ? "Copied parameters" : "Copy parameters",
                 whileTap: { scale: 0.9 },
                 transition: { type: "spring", visualDuration: 0.15, bounce: 0.3 },
-                children: /* @__PURE__ */ jsx23("span", { style: { position: "relative", width: 16, height: 16 }, children: /* @__PURE__ */ jsx23(AnimatePresence6, { initial: false, mode: "wait", children: copied ? /* @__PURE__ */ jsx23(
-                  motion8.svg,
+                children: /* @__PURE__ */ jsx23("span", { style: { position: "relative", width: 16, height: 16 }, children: /* @__PURE__ */ jsx23(AnimatePresence7, { initial: false, mode: "wait", children: copied ? /* @__PURE__ */ jsx23(
+                  motion9.svg,
                   {
                     viewBox: "0 0 24 24",
                     fill: "none",
@@ -8965,7 +8977,7 @@ var TimelineSection = memo(function TimelineSection2({
                   },
                   "check"
                 ) : /* @__PURE__ */ jsxs15(
-                  motion8.svg,
+                  motion9.svg,
                   {
                     viewBox: "0 0 24 24",
                     fill: "none",
@@ -8986,7 +8998,7 @@ var TimelineSection = memo(function TimelineSection2({
               }
             ),
             onExport && /* @__PURE__ */ jsxs15(
-              motion8.button,
+              motion9.button,
               {
                 className: "dialkit-toolbar-add dialkit-timeline-export",
                 onClick: onExport,
@@ -9657,7 +9669,7 @@ function ButtonGroup({ buttons }) {
 // src/components/ShortcutsMenu.tsx
 import { useState as useState14, useRef as useRef22, useEffect as useEffect18, useCallback as useCallback15 } from "react";
 import { createPortal as createPortal5 } from "react-dom";
-import { motion as motion9, AnimatePresence as AnimatePresence7 } from "motion/react";
+import { motion as motion10, AnimatePresence as AnimatePresence8 } from "motion/react";
 import { Fragment as Fragment8, jsx as jsx25, jsxs as jsxs16 } from "react/jsx-runtime";
 function formatShortcutKey(sc) {
   if (!sc.key) return "\u2014";
@@ -9737,7 +9749,7 @@ function ShortcutsMenu({ panelId }) {
   });
   return /* @__PURE__ */ jsxs16(Fragment8, { children: [
     /* @__PURE__ */ jsx25(
-      motion9.button,
+      motion10.button,
       {
         ref: triggerRef,
         className: "dialkit-shortcuts-trigger",
@@ -9759,8 +9771,8 @@ function ShortcutsMenu({ panelId }) {
       }
     ),
     createPortal5(
-      /* @__PURE__ */ jsx25(AnimatePresence7, { children: isOpen && /* @__PURE__ */ jsxs16(
-        motion9.div,
+      /* @__PURE__ */ jsx25(AnimatePresence8, { children: isOpen && /* @__PURE__ */ jsxs16(
+        motion10.div,
         {
           ref: dropdownRef,
           className: "dialkit-root dialkit-shortcuts-dropdown",

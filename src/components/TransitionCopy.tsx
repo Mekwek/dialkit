@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { ICON_CHECK, ICON_MORE } from '../icons';
 import { DialStore } from '../store/DialStore';
 import type { TransitionConfig } from '../store/DialStore';
@@ -81,16 +82,26 @@ export function TransitionCopyMenu({ panelId, path, value }: TransitionCopyProps
           {(done ? [ICON_CHECK] : ICON_MORE).map((d) => <path key={d} d={d} />)}
         </svg>
       </button>
-      {open && (
-        <div className="dialkit-copy-menu" role="menu">
-          <button type="button" role="menuitem" onClick={copy}>
-            Copy
-          </button>
-          <button type="button" role="menuitem" disabled={!copied} onClick={paste}>
-            {copied ? `Paste ${describeCopied(copied)}` : 'Paste'}
-          </button>
-        </div>
-      )}
+      {/* The same look and motion as a select's dropdown. */}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            className="dialkit-select-dropdown dialkit-copy-menu"
+            role="menu"
+            initial={{ opacity: 0, y: -8, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.95 }}
+            transition={{ type: 'spring', visualDuration: 0.15, bounce: 0 }}
+          >
+            <button type="button" role="menuitem" className="dialkit-select-option" onClick={copy}>
+              Copy
+            </button>
+            <button type="button" role="menuitem" className="dialkit-select-option" disabled={!copied} onClick={paste}>
+              {copied ? `Paste ${describeCopied(copied)}` : 'Paste'}
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
