@@ -1521,6 +1521,11 @@
 .dialkit-pad-field:focus-within { background: var(--dial-surface-hover); }
 .dialkit-pad-value:focus-visible { box-shadow: inset 0 -1px var(--dial-focus-ring); }
 .dialkit-pad-value:focus { color: var(--dial-text-focus); }
+/* Without the label box, the X and Y fields share the row. */
+.dialkit-pad[data-no-label] .dialkit-pad-caption { display: none; }
+.dialkit-pad[data-no-label] .dialkit-pad-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* The axis letter drags its value, as in the X / Y / Z fields. */
+.dialkit-pad[data-drag-fields] .dialkit-pad-axis { cursor: ew-resize; touch-action: none; user-select: none; -webkit-user-select: none; }
 .dialkit-pad-instructions { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 @media (prefers-reduced-motion: reduce) { .dialkit-pad-point { transition: none; } }
 

@@ -192,6 +192,20 @@ function parseColor(value) {
 }
 
 // src/dial-pad.ts
+function padFraction(value, axis, mapping = "linear") {
+  const { min, max, default: middle } = axis;
+  if (mapping === "centered" && middle > min && middle < max) {
+    return value <= middle ? 0.5 * (value - min) / (middle - min) : 0.5 + 0.5 * (value - middle) / (max - middle);
+  }
+  return (value - min) / (max - min);
+}
+function padValueAt(fraction, axis, mapping = "linear") {
+  const { min, max, default: middle } = axis;
+  if (mapping === "centered" && middle > min && middle < max) {
+    return fraction <= 0.5 ? min + fraction * 2 * (middle - min) : middle + (fraction - 0.5) * 2 * (max - middle);
+  }
+  return min + fraction * (max - min);
+}
 var PAD_GRID_DIVISIONS = 6;
 function padGridIntersection(x, y, width, height) {
   if (width <= 0 || height <= 0) return void 0;
@@ -230,8 +244,8 @@ function padValueFromPoint(x, y, config = {}) {
   const horizontal = resolvePadAxis(config.x);
   const vertical = resolvePadAxis(config.y);
   return {
-    x: snapPadAxis(horizontal.min + x * (horizontal.max - horizontal.min), horizontal),
-    y: snapPadAxis(vertical.max - y * (vertical.max - vertical.min), vertical)
+    x: snapPadAxis(padValueAt(x, horizontal, config.mapping), horizontal),
+    y: snapPadAxis(padValueAt(1 - y, vertical, config.mapping), vertical)
   };
 }
 function padValueFromKey(value, key, shift, config = {}) {
@@ -243,6 +257,11 @@ function padValueFromKey(value, key, shift, config = {}) {
 }
 
 // src/store/DialStore.ts
+function padGroupConfigOf(value) {
+  if (value === true) return {};
+  if (typeof value === "object" && value !== null && !Array.isArray(value)) return value;
+  return void 0;
+}
 function fieldsConfigOf(value) {
   if (value === true) return {};
   if (typeof value === "object" && value !== null && !Array.isArray(value)) return value;
@@ -253,7 +272,7 @@ function resetConfigOf(value, folderPath) {
   if (typeof value === "string" && value) return `${folderPath}.${value}`;
   return void 0;
 }
-var FOLDER_META_KEYS = ["_collapsed", "_fields", "_reset"];
+var FOLDER_META_KEYS = ["_collapsed", "_fields", "_pad", "_reset"];
 function isFolderMetaKey(key) {
   return FOLDER_META_KEYS.includes(key);
 }
@@ -640,6 +659,10 @@ var DialStoreClass = class {
   /** The value a reset puts at each path: setResetValues, else defaults. */
   resetTargets(panelId) {
     return this.hostResetValues.get(panelId) ?? this.defaultValues.get(panelId);
+  }
+  /** The value a reset puts at `path`. */
+  getResetValue(panelId, path) {
+    return this.resetTargets(panelId)?.[path];
   }
   /** Put the given paths back to their reset values. */
   resetPaths(panelId, paths) {
@@ -1108,6 +1131,7 @@ var DialStoreClass = class {
             label,
             defaultOpen,
             fields: fieldsConfigOf(folderConfig._fields),
+            padGroup: padGroupConfigOf(folderConfig._pad),
             reset: resetConfigOf(folderConfig._reset, path),
             children: visit(folderConfig, path)
           };
@@ -4069,6 +4093,30 @@ function mountDialPad(host, initial) {
     field.append(name, input);
     fields.append(field);
     input.addEventListener("focus", () => input.select());
+    let press;
+    name.addEventListener("pointerdown", (event) => {
+      if (!props.dragFields || event.button !== 0) return;
+      event.preventDefault();
+      press = { id: event.pointerId, x: event.clientX, start: value[axis] };
+      name.setPointerCapture(event.pointerId);
+    });
+    name.addEventListener("pointermove", (event) => {
+      if (!press || event.pointerId !== press.id) return;
+      const dx = event.clientX - press.x;
+      if (Math.abs(dx) < 3) return;
+      const range = resolvePadAxis(props[axis]);
+      commit({ ...value, [axis]: press.start + dx * range.step * (event.shiftKey ? 10 : 1) });
+    });
+    const endPress = (event) => {
+      if (!press || event.pointerId !== press.id) return;
+      press = void 0;
+      if (name.hasPointerCapture(event.pointerId)) name.releasePointerCapture(event.pointerId);
+    };
+    name.addEventListener("click", (event) => {
+      if (props.dragFields) event.preventDefault();
+    });
+    name.addEventListener("pointerup", endPress);
+    name.addEventListener("pointercancel", endPress);
     input.addEventListener("blur", () => {
       const number2 = input.value.trim() === "" ? NaN : Number(input.value);
       if (Number.isFinite(number2)) commit({ ...value, [axis]: number2 });
@@ -4097,6 +4145,9 @@ function mountDialPad(host, initial) {
   host.append(root);
   function render() {
     label.textContent = props.label;
+    caption.hidden = !!props.hideLabel;
+    root.toggleAttribute("data-no-label", !!props.hideLabel);
+    root.toggleAttribute("data-drag-fields", !!props.dragFields);
     label.title = props.label;
     const names = { x: props.labels?.x ?? "X", y: props.labels?.y ?? "Y" };
     surface.setAttribute("aria-label", `${props.label}: ${names.x} ${value.x}, ${names.y} ${value.y}`);
@@ -4109,7 +4160,7 @@ function mountDialPad(host, initial) {
       input.setAttribute("aria-valuemax", String(range.max));
       input.setAttribute("aria-valuenow", String(value[axis]));
       if (document.activeElement !== input) input.value = String(value[axis]);
-      const fraction = (value[axis] - range.min) / (range.max - range.min);
+      const fraction = padFraction(value[axis], range, props.mapping);
       point.style[axis === "x" ? "left" : "top"] = `${(axis === "x" ? fraction : 1 - fraction) * 100}%`;
     });
   }

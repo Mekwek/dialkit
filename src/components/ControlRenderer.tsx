@@ -15,6 +15,7 @@ import { SelectControl, SelectPills } from './SelectControl';
 import { ColorControl } from './ColorControl';
 import { ImageControl } from './ImageControl';
 import { DialPad } from './DialPad';
+import { PadGroup } from './PadGroup';
 import type { DialPadValue } from '../dial-pad';
 
 interface ControlRendererProps {
@@ -129,6 +130,9 @@ export function ControlRenderer({
         if (control.fields) {
           return <FieldRow key={control.path} panelId={panelId} control={control} values={values} />;
         }
+        if (control.padGroup) {
+          return <PadGroup key={control.path} panelId={panelId} control={control} values={values} />;
+        }
         // Controlled accordion open state only applies to depth-0 folders
         // when the caller opted into accordion mode by passing
         // onAccordionToggle. Nested folders always stay independent
@@ -232,6 +236,9 @@ export function ControlRenderer({
             x={control.pad?.x}
             y={control.pad?.y}
             labels={control.pad?.labels}
+            mapping={control.pad?.mapping}
+            hideLabel={control.pad?.hideLabel}
+            dragFields={control.pad?.dragFields}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
           />
         );
@@ -268,9 +275,9 @@ export function ControlRenderer({
     // classes let theme.css target folder wrappers specifically (for the
     // adjacent-divider collapse rule) without needing :has(). Spring and
     // transition controls render as Folder internally.
-    // An X / Y / Z group is a folder in the store, but draws no Folder: it
-    // is a plain row and keeps the row gap.
-    const drawsFolder = control.type === 'folder' && !control.fields;
+    // An X / Y / Z group or a pad group is a folder in the store, but draws
+    // no Folder: it is a plain row and keeps the row gap.
+    const drawsFolder = control.type === 'folder' && !control.fields && !control.padGroup;
     const isFolder = drawsFolder || control.type === 'spring' || (control.type === 'transition' && !bare);
     const wrapClassName = isFolder
       ? 'dialkit-control-wrap dialkit-control-wrap-folder'

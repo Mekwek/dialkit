@@ -10,7 +10,37 @@ export type DialPadConfig = {
   /** Positive Y points upward. Defaults to [0, -1, 1, 0.01]. */
   y?: DialPadAxis;
   labels?: { x?: string; y?: string };
+  /**
+   * How a value maps to the square. "linear" spreads the range evenly.
+   * "centered" puts each axis's default in the middle: min to default fills
+   * one half, default to max the other. Defaults to "linear".
+   */
+  mapping?: 'linear' | 'centered';
+  /** Hides the label box left of the X and Y fields. */
+  hideLabel?: boolean;
+  /** Lets the X and Y fields drag left and right to change their value. */
+  dragFields?: boolean;
 };
+
+type PadMapping = DialPadConfig['mapping'];
+
+/** Where `value` sits along the axis, from 0 (min) to 1 (max). */
+export function padFraction(value: number, axis: PadAxis, mapping: PadMapping = 'linear'): number {
+  const { min, max, default: middle } = axis;
+  if (mapping === 'centered' && middle > min && middle < max) {
+    return value <= middle ? 0.5 * (value - min) / (middle - min) : 0.5 + 0.5 * (value - middle) / (max - middle);
+  }
+  return (value - min) / (max - min);
+}
+
+/** The value at `fraction` (0 to 1) along the axis, before snapping. */
+export function padValueAt(fraction: number, axis: PadAxis, mapping: PadMapping = 'linear'): number {
+  const { min, max, default: middle } = axis;
+  if (mapping === 'centered' && middle > min && middle < max) {
+    return fraction <= 0.5 ? min + fraction * 2 * (middle - min) : middle + (fraction - 0.5) * 2 * (max - middle);
+  }
+  return min + fraction * (max - min);
+}
 
 export type PadAxis = { default: number; min: number; max: number; step: number };
 
@@ -57,12 +87,12 @@ export function normalizePadValue(value: unknown, config: Pick<DialPadConfig, 'x
 }
 
 /** Screen coordinates: left/bottom are the minima, right/top the maxima. */
-export function padValueFromPoint(x: number, y: number, config: Pick<DialPadConfig, 'x' | 'y'> = {}): DialPadValue {
+export function padValueFromPoint(x: number, y: number, config: Pick<DialPadConfig, 'x' | 'y' | 'mapping'> = {}): DialPadValue {
   const horizontal = resolvePadAxis(config.x);
   const vertical = resolvePadAxis(config.y);
   return {
-    x: snapPadAxis(horizontal.min + x * (horizontal.max - horizontal.min), horizontal),
-    y: snapPadAxis(vertical.max - y * (vertical.max - vertical.min), vertical),
+    x: snapPadAxis(padValueAt(x, horizontal, config.mapping), horizontal),
+    y: snapPadAxis(padValueAt(1 - y, vertical, config.mapping), vertical),
   };
 }
 

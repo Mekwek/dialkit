@@ -88,6 +88,12 @@ type FieldsConfig = {
      *  display rounds, and a click on the number shows the exact value. */
     decimals?: number;
 };
+/**
+ * A pad group: set `_pad: true` (or these options) on a folder whose first
+ * two number children are a pair. The folder shows as one pad: X drives the
+ * first value, Y the second, and each value keeps its own path.
+ */
+type PadGroupConfig = Pick<DialPadConfig, 'labels' | 'mapping' | 'hideLabel' | 'dragFields'>;
 type ShortcutMode = 'fine' | 'normal' | 'coarse';
 type ShortcutInteraction = 'scroll' | 'drag' | 'move' | 'scroll-only';
 type ShortcutConfig = {
@@ -111,6 +117,8 @@ type ControlMeta = {
      * children are the fields, and a boolean child is a lock icon.
      */
     fields?: FieldsConfig;
+    /** Folder only: `_pad` shows the folder as one pad. See {@link PadGroupConfig}. */
+    padGroup?: PadGroupConfig;
     /**
      * Folder only: `_reset` shows a reset icon in the folder's header. The
      * icon puts every value inside back to its default. With `_reset: 'key'`

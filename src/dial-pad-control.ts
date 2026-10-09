@@ -1,4 +1,4 @@
-import { PAD_GRID_DIVISIONS, normalizePadValue, padGridIntersection, padValueFromKey, padValueFromPoint, resolvePadAxis, snapPadAxis, type DialPadConfig, type DialPadValue } from './dial-pad';
+import { PAD_GRID_DIVISIONS, normalizePadValue, padFraction, padGridIntersection, padValueFromKey, padValueFromPoint, resolvePadAxis, snapPadAxis, type DialPadConfig, type DialPadValue } from './dial-pad';
 
 export type DialPadProps = Omit<DialPadConfig, 'type'> & {
   label: string;
@@ -69,6 +69,32 @@ export function mountDialPad(host: HTMLElement, initial: DialPadProps) {
     field.append(name, input);
     fields.append(field);
     input.addEventListener('focus', () => input.select());
+    // With dragFields, the axis letter drags the value left and right, as
+    // in DialKit's X / Y / Z fields. The number still opens for typing.
+    let press: { id: number; x: number; start: number } | undefined;
+    name.addEventListener('pointerdown', event => {
+      if (!props.dragFields || event.button !== 0) return;
+      event.preventDefault();
+      press = { id: event.pointerId, x: event.clientX, start: value[axis] };
+      name.setPointerCapture(event.pointerId);
+    });
+    name.addEventListener('pointermove', event => {
+      if (!press || event.pointerId !== press.id) return;
+      const dx = event.clientX - press.x;
+      if (Math.abs(dx) < 3) return;
+      const range = resolvePadAxis(props[axis]);
+      commit({ ...value, [axis]: press.start + dx * range.step * (event.shiftKey ? 10 : 1) });
+    });
+    const endPress = (event: PointerEvent) => {
+      if (!press || event.pointerId !== press.id) return;
+      press = undefined;
+      if (name.hasPointerCapture(event.pointerId)) name.releasePointerCapture(event.pointerId);
+    };
+    // The field is a label: without this, a press on the letter would also
+    // open the number for typing.
+    name.addEventListener('click', event => { if (props.dragFields) event.preventDefault(); });
+    name.addEventListener('pointerup', endPress);
+    name.addEventListener('pointercancel', endPress);
     input.addEventListener('blur', () => {
       const number = input.value.trim() === '' ? NaN : Number(input.value);
       if (Number.isFinite(number)) commit({ ...value, [axis]: number });
@@ -98,6 +124,9 @@ export function mountDialPad(host: HTMLElement, initial: DialPadProps) {
 
   function render() {
     label.textContent = props.label;
+    caption.hidden = !!props.hideLabel;
+    root.toggleAttribute('data-no-label', !!props.hideLabel);
+    root.toggleAttribute('data-drag-fields', !!props.dragFields);
     label.title = props.label;
     const names = { x: props.labels?.x ?? 'X', y: props.labels?.y ?? 'Y' };
     surface.setAttribute('aria-label', `${props.label}: ${names.x} ${value.x}, ${names.y} ${value.y}`);
@@ -110,7 +139,7 @@ export function mountDialPad(host: HTMLElement, initial: DialPadProps) {
       input.setAttribute('aria-valuemax', String(range.max));
       input.setAttribute('aria-valuenow', String(value[axis]));
       if (document.activeElement !== input) input.value = String(value[axis]);
-      const fraction = (value[axis] - range.min) / (range.max - range.min);
+      const fraction = padFraction(value[axis], range, props.mapping);
       point.style[axis === 'x' ? 'left' : 'top'] = `${(axis === 'x' ? fraction : 1 - fraction) * 100}%`;
     });
   }

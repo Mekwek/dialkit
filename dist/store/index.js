@@ -115,6 +115,11 @@ function normalizePadValue(value, config = {}) {
 }
 
 // src/store/DialStore.ts
+function padGroupConfigOf(value) {
+  if (value === true) return {};
+  if (typeof value === "object" && value !== null && !Array.isArray(value)) return value;
+  return void 0;
+}
 function fieldsConfigOf(value) {
   if (value === true) return {};
   if (typeof value === "object" && value !== null && !Array.isArray(value)) return value;
@@ -125,7 +130,7 @@ function resetConfigOf(value, folderPath) {
   if (typeof value === "string" && value) return `${folderPath}.${value}`;
   return void 0;
 }
-var FOLDER_META_KEYS = ["_collapsed", "_fields", "_reset"];
+var FOLDER_META_KEYS = ["_collapsed", "_fields", "_pad", "_reset"];
 function isFolderMetaKey(key) {
   return FOLDER_META_KEYS.includes(key);
 }
@@ -512,6 +517,10 @@ var DialStoreClass = class {
   /** The value a reset puts at each path: setResetValues, else defaults. */
   resetTargets(panelId) {
     return this.hostResetValues.get(panelId) ?? this.defaultValues.get(panelId);
+  }
+  /** The value a reset puts at `path`. */
+  getResetValue(panelId, path) {
+    return this.resetTargets(panelId)?.[path];
   }
   /** Put the given paths back to their reset values. */
   resetPaths(panelId, paths) {
@@ -980,6 +989,7 @@ var DialStoreClass = class {
             label,
             defaultOpen,
             fields: fieldsConfigOf(folderConfig._fields),
+            padGroup: padGroupConfigOf(folderConfig._pad),
             reset: resetConfigOf(folderConfig._reset, path),
             children: visit(folderConfig, path)
           };

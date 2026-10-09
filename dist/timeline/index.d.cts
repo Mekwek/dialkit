@@ -14,6 +14,16 @@ type DialPadConfig = {
         x?: string;
         y?: string;
     };
+    /**
+     * How a value maps to the square. "linear" spreads the range evenly.
+     * "centered" puts each axis's default in the middle: min to default fills
+     * one half, default to max the other. Defaults to "linear".
+     */
+    mapping?: 'linear' | 'centered';
+    /** Hides the label box left of the X and Y fields. */
+    hideLabel?: boolean;
+    /** Lets the X and Y fields drag left and right to change their value. */
+    dragFields?: boolean;
 };
 
 type SpringConfig = {

@@ -1,4 +1,18 @@
 // src/dial-pad.ts
+function padFraction(value, axis, mapping = "linear") {
+  const { min, max, default: middle } = axis;
+  if (mapping === "centered" && middle > min && middle < max) {
+    return value <= middle ? 0.5 * (value - min) / (middle - min) : 0.5 + 0.5 * (value - middle) / (max - middle);
+  }
+  return (value - min) / (max - min);
+}
+function padValueAt(fraction, axis, mapping = "linear") {
+  const { min, max, default: middle } = axis;
+  if (mapping === "centered" && middle > min && middle < max) {
+    return fraction <= 0.5 ? min + fraction * 2 * (middle - min) : middle + (fraction - 0.5) * 2 * (max - middle);
+  }
+  return min + fraction * (max - min);
+}
 var PAD_GRID_DIVISIONS = 6;
 function padGridIntersection(x, y, width, height) {
   if (width <= 0 || height <= 0) return void 0;
@@ -37,8 +51,8 @@ function padValueFromPoint(x, y, config = {}) {
   const horizontal = resolvePadAxis(config.x);
   const vertical = resolvePadAxis(config.y);
   return {
-    x: snapPadAxis(horizontal.min + x * (horizontal.max - horizontal.min), horizontal),
-    y: snapPadAxis(vertical.max - y * (vertical.max - vertical.min), vertical)
+    x: snapPadAxis(padValueAt(x, horizontal, config.mapping), horizontal),
+    y: snapPadAxis(padValueAt(1 - y, vertical, config.mapping), vertical)
   };
 }
 function padValueFromKey(value, key, shift, config = {}) {
@@ -51,7 +65,9 @@ function padValueFromKey(value, key, shift, config = {}) {
 export {
   PAD_GRID_DIVISIONS,
   normalizePadValue,
+  padFraction,
   padGridIntersection,
+  padValueAt,
   padValueFromKey,
   padValueFromPoint,
   resolvePadAxis,

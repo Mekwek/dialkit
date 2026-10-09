@@ -72,6 +72,7 @@ export type {
   SelectOption,
   RangeConfig,
   FieldsConfig,
+  PadGroupConfig,
   ColorConfig,
   ImageConfig,
   ImageOption,

@@ -18,6 +18,16 @@ type DialPadConfig = {
         x?: string;
         y?: string;
     };
+    /**
+     * How a value maps to the square. "linear" spreads the range evenly.
+     * "centered" puts each axis's default in the middle: min to default fills
+     * one half, default to max the other. Defaults to "linear".
+     */
+    mapping?: 'linear' | 'centered';
+    /** Hides the label box left of the X and Y fields. */
+    hideLabel?: boolean;
+    /** Lets the X and Y fields drag left and right to change their value. */
+    dragFields?: boolean;
 };
 
 type SpringConfig = {
@@ -114,8 +124,14 @@ type FieldsConfig = {
      *  display rounds, and a click on the number shows the exact value. */
     decimals?: number;
 };
+/**
+ * A pad group: set `_pad: true` (or these options) on a folder whose first
+ * two number children are a pair. The folder shows as one pad: X drives the
+ * first value, Y the second, and each value keeps its own path.
+ */
+type PadGroupConfig = Pick<DialPadConfig, 'labels' | 'mapping' | 'hideLabel' | 'dragFields'>;
 /** Folder keys that configure the folder instead of adding a control. */
-declare const FOLDER_META_KEYS: readonly ["_collapsed", "_fields", "_reset"];
+declare const FOLDER_META_KEYS: readonly ["_collapsed", "_fields", "_pad", "_reset"];
 type FolderMetaKey = (typeof FOLDER_META_KEYS)[number];
 /**
  * Wraps a control with a visibility rule. The control is only added to the
@@ -185,6 +201,8 @@ type ControlMeta = {
      * children are the fields, and a boolean child is a lock icon.
      */
     fields?: FieldsConfig;
+    /** Folder only: `_pad` shows the folder as one pad. See {@link PadGroupConfig}. */
+    padGroup?: PadGroupConfig;
     /**
      * Folder only: `_reset` shows a reset icon in the folder's header. The
      * icon puts every value inside back to its default. With `_reset: 'key'`
@@ -333,6 +351,8 @@ declare class DialStoreClass {
     setResetValues(panelId: string, values: Record<string, DialValue>): void;
     /** The value a reset puts at each path: setResetValues, else defaults. */
     private resetTargets;
+    /** The value a reset puts at `path`. */
+    getResetValue(panelId: string, path: string): DialValue | undefined;
     /** Put the given paths back to their reset values. */
     resetPaths(panelId: string, paths: string[]): void;
     /**
@@ -1147,4 +1167,4 @@ declare class TransitionLibraryClass {
 }
 declare const TransitionLibrary: TransitionLibraryClass;
 
-export { type ActionConfig, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type CopiedTransition, type CustomSpring, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, EASING_CURVES, type EasingConfig, type EasingCurve, EasingVisualization, FieldRow, type FieldsConfig, Folder, type FolderMode, type ImageConfig, ImageControl, type ImageOption, type PanelConfig, type Preset, PresetManager, type RangeConfig, type ResolvedValues, SPRING_PRESETS, type SelectConfig, SelectControl, type SelectOption$1 as SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, type SpringMode, type SpringPreset, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipMeta, type TimelineClipTrackMeta, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelineMeta, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, TimelineStore, type TimelineTransport, Toggle, type TransitionConfig, TransitionControl, TransitionLibrary, type UseDialOptions, type UseDialTimelineOptions, type VisibleWhen, type VisibleWhenValue, formatClock, unwrapVisibility, useDialKit, useDialKitController, useDialTimeline, withVisibility };
+export { type ActionConfig, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type CopiedTransition, type CustomSpring, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, EASING_CURVES, type EasingConfig, type EasingCurve, EasingVisualization, FieldRow, type FieldsConfig, Folder, type FolderMode, type ImageConfig, ImageControl, type ImageOption, type PadGroupConfig, type PanelConfig, type Preset, PresetManager, type RangeConfig, type ResolvedValues, SPRING_PRESETS, type SelectConfig, SelectControl, type SelectOption$1 as SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, type SpringMode, type SpringPreset, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipMeta, type TimelineClipTrackMeta, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelineMeta, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, TimelineStore, type TimelineTransport, Toggle, type TransitionConfig, TransitionControl, TransitionLibrary, type UseDialOptions, type UseDialTimelineOptions, type VisibleWhen, type VisibleWhenValue, formatClock, unwrapVisibility, useDialKit, useDialKitController, useDialTimeline, withVisibility };

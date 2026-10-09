@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { normalizePadValue, padGridIntersection, padValueFromKey, padValueFromPoint, resolvePadAxis, snapPadAxis } from './dial-pad';
+import { normalizePadValue, padFraction, padGridIntersection, padValueAt, padValueFromKey, padValueFromPoint, resolvePadAxis, snapPadAxis } from './dial-pad';
 import { DialStore, flattenDialValueUpdates, resolveDialValues, type DialConfig, type DialPadConfig, type DialPadValue, type ResolvedValues } from './store/DialStore';
 
 describe('DialPad', () => {
@@ -138,4 +138,32 @@ describe('DialPad', () => {
       else Reflect.deleteProperty(globalThis, 'window');
     }
   });
+
+  it('centers the default with the centered mapping', () => {
+    const axis = resolvePadAxis([1, 0.1, 3, 0.01]);
+    assert.equal(padFraction(1, axis, 'centered'), 0.5);
+    assert.equal(padFraction(0.1, axis, 'centered'), 0);
+    assert.equal(padFraction(3, axis, 'centered'), 1);
+    assert.ok(Math.abs(padFraction(1, axis) - 0.9 / 2.9) < 1e-9);
+    assert.equal(padValueAt(0.5, axis, 'centered'), 1);
+    assert.equal(padValueAt(0.75, axis, 'centered'), 2);
+    assert.deepEqual(padValueFromPoint(0.5, 0.5, { x: [1, 0.1, 3, 0.01], y: [1, 0.1, 3, 0.01], mapping: 'centered' }), { x: 1, y: 1 });
+  });
+
+  it('shows a _pad folder as one pad over its two number values', () => {
+    const id = 'pad-group-test';
+    try {
+      DialStore.registerPanel(id, 'Pads', { spread: { _pad: { labels: { x: 'H', y: 'V' }, dragFields: true }, h: [1, 0.1, 3, 0.01], v: [1, 0.1, 3, 0.01] } });
+      const folder = DialStore.getPanel(id)!.controls[0];
+      assert.equal(folder.type, 'folder');
+      assert.deepEqual(folder.padGroup, { labels: { x: 'H', y: 'V' }, dragFields: true });
+      assert.deepEqual(folder.children!.map((child) => child.path), ['spread.h', 'spread.v']);
+      assert.equal(DialStore.getResetValue(id, 'spread.h'), 1);
+      DialStore.updateValues(id, { 'spread.h': 2, 'spread.v': 0.5 });
+      assert.deepEqual([DialStore.getValue(id, 'spread.h'), DialStore.getValue(id, 'spread.v')], [2, 0.5]);
+    } finally {
+      DialStore.unregisterPanel(id);
+    }
+  });
 });
+
