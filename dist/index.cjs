@@ -2266,13 +2266,18 @@ function Folder({ title, children, open, defaultOpen = true, isRoot = false, inl
     setIsOpen(next);
     onOpenChange?.(next);
   };
+  const handleHeaderClick = (event) => {
+    handleToggle();
+    const focused = document.activeElement;
+    if (event.detail > 0 && focused instanceof HTMLElement && event.currentTarget.contains(focused)) focused.blur();
+  };
   const folderContent = /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
     "div",
     {
       className: `dialkit-folder ${isRoot ? "dialkit-folder-root" : ""}`,
       "data-open": String(isOpen),
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: `dialkit-folder-header ${isRoot ? "dialkit-panel-header" : ""}`, "data-reset": !isRoot && onReset ? "" : void 0, "data-actions": !isRoot && actions ? "" : void 0, onClick: handleToggle, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: `dialkit-folder-header ${isRoot ? "dialkit-panel-header" : ""}`, "data-reset": !isRoot && onReset ? "" : void 0, "data-actions": !isRoot && actions ? "" : void 0, onClick: handleHeaderClick, children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dialkit-folder-header-top", ...hintRow, role: inline && isRoot ? void 0 : "button", tabIndex: inline && isRoot ? void 0 : 0, "aria-label": title, "aria-expanded": isOpen, onKeyDown: (e) => activateOnKey(e, handleToggle), children: [
             isRoot ? isOpen && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dialkit-folder-title-row", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dialkit-folder-title dialkit-folder-title-root", children: title }) }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dialkit-folder-title-row", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dialkit-folder-title", children: title }) }),
             isRoot && !inline && /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(

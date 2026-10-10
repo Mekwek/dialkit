@@ -1,5 +1,6 @@
 import { activateOnKey } from '../control-keyboard';
-import { useState, ReactNode } from 'react';
+import { useState } from 'react';
+import type { MouseEvent, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ICON_PANEL, ICON_CHEVRON, ICON_RESET } from '../icons';
 import { useHint } from './Hint';
@@ -45,12 +46,22 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
     onOpenChange?.(next);
   };
 
+  // A mouse click takes the focus off the header. Left on it, the next key
+  // press (the hint key, D) shows the focus ring, and Enter or Space toggles
+  // the folder again. Keyboard use is unchanged: Enter and Space toggle
+  // through onKeyDown, and a click they cause has no mouse (detail 0).
+  const handleHeaderClick = (event: MouseEvent<HTMLDivElement>) => {
+    handleToggle();
+    const focused = document.activeElement;
+    if (event.detail > 0 && focused instanceof HTMLElement && event.currentTarget.contains(focused)) focused.blur();
+  };
+
   const folderContent = (
     <div
       className={`dialkit-folder ${isRoot ? 'dialkit-folder-root' : ''}`}
       data-open={String(isOpen)}
     >
-      <div className={`dialkit-folder-header ${isRoot ? 'dialkit-panel-header' : ''}`} data-reset={!isRoot && onReset ? '' : undefined} data-actions={!isRoot && actions ? '' : undefined} onClick={handleToggle}>
+      <div className={`dialkit-folder-header ${isRoot ? 'dialkit-panel-header' : ''}`} data-reset={!isRoot && onReset ? '' : undefined} data-actions={!isRoot && actions ? '' : undefined} onClick={handleHeaderClick}>
         <div className="dialkit-folder-header-top" {...hintRow} role={inline && isRoot ? undefined : "button"} tabIndex={inline && isRoot ? undefined : 0} aria-label={title} aria-expanded={isOpen} onKeyDown={(e) => activateOnKey(e, handleToggle)}>
           {isRoot ? (
             isOpen && (
