@@ -48,6 +48,8 @@ const BAR_HINTS = {
   add: 'Adds a new sequence.',
   export: 'Exports the sequence as a video.',
   toggle: "Opens or closes the timeline's tracks.",
+  ruler: 'Drag to move the playhead. Option-drag or Option-scroll to zoom. Shift-click resets the zoom.',
+  playhead: 'The current time. Drag to scrub.',
 };
 import { findControl } from '../../shortcut-utils';
 import { ControlRenderer } from '../ControlRenderer';
@@ -383,6 +385,7 @@ function TimelinePlayheadFlag({
   rulerRef: React.RefObject<HTMLDivElement>;
   onResetView: () => void;
 }) {
+  const { hintRow: playheadHintRow } = useHint(BAR_HINTS.playhead);
   const subscribe = useTransportSubscribe(id);
   const getTime = useCallback(() => TimelineStore.getTransport(id).time, [id]);
   const time = useSyncExternalStore(subscribe, getTime, getTime);
@@ -469,6 +472,7 @@ function TimelinePlayheadFlag({
         '--dial-timeline-playhead-flag-offset': `${flagOffset}px`,
       } as CSSProperties}
       onPointerDown={handlePointerDown}
+      {...playheadHintRow}
       role="slider"
       aria-label="Timeline current time"
       aria-valuemin={0}
@@ -999,6 +1003,7 @@ const TimelineSection = memo(function TimelineSection({
   const { hintRow: addHintRow } = useHint(BAR_HINTS.add);
   const { hintRow: exportHintRow } = useHint(BAR_HINTS.export);
   const { hintRow: toggleHintRow } = useHint(BAR_HINTS.toggle);
+  const { hintRow: rulerHintRow } = useHint(BAR_HINTS.ruler);
 
   const closePopover = useCallback(() => setPopover(null), []);
 
@@ -1585,6 +1590,7 @@ const TimelineSection = memo(function TimelineSection({
                 onPointerUp={handleRulerPointerUp}
                 onPointerCancel={handleRulerPointerCancel}
                 onLostPointerCapture={handleRulerPointerCancel}
+                {...rulerHintRow}
                 title="Drag to seek · Option-drag or Option-scroll to zoom · Shift-click to reset zoom"
               >
                 {fineTicks.map((t) => (
@@ -1998,6 +2004,7 @@ function TimelineClip({
   /** Present in single-track mode — gestures route to the section. */
   single?: SingleTrackClipProps;
 }) {
+  const { hintRow: clipHintRow } = useHint(clip.hint);
   const dragRef = useRef<DragState | null>(null);
   const [dragging, setDragging] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -2284,8 +2291,14 @@ function TimelineClip({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
         onLostPointerCapture={handlePointerCancel}
-        onPointerEnter={single ? () => setHovered(true) : undefined}
-        onPointerLeave={single ? () => setHovered(false) : undefined}
+        onPointerEnter={(event) => {
+          if (single) setHovered(true);
+          clipHintRow.onPointerEnter?.(event);
+        }}
+        onPointerLeave={() => {
+          if (single) setHovered(false);
+          clipHintRow.onPointerLeave?.();
+        }}
         title={barTitle}
       >
         {single ? (

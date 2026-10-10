@@ -31,6 +31,8 @@ export type TimelineClipMeta = {
   laneLabel?: string;
   /** Single track: fixed in/out parts (seconds); resizing edits only idle. */
   segments?: { in: number; out: number };
+  /** The bar's hint, shown while the hint key is held over it. */
+  hint?: string;
 };
 
 export type TimelineMeta = {

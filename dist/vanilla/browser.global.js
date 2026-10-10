@@ -5430,7 +5430,8 @@ Apply these values as the new defaults in the ${hookName} call.`;
         ...nonNegativeFinite(clip.tail) > 0 ? { tail: nonNegativeFinite(clip.tail) } : {},
         ...lane ? { lane } : {},
         ...lane && laneLabel ? { laneLabel } : {},
-        ...segments ? { segments } : {}
+        ...segments ? { segments } : {},
+        ...nonEmptyString(raw.hint) ? { hint: nonEmptyString(raw.hint) } : {}
       });
     });
     return { duration, dialConfig, clips };

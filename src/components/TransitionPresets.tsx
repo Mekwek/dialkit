@@ -6,6 +6,7 @@ import type { SpringConfig } from '../store/DialStore';
 import { springParams, springProgress, springSettleDuration } from '../transition-math';
 import { EASING_CURVES, SPRING_PRESETS, curveNameFor, customSpringNameFor, springPresetConfig, springPresetNameFor, type EasingCurve, type SpringMode } from '../transition-presets';
 import { SegmentedControl } from './SegmentedControl';
+import { HintZone, useHint } from './Hint';
 
 const getCurves = () => TransitionLibrary.getCustomCurves();
 const getSprings = () => TransitionLibrary.getCustomSprings();
@@ -171,15 +172,12 @@ interface PresetItem {
   remove?: () => void;
 }
 
-function PresetList({ items, active, label }: { items: PresetItem[]; active: string | undefined; label: string }) {
+function PresetList({ items, active, label, noun }: { items: PresetItem[]; active: string | undefined; label: string; noun: string }) {
   return (
     <div className="dialkit-presets" role="listbox" aria-label={label}>
       {items.map((item) => (
         <div key={item.name} className="dialkit-preset" data-active={item.name === active || undefined}>
-          <button type="button" role="option" aria-selected={item.name === active} className="dialkit-preset-pick" onClick={item.pick}>
-            <span className="dialkit-preset-name">{item.name}</span>
-            {item.picture}
-          </button>
+          <PresetPick item={item} active={item.name === active} noun={noun} />
           {item.remove && (
             <button type="button" className="dialkit-preset-remove" aria-label={`Delete ${item.name}`} title="Delete" onClick={item.remove}>
               <svg viewBox="0 0 12 12" aria-hidden="true">
@@ -190,6 +188,17 @@ function PresetList({ items, active, label }: { items: PresetItem[]; active: str
         </div>
       ))}
     </div>
+  );
+}
+
+/** One preset's button. Its hint names what a click does. */
+function PresetPick({ item, active, noun }: { item: PresetItem; active: boolean; noun: string }) {
+  const { hintRow } = useHint(`Uses this ${noun}.`);
+  return (
+    <button type="button" role="option" aria-selected={active} className="dialkit-preset-pick" onClick={item.pick} {...hintRow}>
+      <span className="dialkit-preset-name">{item.name}</span>
+      {item.picture}
+    </button>
   );
 }
 
@@ -209,22 +218,24 @@ function TabbedPicker({ noun, defaults, custom, defaultName, customName, onSave 
   const [tab, setTab] = useState<'defaults' | 'custom'>(() => (!defaultName && customName ? 'custom' : 'defaults'));
   return (
     <div className="dialkit-curve-picker">
-      <SegmentedControl
-        fill
-        ariaLabel={`${noun[0].toUpperCase()}${noun.slice(1)} presets`}
-        options={[
-          { value: 'defaults' as const, label: 'Defaults' },
-          { value: 'custom' as const, label: 'Custom' },
-        ]}
-        value={tab}
-        onChange={setTab}
-      />
+      <HintZone hint={`Defaults: the ready-made ${noun}s. Custom: the ${noun}s you saved.`}>
+        <SegmentedControl
+          fill
+          ariaLabel={`${noun[0].toUpperCase()}${noun.slice(1)} presets`}
+          options={[
+            { value: 'defaults' as const, label: 'Defaults' },
+            { value: 'custom' as const, label: 'Custom' },
+          ]}
+          value={tab}
+          onChange={setTab}
+        />
+      </HintZone>
       {tab === 'defaults' ? (
-        <PresetList label={`Default ${noun}s`} items={defaults} active={defaultName} />
+        <PresetList label={`Default ${noun}s`} items={defaults} active={defaultName} noun={noun} />
       ) : (
         <>
           {custom.length > 0 ? (
-            <PresetList label={`Custom ${noun}s`} items={custom} active={customName} />
+            <PresetList label={`Custom ${noun}s`} items={custom} active={customName} noun={noun} />
           ) : (
             <p className="dialkit-preset-empty">No custom {noun}s yet. Shape a {noun}, then save it.</p>
           )}

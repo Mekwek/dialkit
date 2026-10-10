@@ -4224,19 +4224,23 @@ function SpringThumb({ spring }) {
   const points = samples.map((y, i) => `${pad + i / 24 * (THUMB_W - pad * 2)} ${THUMB_H - pad - y / high * (THUMB_H - pad * 2)}`);
   return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("svg", { className: "dialkit-preset-thumb", viewBox: `0 0 ${THUMB_W} ${THUMB_H}`, "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("path", { d: `M ${points.join(" L ")}` }) });
 }
-function PresetList({ items, active, label }) {
+function PresetList({ items, active, label, noun }) {
   return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dialkit-presets", role: "listbox", "aria-label": label, children: items.map((item) => /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dialkit-preset", "data-active": item.name === active || void 0, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("button", { type: "button", role: "option", "aria-selected": item.name === active, className: "dialkit-preset-pick", onClick: item.pick, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { className: "dialkit-preset-name", children: item.name }),
-      item.picture
-    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(PresetPick, { item, active: item.name === active, noun }),
     item.remove && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { type: "button", className: "dialkit-preset-remove", "aria-label": `Delete ${item.name}`, title: "Delete", onClick: item.remove, children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("svg", { viewBox: "0 0 12 12", "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("path", { d: "M3 3l6 6M9 3l-6 6" }) }) })
   ] }, item.name)) });
+}
+function PresetPick({ item, active, noun }) {
+  const { hintRow } = useHint(`Uses this ${noun}.`);
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("button", { type: "button", role: "option", "aria-selected": active, className: "dialkit-preset-pick", onClick: item.pick, ...hintRow, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { className: "dialkit-preset-name", children: item.name }),
+    item.picture
+  ] });
 }
 function TabbedPicker({ noun, defaults, custom, defaultName, customName, onSave }) {
   const [tab, setTab] = (0, import_react15.useState)(() => !defaultName && customName ? "custom" : "defaults");
   return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dialkit-curve-picker", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(HintZone, { hint: `Defaults: the ready-made ${noun}s. Custom: the ${noun}s you saved.`, children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
       SegmentedControl,
       {
         fill: true,
@@ -4248,9 +4252,9 @@ function TabbedPicker({ noun, defaults, custom, defaultName, customName, onSave 
         value: tab,
         onChange: setTab
       }
-    ),
-    tab === "defaults" ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(PresetList, { label: `Default ${noun}s`, items: defaults, active: defaultName }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
-      custom.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(PresetList, { label: `Custom ${noun}s`, items: custom, active: customName }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("p", { className: "dialkit-preset-empty", children: [
+    ) }),
+    tab === "defaults" ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(PresetList, { label: `Default ${noun}s`, items: defaults, active: defaultName, noun }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
+      custom.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(PresetList, { label: `Custom ${noun}s`, items: custom, active: customName, noun }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("p", { className: "dialkit-preset-empty", children: [
         "No custom ",
         noun,
         "s yet. Shape a ",
@@ -7637,7 +7641,8 @@ function parseTimelineConfig(config) {
       ...nonNegativeFinite(clip.tail) > 0 ? { tail: nonNegativeFinite(clip.tail) } : {},
       ...lane ? { lane } : {},
       ...lane && laneLabel ? { laneLabel } : {},
-      ...segments ? { segments } : {}
+      ...segments ? { segments } : {},
+      ...nonEmptyString(raw.hint) ? { hint: nonEmptyString(raw.hint) } : {}
     });
   });
   return { duration, dialConfig, clips };
@@ -8406,7 +8411,9 @@ var BAR_HINTS = {
   loop: "Loops the sequence endlessly.",
   add: "Adds a new sequence.",
   export: "Exports the sequence as a video.",
-  toggle: "Opens or closes the timeline's tracks."
+  toggle: "Opens or closes the timeline's tracks.",
+  ruler: "Drag to move the playhead. Option-drag or Option-scroll to zoom. Shift-click resets the zoom.",
+  playhead: "The current time. Drag to scrub."
 };
 var DRAG_THRESHOLD_PX = 3;
 var SINGLE_LIFT_PX = 12;
@@ -8677,6 +8684,7 @@ function TimelinePlayheadFlag({
   rulerRef,
   onResetView
 }) {
+  const { hintRow: playheadHintRow } = useHint(BAR_HINTS.playhead);
   const subscribe = useTransportSubscribe(id);
   const getTime = (0, import_react35.useCallback)(() => TimelineStore.getTransport(id).time, [id]);
   const time = (0, import_react35.useSyncExternalStore)(subscribe, getTime, getTime);
@@ -8751,6 +8759,7 @@ function TimelinePlayheadFlag({
         "--dial-timeline-playhead-flag-offset": `${flagOffset}px`
       },
       onPointerDown: handlePointerDown,
+      ...playheadHintRow,
       role: "slider",
       "aria-label": "Timeline current time",
       "aria-valuemin": 0,
@@ -9148,6 +9157,7 @@ var TimelineSection = (0, import_react35.memo)(function TimelineSection2({
   const { hintRow: addHintRow } = useHint(BAR_HINTS.add);
   const { hintRow: exportHintRow } = useHint(BAR_HINTS.export);
   const { hintRow: toggleHintRow } = useHint(BAR_HINTS.toggle);
+  const { hintRow: rulerHintRow } = useHint(BAR_HINTS.ruler);
   const closePopover = (0, import_react35.useCallback)(() => setPopover(null), []);
   const openClipPopover = (0, import_react35.useCallback)(
     (clip, rect, stepKey) => {
@@ -9679,6 +9689,7 @@ var TimelineSection = (0, import_react35.memo)(function TimelineSection2({
                       onPointerUp: handleRulerPointerUp,
                       onPointerCancel: handleRulerPointerCancel,
                       onLostPointerCapture: handleRulerPointerCancel,
+                      ...rulerHintRow,
                       title: "Drag to seek \xB7 Option-drag or Option-scroll to zoom \xB7 Shift-click to reset zoom",
                       children: [
                         fineTicks.map((t) => /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { className: "dialkit-timeline-tick dialkit-timeline-tick-fine", style: { left: (t - safeViewStart) * pxPerSecond } }, `fine:${t}`)),
@@ -9952,6 +9963,7 @@ function TimelineClip({
   onDrag,
   single
 }) {
+  const { hintRow: clipHintRow } = useHint(clip.hint);
   const dragRef = (0, import_react35.useRef)(null);
   const [dragging, setDragging] = (0, import_react35.useState)(false);
   const [hovered, setHovered] = (0, import_react35.useState)(false);
@@ -10211,8 +10223,14 @@ function TimelineClip({
         onPointerUp: handlePointerUp,
         onPointerCancel: handlePointerCancel,
         onLostPointerCapture: handlePointerCancel,
-        onPointerEnter: single ? () => setHovered(true) : void 0,
-        onPointerLeave: single ? () => setHovered(false) : void 0,
+        onPointerEnter: (event) => {
+          if (single) setHovered(true);
+          clipHintRow.onPointerEnter?.(event);
+        },
+        onPointerLeave: () => {
+          if (single) setHovered(false);
+          clipHintRow.onPointerLeave?.();
+        },
         title: barTitle,
         children: single ? /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)(import_jsx_runtime26.Fragment, { children: [
           /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(ClipFill, { id: timelineId, at, duration }),

@@ -543,6 +543,8 @@ type TimelineClipBase = {
      * its control. `duration` replaces the curve's own Duration hint.
      */
     hints?: Record<string, string>;
+    /** The clip bar's own hint, shown while the hint key (H) is held over it. */
+    hint?: string;
 };
 /** The fixed in/out parts of a segmented clip, in seconds. */
 type TimelineClipSegments = {
