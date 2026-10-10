@@ -109,6 +109,18 @@ export type FieldsConfig = {
  */
 export type PadGroupConfig = Pick<DialPadConfig, 'labels' | 'mapping' | 'hideLabel' | 'dragFields'>;
 
+/**
+ * An anchor grid: set `_anchor: true` on a folder whose first two select
+ * children are a horizontal and a vertical choice. The folder keeps its
+ * header, and the two selects show as one grid: the first select's options
+ * are the columns, the second's are the rows. Each value keeps its own path.
+ */
+export type AnchorGridConfig = Record<string, never>;
+
+function anchorConfigOf(value: unknown): AnchorGridConfig | undefined {
+  return value === true || (typeof value === 'object' && value !== null && !Array.isArray(value)) ? {} : undefined;
+}
+
 function padGroupConfigOf(value: unknown): PadGroupConfig | undefined {
   if (value === true) return {};
   if (typeof value === 'object' && value !== null && !Array.isArray(value)) return value as PadGroupConfig;
@@ -132,7 +144,7 @@ function resetConfigOf(value: unknown, folderPath: string): true | string | unde
 }
 
 /** Folder keys that configure the folder instead of adding a control. */
-const FOLDER_META_KEYS = ['_collapsed', '_fields', '_pad', '_reset'] as const;
+const FOLDER_META_KEYS = ['_anchor', '_collapsed', '_fields', '_pad', '_reset'] as const;
 type FolderMetaKey = (typeof FOLDER_META_KEYS)[number];
 
 export function isFolderMetaKey(key: string): boolean {
@@ -263,6 +275,8 @@ export type ControlMeta = {
   fields?: FieldsConfig;
   /** Folder only: `_pad` shows the folder as one pad. See {@link PadGroupConfig}. */
   padGroup?: PadGroupConfig;
+  /** Folder only: `_anchor` shows the folder's two selects as one grid. See {@link AnchorGridConfig}. */
+  anchor?: AnchorGridConfig;
   /**
    * Folder only: `_reset` shows a reset icon in the folder's header. The
    * icon puts every value inside back to its default. With `_reset: 'key'`
@@ -1497,6 +1511,7 @@ class DialStoreClass {
             defaultOpen,
             fields: fieldsConfigOf(folderConfig._fields),
             padGroup: padGroupConfigOf(folderConfig._pad),
+            anchor: anchorConfigOf(folderConfig._anchor),
             reset: resetConfigOf(folderConfig._reset, path),
             children: visit(folderConfig, path),
           };

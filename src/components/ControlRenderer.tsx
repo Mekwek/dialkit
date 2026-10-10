@@ -16,6 +16,7 @@ import { ColorControl } from './ColorControl';
 import { ImageControl } from './ImageControl';
 import { DialPad } from './DialPad';
 import { PadGroup } from './PadGroup';
+import { AnchorGrid } from './AnchorGrid';
 import type { DialPadValue } from '../dial-pad';
 
 interface ControlRendererProps {
@@ -145,11 +146,29 @@ export function ControlRenderer({
               }
             : {};
         // A section reset that runs an action hides that action's row.
-        const rows = control.children?.filter((child) => child.path !== control.reset) ?? [];
+        let rows = control.children?.filter((child) => child.path !== control.reset) ?? [];
+        // An anchor grid draws the folder's first two selects as one grid.
+        const anchorSelects = control.anchor ? rows.filter((child) => child.type === 'select').slice(0, 2) : [];
+        const anchorGrid =
+          anchorSelects.length === 2 ? (
+            <AnchorGrid key={`${control.path}.__anchor`} panelId={panelId} label={control.label} columns={anchorSelects[0]} rows={anchorSelects[1]} values={values} />
+          ) : null;
+        if (anchorGrid) rows = rows.filter((child) => !anchorSelects.includes(child));
         // A section whose only row is a transition shows one header: the
         // section's. The transition draws no header of its own.
         const only = rows.length === 1 && rows[0].type === 'transition' ? rows[0] : undefined;
         const children = rows.map((child) => renderControl(child, depth + 1, child === only));
+        if (anchorGrid) {
+          children.unshift(
+            animateControls ? (
+              <motion.div key={`${control.path}.__anchor`} className="dialkit-control-wrap" {...CONTROL_ANIM}>
+                {anchorGrid}
+              </motion.div>
+            ) : (
+              anchorGrid
+            )
+          );
+        }
         const resetProps = control.reset
           ? {
               onReset: () => DialStore.resetSection(panelId, control.path),

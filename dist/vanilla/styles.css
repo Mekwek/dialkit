@@ -25,6 +25,9 @@
   --dial-preset-thumb-width: 24px; /* The curve picture in a preset row */
   --dial-preset-list-height: 240px; /* The tallest a preset list grows before it scrolls */
   --dial-field-padding: 8px; /* Space inside each field, left and right */
+  --dial-anchor-row-height: 26px; /* Height of one row of an anchor grid */
+  --dial-anchor-dot-size: 5px; /* Diameter of an anchor grid dot */
+  --dial-anchor-padding: 4px; /* Space between an anchor grid's box and its cells */
   --dial-nested-line-style: dashed; /* Dividers of folders inside folders, so the depth reads at a glance */
   /* The timeline pan bar's thumb — quieter than text so it reads as a
      position marker, not a control demanding attention. */
@@ -1526,6 +1529,18 @@
 .dialkit-pad[data-no-label] .dialkit-pad-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 /* The axis letter drags its value, as in the X / Y / Z fields. */
 .dialkit-pad[data-drag-fields] .dialkit-pad-axis { cursor: ew-resize; touch-action: none; user-select: none; -webkit-user-select: none; }
+/* Anchor grid: two selects as one grid of dots. The picked cell holds a
+   pill that slides to the next pick; a hover brightens its dot. */
+.dialkit-anchor { position: relative; display: grid; grid-template-columns: repeat(var(--dial-anchor-columns), minmax(0, 1fr)); grid-template-rows: repeat(var(--dial-anchor-rows), var(--dial-anchor-row-height)); padding: var(--dial-anchor-padding); border-radius: var(--dial-radius); background: var(--dial-surface); }
+.dialkit-anchor-pill { position: absolute; top: var(--dial-anchor-padding); left: var(--dial-anchor-padding); width: calc((100% - 2 * var(--dial-anchor-padding)) / var(--dial-anchor-columns)); height: var(--dial-anchor-row-height); pointer-events: none; }
+.dialkit-anchor-pill::before { content: ''; position: absolute; inset: 2px 4px; border-radius: max(2px, calc(var(--dial-radius) - var(--dial-anchor-padding))); background: var(--dial-surface-active); }
+.dialkit-anchor-pill-hover::before { background: var(--dial-surface-hover); }
+.dialkit-anchor-cell { position: relative; z-index: 1; display: grid; place-items: center; min-width: 0; padding: 0; border: 0; background: none; cursor: pointer; outline: none; }
+.dialkit-anchor-dot { width: var(--dial-anchor-dot-size); height: var(--dial-anchor-dot-size); border-radius: 50%; background: var(--dial-text-tertiary); transition: background 0.08s ease-out, box-shadow 0.08s ease-out; }
+.dialkit-anchor-cell:hover .dialkit-anchor-dot { background: var(--dial-text-secondary); }
+.dialkit-anchor-cell[aria-checked="true"] .dialkit-anchor-dot { background: var(--dial-text-primary); }
+.dialkit-anchor-cell:focus-visible .dialkit-anchor-dot { box-shadow: 0 0 0 3px var(--dial-focus-ring); }
+@media (prefers-reduced-motion: reduce) { .dialkit-anchor-dot { transition: none; } }
 .dialkit-pad-instructions { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 @media (prefers-reduced-motion: reduce) { .dialkit-pad-point { transition: none; } }
 

@@ -126,8 +126,15 @@ type FieldsConfig = {
  * first value, Y the second, and each value keeps its own path.
  */
 type PadGroupConfig = Pick<DialPadConfig, 'labels' | 'mapping' | 'hideLabel' | 'dragFields'>;
+/**
+ * An anchor grid: set `_anchor: true` on a folder whose first two select
+ * children are a horizontal and a vertical choice. The folder keeps its
+ * header, and the two selects show as one grid: the first select's options
+ * are the columns, the second's are the rows. Each value keeps its own path.
+ */
+type AnchorGridConfig = Record<string, never>;
 /** Folder keys that configure the folder instead of adding a control. */
-declare const FOLDER_META_KEYS: readonly ["_collapsed", "_fields", "_pad", "_reset"];
+declare const FOLDER_META_KEYS: readonly ["_anchor", "_collapsed", "_fields", "_pad", "_reset"];
 type FolderMetaKey = (typeof FOLDER_META_KEYS)[number];
 declare function isFolderMetaKey(key: string): boolean;
 /**
@@ -200,6 +207,8 @@ type ControlMeta = {
     fields?: FieldsConfig;
     /** Folder only: `_pad` shows the folder as one pad. See {@link PadGroupConfig}. */
     padGroup?: PadGroupConfig;
+    /** Folder only: `_anchor` shows the folder's two selects as one grid. See {@link AnchorGridConfig}. */
+    anchor?: AnchorGridConfig;
     /**
      * Folder only: `_reset` shows a reset icon in the folder's header. The
      * icon puts every value inside back to its default. With `_reset: 'key'`
@@ -445,4 +454,4 @@ declare class DialStoreClass {
 }
 declare const DialStore: DialStoreClass;
 
-export { type ActionConfig, type ColorConfig, type ControlMeta, type ControlWithVisibility, type DialConfig, type DialKitPersistOptions, type DialKitValueUpdates, type DialPadAxis, type DialPadConfig, type DialPadValue, DialStore, type DialStorePanelOptions, type DialValue, type EasingConfig, type FieldsConfig, type ImageConfig, type ImageOption, type PadGroupConfig, type PanelConfig, type Preset, type RangeConfig, type ResolvedValues, type SelectConfig, type SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, type SpringConfig, type TextConfig, type TransitionConfig, type VisibleWhen, type VisibleWhenValue, flattenDialValueUpdates, formatLabel, inferStep, isEasingConfigValue, isFolderMetaKey, isHexColor, isLeafConfigValue, isSpringConfigValue, resolveDialValues, unwrapVisibility, withVisibility };
+export { type ActionConfig, type AnchorGridConfig, type ColorConfig, type ControlMeta, type ControlWithVisibility, type DialConfig, type DialKitPersistOptions, type DialKitValueUpdates, type DialPadAxis, type DialPadConfig, type DialPadValue, DialStore, type DialStorePanelOptions, type DialValue, type EasingConfig, type FieldsConfig, type ImageConfig, type ImageOption, type PadGroupConfig, type PanelConfig, type Preset, type RangeConfig, type ResolvedValues, type SelectConfig, type SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, type SpringConfig, type TextConfig, type TransitionConfig, type VisibleWhen, type VisibleWhenValue, flattenDialValueUpdates, formatLabel, inferStep, isEasingConfigValue, isFolderMetaKey, isHexColor, isLeafConfigValue, isSpringConfigValue, resolveDialValues, unwrapVisibility, withVisibility };

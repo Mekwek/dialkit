@@ -94,6 +94,13 @@ type FieldsConfig = {
  * first value, Y the second, and each value keeps its own path.
  */
 type PadGroupConfig = Pick<DialPadConfig, 'labels' | 'mapping' | 'hideLabel' | 'dragFields'>;
+/**
+ * An anchor grid: set `_anchor: true` on a folder whose first two select
+ * children are a horizontal and a vertical choice. The folder keeps its
+ * header, and the two selects show as one grid: the first select's options
+ * are the columns, the second's are the rows. Each value keeps its own path.
+ */
+type AnchorGridConfig = Record<string, never>;
 type ShortcutMode = 'fine' | 'normal' | 'coarse';
 type ShortcutInteraction = 'scroll' | 'drag' | 'move' | 'scroll-only';
 type ShortcutConfig = {
@@ -119,6 +126,8 @@ type ControlMeta = {
     fields?: FieldsConfig;
     /** Folder only: `_pad` shows the folder as one pad. See {@link PadGroupConfig}. */
     padGroup?: PadGroupConfig;
+    /** Folder only: `_anchor` shows the folder's two selects as one grid. See {@link AnchorGridConfig}. */
+    anchor?: AnchorGridConfig;
     /**
      * Folder only: `_reset` shows a reset icon in the folder's header. The
      * icon puts every value inside back to its default. With `_reset: 'key'`

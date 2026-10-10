@@ -130,8 +130,15 @@ type FieldsConfig = {
  * first value, Y the second, and each value keeps its own path.
  */
 type PadGroupConfig = Pick<DialPadConfig, 'labels' | 'mapping' | 'hideLabel' | 'dragFields'>;
+/**
+ * An anchor grid: set `_anchor: true` on a folder whose first two select
+ * children are a horizontal and a vertical choice. The folder keeps its
+ * header, and the two selects show as one grid: the first select's options
+ * are the columns, the second's are the rows. Each value keeps its own path.
+ */
+type AnchorGridConfig = Record<string, never>;
 /** Folder keys that configure the folder instead of adding a control. */
-declare const FOLDER_META_KEYS: readonly ["_collapsed", "_fields", "_pad", "_reset"];
+declare const FOLDER_META_KEYS: readonly ["_anchor", "_collapsed", "_fields", "_pad", "_reset"];
 type FolderMetaKey = (typeof FOLDER_META_KEYS)[number];
 /**
  * Wraps a control with a visibility rule. The control is only added to the
@@ -203,6 +210,8 @@ type ControlMeta = {
     fields?: FieldsConfig;
     /** Folder only: `_pad` shows the folder as one pad. See {@link PadGroupConfig}. */
     padGroup?: PadGroupConfig;
+    /** Folder only: `_anchor` shows the folder's two selects as one grid. See {@link AnchorGridConfig}. */
+    anchor?: AnchorGridConfig;
     /**
      * Folder only: `_reset` shows a reset icon in the folder's header. The
      * icon puts every value inside back to its default. With `_reset: 'key'`
@@ -1065,6 +1074,23 @@ type DialPadProps = Omit<DialPadConfig, 'type'> & {
 
 declare function DialPad(props: DialPadProps): react_jsx_runtime.JSX.Element;
 
+interface AnchorGridProps {
+    panelId: string;
+    label: string;
+    /** The select whose options are the columns, left to right. */
+    columns: ControlMeta;
+    /** The select whose options are the rows, top to bottom. */
+    rows: ControlMeta;
+    values: Record<string, DialValue>;
+}
+/**
+ * Two selects as one grid of dots: one dot per pair of options. A click on a
+ * dot sets both selects. The picked cell holds a pill that slides to the
+ * next pick, and a hover shows a faint pill and a brighter dot. Arrow keys
+ * move the pick.
+ */
+declare function AnchorGrid({ panelId, label, columns, rows, values }: AnchorGridProps): react_jsx_runtime.JSX.Element;
+
 interface PresetManagerProps {
     panelId: string;
     presets: Preset[];
@@ -1167,4 +1193,4 @@ declare class TransitionLibraryClass {
 }
 declare const TransitionLibrary: TransitionLibraryClass;
 
-export { type ActionConfig, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type CopiedTransition, type CustomSpring, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, EASING_CURVES, type EasingConfig, type EasingCurve, EasingVisualization, FieldRow, type FieldsConfig, Folder, type FolderMode, type ImageConfig, ImageControl, type ImageOption, type PadGroupConfig, type PanelConfig, type Preset, PresetManager, type RangeConfig, type ResolvedValues, SPRING_PRESETS, type SelectConfig, SelectControl, type SelectOption$1 as SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, type SpringMode, type SpringPreset, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipMeta, type TimelineClipTrackMeta, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelineMeta, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, TimelineStore, type TimelineTransport, Toggle, type TransitionConfig, TransitionControl, TransitionLibrary, type UseDialOptions, type UseDialTimelineOptions, type VisibleWhen, type VisibleWhenValue, formatClock, unwrapVisibility, useDialKit, useDialKitController, useDialTimeline, withVisibility };
+export { type ActionConfig, AnchorGrid, type AnchorGridConfig, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type CopiedTransition, type CustomSpring, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, EASING_CURVES, type EasingConfig, type EasingCurve, EasingVisualization, FieldRow, type FieldsConfig, Folder, type FolderMode, type ImageConfig, ImageControl, type ImageOption, type PadGroupConfig, type PanelConfig, type Preset, PresetManager, type RangeConfig, type ResolvedValues, SPRING_PRESETS, type SelectConfig, SelectControl, type SelectOption$1 as SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, type SpringMode, type SpringPreset, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipMeta, type TimelineClipTrackMeta, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelineMeta, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, TimelineStore, type TimelineTransport, Toggle, type TransitionConfig, TransitionControl, TransitionLibrary, type UseDialOptions, type UseDialTimelineOptions, type VisibleWhen, type VisibleWhenValue, formatClock, unwrapVisibility, useDialKit, useDialKitController, useDialTimeline, withVisibility };

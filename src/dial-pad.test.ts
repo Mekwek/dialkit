@@ -165,5 +165,25 @@ describe('DialPad', () => {
       DialStore.unregisterPanel(id);
     }
   });
+
+  it('keeps an _anchor folder with its two selects and their own paths', () => {
+    const id = 'anchor-test';
+    try {
+      DialStore.registerPanel(id, 'Anchor', {
+        alignment: {
+          _anchor: true,
+          horizontal: { type: 'select', options: [{ value: '-1', label: 'Left' }, { value: '0', label: 'Center' }, { value: '1', label: 'Right' }], default: '0' },
+          vertical: { type: 'select', options: [{ value: '1', label: 'Top' }, { value: '0', label: 'Center' }, { value: '-1', label: 'Bottom' }], default: '0' },
+        },
+      });
+      const folder = DialStore.getPanel(id)!.controls[0];
+      assert.deepEqual(folder.anchor, {});
+      assert.deepEqual(folder.children!.map((child) => `${child.type} ${child.path}`), ['select alignment.horizontal', 'select alignment.vertical']);
+      DialStore.updateValues(id, { 'alignment.horizontal': '1', 'alignment.vertical': '-1' });
+      assert.deepEqual([DialStore.getValue(id, 'alignment.horizontal'), DialStore.getValue(id, 'alignment.vertical')], ['1', '-1']);
+    } finally {
+      DialStore.unregisterPanel(id);
+    }
+  });
 });
 

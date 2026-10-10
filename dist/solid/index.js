@@ -259,6 +259,9 @@ function padValueFromKey(value, key, shift, config = {}) {
 }
 
 // src/store/DialStore.ts
+function anchorConfigOf(value) {
+  return value === true || typeof value === "object" && value !== null && !Array.isArray(value) ? {} : void 0;
+}
 function padGroupConfigOf(value) {
   if (value === true) return {};
   if (typeof value === "object" && value !== null && !Array.isArray(value)) return value;
@@ -274,7 +277,7 @@ function resetConfigOf(value, folderPath) {
   if (typeof value === "string" && value) return `${folderPath}.${value}`;
   return void 0;
 }
-var FOLDER_META_KEYS = ["_collapsed", "_fields", "_pad", "_reset"];
+var FOLDER_META_KEYS = ["_anchor", "_collapsed", "_fields", "_pad", "_reset"];
 function isFolderMetaKey(key) {
   return FOLDER_META_KEYS.includes(key);
 }
@@ -1134,6 +1137,7 @@ var DialStoreClass = class {
             defaultOpen,
             fields: fieldsConfigOf(folderConfig._fields),
             padGroup: padGroupConfigOf(folderConfig._pad),
+            anchor: anchorConfigOf(folderConfig._anchor),
             reset: resetConfigOf(folderConfig._reset, path),
             children: visit(folderConfig, path)
           };
