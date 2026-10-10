@@ -170,6 +170,8 @@ interface PresetItem {
   picture: React.ReactNode;
   pick: () => void;
   remove?: () => void;
+  /** How the preset moves. A saved one has none: its shape is the user's. */
+  hint?: string;
 }
 
 function PresetList({ items, active, label, noun }: { items: PresetItem[]; active: string | undefined; label: string; noun: string }) {
@@ -191,9 +193,10 @@ function PresetList({ items, active, label, noun }: { items: PresetItem[]; activ
   );
 }
 
-/** One preset's button. Its hint names what a click does. */
+/** One preset's button. Its hint says how the preset moves, or, for a
+ *  saved one, what a click does. */
 function PresetPick({ item, active, noun }: { item: PresetItem; active: boolean; noun: string }) {
-  const { hintRow } = useHint(`Uses this ${noun}.`);
+  const { hintRow } = useHint(item.hint ?? `Uses this ${noun}.`);
   return (
     <button type="button" role="option" aria-selected={active} className="dialkit-preset-pick" onClick={item.pick} {...hintRow}>
       <span className="dialkit-preset-name">{item.name}</span>
@@ -256,6 +259,7 @@ export function CurvePicker({ ease, onPick }: { ease: BezierPoints; onPick: (eas
     picture: <CurveThumb ease={curve.ease} />,
     pick: () => onPick(curve.ease),
     remove: removable ? () => TransitionLibrary.removeCustomCurve(curve.name) : undefined,
+    hint: removable ? undefined : curve.hint,
   });
   return (
     <TabbedPicker
@@ -279,7 +283,7 @@ export function SpringPresetPicker({ spring, mode, onPick }: { spring: SpringCon
       noun="spring"
       defaults={SPRING_PRESETS.map((preset) => {
         const config = springPresetConfig(preset, mode);
-        return { name: preset.name, picture: <SpringThumb spring={config} />, pick: () => onPick(config) };
+        return { name: preset.name, picture: <SpringThumb spring={config} />, pick: () => onPick(config), hint: preset.hint };
       })}
       custom={saved.map((item) => ({
         name: item.name,

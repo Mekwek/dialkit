@@ -1178,6 +1178,8 @@ declare function ShortcutsMenu({ panelId }: ShortcutsMenuProps): react_jsx_runti
 interface EasingCurve {
     name: string;
     ease: BezierPoints;
+    /** How the curve moves, shown while the hint key (H) is held over it. */
+    hint?: string;
 }
 /**
  * The default curves: named curves first (Arqé's, Movo's, then easing.dev's), then the
@@ -1195,6 +1197,8 @@ interface EasingCurve {
 declare const EASING_CURVES: EasingCurve[];
 interface SpringPreset {
     name: string;
+    /** How the spring moves, shown while the hint key (H) is held over it. */
+    hint: string;
     /** Physics: React Spring's tension and friction, with mass 1. */
     physics: Required<Pick<SpringConfig, 'stiffness' | 'damping' | 'mass'>>;
     /** Time: bounce from the damping ratio, and the duration whose settle
