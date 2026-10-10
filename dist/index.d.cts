@@ -694,7 +694,7 @@ type TimelineClipBase = {
     segments?: TimelineClipSegments;
     /**
      * Hints for the clip's popover controls, by key: `duration`, `transition`,
-     * or a `from` / `to` value. Each shows while the hint key (I) is held over
+     * or a `from` / `to` value. Each shows while the hint key (H) is held over
      * its control. `duration` replaces the curve's own Duration hint.
      */
     hints?: Record<string, string>;
@@ -1245,7 +1245,7 @@ interface ShownHint {
 }
 /**
  * The hint key and the one hint on screen, shared by every control. While
- * the hint key (I) is held, the control under the pointer shows its hint.
+ * the hint key (H) is held, the control under the pointer shows its hint.
  */
 declare class HintStoreClass {
     private key;

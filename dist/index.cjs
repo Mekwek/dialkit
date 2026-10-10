@@ -1969,7 +1969,7 @@ function getDialKitPortalRoot(trigger) {
 // src/store/HintStore.ts
 var HintStoreClass = class {
   constructor() {
-    this.key = "i";
+    this.key = "h";
     this.keyHeld = false;
     this.shown = null;
     this.listeners = /* @__PURE__ */ new Set();

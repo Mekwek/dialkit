@@ -13,7 +13,7 @@ export interface HintProps {
 
 /**
  * A control's hint. Spread `hintRow` on the control's outer element: while
- * the hint key (I) is held over the row, the hint shows above it and the
+ * the hint key (H) is held over the row, the hint shows above it and the
  * rest of the panel dims.
  *
  * The row listens to the store instead of re-rendering on the key: a

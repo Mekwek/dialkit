@@ -3374,7 +3374,7 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   .dialkit-root { --dial-focus-ring: Highlight; }
 }
 
-/* A control's hint: while the hint key (I) is held, one sentence above
+/* A control's hint: while the hint key (H) is held, one sentence above
    the control's row, on its left edge. It scales in and out from 90% on
    the corner nearest its row: bottom left above the row, top left below.
    Between rows it slides, at full scale. */

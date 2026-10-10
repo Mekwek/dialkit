@@ -9,10 +9,10 @@ export interface ShownHint {
 
 /**
  * The hint key and the one hint on screen, shared by every control. While
- * the hint key (I) is held, the control under the pointer shows its hint.
+ * the hint key (H) is held, the control under the pointer shows its hint.
  */
 class HintStoreClass {
-  private key = 'i';
+  private key = 'h';
   private keyHeld = false;
   private shown: ShownHint | null = null;
   private listeners = new Set<Listener>();
