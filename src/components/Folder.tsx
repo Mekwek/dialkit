@@ -21,12 +21,19 @@ interface FolderProps {
   meta?: ReactNode;
   /** Buttons on the right of a section header, left of the arrow. */
   actions?: ReactNode;
-  /** A short sentence about the section. It shows while the hint key is held over the header. */
+  /**
+   * A short sentence about the section. It shows while the hint key is held
+   * over the header. A panel's own header, which closes the panel, has one
+   * by default.
+   */
   hint?: string;
 }
 
+/** The hint of a panel's own header: clicking it closes the panel. */
+const PANEL_HEADER_HINT = 'Closes the panel to a small button. Click the button to open it again.';
+
 export function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, onReset, changed, meta, actions, hint }: FolderProps) {
-  const { hintRow } = useHint(hint);
+  const { hintRow } = useHint(hint ?? (isRoot && !inline ? PANEL_HEADER_HINT : undefined));
   const [localOpen, setIsOpen] = useState(defaultOpen);
   const isOpen = open ?? localOpen;
   const isCollapsed = !isOpen;
@@ -124,7 +131,7 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
         {!isRoot && actions && <div className="dialkit-folder-actions">{actions}</div>}
 
         {isRoot && toolbar && isOpen && (
-          <div className="dialkit-panel-toolbar" onClick={(e) => e.stopPropagation()}>
+          <div className="dialkit-panel-toolbar" data-hint-align="" onClick={(e) => e.stopPropagation()}>
             {toolbar}
           </div>
         )}

@@ -16,33 +16,33 @@ export interface HintProps {
  * the hint key (H) is held over the row, the hint shows above it and the
  * rest of the panel dims.
  *
- * The row listens to the store instead of re-rendering on the key: a
- * re-render of every control on each press froze the page for about
- * 100 ms. While the key is held, the hint stays after the pointer leaves
- * its row, so the gap between two rows does not flicker. The next row,
- * leaving the panel (HintTooltip) or releasing the key replaces or hides it.
+ * The row only tells the store when the pointer enters and leaves it; a
+ * key press re-renders no control (a re-render of every control on each
+ * press froze the page for about 100 ms). While the key is held, the hint
+ * stays after the pointer leaves its row, so the gap between two rows does
+ * not flicker. The next row, leaving the panel (HintTooltip) or releasing
+ * the key replaces or hides it.
  */
 export function useHint(hint: string | undefined): { hintRow: HintProps } {
   const row = useRef<HTMLElement | null>(null);
-  // Refs, not state: a hover or a key press must not re-render the control.
-  const hovered = useRef(false);
-  const text = useRef(hint);
-  text.current = hint;
 
-  const showIfHeld = () => {
-    if (!text.current || !hovered.current || !row.current || !HintStore.isKeyHeld()) return;
-    HintStore.show(text.current, row.current);
-  };
-
+  // A hovered row whose text changes shows the new text; one that loses its
+  // hint stops counting as hovered.
   useEffect(() => {
-    if (!hint) return;
-    return HintStore.subscribe(showIfHeld);
+    if (!row.current) return;
+    if (hint) HintStore.retext(row.current, hint);
+    else {
+      HintStore.leave(row.current);
+      HintStore.hide(row.current);
+    }
   }, [hint]);
 
   // A control that leaves the page takes its hint with it.
   useEffect(
     () => () => {
-      if (row.current) HintStore.hide(row.current);
+      if (!row.current) return;
+      HintStore.leave(row.current);
+      HintStore.hide(row.current);
     },
     []
   );
@@ -53,11 +53,10 @@ export function useHint(hint: string | undefined): { hintRow: HintProps } {
     hintRow: {
       onPointerEnter: (event) => {
         row.current = event.currentTarget;
-        hovered.current = true;
-        showIfHeld();
+        HintStore.enter(event.currentTarget, hint);
       },
       onPointerLeave: () => {
-        hovered.current = false;
+        if (row.current) HintStore.leave(row.current);
       },
     },
   };
@@ -93,11 +92,17 @@ const tooltips: symbol[] = [];
 const radiusOf = (element: Element) => Number.parseFloat(getComputedStyle(element).borderTopLeftRadius) || 0;
 
 /**
- * The area the dim covers: the clip popover or panel a row sits in. A panel's
- * outer box is the rounded one; its root folder inside can be taller and scroll.
+ * The area the dim covers: the clip popover, panel or timeline bar a row sits
+ * in. A panel's outer box is the rounded one; its root folder inside can be
+ * taller and scroll.
  */
 function dimAreaOf(row: HTMLElement): Element | null {
-  return row.closest('.dialkit-timeline-popover') ?? row.closest('.dialkit-panel-inner') ?? row.closest('.dialkit-folder-root');
+  return (
+    row.closest('.dialkit-timeline-popover') ??
+    row.closest('.dialkit-panel-inner') ??
+    row.closest('.dialkit-folder-root') ??
+    row.closest('.dialkit-timeline-dock')
+  );
 }
 
 /** How long the tooltip and the dim take to fade out. Matches theme.css. */
@@ -116,6 +121,15 @@ export function HintTooltip() {
   const [id] = useState(() => Symbol('hint-tooltip'));
   const [owner, setOwner] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  // The point that position: fixed counts from. It is the window's corner,
+  // unless the portal root has a transform (the timeline bar keeps one after
+  // it slides in): then it is that root's corner, and every place below is
+  // shifted by it.
+  const origin = useRef<HTMLSpanElement>(null);
+  const originOf = () => {
+    const box = origin.current?.getBoundingClientRect();
+    return { x: box?.left ?? 0, y: box?.top ?? 0 };
+  };
   // `y` is the edge that faces the row: the tooltip's bottom when it sits
   // above the row, its top when below. A new hint of another height then
   // grows away from the row instead of jumping.
@@ -206,8 +220,12 @@ export function HintTooltip() {
     const width = tooltip.offsetWidth;
     const height = tooltip.offsetHeight;
     const above = target.top - GAP - height >= MARGIN;
-    const left = Math.min(Math.max(MARGIN, target.left), window.innerWidth - width - MARGIN);
-    setPlace({ left, y: above ? target.top - GAP : target.bottom + GAP, above });
+    // Buttons in one toolbar share a left edge: the toolbar's
+    // (data-hint-align), so the hint does not jump between them.
+    const edge = shown.box.closest('[data-hint-align]')?.getBoundingClientRect().left ?? target.left;
+    const left = Math.min(Math.max(MARGIN, edge), window.innerWidth - width - MARGIN);
+    const from = originOf();
+    setPlace({ left: left - from.x, y: (above ? target.top - GAP : target.bottom + GAP) - from.y, above });
   }, [shown]);
 
   useLayoutEffect(() => {
@@ -219,12 +237,13 @@ export function HintTooltip() {
       return;
     }
     const outer = area.getBoundingClientRect();
+    const from = originOf();
     const row = boxOf(shown.box);
     // A zone has no box of its own: its first child gives the corner radius.
     const box = shown.box.getBoundingClientRect();
     const rowElement = box.width || box.height ? shown.box : (shown.box.firstElementChild ?? shown.box);
     setDim({
-      area: { left: outer.left, top: outer.top, width: outer.width, height: outer.height, radius: radiusOf(area) },
+      area: { left: outer.left - from.x, top: outer.top - from.y, width: outer.width, height: outer.height, radius: radiusOf(area) },
       hole: {
         x: row.left - outer.left,
         y: row.top - outer.top,
@@ -244,6 +263,7 @@ export function HintTooltip() {
 
   return createPortal(
     <>
+      <span ref={origin} className="dialkit-hint-origin" aria-hidden="true" />
       {/* The dim is the panel's shape. Inside it, a box over the row casts
           a shadow that fills the rest: that shadow is the dim, and the box
           is the hole. The box slides to the next row (theme.css). */}

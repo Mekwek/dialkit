@@ -376,7 +376,8 @@ var DialStoreClass = class {
       kind: options.kind,
       group: options.group,
       presetsEditable: options.presetsEditable,
-      presetsLockable: options.presetsLockable
+      presetsLockable: options.presetsLockable,
+      hint: options.hint
     };
     this.panels.set(id, panel);
     this.controlsByPanel.set(panel, controlsByPath);
@@ -401,7 +402,7 @@ var DialStoreClass = class {
       return;
     }
     const { key, parsed: { controls: allControls, controlsByPath, defaultValues } } = this.parseCached(id, config, shortcuts ?? existing.shortcuts);
-    const unchanged = this.panelConfigKeys.get(id) === key && name === existing.name && (options.kind ?? existing.kind) === existing.kind && (options.group ?? existing.group) === existing.group && (options.presetsEditable ?? existing.presetsEditable) === existing.presetsEditable && (options.presetsLockable ?? existing.presetsLockable) === existing.presetsLockable;
+    const unchanged = this.panelConfigKeys.get(id) === key && name === existing.name && (options.kind ?? existing.kind) === existing.kind && (options.group ?? existing.group) === existing.group && (options.presetsEditable ?? existing.presetsEditable) === existing.presetsEditable && (options.presetsLockable ?? existing.presetsLockable) === existing.presetsLockable && (options.hint ?? existing.hint) === existing.hint;
     this.configurePanelRetention(id, options);
     if (unchanged) {
       this.persistPanel(id);
@@ -420,7 +421,8 @@ var DialStoreClass = class {
       kind: options.kind ?? existing.kind,
       group: options.group ?? existing.group,
       presetsEditable: options.presetsEditable ?? existing.presetsEditable,
-      presetsLockable: options.presetsLockable ?? existing.presetsLockable
+      presetsLockable: options.presetsLockable ?? existing.presetsLockable,
+      hint: options.hint ?? existing.hint
     };
     this.panels.set(id, nextPanel);
     this.controlsByPanel.set(nextPanel, controlsByPath);

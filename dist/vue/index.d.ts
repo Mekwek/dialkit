@@ -259,6 +259,11 @@ type PanelConfig = {
      * by default; the host opts in per panel.
      */
     presetsLockable?: boolean;
+    /**
+     * A short sentence about the panel. It shows on the panel's header while
+     * the hint key is held.
+     */
+    hint?: string;
 };
 type Listener = () => void;
 type ActionListener = (action: string) => void;
@@ -298,6 +303,11 @@ type DialStorePanelOptions = {
      * by default; the host opts in per panel.
      */
     presetsLockable?: boolean;
+    /**
+     * A short sentence about the panel. It shows on the panel's header while
+     * the hint key is held.
+     */
+    hint?: string;
 };
 declare class DialStoreClass {
     private panelOpenListeners;

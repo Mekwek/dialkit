@@ -272,6 +272,11 @@ type PanelConfig = {
      * by default; the host opts in per panel.
      */
     presetsLockable?: boolean;
+    /**
+     * A short sentence about the panel. It shows on the panel's header while
+     * the hint key is held.
+     */
+    hint?: string;
 };
 type Listener$3 = () => void;
 type ActionListener = (action: string) => void;
@@ -311,6 +316,11 @@ type DialStorePanelOptions = {
      * by default; the host opts in per panel.
      */
     presetsLockable?: boolean;
+    /**
+     * A short sentence about the panel. It shows on the panel's header while
+     * the hint key is held.
+     */
+    hint?: string;
 };
 declare class DialStoreClass {
     private panelOpenListeners;
@@ -484,6 +494,11 @@ interface UseDialOptions {
      * by default; the host opts in per panel.
      */
     presetsLockable?: boolean;
+    /**
+     * A short sentence about the panel. It shows on the panel's header while
+     * the hint key is held.
+     */
+    hint?: string;
 }
 interface DialKitController<T extends DialConfig> {
     values: ResolvedValues<T>;
@@ -972,7 +987,11 @@ interface FolderProps {
     meta?: ReactNode;
     /** Buttons on the right of a section header, left of the arrow. */
     actions?: ReactNode;
-    /** A short sentence about the section. It shows while the hint key is held over the header. */
+    /**
+     * A short sentence about the section. It shows while the hint key is held
+     * over the header. A panel's own header, which closes the panel, has one
+     * by default.
+     */
     hint?: string;
 }
 declare function Folder({ title, children, open, defaultOpen, isRoot, inline, onOpenChange, toolbar, onReset, changed, meta, actions, hint }: FolderProps): react_jsx_runtime.JSX.Element;
@@ -1142,8 +1161,10 @@ interface PresetManagerProps {
     /** Extra class for the portal'd dropdown — the portal escapes the host's DOM
      *  context, so hosts (e.g. the timeline dock) need this to scope styling. */
     dropdownClassName?: string;
+    /** What a preset is called in the hint: a version (default) or a sequence. */
+    noun?: 'version' | 'sequence';
 }
-declare function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassName }: PresetManagerProps): react_jsx_runtime.JSX.Element;
+declare function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassName, noun }: PresetManagerProps): react_jsx_runtime.JSX.Element;
 
 interface ShortcutsMenuProps {
     panelId: string;
@@ -1246,11 +1267,17 @@ interface ShownHint {
 /**
  * The hint key and the one hint on screen, shared by every control. While
  * the hint key (H) is held, the control under the pointer shows its hint.
+ *
+ * The store keeps the hovered rows itself, last entered last. A row inside
+ * another row (a button in a header) is entered after it, so the innermost
+ * one shows. One list, not a listener per row: two rows that each showed
+ * their own hint on every change replaced each other without end.
  */
 declare class HintStoreClass {
     private key;
     private keyHeld;
     private shown;
+    private hovered;
     private listeners;
     subscribe: (listener: Listener) => (() => void);
     private notify;
@@ -1260,6 +1287,15 @@ declare class HintStoreClass {
     isKeyHeld: () => boolean;
     setKeyHeld(held: boolean): void;
     getShown: () => ShownHint | null;
+    /** The pointer entered `anchor`, a row with a hint. */
+    enter(anchor: HTMLElement, text: string): void;
+    /**
+     * The pointer left `anchor`. Its hint stays while the key is held, so the
+     * gap between two rows does not flicker: the next row replaces it.
+     */
+    leave(anchor: HTMLElement): void;
+    /** A hovered row's text changed. */
+    retext(anchor: HTMLElement, text: string): void;
     /** Shows `text` above `box`, the row; `anchor` is the element that asked. */
     show(text: string, anchor: HTMLElement, box?: HTMLElement): void;
     /** Hides the hint, if `anchor` is the one it points at. */

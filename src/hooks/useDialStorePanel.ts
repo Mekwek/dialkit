@@ -24,6 +24,11 @@ export interface UseDialStorePanelOptions {
    * by default; the host opts in per panel.
    */
   presetsLockable?: boolean;
+  /**
+   * A short sentence about the panel. It shows on the panel's header while
+   * the hint key is held.
+   */
+  hint?: string;
 }
 
 // Serialize with a referential short-circuit: consumers can re-render at 60Hz
@@ -70,6 +75,7 @@ export function useDialStorePanel(
       group: optionsRef.current.group,
       presetsEditable: optionsRef.current.presetsEditable,
       presetsLockable: optionsRef.current.presetsLockable,
+      hint: optionsRef.current.hint,
     });
     return () => DialStore.unregisterPanel(panelId);
   }, [hasStableId, panelId, name]);
@@ -89,9 +95,10 @@ export function useDialStorePanel(
       group: optionsRef.current.group,
       presetsEditable: optionsRef.current.presetsEditable,
       presetsLockable: optionsRef.current.presetsLockable,
+      hint: optionsRef.current.hint,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasStableId, panelId, name, serializedConfig, serializedShortcuts, serializedPersist, options.group, options.presetsEditable, options.presetsLockable]);
+  }, [hasStableId, panelId, name, serializedConfig, serializedShortcuts, serializedPersist, options.group, options.presetsEditable, options.presetsLockable, options.hint]);
 
   const subscribe = useCallback(
     (callback: () => void) => DialStore.subscribe(panelId, callback),

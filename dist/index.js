@@ -491,7 +491,8 @@ var DialStoreClass = class {
       kind: options.kind,
       group: options.group,
       presetsEditable: options.presetsEditable,
-      presetsLockable: options.presetsLockable
+      presetsLockable: options.presetsLockable,
+      hint: options.hint
     };
     this.panels.set(id, panel);
     this.controlsByPanel.set(panel, controlsByPath);
@@ -516,7 +517,7 @@ var DialStoreClass = class {
       return;
     }
     const { key, parsed: { controls: allControls, controlsByPath, defaultValues } } = this.parseCached(id, config, shortcuts ?? existing.shortcuts);
-    const unchanged = this.panelConfigKeys.get(id) === key && name === existing.name && (options.kind ?? existing.kind) === existing.kind && (options.group ?? existing.group) === existing.group && (options.presetsEditable ?? existing.presetsEditable) === existing.presetsEditable && (options.presetsLockable ?? existing.presetsLockable) === existing.presetsLockable;
+    const unchanged = this.panelConfigKeys.get(id) === key && name === existing.name && (options.kind ?? existing.kind) === existing.kind && (options.group ?? existing.group) === existing.group && (options.presetsEditable ?? existing.presetsEditable) === existing.presetsEditable && (options.presetsLockable ?? existing.presetsLockable) === existing.presetsLockable && (options.hint ?? existing.hint) === existing.hint;
     this.configurePanelRetention(id, options);
     if (unchanged) {
       this.persistPanel(id);
@@ -535,7 +536,8 @@ var DialStoreClass = class {
       kind: options.kind ?? existing.kind,
       group: options.group ?? existing.group,
       presetsEditable: options.presetsEditable ?? existing.presetsEditable,
-      presetsLockable: options.presetsLockable ?? existing.presetsLockable
+      presetsLockable: options.presetsLockable ?? existing.presetsLockable,
+      hint: options.hint ?? existing.hint
     };
     this.panels.set(id, nextPanel);
     this.controlsByPanel.set(nextPanel, controlsByPath);
@@ -1334,7 +1336,8 @@ function useDialStorePanel(name, config, options = {}) {
       kind: optionsRef.current.kind,
       group: optionsRef.current.group,
       presetsEditable: optionsRef.current.presetsEditable,
-      presetsLockable: optionsRef.current.presetsLockable
+      presetsLockable: optionsRef.current.presetsLockable,
+      hint: optionsRef.current.hint
     });
     return () => DialStore.unregisterPanel(panelId);
   }, [hasStableId, panelId, name]);
@@ -1351,9 +1354,10 @@ function useDialStorePanel(name, config, options = {}) {
       kind: optionsRef.current.kind,
       group: optionsRef.current.group,
       presetsEditable: optionsRef.current.presetsEditable,
-      presetsLockable: optionsRef.current.presetsLockable
+      presetsLockable: optionsRef.current.presetsLockable,
+      hint: optionsRef.current.hint
     });
-  }, [hasStableId, panelId, name, serializedConfig, serializedShortcuts, serializedPersist, options.group, options.presetsEditable, options.presetsLockable]);
+  }, [hasStableId, panelId, name, serializedConfig, serializedShortcuts, serializedPersist, options.group, options.presetsEditable, options.presetsLockable, options.hint]);
   const subscribe = useCallback(
     (callback) => DialStore.subscribe(panelId, callback),
     [panelId]
@@ -1375,7 +1379,8 @@ function useDialKitController(name, config, options) {
     shortcuts: options?.shortcuts,
     group: options?.group,
     presetsEditable: options?.presetsEditable,
-    presetsLockable: options?.presetsLockable
+    presetsLockable: options?.presetsLockable,
+    hint: options?.hint
   });
   const configRef = useRef2(config);
   configRef.current = config;
@@ -1915,6 +1920,7 @@ var HintStoreClass = class {
     this.key = "h";
     this.keyHeld = false;
     this.shown = null;
+    this.hovered = [];
     this.listeners = /* @__PURE__ */ new Set();
     this.subscribe = (listener) => {
       this.listeners.add(listener);
@@ -1937,8 +1943,30 @@ var HintStoreClass = class {
   setKeyHeld(held) {
     if (held === this.keyHeld) return;
     this.keyHeld = held;
+    const top = this.hovered[this.hovered.length - 1];
     if (!held) this.shown = null;
+    else if (top) this.shown = { text: top.text, anchor: top.anchor, box: top.anchor };
     this.notify();
+  }
+  /** The pointer entered `anchor`, a row with a hint. */
+  enter(anchor, text) {
+    this.hovered = this.hovered.filter((row) => row.anchor !== anchor);
+    this.hovered.push({ anchor, text });
+    if (this.keyHeld) this.show(text, anchor);
+  }
+  /**
+   * The pointer left `anchor`. Its hint stays while the key is held, so the
+   * gap between two rows does not flicker: the next row replaces it.
+   */
+  leave(anchor) {
+    this.hovered = this.hovered.filter((row) => row.anchor !== anchor);
+  }
+  /** A hovered row's text changed. */
+  retext(anchor, text) {
+    const row = this.hovered.find((entry) => entry.anchor === anchor);
+    if (!row) return;
+    row.text = text;
+    if (this.shown?.anchor === anchor) this.show(text, anchor);
   }
   /** Shows `text` above `box`, the row; `anchor` is the element that asked. */
   show(text, anchor, box = anchor) {
@@ -1959,20 +1987,19 @@ var HintStore = new HintStoreClass();
 import { Fragment, jsx, jsxs } from "react/jsx-runtime";
 function useHint(hint) {
   const row = useRef3(null);
-  const hovered = useRef3(false);
-  const text = useRef3(hint);
-  text.current = hint;
-  const showIfHeld = () => {
-    if (!text.current || !hovered.current || !row.current || !HintStore.isKeyHeld()) return;
-    HintStore.show(text.current, row.current);
-  };
   useEffect3(() => {
-    if (!hint) return;
-    return HintStore.subscribe(showIfHeld);
+    if (!row.current) return;
+    if (hint) HintStore.retext(row.current, hint);
+    else {
+      HintStore.leave(row.current);
+      HintStore.hide(row.current);
+    }
   }, [hint]);
   useEffect3(
     () => () => {
-      if (row.current) HintStore.hide(row.current);
+      if (!row.current) return;
+      HintStore.leave(row.current);
+      HintStore.hide(row.current);
     },
     []
   );
@@ -1981,11 +2008,10 @@ function useHint(hint) {
     hintRow: {
       onPointerEnter: (event) => {
         row.current = event.currentTarget;
-        hovered.current = true;
-        showIfHeld();
+        HintStore.enter(event.currentTarget, hint);
       },
       onPointerLeave: () => {
-        hovered.current = false;
+        if (row.current) HintStore.leave(row.current);
       }
     }
   };
@@ -2004,7 +2030,7 @@ var isEditable = (target) => target instanceof HTMLElement && (target.isContentE
 var tooltips = [];
 var radiusOf = (element4) => Number.parseFloat(getComputedStyle(element4).borderTopLeftRadius) || 0;
 function dimAreaOf(row) {
-  return row.closest(".dialkit-timeline-popover") ?? row.closest(".dialkit-panel-inner") ?? row.closest(".dialkit-folder-root");
+  return row.closest(".dialkit-timeline-popover") ?? row.closest(".dialkit-panel-inner") ?? row.closest(".dialkit-folder-root") ?? row.closest(".dialkit-timeline-dock");
 }
 var FADE_OUT_MS = 120;
 var GAP = 6;
@@ -2014,6 +2040,11 @@ function HintTooltip() {
   const [id] = useState(() => /* @__PURE__ */ Symbol("hint-tooltip"));
   const [owner, setOwner] = useState(false);
   const ref = useRef3(null);
+  const origin = useRef3(null);
+  const originOf = () => {
+    const box = origin.current?.getBoundingClientRect();
+    return { x: box?.left ?? 0, y: box?.top ?? 0 };
+  };
   const [place, setPlace] = useState(null);
   const [slide, setSlide] = useState(false);
   const [dim, setDim] = useState(null);
@@ -2083,8 +2114,10 @@ function HintTooltip() {
     const width = tooltip.offsetWidth;
     const height = tooltip.offsetHeight;
     const above = target.top - GAP - height >= MARGIN;
-    const left = Math.min(Math.max(MARGIN, target.left), window.innerWidth - width - MARGIN);
-    setPlace({ left, y: above ? target.top - GAP : target.bottom + GAP, above });
+    const edge = shown.box.closest("[data-hint-align]")?.getBoundingClientRect().left ?? target.left;
+    const left = Math.min(Math.max(MARGIN, edge), window.innerWidth - width - MARGIN);
+    const from = originOf();
+    setPlace({ left: left - from.x, y: (above ? target.top - GAP : target.bottom + GAP) - from.y, above });
   }, [shown]);
   useLayoutEffect(() => {
     if (!shown) return;
@@ -2094,11 +2127,12 @@ function HintTooltip() {
       return;
     }
     const outer = area.getBoundingClientRect();
+    const from = originOf();
     const row = boxOf(shown.box);
     const box = shown.box.getBoundingClientRect();
     const rowElement = box.width || box.height ? shown.box : shown.box.firstElementChild ?? shown.box;
     setDim({
-      area: { left: outer.left, top: outer.top, width: outer.width, height: outer.height, radius: radiusOf(area) },
+      area: { left: outer.left - from.x, top: outer.top - from.y, width: outer.width, height: outer.height, radius: radiusOf(area) },
       hole: {
         x: row.left - outer.left,
         y: row.top - outer.top,
@@ -2116,6 +2150,7 @@ function HintTooltip() {
   const fading = !shown || void 0;
   return createPortal(
     /* @__PURE__ */ jsxs(Fragment, { children: [
+      /* @__PURE__ */ jsx("span", { ref: origin, className: "dialkit-hint-origin", "aria-hidden": "true" }),
       dim && /* @__PURE__ */ jsx(
         "div",
         {
@@ -2162,8 +2197,9 @@ function HintTooltip() {
 
 // src/components/Folder.tsx
 import { jsx as jsx2, jsxs as jsxs2 } from "react/jsx-runtime";
+var PANEL_HEADER_HINT = "Closes the panel to a small button. Click the button to open it again.";
 function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, onReset, changed, meta, actions, hint }) {
-  const { hintRow } = useHint(hint);
+  const { hintRow } = useHint(hint ?? (isRoot && !inline ? PANEL_HEADER_HINT : void 0));
   const [localOpen, setIsOpen] = useState2(defaultOpen);
   const isOpen = open ?? localOpen;
   const isCollapsed = !isOpen;
@@ -2232,7 +2268,7 @@ function Folder({ title, children, open, defaultOpen = true, isRoot = false, inl
             )
           ] }) }),
           !isRoot && actions && /* @__PURE__ */ jsx2("div", { className: "dialkit-folder-actions", children: actions }),
-          isRoot && toolbar && isOpen && /* @__PURE__ */ jsx2("div", { className: "dialkit-panel-toolbar", onClick: (e) => e.stopPropagation(), children: toolbar })
+          isRoot && toolbar && isOpen && /* @__PURE__ */ jsx2("div", { className: "dialkit-panel-toolbar", "data-hint-align": "", onClick: (e) => e.stopPropagation(), children: toolbar })
         ] }),
         /* @__PURE__ */ jsx2(AnimatePresence, { initial: false, children: isOpen && /* @__PURE__ */ jsx2(
           motion.div,
@@ -6380,9 +6416,13 @@ import { useState as useState12, useRef as useRef18, useEffect as useEffect14, u
 import { createPortal as createPortal3 } from "react-dom";
 import { motion as motion7, AnimatePresence as AnimatePresence5 } from "motion/react";
 import { Fragment as Fragment6, jsx as jsx22, jsxs as jsxs15 } from "react/jsx-runtime";
+function pickerHint(noun, editable, lockable) {
+  const actions = lockable ? "Rename, lock or delete" : editable ? "Rename or delete" : "Delete";
+  return `Switches to another ${noun}. ${actions} a ${noun} from the list.`;
+}
 var DRAG_LIFT_PX = 4;
 var PRESET_DROPDOWN_MAX_WIDTH = 280;
-function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassName }) {
+function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassName, noun = "version" }) {
   const [isOpen, setIsOpen] = useState12(false);
   const triggerRef = useRef18(null);
   const dropdownRef = useRef18(null);
@@ -6396,6 +6436,7 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassN
   const suppressClickRef = useRef18(false);
   const editable = DialStore.isPresetsEditable(panelId);
   const lockable = editable && DialStore.isPresetsLockable(panelId);
+  const { hintRow } = useHint(pickerHint(noun, editable, lockable));
   const hasPresets = presets.length > 0;
   const activePreset = presets.find((p) => p.id === activePresetId);
   const open = useCallback9(() => {
@@ -6507,7 +6548,7 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassN
     setDraggingId(null);
     setCueTop(null);
   };
-  return /* @__PURE__ */ jsxs15("div", { className: "dialkit-preset-manager", children: [
+  return /* @__PURE__ */ jsxs15("div", { className: "dialkit-preset-manager", ...hintRow, children: [
     /* @__PURE__ */ jsxs15(
       "button",
       {
@@ -6687,8 +6728,10 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassN
 
 // src/components/Panel.tsx
 import { Fragment as Fragment7, jsx as jsx23, jsxs as jsxs16 } from "react/jsx-runtime";
+var ADD_VERSION_HINT = "Saves the current settings as a new version.";
 function Panel({ panel, defaultOpen = true, inline = false, folderMode = "independent", onOpenChange, variant = "root", toolbarExtra }) {
   const [copied, setCopied] = useState13(false);
+  const { hintRow: addHintRow } = useHint(ADD_VERSION_HINT);
   const copyTimeout = useRef19();
   useEffect15(() => () => clearTimeout(copyTimeout.current), []);
   const subscribe = useCallback10(
@@ -6761,6 +6804,7 @@ function Panel({ panel, defaultOpen = true, inline = false, folderMode = "indepe
         className: "dialkit-toolbar-add",
         onClick: handleAddPreset,
         title: "Add preset",
+        ...addHintRow,
         whileTap: { scale: 0.9 },
         transition: { type: "spring", visualDuration: 0.15, bounce: 0.3 },
         children: /* @__PURE__ */ jsx23("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round", children: ICON_ADD_PRESET.map((d, i) => /* @__PURE__ */ jsx23("path", { d }, i)) })
@@ -6823,12 +6867,12 @@ function Panel({ panel, defaultOpen = true, inline = false, folderMode = "indepe
     toolbarExtra
   ] });
   if (variant === "section") {
-    return /* @__PURE__ */ jsx23("div", { className: "dialkit-panel-section", "data-panel-name": panel.name, children: /* @__PURE__ */ jsxs16(Folder, { title: panel.name, open: isOpen, onOpenChange: handleOpenChange, children: [
-      /* @__PURE__ */ jsx23("div", { className: "dialkit-panel-section-toolbar", onClick: (e) => e.stopPropagation(), children: toolbar }),
+    return /* @__PURE__ */ jsx23("div", { className: "dialkit-panel-section", "data-panel-name": panel.name, children: /* @__PURE__ */ jsxs16(Folder, { title: panel.name, open: isOpen, onOpenChange: handleOpenChange, hint: panel.hint, children: [
+      /* @__PURE__ */ jsx23("div", { className: "dialkit-panel-section-toolbar", "data-hint-align": "", onClick: (e) => e.stopPropagation(), children: toolbar }),
       renderControls()
     ] }) });
   }
-  return /* @__PURE__ */ jsx23("div", { className: "dialkit-panel-wrapper", children: /* @__PURE__ */ jsx23(Folder, { title: panel.name, open: isOpen, isRoot: true, inline, onOpenChange: handleOpenChange, toolbar, children: renderControls() }) });
+  return /* @__PURE__ */ jsx23("div", { className: "dialkit-panel-wrapper", children: /* @__PURE__ */ jsx23(Folder, { title: panel.name, open: isOpen, isRoot: true, inline, onOpenChange: handleOpenChange, toolbar, hint: panel.hint, children: renderControls() }) });
 }
 
 // src/components/Timeline/TimelineToggleButton.tsx
@@ -8299,6 +8343,14 @@ import { memo, useCallback as useCallback14, useEffect as useEffect18, useLayout
 import { createPortal as createPortal5 } from "react-dom";
 import { AnimatePresence as AnimatePresence7, motion as motion10 } from "motion/react";
 import { Fragment as Fragment8, jsx as jsx26, jsxs as jsxs18 } from "react/jsx-runtime";
+var BAR_HINTS = {
+  play: "Plays or pauses the sequence.",
+  replay: "Plays the sequence again from the start.",
+  loop: "Loops the sequence endlessly.",
+  add: "Adds a new sequence.",
+  export: "Exports the sequence as a video.",
+  toggle: "Opens or closes the timeline's tracks."
+};
 var DRAG_THRESHOLD_PX = 3;
 var SINGLE_LIFT_PX = 12;
 var SINGLE_TAIL_TUCK_PX = 8;
@@ -8481,10 +8533,12 @@ function PlayPauseButton({ id }) {
   const subscribe = useTransportSubscribe(id);
   const getPlaying = useCallback14(() => TimelineStore.getTransport(id).playing, [id]);
   const playing = useSyncExternalStore10(subscribe, getPlaying, getPlaying);
+  const { hintRow } = useHint(BAR_HINTS.play);
   return /* @__PURE__ */ jsx26(
     motion10.button,
     {
       className: "dialkit-toolbar-add",
+      ...hintRow,
       onClick: () => playing ? TimelineStore.pause(id) : TimelineStore.play(id),
       title: playing ? "Pause" : "Play",
       "aria-label": playing ? "Pause" : "Play",
@@ -8523,10 +8577,12 @@ function PlayPauseButton({ id }) {
   );
 }
 function ReplayButton({ onReplay }) {
+  const { hintRow } = useHint(BAR_HINTS.replay);
   return /* @__PURE__ */ jsx26(
     motion10.button,
     {
       className: "dialkit-toolbar-add",
+      ...hintRow,
       onClick: onReplay,
       title: "Replay",
       "aria-label": "Replay",
@@ -8537,10 +8593,12 @@ function ReplayButton({ onReplay }) {
   );
 }
 function LoopButton({ id, loop }) {
+  const { hintRow } = useHint(BAR_HINTS.loop);
   return /* @__PURE__ */ jsx26(
     motion10.button,
     {
       className: "dialkit-toolbar-add dialkit-timeline-toolbar-toggle",
+      ...hintRow,
       onClick: () => TimelineStore.setLoop(id, !loop),
       title: loop ? "Loop on" : "Loop off",
       "aria-label": "Toggle loop",
@@ -9030,6 +9088,9 @@ var TimelineSection = memo(function TimelineSection2({
   const handleAddPreset = useCallback14(() => {
     DialStore.savePreset(meta.id, `Sequence ${presets.length + 2}`);
   }, [meta.id, presets.length]);
+  const { hintRow: addHintRow } = useHint(BAR_HINTS.add);
+  const { hintRow: exportHintRow } = useHint(BAR_HINTS.export);
+  const { hintRow: toggleHintRow } = useHint(BAR_HINTS.toggle);
   const closePopover = useCallback14(() => setPopover(null), []);
   const openClipPopover = useCallback14(
     (clip, rect, stepKey) => {
@@ -9436,6 +9497,7 @@ var TimelineSection = memo(function TimelineSection2({
               {
                 className: "dialkit-toolbar-add",
                 onClick: handleAddPreset,
+                ...addHintRow,
                 title: "Add timeline version",
                 "aria-label": "Add timeline version",
                 whileTap: { scale: 0.9 },
@@ -9450,7 +9512,8 @@ var TimelineSection = memo(function TimelineSection2({
                 presets,
                 activePresetId,
                 onAdd: handleAddPreset,
-                dropdownClassName: "dialkit-timeline-preset-dropdown"
+                dropdownClassName: "dialkit-timeline-preset-dropdown",
+                noun: "sequence"
               }
             ),
             /* @__PURE__ */ jsx26(
@@ -9506,6 +9569,7 @@ var TimelineSection = memo(function TimelineSection2({
               {
                 className: "dialkit-toolbar-add dialkit-timeline-export",
                 onClick: onExport,
+                ...exportHintRow,
                 title: "Export video",
                 "aria-label": "Export video",
                 whileTap: { scale: 0.9 },
@@ -9527,6 +9591,7 @@ var TimelineSection = memo(function TimelineSection2({
                 "data-open": open,
                 "aria-expanded": open,
                 onClick: () => setOpen(!open),
+                ...toggleHintRow,
                 title: open ? "Collapse timeline" : "Expand timeline",
                 children: /* @__PURE__ */ jsx26("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round", children: /* @__PURE__ */ jsx26("path", { d: ICON_CHEVRON }) })
               }

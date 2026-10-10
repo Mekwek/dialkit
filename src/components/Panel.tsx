@@ -7,6 +7,10 @@ import { ICON_CLIPBOARD, ICON_CHECK, ICON_ADD_PRESET } from '../icons';
 import { ControlRenderer } from './ControlRenderer';
 import { Folder } from './Folder';
 import { PresetManager } from './PresetManager';
+import { useHint } from './Hint';
+
+/** The hint of the button that saves a version. */
+const ADD_VERSION_HINT = 'Saves the current settings as a new version.';
 
 interface PanelProps {
   panel: PanelConfig;
@@ -33,6 +37,7 @@ interface PanelProps {
 
 export function Panel({ panel, defaultOpen = true, inline = false, folderMode = 'independent', onOpenChange, variant = 'root', toolbarExtra }: PanelProps) {
   const [copied, setCopied] = useState(false);
+  const { hintRow: addHintRow } = useHint(ADD_VERSION_HINT);
   const copyTimeout = useRef<ReturnType<typeof setTimeout>>();
   useEffect(() => () => clearTimeout(copyTimeout.current), []);
   const subscribe = useCallback(
@@ -131,6 +136,7 @@ export function Panel({ panel, defaultOpen = true, inline = false, folderMode = 
         className="dialkit-toolbar-add"
         onClick={handleAddPreset}
         title="Add preset"
+        {...addHintRow}
         whileTap={{ scale: 0.9 }}
         transition={{ type: 'spring', visualDuration: 0.15, bounce: 0.3 }}
       >
@@ -204,8 +210,8 @@ export function Panel({ panel, defaultOpen = true, inline = false, folderMode = 
   if (variant === 'section') {
     return (
       <div className="dialkit-panel-section" data-panel-name={panel.name}>
-        <Folder title={panel.name} open={isOpen} onOpenChange={handleOpenChange}>
-          <div className="dialkit-panel-section-toolbar" onClick={(e) => e.stopPropagation()}>
+        <Folder title={panel.name} open={isOpen} onOpenChange={handleOpenChange} hint={panel.hint}>
+          <div className="dialkit-panel-section-toolbar" data-hint-align="" onClick={(e) => e.stopPropagation()}>
             {toolbar}
           </div>
           {renderControls()}
@@ -216,7 +222,7 @@ export function Panel({ panel, defaultOpen = true, inline = false, folderMode = 
 
   return (
     <div className="dialkit-panel-wrapper">
-      <Folder title={panel.name} open={isOpen} isRoot={true} inline={inline} onOpenChange={handleOpenChange} toolbar={toolbar}>
+      <Folder title={panel.name} open={isOpen} isRoot={true} inline={inline} onOpenChange={handleOpenChange} toolbar={toolbar} hint={panel.hint}>
         {renderControls()}
       </Folder>
     </div>

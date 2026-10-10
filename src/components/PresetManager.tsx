@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { DialStore, Preset } from '../store/DialStore';
 import { ICON_CHEVRON, ICON_PENCIL, ICON_TRASH, ICON_LOCK, ICON_LOCK_OPEN } from '../icons';
+import { useHint } from './Hint';
 
 interface PresetManagerProps {
   panelId: string;
@@ -15,6 +16,14 @@ interface PresetManagerProps {
   /** Extra class for the portal'd dropdown — the portal escapes the host's DOM
    *  context, so hosts (e.g. the timeline dock) need this to scope styling. */
   dropdownClassName?: string;
+  /** What a preset is called in the hint: a version (default) or a sequence. */
+  noun?: 'version' | 'sequence';
+}
+
+/** The picker's hint names only the actions its list offers. */
+function pickerHint(noun: string, editable: boolean, lockable: boolean): string {
+  const actions = lockable ? 'Rename, lock or delete' : editable ? 'Rename or delete' : 'Delete';
+  return `Switches to another ${noun}. ${actions} a ${noun} from the list.`;
 }
 
 type RowDrag = { id: string; startY: number; lifted: boolean; slot: number | null };
@@ -25,7 +34,7 @@ const DRAG_LIFT_PX = 4;
 // Widest a preset dropdown gets before names truncate.
 const PRESET_DROPDOWN_MAX_WIDTH = 280;
 
-export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassName }: PresetManagerProps) {
+export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassName, noun = 'version' }: PresetManagerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -44,6 +53,7 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdow
 
   const editable = DialStore.isPresetsEditable(panelId);
   const lockable = editable && DialStore.isPresetsLockable(panelId);
+  const { hintRow } = useHint(pickerHint(noun, editable, lockable));
 
   const hasPresets = presets.length > 0;
   const activePreset = presets.find((p) => p.id === activePresetId);
@@ -188,7 +198,7 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdow
   };
 
   return (
-    <div className="dialkit-preset-manager">
+    <div className="dialkit-preset-manager" {...hintRow}>
       <button
         ref={triggerRef}
         className="dialkit-preset-trigger"

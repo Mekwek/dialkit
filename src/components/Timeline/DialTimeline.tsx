@@ -38,6 +38,17 @@ import { clamp, round2 } from '../../transition-math';
 import { buildCopyInstruction } from '../../copy-instruction';
 import { isDevDefault } from '../../env';
 import { ICON_ADD_PRESET, ICON_CHEVRON, ICON_CHECK, ICON_CLIPBOARD, ICON_LOOP, ICON_PAUSE, ICON_PLAY, ICON_REPLAY } from '../../icons';
+import { useHint } from '../Hint';
+
+/** The hints of the timeline bar's buttons, shown while the hint key is held. */
+const BAR_HINTS = {
+  play: 'Plays or pauses the sequence.',
+  replay: 'Plays the sequence again from the start.',
+  loop: 'Loops the sequence endlessly.',
+  add: 'Adds a new sequence.',
+  export: 'Exports the sequence as a video.',
+  toggle: "Opens or closes the timeline's tracks.",
+};
 import { findControl } from '../../shortcut-utils';
 import { ControlRenderer } from '../ControlRenderer';
 import { PresetManager } from '../PresetManager';
@@ -264,10 +275,12 @@ function PlayPauseButton({ id }: { id: string }) {
   // Boolean snapshot: re-renders only when play state flips
   const getPlaying = useCallback(() => TimelineStore.getTransport(id).playing, [id]);
   const playing = useSyncExternalStore(subscribe, getPlaying, getPlaying);
+  const { hintRow } = useHint(BAR_HINTS.play);
 
   return (
     <motion.button
       className="dialkit-toolbar-add"
+      {...hintRow}
       onClick={() => (playing ? TimelineStore.pause(id) : TimelineStore.play(id))}
       title={playing ? 'Pause' : 'Play'}
       aria-label={playing ? 'Pause' : 'Play'}
@@ -312,9 +325,11 @@ function PlayPauseButton({ id }: { id: string }) {
 }
 
 function ReplayButton({ onReplay }: { onReplay: () => void }) {
+  const { hintRow } = useHint(BAR_HINTS.replay);
   return (
     <motion.button
       className="dialkit-toolbar-add"
+      {...hintRow}
       onClick={onReplay}
       title="Replay"
       aria-label="Replay"
@@ -329,9 +344,11 @@ function ReplayButton({ onReplay }: { onReplay: () => void }) {
 }
 
 function LoopButton({ id, loop }: { id: string; loop: boolean }) {
+  const { hintRow } = useHint(BAR_HINTS.loop);
   return (
     <motion.button
       className="dialkit-toolbar-add dialkit-timeline-toolbar-toggle"
+      {...hintRow}
       onClick={() => TimelineStore.setLoop(id, !loop)}
       title={loop ? 'Loop on' : 'Loop off'}
       aria-label="Toggle loop"
@@ -979,6 +996,10 @@ const TimelineSection = memo(function TimelineSection({
     DialStore.savePreset(meta.id, `Sequence ${presets.length + 2}`);
   }, [meta.id, presets.length]);
 
+  const { hintRow: addHintRow } = useHint(BAR_HINTS.add);
+  const { hintRow: exportHintRow } = useHint(BAR_HINTS.export);
+  const { hintRow: toggleHintRow } = useHint(BAR_HINTS.toggle);
+
   const closePopover = useCallback(() => setPopover(null), []);
 
   const openClipPopover = useCallback(
@@ -1444,6 +1465,7 @@ const TimelineSection = memo(function TimelineSection({
           <motion.button
             className="dialkit-toolbar-add"
             onClick={handleAddPreset}
+            {...addHintRow}
             title="Add timeline version"
             aria-label="Add timeline version"
             whileTap={{ scale: 0.9 }}
@@ -1459,6 +1481,7 @@ const TimelineSection = memo(function TimelineSection({
             activePresetId={activePresetId}
             onAdd={handleAddPreset}
             dropdownClassName="dialkit-timeline-preset-dropdown"
+            noun="sequence"
           />
           <motion.button
             className="dialkit-toolbar-add"
@@ -1512,6 +1535,7 @@ const TimelineSection = memo(function TimelineSection({
             <motion.button
               className="dialkit-toolbar-add dialkit-timeline-export"
               onClick={onExport}
+              {...exportHintRow}
               title="Export video"
               aria-label="Export video"
               whileTap={{ scale: 0.9 }}
@@ -1530,6 +1554,7 @@ const TimelineSection = memo(function TimelineSection({
             data-open={open}
             aria-expanded={open}
             onClick={() => setOpen(!open)}
+            {...toggleHintRow}
             title={open ? 'Collapse timeline' : 'Expand timeline'}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

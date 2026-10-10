@@ -269,6 +269,11 @@ type PanelConfig = {
      * by default; the host opts in per panel.
      */
     presetsLockable?: boolean;
+    /**
+     * A short sentence about the panel. It shows on the panel's header while
+     * the hint key is held.
+     */
+    hint?: string;
 };
 type Listener = () => void;
 type ActionListener = (action: string) => void;
@@ -308,6 +313,11 @@ type DialStorePanelOptions = {
      * by default; the host opts in per panel.
      */
     presetsLockable?: boolean;
+    /**
+     * A short sentence about the panel. It shows on the panel's header while
+     * the hint key is held.
+     */
+    hint?: string;
 };
 declare function resolveDialValues<T extends DialConfig>(config: T, flatValues: Record<string, DialValue>): ResolvedValues<T>;
 declare function flattenDialValueUpdates<T extends DialConfig>(config: T, updates: DialKitValueUpdates<T>): Record<string, DialValue>;

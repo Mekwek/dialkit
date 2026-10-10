@@ -3395,5 +3395,15 @@
    does), so this rule must win. */
 .dialkit-hint, .dialkit-hint-dim { pointer-events: none !important; }
 /* A hint zone adds no box: its children lay out as before. */
+/* A point at the corner that position: fixed counts from (see Hint.tsx). */
+.dialkit-hint-origin {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
 .dialkit-hint-zone { display: contents; }
 @media (prefers-reduced-motion: reduce) { .dialkit-hint, .dialkit-hint-dim, .dialkit-hint-dim-hole { animation: none; transition: none; } }

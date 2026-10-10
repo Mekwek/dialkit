@@ -346,6 +346,11 @@ export type PanelConfig = {
    * by default; the host opts in per panel.
    */
   presetsLockable?: boolean;
+  /**
+   * A short sentence about the panel. It shows on the panel's header while
+   * the hint key is held.
+   */
+  hint?: string;
 };
 
 type Listener = () => void;
@@ -389,6 +394,11 @@ export type DialStorePanelOptions = {
    * by default; the host opts in per panel.
    */
   presetsLockable?: boolean;
+  /**
+   * A short sentence about the panel. It shows on the panel's header while
+   * the hint key is held.
+   */
+  hint?: string;
 };
 
 type PersistConfig = {
@@ -686,6 +696,7 @@ class DialStoreClass {
       group: options.group,
       presetsEditable: options.presetsEditable,
       presetsLockable: options.presetsLockable,
+      hint: options.hint,
     };
     this.panels.set(id, panel);
     this.controlsByPanel.set(panel, controlsByPath);
@@ -720,7 +731,8 @@ class DialStoreClass {
       (options.kind ?? existing.kind) === existing.kind &&
       (options.group ?? existing.group) === existing.group &&
       (options.presetsEditable ?? existing.presetsEditable) === existing.presetsEditable &&
-      (options.presetsLockable ?? existing.presetsLockable) === existing.presetsLockable;
+      (options.presetsLockable ?? existing.presetsLockable) === existing.presetsLockable &&
+      (options.hint ?? existing.hint) === existing.hint;
     this.configurePanelRetention(id, options);
     if (unchanged) {
       // Same config, same identity: nothing the panel renders can differ, so
@@ -746,6 +758,7 @@ class DialStoreClass {
       group: options.group ?? existing.group,
       presetsEditable: options.presetsEditable ?? existing.presetsEditable,
       presetsLockable: options.presetsLockable ?? existing.presetsLockable,
+      hint: options.hint ?? existing.hint,
     };
     this.panels.set(id, nextPanel);
     this.controlsByPanel.set(nextPanel, controlsByPath);
