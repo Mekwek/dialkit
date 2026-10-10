@@ -3,6 +3,7 @@ import { SpringConfig, EasingConfig, TransitionConfig, DialStore } from '../stor
 import { springParams, springSettleDuration } from '../transition-math';
 import { Folder } from './Folder';
 import { TransitionCopyMenu } from './TransitionCopy';
+import { HintZone } from './Hint';
 import { Slider } from './Slider';
 import { SegmentedControl } from './SegmentedControl';
 import { SpringVisualization } from './SpringVisualization';
@@ -48,9 +49,25 @@ interface TransitionControlProps {
    * control is this one uses its header instead.
    */
   bare?: boolean;
+  /** A short sentence about the transition. See Folder.hint. */
+  hint?: string;
 }
 
 type CurveMode = 'easing' | 'simple' | 'advanced';
+
+/** The hints of the transition's own parts. */
+const HINTS = {
+  type: 'Easing: a curve over a set duration. Time: a spring set by its duration and bounce. Physics: a spring set by its stiffness, damping and mass.',
+  fields: 'The two handles of the curve: the start point (X, Y) and the end point (X, Y). Drag a field or click it to type.',
+  intensity: 'How strong the curve is. 50 is the curve itself, 0 is a straight line.',
+  easingDuration: 'How long the curve takes, in seconds.',
+  springDuration: 'How long the spring takes to settle, in seconds.',
+  bounce: 'How far the motion overshoots and swings back. 0 has no bounce.',
+  stiffness: 'How hard the spring pulls toward its target. Higher is faster.',
+  damping: 'How fast the spring slows down. Lower swings more.',
+  mass: 'How heavy the moving thing is. Higher is slower and swings more.',
+  curve: 'Ready-made curves to pick from, and the ones you saved.',
+};
 
 export function TransitionControl({
   panelId,
@@ -64,6 +81,7 @@ export function TransitionControl({
   onReset,
   changed,
   bare = false,
+  hint,
 }: TransitionControlProps) {
   const subscribe = useCallback(
     (callback: () => void) => DialStore.subscribe(panelId, callback),
@@ -203,6 +221,7 @@ export function TransitionControl({
       max={durationControl?.max ?? 5}
       step={durationControl?.step ?? 0.05}
       unit="s"
+      hint={isEasing ? HINTS.easingDuration : HINTS.springDuration}
     />
   ) : null;
 
@@ -234,7 +253,7 @@ export function TransitionControl({
 
   const body = (
       <div className="dialkit-transition">
-        {typeControl}
+        <HintZone hint={HINTS.type}>{typeControl}</HintZone>
         {isEasing ? (
           <EasingVisualization easing={{ ...easing, ease: shownEase ?? easing.ease }} onChange={setEase} />
         ) : (
@@ -243,7 +262,9 @@ export function TransitionControl({
 
         {isEasing ? (
           <>
-            <EaseFields ease={easing.ease} onChange={setEase} />
+            <HintZone hint={HINTS.fields}>
+              <EaseFields ease={easing.ease} onChange={setEase} />
+            </HintZone>
             <Slider
                 label="Intensity"
                 value={intensity}
@@ -256,19 +277,20 @@ export function TransitionControl({
                 max={100}
                 step={1}
                 unit="%"
+                hint={HINTS.intensity}
               />
           </>
         ) : isSimpleSpring ? (
-          <Slider label="Bounce" value={spring.bounce ?? 0.2} onChange={(v) => handleSpringUpdate('bounce', v)} min={0} max={1} step={0.05} />
+          <Slider label="Bounce" value={spring.bounce ?? 0.2} onChange={(v) => handleSpringUpdate('bounce', v)} min={0} max={1} step={0.05} hint={HINTS.bounce} />
         ) : (
           <>
-            <Slider label="Stiffness" value={spring.stiffness ?? 400} onChange={(v) => handleSpringUpdate('stiffness', v)} min={1} max={1000} step={10} />
-            <Slider label="Damping" value={spring.damping ?? 17} onChange={(v) => handleSpringUpdate('damping', v)} min={1} max={100} step={1} />
-            <Slider label="Mass" value={spring.mass ?? 1} onChange={(v) => handleSpringUpdate('mass', v)} min={0.1} max={10} step={0.1} />
+            <Slider label="Stiffness" value={spring.stiffness ?? 400} onChange={(v) => handleSpringUpdate('stiffness', v)} min={1} max={1000} step={10} hint={HINTS.stiffness} />
+            <Slider label="Damping" value={spring.damping ?? 17} onChange={(v) => handleSpringUpdate('damping', v)} min={1} max={100} step={1} hint={HINTS.damping} />
+            <Slider label="Mass" value={spring.mass ?? 1} onChange={(v) => handleSpringUpdate('mass', v)} min={0.1} max={10} step={0.1} hint={HINTS.mass} />
           </>
         )}
         {durationSlider}
-        <Folder title="Curve" defaultOpen={false} meta={presetName}>
+        <Folder title="Curve" defaultOpen={false} meta={presetName} hint={HINTS.curve}>
           {presetPicker}
         </Folder>
       </div>
@@ -276,7 +298,7 @@ export function TransitionControl({
 
   if (bare) return body;
   return (
-    <Folder title={label} defaultOpen={true} onReset={onReset} changed={changed} actions={<TransitionCopyMenu panelId={panelId} path={path} value={value} />}>
+    <Folder title={label} defaultOpen={true} onReset={onReset} changed={changed} hint={hint} actions={<TransitionCopyMenu panelId={panelId} path={path} value={value} />}>
       {body}
     </Folder>
   );

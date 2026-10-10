@@ -143,8 +143,20 @@ function resetConfigOf(value: unknown, folderPath: string): true | string | unde
   return undefined;
 }
 
+/**
+ * Hints: set `_hints` on a folder (or the panel's root config) to a map from
+ * a child key to a short sentence about that control. See
+ * {@link ControlMeta.hint}.
+ */
+export type HintsConfig = Record<string, string>;
+
+function hintsConfigOf(value: unknown): HintsConfig | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  return Object.fromEntries(Object.entries(value).filter(([, hint]) => typeof hint === 'string' && hint));
+}
+
 /** Folder keys that configure the folder instead of adding a control. */
-const FOLDER_META_KEYS = ['_anchor', '_collapsed', '_fields', '_pad', '_reset'] as const;
+const FOLDER_META_KEYS = ['_anchor', '_collapsed', '_fields', '_hints', '_pad', '_reset'] as const;
 type FolderMetaKey = (typeof FOLDER_META_KEYS)[number];
 
 export function isFolderMetaKey(key: string): boolean {
@@ -297,6 +309,8 @@ export type ControlMeta = {
   shortcut?: ShortcutConfig;
   /** Conditional visibility rule attached via {@link withVisibility}. */
   visibleWhen?: VisibleWhen;
+  /** A short sentence about the control, from its folder's `_hints`. It shows as the control's hint. */
+  hint?: string;
 };
 
 export type PanelConfig = {
@@ -1447,6 +1461,7 @@ class DialStoreClass {
     const controlsByPath = new Map<string, ControlMeta>();
     const visit = (config: DialConfig, prefix: string): ControlMeta[] => {
       const controls: ControlMeta[] = [];
+      const hints = hintsConfigOf(config._hints);
 
       for (const [key, rawValue] of Object.entries(config)) {
         if (isFolderMetaKey(key)) continue;
@@ -1517,6 +1532,7 @@ class DialStoreClass {
           };
         }
         if (!control) continue;
+        if (hints?.[key]) control.hint = hints[key];
         if (visibleWhen) tagVisibility(control, visibleWhen);
         controls.push(control);
         controlsByPath.set(path, control);

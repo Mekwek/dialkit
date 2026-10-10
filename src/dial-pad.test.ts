@@ -185,5 +185,26 @@ describe('DialPad', () => {
       DialStore.unregisterPanel(id);
     }
   });
-});
 
+  it('gives each control the hint its folder lists in _hints', () => {
+    const id = 'hints-test';
+    try {
+      DialStore.registerPanel(id, 'Hints', {
+        _hints: { size: 'How big each image is.' },
+        size: [34, 4, 200, 1],
+        layout: {
+          _hints: { stagger: 'The delay between two images.', reverse: '' },
+          stagger: [0.02, 0, 0.1, 0.005],
+          reverse: false,
+        },
+      });
+      const [size, layout] = DialStore.getPanel(id)!.controls;
+      assert.equal(size.hint, 'How big each image is.');
+      assert.equal(layout.hint, undefined);
+      assert.deepEqual(layout.children!.map((child) => [child.path, child.hint]), [['layout.stagger', 'The delay between two images.'], ['layout.reverse', undefined]]);
+      assert.equal(DialStore.getValue(id, 'layout.stagger'), 0.02);
+    } finally {
+      DialStore.unregisterPanel(id);
+    }
+  });
+});

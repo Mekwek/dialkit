@@ -342,7 +342,11 @@ function resetConfigOf(value, folderPath) {
   if (typeof value === "string" && value) return `${folderPath}.${value}`;
   return void 0;
 }
-var FOLDER_META_KEYS = ["_anchor", "_collapsed", "_fields", "_pad", "_reset"];
+function hintsConfigOf(value) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return void 0;
+  return Object.fromEntries(Object.entries(value).filter(([, hint]) => typeof hint === "string" && hint));
+}
+var FOLDER_META_KEYS = ["_anchor", "_collapsed", "_fields", "_hints", "_pad", "_reset"];
 function isFolderMetaKey(key) {
   return FOLDER_META_KEYS.includes(key);
 }
@@ -1145,6 +1149,7 @@ var DialStoreClass = class {
     const controlsByPath = /* @__PURE__ */ new Map();
     const visit = (config2, prefix) => {
       const controls2 = [];
+      const hints = hintsConfigOf(config2._hints);
       for (const [key, rawValue] of Object.entries(config2)) {
         if (isFolderMetaKey(key)) continue;
         const path = prefix ? `${prefix}.${key}` : key;
@@ -1205,6 +1210,7 @@ var DialStoreClass = class {
           };
         }
         if (!control) continue;
+        if (hints?.[key]) control.hint = hints[key];
         if (visibleWhen) tagVisibility(control, visibleWhen);
         controls2.push(control);
         controlsByPath.set(path, control);

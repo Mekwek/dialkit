@@ -1,7 +1,10 @@
 import { useEffect, useRef } from 'react';
 import { mountColorControl, type ColorControlProps } from '../color-control';
+import { useHint } from './Hint';
 
-export function ColorControl(props: ColorControlProps) {
+/** The color row, with its hint. */
+export function ColorControl({ hint, ...props }: ColorControlProps & { hint?: string }) {
+  const { hintRow } = useHint(hint);
   const host = useRef<HTMLDivElement>(null);
   const control = useRef<ReturnType<typeof mountColorControl>>();
   const latest = useRef(props);
@@ -11,5 +14,5 @@ export function ColorControl(props: ColorControlProps) {
     return () => control.current?.destroy();
   }, []);
   useEffect(() => { control.current?.update(props); });
-  return <div ref={host} className="dialkit-color-host" />;
+  return <div ref={host} className="dialkit-color-host" {...hintRow} />;
 }

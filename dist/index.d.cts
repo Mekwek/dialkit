@@ -137,8 +137,14 @@ type PadGroupConfig = Pick<DialPadConfig, 'labels' | 'mapping' | 'hideLabel' | '
  * are the columns, the second's are the rows. Each value keeps its own path.
  */
 type AnchorGridConfig = Record<string, never>;
+/**
+ * Hints: set `_hints` on a folder (or the panel's root config) to a map from
+ * a child key to a short sentence about that control. See
+ * {@link ControlMeta.hint}.
+ */
+type HintsConfig = Record<string, string>;
 /** Folder keys that configure the folder instead of adding a control. */
-declare const FOLDER_META_KEYS: readonly ["_anchor", "_collapsed", "_fields", "_pad", "_reset"];
+declare const FOLDER_META_KEYS: readonly ["_anchor", "_collapsed", "_fields", "_hints", "_pad", "_reset"];
 type FolderMetaKey = (typeof FOLDER_META_KEYS)[number];
 /**
  * Wraps a control with a visibility rule. The control is only added to the
@@ -232,6 +238,8 @@ type ControlMeta = {
     shortcut?: ShortcutConfig;
     /** Conditional visibility rule attached via {@link withVisibility}. */
     visibleWhen?: VisibleWhen;
+    /** A short sentence about the control, from its folder's `_hints`. It shows as the control's hint. */
+    hint?: string;
 };
 type PanelConfig = {
     id: string;
@@ -259,7 +267,7 @@ type PanelConfig = {
      */
     presetsLockable?: boolean;
 };
-type Listener$2 = () => void;
+type Listener$3 = () => void;
 type ActionListener = (action: string) => void;
 type Preset = {
     id: string;
@@ -390,8 +398,8 @@ declare class DialStoreClass {
     getValues(panelId: string): Record<string, DialValue>;
     getPanels(kind?: 'panel' | 'timeline'): PanelConfig[];
     getPanel(id: string): PanelConfig | undefined;
-    subscribe(panelId: string, listener: Listener$2): () => void;
-    subscribeGlobal(listener: Listener$2): () => void;
+    subscribe(panelId: string, listener: Listener$3): () => void;
+    subscribeGlobal(listener: Listener$3): () => void;
     subscribeActions(panelId: string, listener: ActionListener): () => void;
     triggerAction(panelId: string, path: string): void;
     savePreset(panelId: string, name: string): string;
@@ -580,7 +588,7 @@ type TimelineTransport = {
      * timeline wraps. Reset by seek/replay so scrubbing stays deterministic. */
     wraps: number;
 };
-type Listener$1 = () => void;
+type Listener$2 = () => void;
 declare class TimelineStoreClass {
     private timelines;
     private transports;
@@ -608,8 +616,8 @@ declare class TimelineStoreClass {
     getTransport(id: string): TimelineTransport;
     getTimeline(id: string): TimelineMeta | undefined;
     getTimelines(): TimelineMeta[];
-    subscribe(id: string, listener: Listener$1): () => void;
-    subscribeGlobal(listener: Listener$1): () => void;
+    subscribe(id: string, listener: Listener$2): () => void;
+    subscribeGlobal(listener: Listener$2): () => void;
     private applyMeta;
     private ensureLoop;
     private tick;
@@ -905,8 +913,9 @@ interface SliderProps {
     unit?: string;
     shortcut?: ShortcutConfig;
     shortcutActive?: boolean;
+    hint?: string;
 }
-declare function Slider({ label, value, onChange, min, max, step, unit, shortcut, shortcutActive, }: SliderProps): react_jsx_runtime.JSX.Element;
+declare function Slider({ label, value, onChange, min, max, step, unit, shortcut, shortcutActive, hint, }: SliderProps): react_jsx_runtime.JSX.Element;
 
 interface FieldRowProps {
     panelId: string;
@@ -928,8 +937,9 @@ interface ToggleProps {
     onChange: (checked: boolean) => void;
     shortcut?: ShortcutConfig;
     shortcutActive?: boolean;
+    hint?: string;
 }
-declare function Toggle({ label, checked, onChange, shortcut, shortcutActive }: ToggleProps): react_jsx_runtime.JSX.Element;
+declare function Toggle({ label, checked, onChange, shortcut, shortcutActive, hint }: ToggleProps): react_jsx_runtime.JSX.Element;
 
 interface FolderProps {
     title: string;
@@ -948,8 +958,10 @@ interface FolderProps {
     meta?: ReactNode;
     /** Buttons on the right of a section header, left of the arrow. */
     actions?: ReactNode;
+    /** A short sentence about the section. It shows while the hint key is held over the header. */
+    hint?: string;
 }
-declare function Folder({ title, children, open, defaultOpen, isRoot, inline, onOpenChange, toolbar, onReset, changed, meta, actions }: FolderProps): react_jsx_runtime.JSX.Element;
+declare function Folder({ title, children, open, defaultOpen, isRoot, inline, onOpenChange, toolbar, onReset, changed, meta, actions, hint }: FolderProps): react_jsx_runtime.JSX.Element;
 
 interface ButtonGroupProps {
     buttons: Array<{
@@ -1015,8 +1027,10 @@ interface TransitionControlProps {
      * control is this one uses its header instead.
      */
     bare?: boolean;
+    /** A short sentence about the transition. See Folder.hint. */
+    hint?: string;
 }
-declare function TransitionControl({ panelId, path, label, value, onChange, hideDuration, durationControl, physicsSettleCap, onReset, changed, bare, }: TransitionControlProps): react_jsx_runtime.JSX.Element;
+declare function TransitionControl({ panelId, path, label, value, onChange, hideDuration, durationControl, physicsSettleCap, onReset, changed, bare, hint, }: TransitionControlProps): react_jsx_runtime.JSX.Element;
 
 type BezierPoints = EasingConfig['ease'];
 
@@ -1033,8 +1047,9 @@ interface TextControlProps {
     value: string;
     onChange: (value: string) => void;
     placeholder?: string;
+    hint?: string;
 }
-declare function TextControl({ label, value, onChange, placeholder }: TextControlProps): react_jsx_runtime.JSX.Element;
+declare function TextControl({ label, value, onChange, placeholder, hint }: TextControlProps): react_jsx_runtime.JSX.Element;
 
 type SelectOption = string | {
     value: string;
@@ -1046,8 +1061,9 @@ interface SelectControlProps {
     value: string;
     options: SelectOption[];
     onChange: (value: string) => void;
+    hint?: string;
 }
-declare function SelectControl({ label, value, options, onChange }: SelectControlProps): react_jsx_runtime.JSX.Element;
+declare function SelectControl({ label, value, options, onChange, hint }: SelectControlProps): react_jsx_runtime.JSX.Element;
 
 type ColorControlProps = {
     label: string;
@@ -1055,7 +1071,10 @@ type ColorControlProps = {
     onChange: (value: string) => void;
 };
 
-declare function ColorControl(props: ColorControlProps): react_jsx_runtime.JSX.Element;
+/** The color row, with its hint. */
+declare function ColorControl({ hint, ...props }: ColorControlProps & {
+    hint?: string;
+}): react_jsx_runtime.JSX.Element;
 
 type ImageControlProps = {
     label: string;
@@ -1064,7 +1083,10 @@ type ImageControlProps = {
     onChange: (value: string) => void;
 };
 
-declare function ImageControl(props: ImageControlProps): react_jsx_runtime.JSX.Element;
+/** The image row, with its hint. */
+declare function ImageControl({ hint, ...props }: ImageControlProps & {
+    hint?: string;
+}): react_jsx_runtime.JSX.Element;
 
 type DialPadProps = Omit<DialPadConfig, 'type'> & {
     label: string;
@@ -1072,7 +1094,10 @@ type DialPadProps = Omit<DialPadConfig, 'type'> & {
     onChange: (value: DialPadValue) => void;
 };
 
-declare function DialPad(props: DialPadProps): react_jsx_runtime.JSX.Element;
+/** The pad, with its hint. */
+declare function DialPad({ hint, ...props }: DialPadProps & {
+    hint?: string;
+}): react_jsx_runtime.JSX.Element;
 
 interface AnchorGridProps {
     panelId: string;
@@ -1082,6 +1107,8 @@ interface AnchorGridProps {
     /** The select whose options are the rows, top to bottom. */
     rows: ControlMeta;
     values: Record<string, DialValue>;
+    /** The folder's hint. It shows while the hint key is held over the grid or the header. */
+    hint?: string;
 }
 /**
  * Two selects as one grid of dots: one dot per pair of options. A click on a
@@ -1089,7 +1116,7 @@ interface AnchorGridProps {
  * next pick, and a hover shows a faint pill and a brighter dot. Arrow keys
  * move the pick.
  */
-declare function AnchorGrid({ panelId, label, columns, rows, values }: AnchorGridProps): react_jsx_runtime.JSX.Element;
+declare function AnchorGrid({ panelId, label, columns, rows, values, hint }: AnchorGridProps): react_jsx_runtime.JSX.Element;
 
 interface PresetManagerProps {
     panelId: string;
@@ -1158,7 +1185,7 @@ interface CustomSpring {
     spring: SpringConfig;
 }
 
-type Listener = () => void;
+type Listener$1 = () => void;
 /** A copied transition: its value and the tab it was on. */
 interface CopiedTransition {
     value: TransitionConfig;
@@ -1175,7 +1202,7 @@ declare class TransitionLibraryClass {
     private springs;
     private listeners;
     private copied;
-    subscribe: (listener: Listener) => (() => void);
+    subscribe: (listener: Listener$1) => (() => void);
     private notify;
     getCustomCurves: () => EasingCurve[];
     setCustomCurves(curves: EasingCurve[]): void;
@@ -1193,4 +1220,35 @@ declare class TransitionLibraryClass {
 }
 declare const TransitionLibrary: TransitionLibraryClass;
 
-export { type ActionConfig, AnchorGrid, type AnchorGridConfig, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type CopiedTransition, type CustomSpring, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, EASING_CURVES, type EasingConfig, type EasingCurve, EasingVisualization, FieldRow, type FieldsConfig, Folder, type FolderMode, type ImageConfig, ImageControl, type ImageOption, type PadGroupConfig, type PanelConfig, type Preset, PresetManager, type RangeConfig, type ResolvedValues, SPRING_PRESETS, type SelectConfig, SelectControl, type SelectOption$1 as SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, type SpringMode, type SpringPreset, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipMeta, type TimelineClipTrackMeta, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelineMeta, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, TimelineStore, type TimelineTransport, Toggle, type TransitionConfig, TransitionControl, TransitionLibrary, type UseDialOptions, type UseDialTimelineOptions, type VisibleWhen, type VisibleWhenValue, formatClock, unwrapVisibility, useDialKit, useDialKitController, useDialTimeline, withVisibility };
+type Listener = () => void;
+/** The hint on screen: its text, and the row it sits above. */
+interface ShownHint {
+    text: string;
+    anchor: HTMLElement;
+    box: HTMLElement;
+}
+/**
+ * The hint key and the one hint on screen, shared by every control. While
+ * the hint key (I) is held, the control under the pointer shows its hint.
+ */
+declare class HintStoreClass {
+    private key;
+    private keyHeld;
+    private shown;
+    private listeners;
+    subscribe: (listener: Listener) => (() => void);
+    private notify;
+    /** The key held to show hints. */
+    getKey: () => string;
+    setKey(key: string): void;
+    isKeyHeld: () => boolean;
+    setKeyHeld(held: boolean): void;
+    getShown: () => ShownHint | null;
+    /** Shows `text` above `box`, the row; `anchor` is the element that asked. */
+    show(text: string, anchor: HTMLElement, box?: HTMLElement): void;
+    /** Hides the hint, if `anchor` is the one it points at. */
+    hide(anchor?: HTMLElement): void;
+}
+declare const HintStore: HintStoreClass;
+
+export { type ActionConfig, AnchorGrid, type AnchorGridConfig, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type CopiedTransition, type CustomSpring, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, EASING_CURVES, type EasingConfig, type EasingCurve, EasingVisualization, FieldRow, type FieldsConfig, Folder, type FolderMode, HintStore, type HintsConfig, type ImageConfig, ImageControl, type ImageOption, type PadGroupConfig, type PanelConfig, type Preset, PresetManager, type RangeConfig, type ResolvedValues, SPRING_PRESETS, type SelectConfig, SelectControl, type SelectOption$1 as SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, type SpringMode, type SpringPreset, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipMeta, type TimelineClipTrackMeta, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelineMeta, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, TimelineStore, type TimelineTransport, Toggle, type TransitionConfig, TransitionControl, TransitionLibrary, type UseDialOptions, type UseDialTimelineOptions, type VisibleWhen, type VisibleWhenValue, formatClock, unwrapVisibility, useDialKit, useDialKitController, useDialTimeline, withVisibility };

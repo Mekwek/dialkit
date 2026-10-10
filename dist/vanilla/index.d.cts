@@ -134,7 +134,7 @@ type PadGroupConfig = Pick<DialPadConfig, 'labels' | 'mapping' | 'hideLabel' | '
  */
 type AnchorGridConfig = Record<string, never>;
 /** Folder keys that configure the folder instead of adding a control. */
-declare const FOLDER_META_KEYS: readonly ["_anchor", "_collapsed", "_fields", "_pad", "_reset"];
+declare const FOLDER_META_KEYS: readonly ["_anchor", "_collapsed", "_fields", "_hints", "_pad", "_reset"];
 type FolderMetaKey = (typeof FOLDER_META_KEYS)[number];
 /**
  * Wraps a control with a visibility rule. The control is only added to the
@@ -207,6 +207,8 @@ type ControlMeta = {
     shortcut?: ShortcutConfig;
     /** Conditional visibility rule attached via {@link withVisibility}. */
     visibleWhen?: VisibleWhen;
+    /** A short sentence about the control, from its folder's `_hints`. It shows as the control's hint. */
+    hint?: string;
 };
 type PanelConfig = {
     id: string;

@@ -2,6 +2,7 @@ import { activateOnKey } from '../control-keyboard';
 import { useState, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ICON_PANEL, ICON_CHEVRON, ICON_RESET } from '../icons';
+import { useHint } from './Hint';
 
 interface FolderProps {
   title: string;
@@ -20,9 +21,12 @@ interface FolderProps {
   meta?: ReactNode;
   /** Buttons on the right of a section header, left of the arrow. */
   actions?: ReactNode;
+  /** A short sentence about the section. It shows while the hint key is held over the header. */
+  hint?: string;
 }
 
-export function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, onReset, changed, meta, actions }: FolderProps) {
+export function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, onReset, changed, meta, actions, hint }: FolderProps) {
+  const { hintRow } = useHint(hint);
   const [localOpen, setIsOpen] = useState(defaultOpen);
   const isOpen = open ?? localOpen;
   const isCollapsed = !isOpen;
@@ -40,7 +44,7 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
       data-open={String(isOpen)}
     >
       <div className={`dialkit-folder-header ${isRoot ? 'dialkit-panel-header' : ''}`} data-reset={!isRoot && onReset ? '' : undefined} data-actions={!isRoot && actions ? '' : undefined} onClick={handleToggle}>
-        <div className="dialkit-folder-header-top" role={inline && isRoot ? undefined : "button"} tabIndex={inline && isRoot ? undefined : 0} aria-label={title} aria-expanded={isOpen} onKeyDown={(e) => activateOnKey(e, handleToggle)}>
+        <div className="dialkit-folder-header-top" {...hintRow} role={inline && isRoot ? undefined : "button"} tabIndex={inline && isRoot ? undefined : 0} aria-label={title} aria-expanded={isOpen} onKeyDown={(e) => activateOnKey(e, handleToggle)}>
           {isRoot ? (
             isOpen && (
               <div className="dialkit-folder-title-row">

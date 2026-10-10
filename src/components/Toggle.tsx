@@ -1,6 +1,7 @@
 import { SegmentedControl } from './SegmentedControl';
 import type { ShortcutConfig } from '../store/DialStore';
 import { formatToggleShortcut } from '../shortcut-utils';
+import { useHint } from './Hint';
 
 interface ToggleProps {
   label: string;
@@ -8,11 +9,13 @@ interface ToggleProps {
   onChange: (checked: boolean) => void;
   shortcut?: ShortcutConfig;
   shortcutActive?: boolean;
+  hint?: string;
 }
 
-export function Toggle({ label, checked, onChange, shortcut, shortcutActive }: ToggleProps) {
+export function Toggle({ label, checked, onChange, shortcut, shortcutActive, hint }: ToggleProps) {
+  const { hintRow } = useHint(hint);
   return (
-    <div className="dialkit-labeled-control">
+    <div className="dialkit-labeled-control" {...hintRow}>
       <span className="dialkit-labeled-control-label">
         {label}
         {shortcut && (

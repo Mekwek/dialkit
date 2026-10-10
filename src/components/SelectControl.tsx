@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition, type DropdownPosition } from '../dropdown-position';
 import { ICON_CHEVRON } from '../icons';
 import { SegmentedControl } from './SegmentedControl';
+import { useHint } from './Hint';
 
 type SelectOption = string | { value: string; label: string; icon?: string };
 
@@ -14,6 +15,7 @@ interface SelectControlProps {
   value: string;
   options: SelectOption[];
   onChange: (value: string) => void;
+  hint?: string;
 }
 
 function toTitleCase(s: string): string {
@@ -32,21 +34,25 @@ interface SelectPillsProps extends SelectControlProps {
 
 /** A select shown as pills: next to its label like the toggle row, or
  *  filling the row with no label. */
-export function SelectPills({ label, value, options, onChange, hideLabel = false }: SelectPillsProps) {
+export function SelectPills({ label, value, options, onChange, hideLabel = false, hint }: SelectPillsProps) {
+  const { hintRow } = useHint(hint);
   if (hideLabel) {
     return (
-      <SegmentedControl options={normalizeOptions(options)} value={value} onChange={onChange} fill ariaLabel={label} />
+      <div className="dialkit-hint-target" {...hintRow}>
+        <SegmentedControl options={normalizeOptions(options)} value={value} onChange={onChange} fill ariaLabel={label} />
+      </div>
     );
   }
   return (
-    <div className="dialkit-labeled-control">
+    <div className="dialkit-labeled-control" {...hintRow}>
       <span className="dialkit-labeled-control-label">{label}</span>
       <SegmentedControl options={normalizeOptions(options)} value={value} onChange={onChange} />
     </div>
   );
 }
 
-export function SelectControl({ label, value, options, onChange }: SelectControlProps) {
+export function SelectControl({ label, value, options, onChange, hint }: SelectControlProps) {
+  const { hintRow } = useHint(hint);
   const [isOpen, setIsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -96,7 +102,7 @@ export function SelectControl({ label, value, options, onChange }: SelectControl
   }, [isOpen]);
 
   return (
-    <div className="dialkit-select-row">
+    <div className="dialkit-select-row" {...hintRow}>
       <button
         ref={triggerRef}
         className="dialkit-select-trigger"

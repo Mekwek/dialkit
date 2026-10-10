@@ -28,6 +28,10 @@
   --dial-anchor-row-height: 26px; /* Height of one row of an anchor grid */
   --dial-anchor-dot-size: 5px; /* Diameter of an anchor grid dot */
   --dial-anchor-padding: 4px; /* Space between an anchor grid's box and its cells */
+  --dial-hint-max-width: 255px; /* The widest a hint grows before its text wraps */
+  --dial-hint-font-size: 12px; /* The text size of a hint */
+  --dial-hint-padding: 8px; /* Space inside a hint, left and right */
+  --dial-hint-dim: 0.7; /* How much the rest of the panel fades while the hint key is held: 0 none, 1 hidden */
   --dial-nested-line-style: dashed; /* Dividers of folders inside folders, so the depth reads at a glance */
   /* The timeline pan bar's thumb — quieter than text so it reads as a
      position marker, not a control demanding attention. */
@@ -3366,3 +3370,30 @@
 @media (forced-colors: active) {
   .dialkit-root { --dial-focus-ring: Highlight; }
 }
+
+/* A control's hint: while the hint key (I) is held, one sentence above
+   the control's row, on its left edge. It scales in and out from 90% on
+   the corner nearest its row: bottom left above the row, top left below.
+   Between rows it slides, at full scale. */
+@property --dial-hint-scale { syntax: '<number>'; inherits: false; initial-value: 1; }
+.dialkit-hint { position: fixed; z-index: 10001; box-sizing: border-box; max-width: var(--dial-hint-max-width); padding: 6px var(--dial-hint-padding); border: 1px solid var(--dial-border); border-radius: var(--dial-radius); background: var(--dial-glass-bg); box-shadow: var(--dial-shadow-dropdown); backdrop-filter: blur(var(--dial-backdrop-blur)); -webkit-backdrop-filter: blur(var(--dial-backdrop-blur)); color: var(--dial-text-label); font-size: var(--dial-hint-font-size); font-weight: 500; line-height: 1.4; text-wrap: pretty; }
+.dialkit-hint { left: 0; top: 0; transform-origin: 0 100%; animation: dialkit-hint-in 0.12s ease-out; }
+.dialkit-hint[data-above="false"] { transform-origin: 0 0; }
+.dialkit-hint[data-slide] { transition: transform 0.15s ease-out; }
+@keyframes dialkit-hint-in { from { opacity: 0; --dial-hint-scale: 0.9; } }
+/* The rest of the panel fades toward its background, except the row whose
+   hint shows: a box over the row casts a shadow over everything else. */
+.dialkit-hint-dim { position: fixed; z-index: 10000; overflow: hidden; animation: dialkit-dim-in 0.12s ease-out; }
+.dialkit-hint-dim-hole { position: absolute; left: 0; top: 0; box-shadow: 0 0 0 100vmax color-mix(in srgb, var(--dial-glass-bg) calc(var(--dial-hint-dim) * 100%), transparent); transition: transform 0.15s ease-out, width 0.15s ease-out, height 0.15s ease-out; }
+@keyframes dialkit-dim-in { from { opacity: 0; } }
+/* On release, both fade out, and the tooltip scales back to 90%. */
+.dialkit-hint[data-leaving] { opacity: 0; --dial-hint-scale: 0.9; transition: opacity 0.12s ease-out, --dial-hint-scale 0.12s ease-out; }
+.dialkit-hint-dim[data-leaving] { opacity: 0; transition: opacity 0.12s ease-out; }
+/* The tooltip and the dim only show; they never take the pointer, or the
+   pointer under them would count as leaving the panel. A host can turn the
+   pointer back on for its DialKit root's children (Theca's global.css
+   does), so this rule must win. */
+.dialkit-hint, .dialkit-hint-dim { pointer-events: none !important; }
+/* A hint zone adds no box: its children lay out as before. */
+.dialkit-hint-zone { display: contents; }
+@media (prefers-reduced-motion: reduce) { .dialkit-hint, .dialkit-hint-dim, .dialkit-hint-dim-hole { animation: none; transition: none; } }

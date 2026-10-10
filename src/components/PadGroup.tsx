@@ -33,6 +33,7 @@ export function PadGroup({ panelId, control, values }: PadGroupProps) {
   return (
     <DialPad
       label={control.label}
+      hint={control.hint}
       value={{ x: current(x), y: current(y) }}
       x={axis(x)}
       y={axis(y)}

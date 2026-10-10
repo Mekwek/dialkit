@@ -17,6 +17,7 @@ import { ImageControl } from './ImageControl';
 import { DialPad } from './DialPad';
 import { PadGroup } from './PadGroup';
 import { AnchorGrid } from './AnchorGrid';
+import { useHint } from './Hint';
 import type { DialPadValue } from '../dial-pad';
 
 interface ControlRendererProps {
@@ -52,6 +53,16 @@ interface ControlRendererProps {
   onAccordionToggle?: (path: string, next: boolean) => void;
 }
 
+/** An action row, with its hint. */
+function ActionButton({ label, hint, onClick }: { label: string; hint?: string; onClick: () => void }) {
+  const { hintRow } = useHint(hint);
+  return (
+    <button className="dialkit-button" onClick={onClick} {...hintRow}>
+      {label}
+    </button>
+  );
+}
+
 // Renders a ControlMeta tree with the standard DialKit controls.
 // Shared by the panel and the timeline clip popover.
 export function ControlRenderer({
@@ -83,6 +94,7 @@ export function ControlRenderer({
             unit={control.unit}
             shortcut={control.shortcut}
             shortcutActive={shortcutCtx.activePanelId === panelId && shortcutCtx.activePath === control.path}
+            hint={control.hint}
           />
         );
 
@@ -95,6 +107,7 @@ export function ControlRenderer({
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
             shortcut={control.shortcut}
             shortcutActive={shortcutCtx.activePanelId === panelId && shortcutCtx.activePath === control.path}
+            hint={control.hint}
           />
         );
 
@@ -123,6 +136,7 @@ export function ControlRenderer({
             durationControl={transitionDuration}
             physicsSettleCap={physicsSettleCap}
             bare={bare}
+            hint={control.hint}
             {...valueResetProps(control.path)}
           />
         );
@@ -151,7 +165,7 @@ export function ControlRenderer({
         const anchorSelects = control.anchor ? rows.filter((child) => child.type === 'select').slice(0, 2) : [];
         const anchorGrid =
           anchorSelects.length === 2 ? (
-            <AnchorGrid key={`${control.path}.__anchor`} panelId={panelId} label={control.label} columns={anchorSelects[0]} rows={anchorSelects[1]} values={values} />
+            <AnchorGrid key={`${control.path}.__anchor`} panelId={panelId} label={control.label} columns={anchorSelects[0]} rows={anchorSelects[1]} values={values} hint={control.hint} />
           ) : null;
         if (anchorGrid) rows = rows.filter((child) => !anchorSelects.includes(child));
         // A section whose only row is a transition shows one header: the
@@ -184,6 +198,7 @@ export function ControlRenderer({
             defaultOpen={control.defaultOpen ?? true}
             {...controlledProps}
             {...resetProps}
+            hint={control.hint ?? only?.hint}
             actions={only ? <TransitionCopyMenu panelId={panelId} path={only.path} value={values[only.path] as TransitionConfig} /> : undefined}
           >
             {animateControls ? <AnimatePresence initial={false}>{children}</AnimatePresence> : children}
@@ -199,6 +214,7 @@ export function ControlRenderer({
             value={value as string}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
             placeholder={control.placeholder}
+            hint={control.hint}
           />
         );
 
@@ -212,6 +228,7 @@ export function ControlRenderer({
               options={control.options ?? []}
               onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
               hideLabel={control.hideLabel}
+              hint={control.hint}
             />
           );
         }
@@ -222,6 +239,7 @@ export function ControlRenderer({
             value={value as string}
             options={control.options ?? []}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
+            hint={control.hint}
           />
         );
 
@@ -232,6 +250,7 @@ export function ControlRenderer({
             label={control.label}
             value={value as string}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
+            hint={control.hint}
           />
         );
 
@@ -243,6 +262,7 @@ export function ControlRenderer({
             label={control.label}
             value={value as string}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
+            hint={control.hint}
           />
         );
 
@@ -259,18 +279,18 @@ export function ControlRenderer({
             hideLabel={control.pad?.hideLabel}
             dragFields={control.pad?.dragFields}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
+            hint={control.hint}
           />
         );
 
       case 'action':
         return (
-          <button
+          <ActionButton
             key={control.path}
-            className="dialkit-button"
+            label={control.label}
+            hint={control.hint}
             onClick={() => DialStore.triggerAction(panelId, control.path)}
-          >
-            {control.label}
-          </button>
+          />
         );
 
       default:

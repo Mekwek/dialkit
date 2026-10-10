@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { stepInputKey } from '../control-keyboard';
+import { useHint } from './Hint';
 import { ICON_LINK, ICON_RESET } from '../icons';
 import { decimalsForStep, parseFieldInput, roundValue } from '../numeric';
 import { DialStore } from '../store/DialStore';
@@ -36,9 +37,10 @@ export function FieldRow({ panelId, control, values }: FieldRowProps) {
   const lock = children.find((child) => child.type === 'toggle');
   const locked = lock ? values[lock.path] === true : false;
   const paths = children.map((child) => child.path);
+  const { hintRow } = useHint(control.hint);
 
   return (
-    <div className="dialkit-fields-group">
+    <div className="dialkit-fields-group" {...hintRow}>
       <div className="dialkit-fields-label">
         <span className="dialkit-fields-label-text">{control.label}</span>
         <button

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { motion } from 'motion/react';
 import { DialStore } from '../store/DialStore';
+import { useHint } from './Hint';
 import type { ControlMeta, DialValue, SelectOption } from '../store/DialStore';
 
 type Option = Exclude<SelectOption, string>;
@@ -18,6 +19,8 @@ interface AnchorGridProps {
   /** The select whose options are the rows, top to bottom. */
   rows: ControlMeta;
   values: Record<string, DialValue>;
+  /** The folder's hint. It shows while the hint key is held over the grid or the header. */
+  hint?: string;
 }
 
 /** The pill slides to a picked cell like Arqé's: a spring with no bounce. */
@@ -29,8 +32,9 @@ const PILL_SPRING = { type: 'spring', visualDuration: 0.3, bounce: 0 } as const;
  * next pick, and a hover shows a faint pill and a brighter dot. Arrow keys
  * move the pick.
  */
-export function AnchorGrid({ panelId, label, columns, rows, values }: AnchorGridProps) {
+export function AnchorGrid({ panelId, label, columns, rows, values, hint }: AnchorGridProps) {
   const [hovered, setHovered] = useState<string | null>(null);
+  const { hintRow } = useHint(hint);
   const cols = optionsOf(columns);
   const rowOptions = optionsOf(rows);
   const col = Math.max(0, cols.findIndex((option) => option.value === values[columns.path]));
@@ -65,7 +69,11 @@ export function AnchorGrid({ panelId, label, columns, rows, values }: AnchorGrid
       aria-label={label}
       style={{ '--dial-anchor-columns': cols.length, '--dial-anchor-rows': rowOptions.length } as React.CSSProperties}
       onKeyDown={onKeyDown}
-      onPointerLeave={() => setHovered(null)}
+      onPointerEnter={hintRow.onPointerEnter}
+      onPointerLeave={() => {
+        setHovered(null);
+        hintRow.onPointerLeave?.();
+      }}
     >
       {showHoverPill && (
         <span

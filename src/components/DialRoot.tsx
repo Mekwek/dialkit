@@ -6,6 +6,7 @@ import { isDevDefault } from '../env';
 import { groupRootKey, partitionPanels } from '../panel-groups';
 import { Folder } from './Folder';
 import { Panel } from './Panel';
+import { HintTooltip } from './Hint';
 import { ShortcutListener } from './ShortcutListener';
 import { TimelineToggleButton } from './Timeline/TimelineToggleButton';
 import { blockPanelDragClick, capturePanelPointer, releasePanelPointer, getPanelCorner, getPanelDragHandle, getPanelDragOffset, getPanelDragStart, getPanelOriginX, getPanelOriginY, hasPanelDragMoved } from '../panel-drag';
@@ -274,6 +275,7 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
 
   const content = (
   <ShortcutListener>
+    <HintTooltip />
     <div className="dialkit-root" data-mode={mode} data-theme={theme}>
       <div
         ref={panelRef}

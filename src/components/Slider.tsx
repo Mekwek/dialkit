@@ -3,6 +3,7 @@ import { useRef, useState, useCallback, useEffect } from 'react';
 import { motion, useMotionValue, useTransform, animate } from 'motion/react';
 import type { ShortcutConfig } from '../store/DialStore';
 import { decimalsForStep, roundValue, snapToDecile, formatSliderShortcut } from '../shortcut-utils';
+import { useHint } from './Hint';
 
 interface SliderProps {
   label: string;
@@ -14,6 +15,7 @@ interface SliderProps {
   unit?: string;
   shortcut?: ShortcutConfig;
   shortcutActive?: boolean;
+  hint?: string;
 }
 
 const CLICK_THRESHOLD = 3;
@@ -31,12 +33,14 @@ export function Slider({
   unit,
   shortcut,
   shortcutActive,
+  hint,
 }: SliderProps) {
   // Guard: during cross-preset panel rebuilds the store's controls list and
   // values map can desync for one render — fall back to min instead of
   // crashing on value.toFixed below.
   if (typeof value !== 'number' || !Number.isFinite(value)) value = min;
 
+  const { hintRow } = useHint(hint);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -386,7 +390,7 @@ export function Slider({
       });
 
   return (
-    <div ref={wrapperRef} className="dialkit-slider-wrapper">
+    <div ref={wrapperRef} className="dialkit-slider-wrapper" {...hintRow}>
       <motion.div
         ref={trackRef}
         className={`dialkit-slider ${isActive ? 'dialkit-slider-active' : ''}`}

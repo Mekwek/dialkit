@@ -148,6 +148,8 @@ type ControlMeta = {
     shortcut?: ShortcutConfig;
     /** Conditional visibility rule attached via {@link withVisibility}. */
     visibleWhen?: VisibleWhen;
+    /** A short sentence about the control, from its folder's `_hints`. It shows as the control's hint. */
+    hint?: string;
 };
 
 export type { ControlMeta as C, DialValue as D, EasingConfig as E, ImageOption as I, ShortcutConfig as S };
