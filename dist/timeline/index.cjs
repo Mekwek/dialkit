@@ -545,6 +545,7 @@ function parseTimelineConfig(config) {
     const clipDial = {
       at: [clipAt, 0, duration, CLIP_VALUE_STEP]
     };
+    if (clip.hints) clipDial._hints = { ...clip.hints };
     if (!hasSteps && !hasProps) {
       clipDial.duration = [total, 0, duration, CLIP_VALUE_STEP];
     }

@@ -27,6 +27,8 @@ interface TransitionControlProps {
     min?: number;
     max?: number;
     step?: number;
+    /** Replaces the curve's own Duration hint, for the owner's duration. */
+    hint?: string;
   };
   /**
    * Cap (seconds) on the settle time the PHYSICS values may produce — the
@@ -221,7 +223,7 @@ export function TransitionControl({
       max={durationControl?.max ?? 5}
       step={durationControl?.step ?? 0.05}
       unit="s"
-      hint={isEasing ? HINTS.easingDuration : HINTS.springDuration}
+      hint={durationControl?.hint ?? (isEasing ? HINTS.easingDuration : HINTS.springDuration)}
     />
   ) : null;
 

@@ -1757,6 +1757,7 @@ function ClipPopover({
         min: durationMin,
         max: durationMax,
         step: durationMeta.step,
+        hint: durationMeta.hint,
       }
     : undefined;
 

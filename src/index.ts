@@ -77,6 +77,7 @@ export type {
   PadGroupConfig,
   AnchorGridConfig,
   HintsConfig,
+  LabelsConfig,
   ColorConfig,
   ImageConfig,
   ImageOption,

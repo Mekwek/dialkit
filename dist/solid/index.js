@@ -277,11 +277,11 @@ function resetConfigOf(value, folderPath) {
   if (typeof value === "string" && value) return `${folderPath}.${value}`;
   return void 0;
 }
-function hintsConfigOf(value) {
+function textMapOf(value) {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return void 0;
   return Object.fromEntries(Object.entries(value).filter(([, hint]) => typeof hint === "string" && hint));
 }
-var FOLDER_META_KEYS = ["_anchor", "_collapsed", "_fields", "_hints", "_pad", "_reset"];
+var FOLDER_META_KEYS = ["_anchor", "_collapsed", "_fields", "_hints", "_labels", "_pad", "_reset"];
 function isFolderMetaKey(key) {
   return FOLDER_META_KEYS.includes(key);
 }
@@ -1087,11 +1087,12 @@ var DialStoreClass = class {
     const controlsByPath = /* @__PURE__ */ new Map();
     const visit = (config2, prefix) => {
       const controls2 = [];
-      const hints = hintsConfigOf(config2._hints);
+      const hints = textMapOf(config2._hints);
+      const labels = textMapOf(config2._labels);
       for (const [key, rawValue] of Object.entries(config2)) {
         if (isFolderMetaKey(key)) continue;
         const path = prefix ? `${prefix}.${key}` : key;
-        const label = formatLabel(key);
+        const label = labels?.[key] ?? formatLabel(key);
         const shortcut = shortcuts?.[path];
         let control;
         const visibleWhen = isVisibilityWrapper(rawValue) ? rawValue.visibleWhen : void 0;
@@ -1843,6 +1844,7 @@ function parseTimelineConfig(config) {
     const clipDial = {
       at: [clipAt, 0, duration, CLIP_VALUE_STEP]
     };
+    if (clip.hints) clipDial._hints = { ...clip.hints };
     if (!hasSteps && !hasProps) {
       clipDial.duration = [total, 0, duration, CLIP_VALUE_STEP];
     }

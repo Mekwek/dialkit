@@ -31,6 +31,8 @@ interface ControlRendererProps {
     min?: number;
     max?: number;
     step?: number;
+    /** Replaces the curve's own Duration hint. */
+    hint?: string;
   };
   /** Cap (seconds) on the settle a physics spring's params may produce —
    *  threaded into TransitionControl's physics sliders (see its

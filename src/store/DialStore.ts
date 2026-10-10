@@ -150,13 +150,21 @@ function resetConfigOf(value: unknown, folderPath: string): true | string | unde
  */
 export type HintsConfig = Record<string, string>;
 
-function hintsConfigOf(value: unknown): HintsConfig | undefined {
+/** A folder key whose value maps child keys to text: `_hints` and `_labels`. */
+function textMapOf(value: unknown): Record<string, string> | undefined {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
   return Object.fromEntries(Object.entries(value).filter(([, hint]) => typeof hint === 'string' && hint));
 }
 
+/**
+ * Labels: set `_labels` on a folder (or the panel's root config) to a map
+ * from a child key to the text its row shows instead of the key's own
+ * words. The key stays the control's path, so saved values do not move.
+ */
+export type LabelsConfig = Record<string, string>;
+
 /** Folder keys that configure the folder instead of adding a control. */
-const FOLDER_META_KEYS = ['_anchor', '_collapsed', '_fields', '_hints', '_pad', '_reset'] as const;
+const FOLDER_META_KEYS = ['_anchor', '_collapsed', '_fields', '_hints', '_labels', '_pad', '_reset'] as const;
 type FolderMetaKey = (typeof FOLDER_META_KEYS)[number];
 
 export function isFolderMetaKey(key: string): boolean {
@@ -1461,12 +1469,13 @@ class DialStoreClass {
     const controlsByPath = new Map<string, ControlMeta>();
     const visit = (config: DialConfig, prefix: string): ControlMeta[] => {
       const controls: ControlMeta[] = [];
-      const hints = hintsConfigOf(config._hints);
+      const hints = textMapOf(config._hints);
+      const labels = textMapOf(config._labels);
 
       for (const [key, rawValue] of Object.entries(config)) {
         if (isFolderMetaKey(key)) continue;
         const path = prefix ? `${prefix}.${key}` : key;
-        const label = formatLabel(key);
+        const label = labels?.[key] ?? formatLabel(key);
         const shortcut = shortcuts?.[path];
         let control: ControlMeta | undefined;
 

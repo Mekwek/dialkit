@@ -118,6 +118,12 @@ type TimelineClipBase = {
    * the bar can never be shorter than `in + out`.
    */
   segments?: TimelineClipSegments;
+  /**
+   * Hints for the clip's popover controls, by key: `duration`, `transition`,
+   * or a `from` / `to` value. Each shows while the hint key (I) is held over
+   * its control. `duration` replaces the curve's own Duration hint.
+   */
+  hints?: Record<string, string>;
 };
 
 /** The fixed in/out parts of a segmented clip, in seconds. */
@@ -571,6 +577,7 @@ export function parseTimelineConfig(config: TimelineConfig): ParsedTimeline {
     const clipDial: DialConfig = {
       at: [clipAt, 0, duration, CLIP_VALUE_STEP],
     };
+    if (clip.hints) clipDial._hints = { ...clip.hints };
     // Sequence and props clips derive their length from their parts — no
     // duration dial.
     if (!hasSteps && !hasProps) {

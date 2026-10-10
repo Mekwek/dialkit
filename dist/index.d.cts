@@ -143,8 +143,14 @@ type AnchorGridConfig = Record<string, never>;
  * {@link ControlMeta.hint}.
  */
 type HintsConfig = Record<string, string>;
+/**
+ * Labels: set `_labels` on a folder (or the panel's root config) to a map
+ * from a child key to the text its row shows instead of the key's own
+ * words. The key stays the control's path, so saved values do not move.
+ */
+type LabelsConfig = Record<string, string>;
 /** Folder keys that configure the folder instead of adding a control. */
-declare const FOLDER_META_KEYS: readonly ["_anchor", "_collapsed", "_fields", "_hints", "_pad", "_reset"];
+declare const FOLDER_META_KEYS: readonly ["_anchor", "_collapsed", "_fields", "_hints", "_labels", "_pad", "_reset"];
 type FolderMetaKey = (typeof FOLDER_META_KEYS)[number];
 /**
  * Wraps a control with a visibility rule. The control is only added to the
@@ -686,6 +692,12 @@ type TimelineClipBase = {
      * the bar can never be shorter than `in + out`.
      */
     segments?: TimelineClipSegments;
+    /**
+     * Hints for the clip's popover controls, by key: `duration`, `transition`,
+     * or a `from` / `to` value. Each shows while the hint key (I) is held over
+     * its control. `duration` replaces the curve's own Duration hint.
+     */
+    hints?: Record<string, string>;
 };
 /** The fixed in/out parts of a segmented clip, in seconds. */
 type TimelineClipSegments = {
@@ -880,6 +892,8 @@ interface ControlRendererProps {
         min?: number;
         max?: number;
         step?: number;
+        /** Replaces the curve's own Duration hint. */
+        hint?: string;
     };
     /** Cap (seconds) on the settle a physics spring's params may produce —
      *  threaded into TransitionControl's physics sliders (see its
@@ -1005,6 +1019,8 @@ interface TransitionControlProps {
         min?: number;
         max?: number;
         step?: number;
+        /** Replaces the curve's own Duration hint, for the owner's duration. */
+        hint?: string;
     };
     /**
      * Cap (seconds) on the settle time the PHYSICS values may produce — the
@@ -1251,4 +1267,4 @@ declare class HintStoreClass {
 }
 declare const HintStore: HintStoreClass;
 
-export { type ActionConfig, AnchorGrid, type AnchorGridConfig, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type CopiedTransition, type CustomSpring, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, EASING_CURVES, type EasingConfig, type EasingCurve, EasingVisualization, FieldRow, type FieldsConfig, Folder, type FolderMode, HintStore, type HintsConfig, type ImageConfig, ImageControl, type ImageOption, type PadGroupConfig, type PanelConfig, type Preset, PresetManager, type RangeConfig, type ResolvedValues, SPRING_PRESETS, type SelectConfig, SelectControl, type SelectOption$1 as SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, type SpringMode, type SpringPreset, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipMeta, type TimelineClipTrackMeta, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelineMeta, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, TimelineStore, type TimelineTransport, Toggle, type TransitionConfig, TransitionControl, TransitionLibrary, type UseDialOptions, type UseDialTimelineOptions, type VisibleWhen, type VisibleWhenValue, formatClock, unwrapVisibility, useDialKit, useDialKitController, useDialTimeline, withVisibility };
+export { type ActionConfig, AnchorGrid, type AnchorGridConfig, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type CopiedTransition, type CustomSpring, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, EASING_CURVES, type EasingConfig, type EasingCurve, EasingVisualization, FieldRow, type FieldsConfig, Folder, type FolderMode, HintStore, type HintsConfig, type ImageConfig, ImageControl, type ImageOption, type LabelsConfig, type PadGroupConfig, type PanelConfig, type Preset, PresetManager, type RangeConfig, type ResolvedValues, SPRING_PRESETS, type SelectConfig, SelectControl, type SelectOption$1 as SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, type SpringMode, type SpringPreset, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipMeta, type TimelineClipTrackMeta, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelineMeta, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, TimelineStore, type TimelineTransport, Toggle, type TransitionConfig, TransitionControl, TransitionLibrary, type UseDialOptions, type UseDialTimelineOptions, type VisibleWhen, type VisibleWhenValue, formatClock, unwrapVisibility, useDialKit, useDialKitController, useDialTimeline, withVisibility };

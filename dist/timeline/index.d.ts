@@ -328,6 +328,12 @@ type TimelineClipBase = {
      * the bar can never be shorter than `in + out`.
      */
     segments?: TimelineClipSegments;
+    /**
+     * Hints for the clip's popover controls, by key: `duration`, `transition`,
+     * or a `from` / `to` value. Each shows while the hint key (I) is held over
+     * its control. `duration` replaces the curve's own Duration hint.
+     */
+    hints?: Record<string, string>;
 };
 /** The fixed in/out parts of a segmented clip, in seconds. */
 type TimelineClipSegments = {

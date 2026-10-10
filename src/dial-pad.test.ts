@@ -207,4 +207,20 @@ describe('DialPad', () => {
       DialStore.unregisterPanel(id);
     }
   });
+
+  it('shows the label its folder lists in _labels, and keeps the key as the path', () => {
+    const id = 'labels-test';
+    try {
+      DialStore.registerPanel(id, 'Labels', {
+        _labels: { billboard: 'Face Camera' },
+        billboard: false,
+        texScale: [1, 1, 3, 0.1],
+      });
+      const [billboard, texScale] = DialStore.getPanel(id)!.controls;
+      assert.deepEqual([billboard.path, billboard.label], ['billboard', 'Face Camera']);
+      assert.deepEqual([texScale.path, texScale.label], ['texScale', 'Tex Scale']);
+    } finally {
+      DialStore.unregisterPanel(id);
+    }
+  });
 });
