@@ -695,11 +695,14 @@ const TimelineSection = memo(function TimelineSection({
     if (!open) return;
     const ruler = laneAreaRef.current;
     if (!ruler) return;
-    const measure = () => {
-      setLaneWidth(ruler.getBoundingClientRect().width);
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
+    setLaneWidth(ruler.getBoundingClientRect().width);
+    // Later sizes come from the layout, which a host's zoom (a scale on a
+    // parent) leaves alone: a scaled screen width would place every clip
+    // as far out as the zoom.
+    const observer = new ResizeObserver((entries) => {
+      const box = entries[0]?.borderBoxSize?.[0];
+      setLaneWidth(box ? box.inlineSize : ruler.offsetWidth);
+    });
     observer.observe(ruler);
     return () => observer.disconnect();
   }, [open]);
