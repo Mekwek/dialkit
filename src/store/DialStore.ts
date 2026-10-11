@@ -351,6 +351,12 @@ export type PanelConfig = {
    * the hint key is held.
    */
   hint?: string;
+  /**
+   * In a group, `true` puts this panel's version toolbar (add, the version
+   * menu, copy) in the group's own header, as on a standalone panel, and
+   * drops its section.
+   */
+  groupHeader?: boolean;
 };
 
 type Listener = () => void;
@@ -399,6 +405,12 @@ export type DialStorePanelOptions = {
    * the hint key is held.
    */
   hint?: string;
+  /**
+   * In a group, `true` puts this panel's version toolbar (add, the version
+   * menu, copy) in the group's own header, as on a standalone panel, and
+   * drops its section.
+   */
+  groupHeader?: boolean;
 };
 
 type PersistConfig = {
@@ -697,6 +709,7 @@ class DialStoreClass {
       presetsEditable: options.presetsEditable,
       presetsLockable: options.presetsLockable,
       hint: options.hint,
+      groupHeader: options.groupHeader,
     };
     this.panels.set(id, panel);
     this.controlsByPanel.set(panel, controlsByPath);
@@ -759,6 +772,7 @@ class DialStoreClass {
       presetsEditable: options.presetsEditable ?? existing.presetsEditable,
       presetsLockable: options.presetsLockable ?? existing.presetsLockable,
       hint: options.hint ?? existing.hint,
+      groupHeader: options.groupHeader ?? existing.groupHeader,
     };
     this.panels.set(id, nextPanel);
     this.controlsByPanel.set(nextPanel, controlsByPath);

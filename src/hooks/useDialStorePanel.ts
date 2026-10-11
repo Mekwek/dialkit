@@ -29,6 +29,12 @@ export interface UseDialStorePanelOptions {
    * the hint key is held.
    */
   hint?: string;
+  /**
+   * In a group, `true` puts this panel's version toolbar (add, the version
+   * menu, copy) in the group's own header, as on a standalone panel, and
+   * drops its section.
+   */
+  groupHeader?: boolean;
 }
 
 // Serialize with a referential short-circuit: consumers can re-render at 60Hz
@@ -76,6 +82,7 @@ export function useDialStorePanel(
       presetsEditable: optionsRef.current.presetsEditable,
       presetsLockable: optionsRef.current.presetsLockable,
       hint: optionsRef.current.hint,
+      groupHeader: optionsRef.current.groupHeader,
     });
     return () => DialStore.unregisterPanel(panelId);
   }, [hasStableId, panelId, name]);
@@ -96,9 +103,10 @@ export function useDialStorePanel(
       presetsEditable: optionsRef.current.presetsEditable,
       presetsLockable: optionsRef.current.presetsLockable,
       hint: optionsRef.current.hint,
+      groupHeader: optionsRef.current.groupHeader,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasStableId, panelId, name, serializedConfig, serializedShortcuts, serializedPersist, options.group, options.presetsEditable, options.presetsLockable, options.hint]);
+  }, [hasStableId, panelId, name, serializedConfig, serializedShortcuts, serializedPersist, options.group, options.presetsEditable, options.presetsLockable, options.hint, options.groupHeader]);
 
   const subscribe = useCallback(
     (callback: () => void) => DialStore.subscribe(panelId, callback),

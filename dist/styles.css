@@ -3587,6 +3587,11 @@
 }
 
 .dialkit-hint-zone { display: contents; }
+
+/* The line at the bottom of a panel until the hint key is pressed once
+   (HintTip), under a divider like the panel title's. */
+.dialkit-hint-tip { margin: 4px 0 0; padding: 10px 0 2px; border-top: 1px solid var(--dial-surface-subtle); color: var(--dial-text-label); opacity: 0.8; font-size: var(--dial-hint-font-size); line-height: 1.4; text-wrap: pretty; }
+.dialkit-hint-tip-key { display: inline-block; min-width: 18px; padding: 0 5px; border: 1px solid var(--dial-border); border-radius: 4px; font: inherit; line-height: 16px; text-align: center; }
 @media (prefers-reduced-motion: reduce) { .dialkit-hint, .dialkit-hint-dim, .dialkit-hint-dim-hole { animation: none; transition: none; } }
 
 /* The version list in upstream's style: a check on the current version, and

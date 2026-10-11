@@ -377,7 +377,8 @@ var DialStoreClass = class {
       group: options.group,
       presetsEditable: options.presetsEditable,
       presetsLockable: options.presetsLockable,
-      hint: options.hint
+      hint: options.hint,
+      groupHeader: options.groupHeader
     };
     this.panels.set(id, panel);
     this.controlsByPanel.set(panel, controlsByPath);
@@ -422,7 +423,8 @@ var DialStoreClass = class {
       group: options.group ?? existing.group,
       presetsEditable: options.presetsEditable ?? existing.presetsEditable,
       presetsLockable: options.presetsLockable ?? existing.presetsLockable,
-      hint: options.hint ?? existing.hint
+      hint: options.hint ?? existing.hint,
+      groupHeader: options.groupHeader ?? existing.groupHeader
     };
     this.panels.set(id, nextPanel);
     this.controlsByPanel.set(nextPanel, controlsByPath);

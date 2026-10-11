@@ -264,6 +264,12 @@ type PanelConfig = {
      * the hint key is held.
      */
     hint?: string;
+    /**
+     * In a group, `true` puts this panel's version toolbar (add, the version
+     * menu, copy) in the group's own header, as on a standalone panel, and
+     * drops its section.
+     */
+    groupHeader?: boolean;
 };
 type Listener = () => void;
 type ActionListener = (action: string) => void;
@@ -308,6 +314,12 @@ type DialStorePanelOptions = {
      * the hint key is held.
      */
     hint?: string;
+    /**
+     * In a group, `true` puts this panel's version toolbar (add, the version
+     * menu, copy) in the group's own header, as on a standalone panel, and
+     * drops its section.
+     */
+    groupHeader?: boolean;
 };
 declare class DialStoreClass {
     private panelOpenListeners;

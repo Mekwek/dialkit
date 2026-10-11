@@ -277,6 +277,12 @@ type PanelConfig = {
      * the hint key is held.
      */
     hint?: string;
+    /**
+     * In a group, `true` puts this panel's version toolbar (add, the version
+     * menu, copy) in the group's own header, as on a standalone panel, and
+     * drops its section.
+     */
+    groupHeader?: boolean;
 };
 type Listener$3 = () => void;
 type ActionListener = (action: string) => void;
@@ -321,6 +327,12 @@ type DialStorePanelOptions = {
      * the hint key is held.
      */
     hint?: string;
+    /**
+     * In a group, `true` puts this panel's version toolbar (add, the version
+     * menu, copy) in the group's own header, as on a standalone panel, and
+     * drops its section.
+     */
+    groupHeader?: boolean;
 };
 declare class DialStoreClass {
     private panelOpenListeners;
@@ -505,6 +517,12 @@ interface UseDialOptions {
      * the hint key is held.
      */
     hint?: string;
+    /**
+     * In a group, `true` puts this panel's version toolbar (add, the version
+     * menu, copy) in the group's own header, as on a standalone panel, and
+     * drops its section.
+     */
+    groupHeader?: boolean;
 }
 interface DialKitController<T extends DialConfig> {
     values: ResolvedValues<T>;
@@ -1290,6 +1308,8 @@ interface ShownHint {
 declare class HintStoreClass {
     private key;
     private keyHeld;
+    /** Read from storage on first use; null until then. */
+    private tipSeen;
     private shown;
     private hovered;
     private listeners;
@@ -1299,6 +1319,11 @@ declare class HintStoreClass {
     getKey: () => string;
     setKey(key: string): void;
     isKeyHeld: () => boolean;
+    /**
+     * Whether the user has pressed the hint key once. Until then, every open
+     * panel shows a tip that says what the key does (HintTip).
+     */
+    isTipSeen: () => boolean;
     setKeyHeld(held: boolean): void;
     getShown: () => ShownHint | null;
     /** The pointer entered `anchor`, a row with a hint. */
@@ -1317,4 +1342,14 @@ declare class HintStoreClass {
 }
 declare const HintStore: HintStoreClass;
 
-export { type ActionConfig, AnchorGrid, type AnchorGridConfig, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type CopiedTransition, type CustomSpring, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, EASING_CURVES, type EasingConfig, type EasingCurve, EasingVisualization, FieldRow, type FieldsConfig, Folder, type FolderMode, HintStore, type HintsConfig, type ImageConfig, ImageControl, type ImageOption, type LabelsConfig, type PadGroupConfig, type PanelConfig, type Preset, PresetManager, type RangeConfig, type ResolvedValues, SPRING_PRESETS, type SelectConfig, SelectControl, type SelectOption$1 as SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, type SpringMode, type SpringPreset, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipMeta, type TimelineClipTrackMeta, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelineMeta, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, TimelineStore, type TimelineTransport, Toggle, type TransitionConfig, TransitionControl, TransitionLibrary, type UseDialOptions, type UseDialTimelineOptions, type VisibleWhen, type VisibleWhenValue, formatClock, unwrapVisibility, useDialKit, useDialKitController, useDialTimeline, withVisibility };
+/**
+ * Tells a first-time user what the hint key does: a line at the bottom of
+ * every open panel, until the key is pressed once, then never shows again in
+ * that browser. A server render shows nothing. `always` shows it whatever
+ * the user did, for a specimen of the line.
+ */
+declare function HintTip({ always }: {
+    always?: boolean;
+}): react_jsx_runtime.JSX.Element | null;
+
+export { type ActionConfig, AnchorGrid, type AnchorGridConfig, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type CopiedTransition, type CustomSpring, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, EASING_CURVES, type EasingConfig, type EasingCurve, EasingVisualization, FieldRow, type FieldsConfig, Folder, type FolderMode, HintStore, HintTip, type HintsConfig, type ImageConfig, ImageControl, type ImageOption, type LabelsConfig, type PadGroupConfig, type PanelConfig, type Preset, PresetManager, type RangeConfig, type ResolvedValues, SPRING_PRESETS, type SelectConfig, SelectControl, type SelectOption$1 as SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, type SpringMode, type SpringPreset, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipMeta, type TimelineClipTrackMeta, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelineMeta, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, TimelineStore, type TimelineTransport, Toggle, type TransitionConfig, TransitionControl, TransitionLibrary, type UseDialOptions, type UseDialTimelineOptions, type VisibleWhen, type VisibleWhenValue, formatClock, unwrapVisibility, useDialKit, useDialKitController, useDialTimeline, withVisibility };

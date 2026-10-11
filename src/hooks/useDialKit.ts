@@ -38,6 +38,12 @@ export interface UseDialOptions {
    * the hint key is held.
    */
   hint?: string;
+  /**
+   * In a group, `true` puts this panel's version toolbar (add, the version
+   * menu, copy) in the group's own header, as on a standalone panel, and
+   * drops its section.
+   */
+  groupHeader?: boolean;
 }
 
 export interface DialKitController<T extends DialConfig> {
@@ -72,6 +78,7 @@ export function useDialKitController<T extends DialConfig>(
     presetsEditable: options?.presetsEditable,
     presetsLockable: options?.presetsLockable,
     hint: options?.hint,
+    groupHeader: options?.groupHeader,
   });
 
   const configRef = useRef(config);

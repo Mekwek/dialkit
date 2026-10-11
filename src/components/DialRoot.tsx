@@ -249,6 +249,9 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
       );
     }
     const { group } = entry;
+    // A panel marked groupHeader puts its version toolbar in the group's
+    // header, as on a standalone panel, and has no section of its own.
+    const headerPanel = entry.panels.find((p) => p.groupHeader);
     return (
       <div key={entry.key} className="dialkit-panel-wrapper" data-group={group}>
         <Folder
@@ -258,8 +261,9 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
           isRoot
           inline={inline}
           onOpenChange={(open) => handleGroupOpenChange(group, open)}
+          toolbar={headerPanel ? <Panel panel={headerPanel} variant="toolbar" /> : undefined}
         >
-          {entry.panels.map((p) => (
+          {entry.panels.filter((p) => p !== headerPanel).map((p) => (
             <Panel
               key={p.id}
               panel={p}

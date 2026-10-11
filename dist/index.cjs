@@ -34,6 +34,7 @@ __export(index_exports, {
   FieldRow: () => FieldRow,
   Folder: () => Folder,
   HintStore: () => HintStore,
+  HintTip: () => HintTip,
   ImageControl: () => ImageControl,
   PresetManager: () => PresetManager,
   SPRING_PRESETS: () => SPRING_PRESETS,
@@ -548,7 +549,8 @@ var DialStoreClass = class {
       group: options.group,
       presetsEditable: options.presetsEditable,
       presetsLockable: options.presetsLockable,
-      hint: options.hint
+      hint: options.hint,
+      groupHeader: options.groupHeader
     };
     this.panels.set(id, panel);
     this.controlsByPanel.set(panel, controlsByPath);
@@ -593,7 +595,8 @@ var DialStoreClass = class {
       group: options.group ?? existing.group,
       presetsEditable: options.presetsEditable ?? existing.presetsEditable,
       presetsLockable: options.presetsLockable ?? existing.presetsLockable,
-      hint: options.hint ?? existing.hint
+      hint: options.hint ?? existing.hint,
+      groupHeader: options.groupHeader ?? existing.groupHeader
     };
     this.panels.set(id, nextPanel);
     this.controlsByPanel.set(nextPanel, controlsByPath);
@@ -1406,7 +1409,8 @@ function useDialStorePanel(name, config, options = {}) {
       group: optionsRef.current.group,
       presetsEditable: optionsRef.current.presetsEditable,
       presetsLockable: optionsRef.current.presetsLockable,
-      hint: optionsRef.current.hint
+      hint: optionsRef.current.hint,
+      groupHeader: optionsRef.current.groupHeader
     });
     return () => DialStore.unregisterPanel(panelId);
   }, [hasStableId, panelId, name]);
@@ -1424,9 +1428,10 @@ function useDialStorePanel(name, config, options = {}) {
       group: optionsRef.current.group,
       presetsEditable: optionsRef.current.presetsEditable,
       presetsLockable: optionsRef.current.presetsLockable,
-      hint: optionsRef.current.hint
+      hint: optionsRef.current.hint,
+      groupHeader: optionsRef.current.groupHeader
     });
-  }, [hasStableId, panelId, name, serializedConfig, serializedShortcuts, serializedPersist, options.group, options.presetsEditable, options.presetsLockable, options.hint]);
+  }, [hasStableId, panelId, name, serializedConfig, serializedShortcuts, serializedPersist, options.group, options.presetsEditable, options.presetsLockable, options.hint, options.groupHeader]);
   const subscribe = (0, import_react.useCallback)(
     (callback) => DialStore.subscribe(panelId, callback),
     [panelId]
@@ -1449,7 +1454,8 @@ function useDialKitController(name, config, options) {
     group: options?.group,
     presetsEditable: options?.presetsEditable,
     presetsLockable: options?.presetsLockable,
-    hint: options?.hint
+    hint: options?.hint,
+    groupHeader: options?.groupHeader
   });
   const configRef = (0, import_react2.useRef)(config);
   configRef.current = config;
@@ -2146,10 +2152,26 @@ function getDialKitPortalRoot(trigger) {
 }
 
 // src/store/HintStore.ts
+var TIP_SEEN_KEY = "dialkit-hint-tip-seen";
+function readTipSeen() {
+  try {
+    return typeof localStorage !== "undefined" && localStorage.getItem(TIP_SEEN_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+function writeTipSeen() {
+  try {
+    localStorage.setItem(TIP_SEEN_KEY, "1");
+  } catch {
+  }
+}
 var HintStoreClass = class {
   constructor() {
     this.key = "h";
     this.keyHeld = false;
+    /** Read from storage on first use; null until then. */
+    this.tipSeen = null;
     this.shown = null;
     this.hovered = [];
     this.listeners = /* @__PURE__ */ new Set();
@@ -2162,6 +2184,14 @@ var HintStoreClass = class {
     /** The key held to show hints. */
     this.getKey = () => this.key;
     this.isKeyHeld = () => this.keyHeld;
+    /**
+     * Whether the user has pressed the hint key once. Until then, every open
+     * panel shows a tip that says what the key does (HintTip).
+     */
+    this.isTipSeen = () => {
+      if (this.tipSeen === null) this.tipSeen = readTipSeen();
+      return this.tipSeen;
+    };
     this.getShown = () => this.shown;
   }
   notify() {
@@ -2174,6 +2204,10 @@ var HintStoreClass = class {
   setKeyHeld(held) {
     if (held === this.keyHeld) return;
     this.keyHeld = held;
+    if (held && !this.isTipSeen()) {
+      this.tipSeen = true;
+      writeTipSeen();
+    }
     const top = this.hovered[this.hovered.length - 1];
     if (!held) this.shown = null;
     else if (top) this.shown = { text: top.text, anchor: top.anchor, box: top.anchor };
@@ -2246,6 +2280,16 @@ function useHint(hint) {
       }
     }
   };
+}
+function HintTip({ always = false }) {
+  const seen = (0, import_react3.useSyncExternalStore)(HintStore.subscribe, HintStore.isTipSeen, () => true);
+  const key = (0, import_react3.useSyncExternalStore)(HintStore.subscribe, HintStore.getKey, HintStore.getKey);
+  if (seen && !always) return null;
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", { className: "dialkit-hint-tip", "data-always": always || void 0, children: [
+    "Hold ",
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("kbd", { className: "dialkit-hint-tip-key", children: key.toUpperCase() }),
+    " over a control to see what it does."
+  ] });
 }
 function HintZone({ hint, children }) {
   const { hintRow } = useHint(hint);
@@ -2573,7 +2617,10 @@ function Folder({ title, children, open, defaultOpen = true, isRoot = false, inl
             animate: isRoot ? void 0 : { height: "auto" },
             exit: isRoot ? void 0 : { height: 0 },
             transition: isRoot ? void 0 : { type: "spring", visualDuration: 0.35, bounce: 0.1 },
-            children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dialkit-folder-inner", children })
+            children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dialkit-folder-inner", children: [
+              children,
+              isRoot && !inline && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(HintTip, {})
+            ] })
           }
         ) })
       ]
@@ -7240,6 +7287,7 @@ function Panel({ panel, defaultOpen = true, inline = false, folderMode = "indepe
     ),
     toolbarExtra
   ] });
+  if (variant === "toolbar") return toolbar;
   if (variant === "section") {
     return /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { className: "dialkit-panel-section", "data-panel-name": panel.name, children: /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(Folder, { title: panel.name, open: isOpen, onOpenChange: handleOpenChange, hint: panel.hint, toolbar, children: renderControls() }) });
   }
@@ -7587,6 +7635,7 @@ function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover"
       );
     }
     const { group } = entry;
+    const headerPanel = entry.panels.find((p) => p.groupHeader);
     return /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "dialkit-panel-wrapper", "data-group": group, children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
       Folder,
       {
@@ -7596,7 +7645,8 @@ function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover"
         isRoot: true,
         inline,
         onOpenChange: (open) => handleGroupOpenChange(group, open),
-        children: entry.panels.map((p) => /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+        toolbar: headerPanel ? /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(Panel, { panel: headerPanel, variant: "toolbar" }) : void 0,
+        children: entry.panels.filter((p) => p !== headerPanel).map((p) => /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
           Panel,
           {
             panel: p,
@@ -10780,6 +10830,7 @@ function ShortcutsMenu({ panelId }) {
   FieldRow,
   Folder,
   HintStore,
+  HintTip,
   ImageControl,
   PresetManager,
   SPRING_PRESETS,

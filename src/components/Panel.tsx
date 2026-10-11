@@ -32,9 +32,10 @@ interface PanelProps {
    * shell — its own collapsible bubble with the panel-inner sizing. `'section'`
    * renders the panel as a plain nested folder with no bubble, so several
    * panels can be stacked as collapsible sections inside one shared merged
-   * shell (see `DialRoot` group rendering).
+   * shell (see `DialRoot` group rendering). `'toolbar'` renders only the
+   * version toolbar, for a group's header (`groupHeader`).
    */
-  variant?: 'root' | 'section';
+  variant?: 'root' | 'section' | 'toolbar';
   toolbarExtra?: ReactNode;
 }
 
@@ -207,6 +208,9 @@ export function Panel({ panel, defaultOpen = true, inline = false, folderMode = 
       {toolbarExtra}
     </>
   );
+
+  // In a group's header (groupHeader): the toolbar alone, no section.
+  if (variant === 'toolbar') return toolbar;
 
   // Section variant: render as a plain nested folder (no bubble, no panel-inner
   // sizing) so the parent merged shell owns the outer chrome. The preset/copy

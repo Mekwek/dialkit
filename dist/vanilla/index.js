@@ -476,7 +476,8 @@ var DialStoreClass = class {
       group: options.group,
       presetsEditable: options.presetsEditable,
       presetsLockable: options.presetsLockable,
-      hint: options.hint
+      hint: options.hint,
+      groupHeader: options.groupHeader
     };
     this.panels.set(id, panel);
     this.controlsByPanel.set(panel, controlsByPath);
@@ -521,7 +522,8 @@ var DialStoreClass = class {
       group: options.group ?? existing.group,
       presetsEditable: options.presetsEditable ?? existing.presetsEditable,
       presetsLockable: options.presetsLockable ?? existing.presetsLockable,
-      hint: options.hint ?? existing.hint
+      hint: options.hint ?? existing.hint,
+      groupHeader: options.groupHeader ?? existing.groupHeader
     };
     this.panels.set(id, nextPanel);
     this.controlsByPanel.set(nextPanel, controlsByPath);
@@ -1970,10 +1972,26 @@ function adjacentTabStop(trigger, backwards = false) {
 }
 
 // src/store/HintStore.ts
+var TIP_SEEN_KEY = "dialkit-hint-tip-seen";
+function readTipSeen() {
+  try {
+    return typeof localStorage !== "undefined" && localStorage.getItem(TIP_SEEN_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+function writeTipSeen() {
+  try {
+    localStorage.setItem(TIP_SEEN_KEY, "1");
+  } catch {
+  }
+}
 var HintStoreClass = class {
   constructor() {
     this.key = "h";
     this.keyHeld = false;
+    /** Read from storage on first use; null until then. */
+    this.tipSeen = null;
     this.shown = null;
     this.hovered = [];
     this.listeners = /* @__PURE__ */ new Set();
@@ -1986,6 +2004,14 @@ var HintStoreClass = class {
     /** The key held to show hints. */
     this.getKey = () => this.key;
     this.isKeyHeld = () => this.keyHeld;
+    /**
+     * Whether the user has pressed the hint key once. Until then, every open
+     * panel shows a tip that says what the key does (HintTip).
+     */
+    this.isTipSeen = () => {
+      if (this.tipSeen === null) this.tipSeen = readTipSeen();
+      return this.tipSeen;
+    };
     this.getShown = () => this.shown;
   }
   notify() {
@@ -1998,6 +2024,10 @@ var HintStoreClass = class {
   setKeyHeld(held) {
     if (held === this.keyHeld) return;
     this.keyHeld = held;
+    if (held && !this.isTipSeen()) {
+      this.tipSeen = true;
+      writeTipSeen();
+    }
     const top = this.hovered[this.hovered.length - 1];
     if (!held) this.shown = null;
     else if (top) this.shown = { text: top.text, anchor: top.anchor, box: top.anchor };
