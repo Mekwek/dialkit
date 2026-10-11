@@ -800,6 +800,7 @@ const TimelineSection = memo(function TimelineSection({
   // passive root listener, so `preventDefault` inside `onWheel` is a no-op
   // and the page would scroll along with the dock.
   const bodyRef = useRef<HTMLDivElement>(null);
+  const foldRef = useRef<HTMLDivElement>(null);
   const wheelHandlerRef = useRef<(e: WheelEvent) => void>(() => {});
   wheelHandlerRef.current = (e: WheelEvent) => {
     if (e.altKey) {
@@ -1569,7 +1570,24 @@ const TimelineSection = memo(function TimelineSection({
         </div>
       </div>
 
+      {/* The body folds open and shut with the panel folders' spring. It
+          clips only while it moves: once open, the pan bar and the
+          playhead flag hang past its edges. */}
+      <AnimatePresence initial={false}>
       {open && (
+        <motion.div
+          key="body"
+          className="dialkit-timeline-fold"
+          initial={{ height: 0, overflow: 'clip' }}
+          animate={{ height: 'auto' }}
+          exit={{ height: 0, overflow: 'clip' }}
+          transition={{ type: 'spring', visualDuration: 0.35, bounce: 0.1 }}
+          /* transitionEnd never runs here: set the open state when the fold ends. */
+          onAnimationComplete={(definition) => {
+            if (open && (definition as { height?: unknown }).height === 'auto') foldRef.current?.style.setProperty('overflow', 'visible');
+          }}
+          ref={foldRef}
+        >
         <div
           ref={bodyRef}
           className="dialkit-timeline-body"
@@ -1642,7 +1660,9 @@ const TimelineSection = memo(function TimelineSection({
             </div>
           )}
         </div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
       {popover && (
         <ClipPopover

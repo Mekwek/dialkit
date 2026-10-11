@@ -2621,6 +2621,12 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   transform: rotate(180deg);
 }
 
+/* The box that animates the body's height. flow-root keeps the body's top
+   margin inside it, so the fold includes that margin. */
+.dialkit-timeline-fold {
+  display: flow-root;
+}
+
 .dialkit-timeline-body {
   /* The same 6px the ruler and the lane already have between them. */
   margin-top: 6px;

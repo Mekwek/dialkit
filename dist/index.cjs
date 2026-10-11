@@ -9220,6 +9220,7 @@ var TimelineSection = (0, import_react35.memo)(function TimelineSection2({
     ));
   }, [meta.duration]);
   const bodyRef = (0, import_react35.useRef)(null);
+  const foldRef = (0, import_react35.useRef)(null);
   const wheelHandlerRef = (0, import_react35.useRef)(() => {
   });
   wheelHandlerRef.current = (e) => {
@@ -9892,80 +9893,95 @@ var TimelineSection = (0, import_react35.memo)(function TimelineSection2({
             )
           ] })
         ] }),
-        open && /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)(
-          "div",
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(import_react36.AnimatePresence, { initial: false, children: open && /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+          import_react36.motion.div,
           {
-            ref: bodyRef,
-            className: "dialkit-timeline-body",
-            onPointerDown: handleTrackPointerDown,
-            onPointerMove: handleTrackPointerMove,
-            onPointerUp: finishTrackScrub,
-            onPointerCancel: finishTrackScrub,
-            onLostPointerCapture: finishTrackScrub,
-            children: [
-              /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "dialkit-timeline-grid", children: [
-                /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "dialkit-timeline-row dialkit-timeline-ruler-row", children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { className: "dialkit-timeline-label" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)(
-                    "div",
-                    {
-                      ref: laneAreaRef,
-                      className: "dialkit-timeline-ruler",
-                      onPointerDown: handleRulerPointerDown,
-                      onPointerMove: handleRulerPointerMove,
-                      onPointerUp: handleRulerPointerUp,
-                      onPointerCancel: handleRulerPointerCancel,
-                      onLostPointerCapture: handleRulerPointerCancel,
-                      ...rulerHintRow,
-                      title: "Drag to seek \xB7 Option-drag or Option-scroll to zoom \xB7 Shift-click to reset zoom",
-                      children: [
-                        fineTicks.map((t) => /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { className: "dialkit-timeline-tick dialkit-timeline-tick-fine", style: { left: (t - safeViewStart) * pxPerSecond } }, `fine:${t}`)),
-                        mediumTicks.map((t) => /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { className: "dialkit-timeline-tick dialkit-timeline-tick-medium", style: { left: (t - safeViewStart) * pxPerSecond } }, `medium:${t}`)),
-                        majorTicks.map((t) => /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { className: "dialkit-timeline-tick", style: { left: (t - safeViewStart) * pxPerSecond } }, t)),
-                        majorTicks.map((t) => /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
-                          "span",
-                          {
-                            className: "dialkit-timeline-tick-label",
-                            style: { left: (t - safeViewStart) * pxPerSecond },
-                            children: formatRulerSeconds(t, majorStep)
-                          },
-                          `label:${t}`
-                        ))
-                      ]
-                    }
-                  )
-                ] }),
-                rows,
-                pxPerSecond > 0 && /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
-                  TimelinePlayheadFlag,
-                  {
-                    id: meta.id,
-                    duration: meta.duration,
-                    pxPerSecond,
-                    viewStart: safeViewStart,
-                    viewEnd,
-                    laneWidth,
-                    rulerRef: laneAreaRef,
-                    onResetView: resetView
-                  }
-                )
-              ] }),
-              zoom > 1 && /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "dialkit-timeline-scroll-row", children: [
-                /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { className: "dialkit-timeline-label" }),
-                /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
-                  "div",
-                  {
-                    ref: horizontalScrollRef,
-                    className: "dialkit-timeline-horizontal-scroll",
-                    onScroll: handleHorizontalScroll,
-                    "aria-label": "Timeline horizontal scroll",
-                    children: /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { style: { width: laneWidth * zoom } })
-                  }
-                )
-              ] })
-            ]
-          }
-        ),
+            className: "dialkit-timeline-fold",
+            initial: { height: 0, overflow: "clip" },
+            animate: { height: "auto" },
+            exit: { height: 0, overflow: "clip" },
+            transition: { type: "spring", visualDuration: 0.35, bounce: 0.1 },
+            onAnimationComplete: (definition) => {
+              if (open && definition.height === "auto") foldRef.current?.style.setProperty("overflow", "visible");
+            },
+            ref: foldRef,
+            children: /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)(
+              "div",
+              {
+                ref: bodyRef,
+                className: "dialkit-timeline-body",
+                onPointerDown: handleTrackPointerDown,
+                onPointerMove: handleTrackPointerMove,
+                onPointerUp: finishTrackScrub,
+                onPointerCancel: finishTrackScrub,
+                onLostPointerCapture: finishTrackScrub,
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "dialkit-timeline-grid", children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "dialkit-timeline-row dialkit-timeline-ruler-row", children: [
+                      /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { className: "dialkit-timeline-label" }),
+                      /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)(
+                        "div",
+                        {
+                          ref: laneAreaRef,
+                          className: "dialkit-timeline-ruler",
+                          onPointerDown: handleRulerPointerDown,
+                          onPointerMove: handleRulerPointerMove,
+                          onPointerUp: handleRulerPointerUp,
+                          onPointerCancel: handleRulerPointerCancel,
+                          onLostPointerCapture: handleRulerPointerCancel,
+                          ...rulerHintRow,
+                          title: "Drag to seek \xB7 Option-drag or Option-scroll to zoom \xB7 Shift-click to reset zoom",
+                          children: [
+                            fineTicks.map((t) => /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { className: "dialkit-timeline-tick dialkit-timeline-tick-fine", style: { left: (t - safeViewStart) * pxPerSecond } }, `fine:${t}`)),
+                            mediumTicks.map((t) => /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { className: "dialkit-timeline-tick dialkit-timeline-tick-medium", style: { left: (t - safeViewStart) * pxPerSecond } }, `medium:${t}`)),
+                            majorTicks.map((t) => /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { className: "dialkit-timeline-tick", style: { left: (t - safeViewStart) * pxPerSecond } }, t)),
+                            majorTicks.map((t) => /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+                              "span",
+                              {
+                                className: "dialkit-timeline-tick-label",
+                                style: { left: (t - safeViewStart) * pxPerSecond },
+                                children: formatRulerSeconds(t, majorStep)
+                              },
+                              `label:${t}`
+                            ))
+                          ]
+                        }
+                      )
+                    ] }),
+                    rows,
+                    pxPerSecond > 0 && /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+                      TimelinePlayheadFlag,
+                      {
+                        id: meta.id,
+                        duration: meta.duration,
+                        pxPerSecond,
+                        viewStart: safeViewStart,
+                        viewEnd,
+                        laneWidth,
+                        rulerRef: laneAreaRef,
+                        onResetView: resetView
+                      }
+                    )
+                  ] }),
+                  zoom > 1 && /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "dialkit-timeline-scroll-row", children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { className: "dialkit-timeline-label" }),
+                    /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+                      "div",
+                      {
+                        ref: horizontalScrollRef,
+                        className: "dialkit-timeline-horizontal-scroll",
+                        onScroll: handleHorizontalScroll,
+                        "aria-label": "Timeline horizontal scroll",
+                        children: /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { style: { width: laneWidth * zoom } })
+                      }
+                    )
+                  ] })
+                ]
+              }
+            )
+          },
+          "body"
+        ) }),
         popover && /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
           ClipPopover,
           {
