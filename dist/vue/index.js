@@ -7826,7 +7826,6 @@ var TimelineSection = defineComponent21({
         copied.value = false;
       }, 1500);
     };
-    const handleAddPreset = () => DialStore.savePreset(props.meta.id, `Version ${presets.value.length + 2}`);
     const closePopover = () => {
       popover.value = null;
     };
@@ -7985,13 +7984,6 @@ var TimelineSection = defineComponent21({
         h21("div", { class: "dialkit-timeline-actions" }, [
           h21(PlayPauseButton, { id: props.meta.id }),
           h21(ReplayButton, { onReplay: handleReplay }),
-          h21("button", { class: "dialkit-toolbar-add", title: "Add timeline version", "aria-label": "Add timeline version", onClick: handleAddPreset }, [
-            h21(
-              "svg",
-              { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "2.5", "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true" },
-              ICON_ADD_PRESET.map((path) => h21("path", { d: path }))
-            )
-          ]),
           h21(PresetManager, { panelId: props.meta.id, presets: presets.value, activePresetId: activePresetId.value }),
           h21("button", {
             class: "dialkit-toolbar-add",

@@ -2085,6 +2085,17 @@ var ICON_LINK = [
   "M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"
 ];
 var ICON_MORE = ["M5 12h.01", "M12 12h.01", "M19 12h.01"];
+var ICON_COPY = [
+  "M9 11a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-7a2 2 0 0 1-2-2z",
+  "M5 15a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2"
+];
+var ICON_PASTE = [
+  "M9 3h6v3H9z",
+  "M15 4.5h2a2 2 0 0 1 2 2V10",
+  "M9 4.5H7a2 2 0 0 0-2 2V19a2 2 0 0 0 2 2h4",
+  "M14 16h7",
+  "m18 13 3 3-3 3"
+];
 
 // src/components/Hint.tsx
 var import_react3 = require("react");
@@ -3971,6 +3982,7 @@ var TransitionLibraryClass = class {
     this.springs = [];
     this.listeners = /* @__PURE__ */ new Set();
     this.copied = null;
+    this.pasteListeners = /* @__PURE__ */ new Set();
     this.subscribe = (listener) => {
       this.listeners.add(listener);
       return () => this.listeners.delete(listener);
@@ -3979,6 +3991,11 @@ var TransitionLibraryClass = class {
     this.getCustomSprings = () => this.springs;
     /** The last copied transition, shared by every transition control. */
     this.getCopied = () => this.copied;
+    /** Lets a transition control take the pastes meant for it. */
+    this.onPaste = (listener) => {
+      this.pasteListeners.add(listener);
+      return () => this.pasteListeners.delete(listener);
+    };
   }
   notify() {
     this.listeners.forEach((listener) => listener());
@@ -4018,6 +4035,18 @@ var TransitionLibraryClass = class {
   copyTransition(value, mode) {
     this.copied = { value: structuredClone(value), mode };
     this.notify();
+  }
+  /**
+   * Offers the copied transition to the control that shows `path`. Returns
+   * false when no control took it, and the caller then writes the value.
+   */
+  pasteInto(panelId, path) {
+    const copied = this.copied;
+    if (!copied) return false;
+    for (const listener of this.pasteListeners) {
+      if (listener(panelId, path, copied)) return true;
+    }
+    return false;
   }
 };
 var TransitionLibrary = new TransitionLibraryClass();
@@ -4126,34 +4155,37 @@ function describeCopied({ value, mode }) {
   return `${TAB_NAMES[mode]} \xB7 ${name ?? "Custom"}`;
 }
 
+// src/components/action-motion.ts
+var GROUP_SPRING = { type: "spring", visualDuration: 0.15, bounce: 0 };
+var GROUP_MOTION = {
+  hidden: { width: 0, opacity: 0, transition: { ...GROUP_SPRING, staggerChildren: 0.045, staggerDirection: 1 } },
+  shown: { width: "auto", opacity: 1, transition: { ...GROUP_SPRING, staggerChildren: 0.045, staggerDirection: -1 } }
+};
+var ICON_SPRING = { type: "spring", visualDuration: 0.2, bounce: 0.35 };
+var ICON_MOTION = {
+  hidden: { scale: 0.6, x: 2, transition: ICON_SPRING },
+  shown: { scale: 1, x: 0, transition: ICON_SPRING }
+};
+
 // src/components/TransitionCopy.tsx
 var import_jsx_runtime10 = require("react/jsx-runtime");
 var getCopied = () => TransitionLibrary.getCopied();
 var DONE_MS = 1200;
-var COPY_MENU_HINT = "Copies this transition, or pastes one you copied.";
+var DOTS_HINT = "Shows copy and paste for this transition.";
+var COPY_HINT = "Copies this transition and its tab (Easing, Time or Physics).";
+var PASTE_HINT = "Pastes the transition you copied, with its tab.";
+function Icon({ paths, width = 2 }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: width, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true", children: paths.map((d) => /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("path", { d }, d)) });
+}
 function TransitionCopyMenu({ panelId, path, value }) {
   const copied = (0, import_react12.useSyncExternalStore)(TransitionLibrary.subscribe, getCopied, getCopied);
   const [open, setOpen] = (0, import_react12.useState)(false);
   const [done, setDone] = (0, import_react12.useState)(false);
-  const { hintRow } = useHint(COPY_MENU_HINT);
-  const menu = (0, import_react12.useRef)(null);
+  const { hintRow: dotsHint2 } = useHint(DOTS_HINT);
+  const { hintRow: copyHint } = useHint(COPY_HINT);
+  const { hintRow: pasteHint } = useHint(copied ? `${PASTE_HINT} Now: ${describeCopied(copied)}.` : PASTE_HINT);
   const timer = (0, import_react12.useRef)();
   (0, import_react12.useEffect)(() => () => clearTimeout(timer.current), []);
-  (0, import_react12.useEffect)(() => {
-    if (!open) return;
-    const close2 = (event) => {
-      if (!menu.current?.contains(event.target)) setOpen(false);
-    };
-    const escape = (event) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("pointerdown", close2);
-    document.addEventListener("keydown", escape);
-    return () => {
-      document.removeEventListener("pointerdown", close2);
-      document.removeEventListener("keydown", escape);
-    };
-  }, [open]);
   const finish = () => {
     setOpen(false);
     clearTimeout(timer.current);
@@ -4166,42 +4198,56 @@ function TransitionCopyMenu({ panelId, path, value }) {
   };
   const paste = () => {
     if (!copied) return;
-    DialStore.updateTransitionMode(panelId, path, copied.mode);
-    DialStore.updateValue(panelId, path, structuredClone(copied.value));
+    if (!TransitionLibrary.pasteInto(panelId, path)) {
+      DialStore.updateTransitionMode(panelId, path, copied.mode);
+      DialStore.updateValue(panelId, path, structuredClone(copied.value));
+    }
     finish();
   };
   return (
     // A click in the header must not open or close the folder.
-    /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "dialkit-copy-actions", ref: menu, onClick: (event) => event.stopPropagation(), onKeyDown: (event) => event.stopPropagation(), children: [
-      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
-        "button",
-        {
-          type: "button",
-          className: "dialkit-copy-button",
-          "aria-label": "Copy or paste",
-          "aria-haspopup": "menu",
-          "aria-expanded": open,
-          onClick: () => setOpen((next) => !next),
-          ...hintRow,
-          children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: done ? 2 : 3, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true", children: (done ? [ICON_CHECK] : ICON_MORE).map((d) => /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("path", { d }, d)) })
-        }
-      ),
-      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react13.AnimatePresence, { children: open && /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(
-        import_react13.motion.div,
-        {
-          className: "dialkit-select-dropdown dialkit-copy-menu",
-          role: "menu",
-          initial: { opacity: 0, y: -8, scale: 0.95 },
-          animate: { opacity: 1, y: 0, scale: 1 },
-          exit: { opacity: 0, y: -8, scale: 0.95 },
-          transition: { type: "spring", visualDuration: 0.15, bounce: 0 },
-          children: [
-            /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("button", { type: "button", role: "menuitem", className: "dialkit-select-option", onClick: copy, children: "Copy" }),
-            /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("button", { type: "button", role: "menuitem", className: "dialkit-select-option", disabled: !copied, onClick: paste, children: copied ? `Paste ${describeCopied(copied)}` : "Paste" })
-          ]
-        }
-      ) })
-    ] })
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(
+      "div",
+      {
+        className: "dialkit-copy-actions",
+        "data-open": open || void 0,
+        onPointerLeave: (e) => {
+          if (e.pointerType === "mouse") setOpen(false);
+        },
+        onBlur: (e) => {
+          if (e.currentTarget.contains(e.relatedTarget) || e.currentTarget.matches(":hover")) return;
+          setOpen(false);
+        },
+        onClick: (event) => event.stopPropagation(),
+        onKeyDown: (event) => {
+          event.stopPropagation();
+          if (event.key === "Escape") setOpen(false);
+        },
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react13.AnimatePresence, { initial: false, children: open && /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(import_react13.motion.div, { className: "dialkit-copy-group", variants: GROUP_MOTION, initial: "hidden", animate: "shown", exit: "hidden", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react13.motion.button, { type: "button", variants: ICON_MOTION, className: "dialkit-copy-action", "aria-label": "Copy transition", onClick: copy, ...copyHint, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Icon, { paths: ICON_COPY }) }),
+            /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react13.motion.button, { type: "button", variants: ICON_MOTION, className: "dialkit-copy-action", "aria-label": "Paste transition", disabled: !copied, onClick: paste, ...pasteHint, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Icon, { paths: ICON_PASTE }) })
+          ] }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+            "button",
+            {
+              type: "button",
+              className: "dialkit-copy-button",
+              "aria-label": "Copy or paste",
+              "aria-expanded": open,
+              ...dotsHint2,
+              onPointerEnter: (e) => {
+                dotsHint2.onPointerEnter?.(e);
+                if (e.pointerType === "mouse") setOpen(true);
+              },
+              onFocus: () => setOpen(true),
+              onClick: () => setOpen(true),
+              children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Icon, { paths: done ? [ICON_CHECK] : ICON_MORE, width: done ? 2 : 3 })
+            }
+          )
+        ]
+      }
+    )
   );
 }
 
@@ -4733,11 +4779,13 @@ function TransitionControl({
     stopMorph();
     onChange({ ...easing, ease });
   };
-  const pickEase = (target) => {
+  const pickEase = (target) => morphEase({ ...easing, ease: target });
+  const morphEase = (next) => {
     stopMorph();
     const from = shownEase ?? easing.ease;
+    const target = next.ease;
     setShownEase(from);
-    onChange({ ...easing, ease: target });
+    onChange(next);
     const state = { frame: 0, cancelled: false };
     morph.current = state;
     let start = null;
@@ -4756,6 +4804,16 @@ function TransitionControl({
     };
     state.frame = requestAnimationFrame((time) => step(time));
   };
+  const takePaste = (0, import_react16.useRef)(() => false);
+  takePaste.current = (copied) => {
+    if (mode !== "easing" || copied.mode !== "easing" || copied.value.type !== "easing") return false;
+    morphEase(structuredClone(copied.value));
+    return true;
+  };
+  (0, import_react16.useEffect)(
+    () => TransitionLibrary.onPaste((pastePanel, pastePath, copied) => pastePanel === panelId && pastePath === path && takePaste.current(copied)),
+    [panelId, path]
+  );
   const durationSlider = !hideDuration && (isEasing || isSimpleSpring) ? /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
     Slider,
     {
@@ -7205,21 +7263,11 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassN
     )
   ] });
 }
-var GROUP_SPRING = { type: "spring", visualDuration: 0.15, bounce: 0 };
-var GROUP_MOTION = {
-  hidden: { width: 0, opacity: 0, transition: { ...GROUP_SPRING, staggerChildren: 0.045, staggerDirection: 1 } },
-  shown: { width: "auto", opacity: 1, transition: { ...GROUP_SPRING, staggerChildren: 0.045, staggerDirection: -1 } }
-};
-var ICON_SPRING = { type: "spring", visualDuration: 0.2, bounce: 0.35 };
-var ICON_MOTION = {
-  hidden: { scale: 0.6, x: 2, transition: ICON_SPRING },
-  shown: { scale: 1, x: 0, transition: ICON_SPRING }
-};
 var keepPress = {
   onMouseDown: (e) => e.stopPropagation(),
   onPointerDown: (e) => e.stopPropagation()
 };
-function Icon({ paths }) {
+function Icon2({ paths }) {
   return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", children: paths.map((d, i) => /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("path", { d }, i)) });
 }
 function dotsHint(noun, editable, lockable) {
@@ -7272,7 +7320,7 @@ function PresetActions({ id, noun, locked, editable, lockable, onRename, onToggl
       "aria-label": "Unlock preset",
       onClick: onToggleLock,
       ...keepPress,
-      children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(Icon, { paths: ICON_LOCK })
+      children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(Icon2, { paths: ICON_LOCK })
     }
   );
   const dots = hasGroup && !directRename && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
@@ -7290,7 +7338,7 @@ function PresetActions({ id, noun, locked, editable, lockable, onRename, onToggl
       onFocus: () => setOpen(true),
       onClick: () => setOpen(true),
       ...keepPress,
-      children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(Icon, { paths: ICON_MORE })
+      children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(Icon2, { paths: ICON_MORE })
     }
   );
   return /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(
@@ -7332,7 +7380,7 @@ function PresetActions({ id, noun, locked, editable, lockable, onRename, onToggl
                 "aria-label": "Rename preset",
                 onClick: onRename,
                 ...keepPress,
-                children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(Icon, { paths: ICON_PENCIL })
+                children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(Icon2, { paths: ICON_PENCIL })
               }
             )
           }
@@ -7358,7 +7406,7 @@ function PresetActions({ id, noun, locked, editable, lockable, onRename, onToggl
                   "aria-label": "Rename preset",
                   onClick: onRename,
                   ...keepPress,
-                  children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(Icon, { paths: ICON_PENCIL })
+                  children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(Icon2, { paths: ICON_PENCIL })
                 }
               ),
               lockInGroup && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
@@ -7374,10 +7422,10 @@ function PresetActions({ id, noun, locked, editable, lockable, onRename, onToggl
                   "aria-label": "Lock preset",
                   onClick: onToggleLock,
                   ...keepPress,
-                  children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(Icon, { paths: ICON_LOCK_OPEN })
+                  children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(Icon2, { paths: ICON_LOCK_OPEN })
                 }
               ),
-              remove && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(import_react28.motion.button, { type: "button", variants: ICON_MOTION, className: "dialkit-preset-delete", "aria-label": "Delete preset", onClick: onDelete, ...keepPress, children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(Icon, { paths: ICON_TRASH }) })
+              remove && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(import_react28.motion.button, { type: "button", variants: ICON_MOTION, className: "dialkit-preset-delete", "aria-label": "Delete preset", onClick: onDelete, ...keepPress, children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(Icon2, { paths: ICON_TRASH }) })
             ]
           }
         ) })
@@ -7389,11 +7437,11 @@ function PresetActions({ id, noun, locked, editable, lockable, onRename, onToggl
 // src/components/Panel.tsx
 var import_jsx_runtime23 = require("react/jsx-runtime");
 var ADD_VERSION_HINT = "Saves the current settings as a new version.";
-var COPY_HINT = "Copies the panel's values as text, ready to paste into code.";
+var COPY_HINT2 = "Copies the panel's values as text, ready to paste into code.";
 function Panel({ panel, defaultOpen = true, inline = false, folderMode = "independent", onOpenChange, variant = "root", toolbarExtra }) {
   const [copied, setCopied] = (0, import_react29.useState)(false);
   const { hintRow: addHintRow } = useHint(ADD_VERSION_HINT);
-  const { hintRow: copyHintRow } = useHint(COPY_HINT);
+  const { hintRow: copyHintRow } = useHint(COPY_HINT2);
   const copyTimeout = (0, import_react29.useRef)();
   (0, import_react29.useEffect)(() => () => clearTimeout(copyTimeout.current), []);
   const subscribe = (0, import_react29.useCallback)(
@@ -9009,7 +9057,6 @@ var BAR_HINTS = {
   play: "Plays or pauses the sequence.",
   replay: "Plays the sequence again from the start.",
   loop: "Loops the sequence endlessly.",
-  add: "Adds a new sequence.",
   export: "Exports the sequence as a video.",
   toggle: "Opens or closes the timeline's tracks.",
   ruler: "Drag to move the playhead. Option-drag or Option-scroll to zoom. Shift-click resets the zoom.",
@@ -9757,7 +9804,6 @@ var TimelineSection = (0, import_react35.memo)(function TimelineSection2({
   const handleAddPreset = (0, import_react35.useCallback)(() => {
     DialStore.saveNewPreset(meta.id, "Sequence");
   }, [meta.id]);
-  const { hintRow: addHintRow } = useHint(BAR_HINTS.add);
   const { hintRow: exportHintRow } = useHint(BAR_HINTS.export);
   const { hintRow: toggleHintRow } = useHint(BAR_HINTS.toggle);
   const { hintRow: rulerHintRow } = useHint(BAR_HINTS.ruler);
@@ -10163,18 +10209,6 @@ var TimelineSection = (0, import_react35.memo)(function TimelineSection2({
             }
           ),
           /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "dialkit-timeline-actions", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
-              import_react36.motion.button,
-              {
-                className: "dialkit-toolbar-add",
-                onClick: handleAddPreset,
-                ...addHintRow,
-                "aria-label": "Add timeline version",
-                whileTap: { scale: 0.9 },
-                transition: { type: "spring", visualDuration: 0.15, bounce: 0.3 },
-                children: /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true", children: ICON_PLUS.map((d, i) => /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("path", { d }, i)) })
-              }
-            ),
             /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
               PresetManager,
               {

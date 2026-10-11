@@ -18,7 +18,6 @@
     TimelineTransport,
   } from 'dialkit/timeline';
   import {
-    ICON_ADD_PRESET,
     ICON_CHEVRON,
     ICON_CHECK,
     ICON_CLIPBOARD,
@@ -462,10 +461,6 @@
     window.setTimeout(() => { copied = false; }, 1500);
   }
 
-  function handleAddPreset() {
-    DialStore.savePreset(meta.id, `Version ${presets.length + 2}`);
-  }
-
   function toggleSet(current: Set<string>, key: string): Set<string> {
     const next = new Set(current);
     if (next.has(key)) next.delete(key);
@@ -585,11 +580,6 @@
       <button class="dialkit-toolbar-add" onclick={handleReplay} title="Replay" aria-label="Replay">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" style="width:16px;height:16px;color:var(--dial-text-label);">
           {#each ICON_REPLAY as path}<path d={path} fill="currentColor" />{/each}
-        </svg>
-      </button>
-      <button class="dialkit-toolbar-add" onclick={handleAddPreset} title="Add timeline version" aria-label="Add timeline version">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          {#each ICON_ADD_PRESET as path}<path d={path} />{/each}
         </svg>
       </button>
       <PresetManager panelId={meta.id} {presets} {activePresetId} />

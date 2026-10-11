@@ -68,18 +68,31 @@ var ICON_LINK = [
   "M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"
 ];
 var ICON_MORE = ["M5 12h.01", "M12 12h.01", "M19 12h.01"];
+var ICON_COPY = [
+  "M9 11a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-7a2 2 0 0 1-2-2z",
+  "M5 15a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2"
+];
+var ICON_PASTE = [
+  "M9 3h6v3H9z",
+  "M15 4.5h2a2 2 0 0 1 2 2V10",
+  "M9 4.5H7a2 2 0 0 0-2 2V19a2 2 0 0 0 2 2h4",
+  "M14 16h7",
+  "m18 13 3 3-3 3"
+];
 export {
   ICON_ADD_PRESET,
   ICON_CHECK,
   ICON_CHEVRON,
   ICON_CLIPBOARD,
   ICON_CLOSE,
+  ICON_COPY,
   ICON_LINK,
   ICON_LOCK,
   ICON_LOCK_OPEN,
   ICON_LOOP,
   ICON_MORE,
   ICON_PANEL,
+  ICON_PASTE,
   ICON_PAUSE,
   ICON_PENCIL,
   ICON_PLAY,
