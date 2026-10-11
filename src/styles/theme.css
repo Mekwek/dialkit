@@ -1278,6 +1278,22 @@
 .dialkit-folder-meta { flex-shrink: 0; margin-right: 6px; font-size: 13px; font-weight: 500; color: var(--dial-text-tertiary); white-space: nowrap; }
 .dialkit-curve-picker { display: flex; flex-direction: column; gap: 6px; }
 .dialkit-presets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; align-content: start; max-height: var(--dial-preset-list-height); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+
+/* Fork: a scrolling preset list fades at each edge where more presets sit
+   (data-above, data-below, set by TransitionPresets.tsx), like the panel's
+   own scroll fades: 28px, with 30% of the content still showing at the
+   very edge. */
+@property --dial-presets-fade-top { syntax: '<number>'; inherits: false; initial-value: 1; }
+@property --dial-presets-fade-bottom { syntax: '<number>'; inherits: false; initial-value: 1; }
+.dialkit-presets {
+  --dial-presets-fade-top: 1;
+  --dial-presets-fade-bottom: 1;
+  -webkit-mask-image: linear-gradient(rgba(0, 0, 0, var(--dial-presets-fade-top)), #000 var(--dial-scroll-fade, 28px), #000 calc(100% - var(--dial-scroll-fade, 28px)), rgba(0, 0, 0, var(--dial-presets-fade-bottom)));
+  mask-image: linear-gradient(rgba(0, 0, 0, var(--dial-presets-fade-top)), #000 var(--dial-scroll-fade, 28px), #000 calc(100% - var(--dial-scroll-fade, 28px)), rgba(0, 0, 0, var(--dial-presets-fade-bottom)));
+  transition: --dial-presets-fade-top 0.15s, --dial-presets-fade-bottom 0.15s;
+}
+.dialkit-presets[data-above] { --dial-presets-fade-top: 0.3; }
+.dialkit-presets[data-below] { --dial-presets-fade-bottom: 0.3; }
 .dialkit-preset { position: relative; display: flex; min-width: 0; }
 .dialkit-preset-pick { flex: 1; min-width: 0; display: flex; flex-direction: row-reverse; align-items: center; justify-content: flex-end; gap: 8px; height: var(--dial-row-height); padding: 0 8px; border: 0; border-radius: var(--dial-radius); background: var(--dial-surface); color: var(--dial-text-label); font: inherit; font-size: 13px; font-weight: 500; text-align: left; cursor: pointer; transition: background 0.15s, color 0.15s; }
 .dialkit-preset-pick:hover, .dialkit-preset-pick:focus-visible { background: var(--dial-surface-hover); color: var(--dial-text-focus); }

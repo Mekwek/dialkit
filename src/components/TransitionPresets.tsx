@@ -1,4 +1,4 @@
-import { useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { stepInputKey } from '../control-keyboard';
 import type { BezierPoints } from '../easing-geometry';
 import { TransitionLibrary } from '../store/TransitionLibrary';
@@ -174,9 +174,39 @@ interface PresetItem {
   hint?: string;
 }
 
+/** Marks a scrolling list with the edges where more of it sits
+ *  (data-above, data-below), so its stylesheet can fade those edges. */
+function useScrollEdges() {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const list = ref.current;
+    if (!list) return;
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      list.toggleAttribute('data-above', list.scrollTop > 0.5);
+      list.toggleAttribute('data-below', list.scrollTop + list.clientHeight < list.scrollHeight - 0.5);
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(update);
+    };
+    const resize = new ResizeObserver(schedule);
+    resize.observe(list);
+    list.addEventListener('scroll', schedule, { passive: true });
+    update();
+    return () => {
+      resize.disconnect();
+      list.removeEventListener('scroll', schedule);
+      cancelAnimationFrame(frame);
+    };
+  }, []);
+  return ref;
+}
+
 function PresetList({ items, active, label, noun }: { items: PresetItem[]; active: string | undefined; label: string; noun: string }) {
+  const listRef = useScrollEdges();
   return (
-    <div className="dialkit-presets" role="listbox" aria-label={label}>
+    <div ref={listRef} className="dialkit-presets" role="listbox" aria-label={label}>
       {items.map((item) => (
         <div key={item.name} className="dialkit-preset" data-active={item.name === active || undefined}>
           <PresetPick item={item} active={item.name === active} noun={noun} />
