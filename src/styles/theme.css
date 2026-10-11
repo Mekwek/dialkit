@@ -38,8 +38,8 @@
   /* The nested dividers' dashes, drawn by --dial-nested-line-image so their
      length is set here, not by the browser (which draws 3px dashes). Set
      --dial-nested-line-image to none for the browser's own dashes. */
-  --dial-nested-line-dash: 6px;
-  --dial-nested-line-gap: 2px;
+  --dial-nested-line-dash: 12px;
+  --dial-nested-line-gap: 6px;
   --dial-nested-line-image: repeating-linear-gradient(90deg, var(--dial-surface-subtle) 0 var(--dial-nested-line-dash), transparent 0 calc(var(--dial-nested-line-dash) + var(--dial-nested-line-gap))) 1;
   /* The timeline pan bar's thumb — quieter than text so it reads as a
      position marker, not a control demanding attention. */
@@ -1155,6 +1155,8 @@
 
 /* Spring Visualization */
 .dialkit-spring-viz {
+  /* A block, so a column of blocks adds no text line space under it. */
+  display: block;
   width: 100%;
   border-radius: var(--dial-radius);
   background: var(--dial-surface);
@@ -1165,6 +1167,9 @@
    picture, the values, then the named presets (TransitionPresets.tsx). */
 .dialkit-transition { display: flex; flex-direction: column; gap: 6px; }
 .dialkit-ease-fields { display: flex; gap: var(--dial-field-gap); min-width: 0; }
+/* The fields sit as close under the curve box as they sit to each other:
+   the column's 6px gap, less the difference. */
+.dialkit-transition .dialkit-ease-fields { margin-top: calc(var(--dial-field-gap) - 6px); }
 .dialkit-ease-field { flex: 1 1 0; min-width: 0; height: var(--dial-row-height); padding: 0 4px; border: 0; border-radius: var(--dial-radius); background: var(--dial-surface); color: var(--dial-text-label); font: 500 13px 'Geist Mono', monospace; text-align: center; outline: none; transition: background 0.15s, color 0.15s; }
 .dialkit-ease-field:hover, .dialkit-ease-field:focus { background: var(--dial-surface-hover); color: var(--dial-text-focus); }
 /* A field not open for typing drags its value. */
