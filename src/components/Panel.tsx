@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DialStore, PanelConfig } from '../store/DialStore';
 import { buildCopyInstruction } from '../copy-instruction';
-import { ICON_CLIPBOARD, ICON_CHECK, ICON_ADD_PRESET } from '../icons';
+import { ICON_CLIPBOARD, ICON_CHECK, ICON_PLUS } from '../icons';
 import { ControlRenderer } from './ControlRenderer';
 import { Folder } from './Folder';
 import { PresetManager } from './PresetManager';
@@ -94,8 +94,7 @@ export function Panel({ panel, defaultOpen = true, inline = false, folderMode = 
   const activePresetId = DialStore.getActivePresetId(panel.id);
 
   const handleAddPreset = () => {
-    const nextNum = presets.length + 2;
-    DialStore.savePreset(panel.id, `Version ${nextNum}`);
+    DialStore.saveNewPreset(panel.id);
   };
 
   const handleCopy = async () => {
@@ -141,7 +140,7 @@ export function Panel({ panel, defaultOpen = true, inline = false, folderMode = 
         transition={{ type: 'spring', visualDuration: 0.15, bounce: 0.3 }}
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          {ICON_ADD_PRESET.map((d, i) => (
+          {ICON_PLUS.map((d, i) => (
             <path key={i} d={d} />
           ))}
         </svg>
@@ -206,14 +205,12 @@ export function Panel({ panel, defaultOpen = true, inline = false, folderMode = 
 
   // Section variant: render as a plain nested folder (no bubble, no panel-inner
   // sizing) so the parent merged shell owns the outer chrome. The preset/copy
-  // toolbar moves inside the section body; host CSS can hide it per-section.
+  // toolbar sits in the section's header and stays pinned with it; host CSS
+  // can hide it per section.
   if (variant === 'section') {
     return (
       <div className="dialkit-panel-section" data-panel-name={panel.name}>
-        <Folder title={panel.name} open={isOpen} onOpenChange={handleOpenChange} hint={panel.hint}>
-          <div className="dialkit-panel-section-toolbar" data-hint-align="" onClick={(e) => e.stopPropagation()}>
-            {toolbar}
-          </div>
+        <Folder title={panel.name} open={isOpen} onOpenChange={handleOpenChange} hint={panel.hint} toolbar={toolbar}>
           {renderControls()}
         </Folder>
       </div>

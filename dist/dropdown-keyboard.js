@@ -116,7 +116,7 @@ function observeDropdownKeyboard(trigger, getPopup, close, kind = "select") {
     popup.setAttribute("aria-label", trigger.getAttribute("aria-label") || trigger.querySelector(".dialkit-select-label")?.textContent?.trim() || trigger.getAttribute("title") || trigger.textContent?.trim() || "Options");
     popup.tabIndex = -1;
     trigger.setAttribute("aria-controls", popup.id);
-    const selector = kind === "select" ? ".dialkit-select-option" : ".dialkit-preset-name, .dialkit-preset-delete";
+    const selector = kind === "select" ? ".dialkit-select-option" : ".dialkit-preset-name, .dialkit-preset-delete, .dialkit-preset-create";
     let active;
     let activeIndex = 0;
     let query = "";
@@ -141,7 +141,7 @@ function observeDropdownKeyboard(trigger, getPopup, close, kind = "select") {
       const options = items();
       options.forEach((el) => {
         el.tabIndex = -1;
-        el.setAttribute("role", kind === "select" ? "option" : el.classList.contains("dialkit-preset-delete") ? "menuitem" : "menuitemradio");
+        el.setAttribute("role", kind === "select" ? "option" : !el.classList.contains("dialkit-preset-name") ? "menuitem" : "menuitemradio");
         if (kind === "select") el.setAttribute("aria-selected", el.dataset.selected ?? "false");
         else if (el.classList.contains("dialkit-preset-name")) el.setAttribute("aria-checked", el.parentElement?.dataset.active ?? "false");
       });

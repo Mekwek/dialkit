@@ -37,7 +37,7 @@ import type { SingleTrackClipSpan, TimelineClipLoop, TimelineStepStatic } from '
 import { clamp, round2 } from '../../transition-math';
 import { buildCopyInstruction } from '../../copy-instruction';
 import { isDevDefault } from '../../env';
-import { ICON_ADD_PRESET, ICON_CHEVRON, ICON_CHECK, ICON_CLIPBOARD, ICON_LOOP, ICON_PAUSE, ICON_PLAY, ICON_REPLAY } from '../../icons';
+import { ICON_PLUS, ICON_CHEVRON, ICON_CHECK, ICON_CLIPBOARD, ICON_LOOP, ICON_PAUSE, ICON_PLAY, ICON_REPLAY } from '../../icons';
 import { useHint } from '../Hint';
 
 /** The hints of the timeline bar's buttons, shown while the hint key is held. */
@@ -997,8 +997,8 @@ const TimelineSection = memo(function TimelineSection({
     // Timeline presets are sequences, not versions — same numbering idea as
     // the panel: the base row counts as "Sequence 1" (hosts may relabel the
     // dropdown row via CSS), so saved ones start at 2.
-    DialStore.savePreset(meta.id, `Sequence ${presets.length + 2}`);
-  }, [meta.id, presets.length]);
+    DialStore.saveNewPreset(meta.id, 'Sequence');
+  }, [meta.id]);
 
   const { hintRow: addHintRow } = useHint(BAR_HINTS.add);
   const { hintRow: exportHintRow } = useHint(BAR_HINTS.export);
@@ -1477,7 +1477,7 @@ const TimelineSection = memo(function TimelineSection({
             transition={{ type: 'spring', visualDuration: 0.15, bounce: 0.3 }}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              {ICON_ADD_PRESET.map((d, i) => <path key={i} d={d} />)}
+              {ICON_PLUS.map((d, i) => <path key={i} d={d} />)}
             </svg>
           </motion.button>
           <PresetManager

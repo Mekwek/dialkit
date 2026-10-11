@@ -5,7 +5,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { DialStore, Preset } from '../store/DialStore';
-import { ICON_CHEVRON, ICON_PENCIL, ICON_TRASH, ICON_LOCK, ICON_LOCK_OPEN } from '../icons';
+import { ICON_CHECK, ICON_CHEVRON, ICON_PENCIL, ICON_PLUS, ICON_TRASH, ICON_LOCK, ICON_LOCK_OPEN } from '../icons';
 import { useHint } from './Hint';
 
 interface PresetManagerProps {
@@ -16,7 +16,7 @@ interface PresetManagerProps {
   /** Extra class for the portal'd dropdown — the portal escapes the host's DOM
    *  context, so hosts (e.g. the timeline dock) need this to scope styling. */
   dropdownClassName?: string;
-  /** What a preset is called in the hint: a version (default) or a sequence. */
+  /** What a preset is called in the hint and the list: a version (default) or a sequence. */
   noun?: 'version' | 'sequence';
 }
 
@@ -24,6 +24,16 @@ interface PresetManagerProps {
 function pickerHint(noun: string, editable: boolean, lockable: boolean): string {
   const actions = lockable ? 'Rename, lock or delete' : editable ? 'Rename or delete' : 'Delete';
   return `Switches to another ${noun}. ${actions} a ${noun} from the list.`;
+}
+
+/** The list's mark for the current preset (upstream's menu style); an empty
+ *  box keeps the names aligned. */
+function PresetCheck({ active }: { active: boolean }) {
+  return (
+    <svg className="dialkit-preset-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+      {active && <path d={ICON_CHECK} />}
+    </svg>
+  );
 }
 
 type RowDrag = { id: string; startY: number; lifted: boolean; slot: number | null };
@@ -55,23 +65,22 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdow
   const lockable = editable && DialStore.isPresetsLockable(panelId);
   const { hintRow } = useHint(pickerHint(noun, editable, lockable));
 
-  const hasPresets = presets.length > 0;
   const activePreset = presets.find((p) => p.id === activePresetId);
 
   const open = useCallback(() => {
-    if (!hasPresets) return;
     const trigger = triggerRef.current;
     if (trigger) {
       // Flip above the trigger when there isn't room below (mirrors SelectControl).
       // +1 row for the default "Version 1" entry; 36px/row + 8px padding.
-      const dropdownHeight = 8 + (presets.length + 1) * 36;
+      // The New row and its divider add 41px.
+      const dropdownHeight = 8 + (presets.length + 1) * 36 + 41;
       // The keyboard observer re-positions the open menu every frame with the
       // same helper; this first pass only has to land close and pick the side.
       const { top, left, width, above } = getDropdownPosition(trigger, document.body, { dropdownHeight, fixed: true });
       setPos({ top, left, width, above });
     }
     setIsOpen(true);
-  }, [hasPresets, presets.length]);
+  }, [presets.length]);
 
   const close = useCallback(() => {
     setIsOpen(false);
@@ -205,8 +214,7 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdow
         onClick={toggle}
         data-open={String(isOpen)}
         data-has-preset={String(!!activePreset)}
-        data-disabled={String(!hasPresets)}
-        type="button" aria-haspopup="menu" aria-expanded={isOpen} disabled={!hasPresets}
+        type="button" aria-haspopup="menu" aria-expanded={isOpen}
         aria-label="Versions" onKeyDown={(e) => openDropdownOnKey(e, open)}
       >
         <span className="dialkit-preset-label">
@@ -220,7 +228,7 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdow
           strokeWidth="2.5"
           strokeLinecap="round"
           strokeLinejoin="round"
-          animate={{ rotate: isOpen ? 180 : 0, opacity: hasPresets ? 0.6 : 0.25 }}
+          animate={{ rotate: isOpen ? 180 : 0, opacity: 0.6 }}
           transition={{ type: 'spring', visualDuration: 0.2, bounce: 0.15 }}
         >
           <path d={ICON_CHEVRON} />
@@ -256,6 +264,7 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdow
                 data-active={String(!activePresetId)}
                 onClick={() => handleSelect(null)}
               >
+                <PresetCheck active={!activePresetId} />
                 <button type="button" className="dialkit-preset-name">Version 1</button>
               </div>
 
@@ -283,6 +292,7 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdow
                     onPointerCancel={(e) => handleRowPointerEnd(e, preset)}
                     onLostPointerCapture={(e) => handleRowPointerEnd(e, preset)}
                   >
+                    <PresetCheck active={preset.id === activePresetId} />
                     {isEditing ? (
                       <input
                         className="dialkit-preset-input"
@@ -373,6 +383,19 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdow
                   </div>
                 );
               })}
+
+              {/* Upstream's New row: the add button's action, at the end of the list. */}
+              <div className="dialkit-preset-divider" role="separator" />
+              <button
+                type="button"
+                className="dialkit-preset-create"
+                onClick={() => { onAdd(); close(); triggerRef.current?.focus(); }}
+              >
+                <svg className="dialkit-preset-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
+                  <path d={ICON_PLUS[0]} />
+                </svg>
+                New {noun}
+              </button>
 
               {draggingId && cueTop !== null && (
                 <div className="dialkit-preset-drop-cue" style={{ top: cueTop }} />

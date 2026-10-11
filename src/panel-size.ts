@@ -9,3 +9,171 @@ export function measurePanelHeight(content: HTMLElement): number {
     : 0;
   return content.offsetHeight + chrome;
 }
+
+/** Keep nested panel headers below the root's title and optional toolbar. */
+export function observePanelHeader(folder: HTMLElement): () => void {
+  const header = folder.firstElementChild as HTMLElement | null;
+  if (!header) return () => {};
+  const update = () => {
+    folder.style.setProperty('--dial-panel-header-height', `${header.offsetHeight}px`);
+  };
+  const observer = new ResizeObserver(update);
+  observer.observe(header);
+  update();
+  return () => {
+    observer.disconnect();
+    folder.style.removeProperty('--dial-panel-header-height');
+  };
+}
+
+type SectionFold = {
+  content: HTMLElement;
+  toolbar: HTMLElement;
+  open: boolean;
+  /** Runs once the fold ends, with the section's final open state. */
+  onSettled?: (open: boolean) => void;
+  fromContent: number;
+  toContent: number;
+  fromToolbar: number;
+  toToolbar: number;
+};
+
+type PanelFold = {
+  sections: Map<HTMLElement, SectionFold>;
+  frame: number;
+};
+
+const panelFolds = new WeakMap<HTMLElement, PanelFold>();
+
+function finishSectionFold(section: Pick<SectionFold, 'content' | 'toolbar' | 'open' | 'onSettled'>) {
+  for (const element of [section.content, section.toolbar]) {
+    element.style.display = section.open ? '' : 'none';
+    element.style.removeProperty('height');
+    element.inert = !section.open;
+  }
+  section.onSettled?.(section.open);
+}
+
+/** One clock for section content, its toolbar, and the visible toolkit height.
+ * Interpolating the already-capped height keeps a bottom-anchored toolkit moving
+ * down immediately, instead of waiting for off-screen content to fold first.
+ */
+export function createPanelSectionTransition(
+  folder: HTMLElement,
+  initiallyOpen: boolean,
+  // Fork: lets a section drop its controls once it has folded shut, so a
+  // closed section costs nothing while values change.
+  onSettled?: (open: boolean) => void,
+) {
+  const content = folder.querySelector<HTMLElement>(':scope > .dialkit-folder-content')!;
+  const toolbar = folder.querySelector<HTMLElement>(':scope > .dialkit-folder-header > .dialkit-panel-section-toolbar-clip')!;
+  let open = initiallyOpen;
+  let panel: HTMLElement | null = null;
+  finishSectionFold({ content, toolbar, open, onSettled });
+
+  return {
+    setOpen(next: boolean) {
+      if (next === open) return;
+      open = next;
+      panel = folder.closest<HTMLElement>('.dialkit-panel-inner');
+      if (!panel) {
+        finishSectionFold({ content, toolbar, open, onSettled });
+        return;
+      }
+
+      const root = panel.querySelector<HTMLElement>(':scope > .dialkit-folder-root')!;
+      const shell = panel.closest<HTMLElement>('.dialkit-panel');
+      const inline = panel.classList.contains('dialkit-panel-inline');
+      let group = panelFolds.get(panel);
+      if (!group) {
+        group = { sections: new Map(), frame: 0 };
+        panelFolds.set(panel, group);
+      }
+      cancelAnimationFrame(group.frame);
+      const panelFrom = parseFloat(getComputedStyle(panel).height);
+      const scrollFrom = panel.scrollTop;
+
+      const section: SectionFold = group.sections.get(folder) ?? {
+        content, toolbar, open, onSettled,
+        fromContent: 0, toContent: 0, fromToolbar: 0, toToolbar: 0,
+      };
+      section.open = open;
+      group.sections.set(folder, section);
+
+      // A reversal or another section toggle retargets the whole group from the
+      // current frame, including partially folded toolbars.
+      for (const fold of group.sections.values()) {
+        fold.fromContent = fold.content.offsetHeight;
+        fold.fromToolbar = fold.toolbar.offsetHeight;
+        for (const [element, height] of [[fold.content, fold.fromContent], [fold.toolbar, fold.fromToolbar]] as const) {
+          element.style.height = `${height}px`;
+          element.style.display = '';
+          element.inert = !fold.open;
+        }
+        fold.toContent = fold.open ? (fold.content.firstElementChild as HTMLElement).offsetHeight : 0;
+        fold.toToolbar = fold.open ? (fold.toolbar.firstElementChild as HTMLElement).offsetHeight : 0;
+      }
+
+      const fullTarget = measurePanelHeight(root) + [...group.sections.values()].reduce(
+        (delta, fold) => delta + fold.toContent - fold.fromContent + fold.toToolbar - fold.fromToolbar, 0,
+      );
+      const limits = [window.innerHeight - 32, parseFloat(getComputedStyle(panel).maxHeight)];
+      if (shell) limits.push(parseFloat(getComputedStyle(shell).maxHeight));
+      const panelTo = Math.min(fullTarget, ...limits.filter(Number.isFinite));
+      const scrollTo = Math.min(scrollFrom, Math.max(0, fullTarget - panelTo));
+      const duration = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 260;
+      const started = performance.now();
+      const activePanel = panel;
+      const activeGroup = group;
+      // Keep the override outside the framework-owned inline size styles.
+      const heightHost = activePanel.parentElement!;
+      // Fork: the React panel sizes itself with height: auto and measures
+      // nothing, so the fold hands back the height it found, not a pixel size.
+      const heightBefore = activePanel.style.height;
+      activePanel.setAttribute('data-folding', 'true');
+
+      const tick = (now: number) => {
+        const time = duration === 0 ? 1 : Math.min(1, Math.max(0, (now - started) / duration));
+        const progress = 1 - (1 - time) ** 3;
+        for (const fold of activeGroup.sections.values()) {
+          fold.content.style.height = `${fold.fromContent + (fold.toContent - fold.fromContent) * progress}px`;
+          fold.toolbar.style.height = `${fold.fromToolbar + (fold.toToolbar - fold.fromToolbar) * progress}px`;
+        }
+        if (!inline) {
+          heightHost.style.setProperty('--dial-panel-fold-height', `${panelFrom + (panelTo - panelFrom) * progress}px`);
+          activePanel.scrollTop = scrollFrom + (scrollTo - scrollFrom) * progress;
+        }
+        if (time < 1) {
+          // Fork: an arrow, not `requestAnimationFrame(tick)`. A host that
+          // patches rAF by its source text (Tempus) turns a callback that
+          // schedules itself by name into an endless per-frame loop, and this
+          // one would then reset the panel's scroll every frame.
+          activeGroup.frame = requestAnimationFrame((next) => tick(next));
+          return;
+        }
+        for (const fold of activeGroup.sections.values()) finishSectionFold(fold);
+        activeGroup.sections.clear();
+        // Let framework size observers see the final layout before releasing
+        // the temporary viewport height.
+        activeGroup.frame = requestAnimationFrame(() => {
+          if (!inline && activePanel.dataset.collapsed !== 'true') activePanel.style.height = heightBefore;
+          activePanel.removeAttribute('data-folding');
+          heightHost.style.removeProperty('--dial-panel-fold-height');
+          panelFolds.delete(activePanel);
+        });
+      };
+      tick(started);
+    },
+    destroy() {
+      if (!panel) return;
+      const group = panelFolds.get(panel);
+      group?.sections.delete(folder);
+      if (group && group.sections.size === 0) {
+        cancelAnimationFrame(group.frame);
+        panel.removeAttribute('data-folding');
+        panel.parentElement?.style.removeProperty('--dial-panel-fold-height');
+        panelFolds.delete(panel);
+      }
+    },
+  };
+}

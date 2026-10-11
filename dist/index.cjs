@@ -875,6 +875,19 @@ var DialStoreClass = class {
   triggerAction(panelId, path) {
     this.actionListeners.get(panelId)?.forEach((fn) => fn(path));
   }
+  /**
+   * Saves the current values under the next free "<prefix> N" name. N is one
+   * more than the highest number in use, so deleting a preset never lets two
+   * share a name. The unsaved base counts as "<prefix> 1".
+   */
+  saveNewPreset(panelId, prefix = "Version") {
+    const pattern = new RegExp(`^${prefix} (\\d+)$`);
+    const highest = this.getPresets(panelId).reduce((max, preset) => {
+      const match = pattern.exec(preset.name);
+      return match ? Math.max(max, Number(match[1])) : max;
+    }, 1);
+    return this.savePreset(panelId, `${prefix} ${highest + 1}`);
+  }
   savePreset(panelId, name) {
     const panel = this.panels.get(panelId);
     if (!panel) throw new Error(`Panel ${panelId} not found`);
@@ -1812,12 +1825,149 @@ function adjacentTabStop(trigger, backwards = false) {
   return index < 0 ? void 0 : stops[index + (backwards ? -1 : 1)];
 }
 
+// src/panel-size.ts
+function measurePanelHeight(content) {
+  const panel = content.parentElement;
+  if (!panel) return content.offsetHeight;
+  const style = getComputedStyle(panel);
+  const chrome = style.boxSizing === "border-box" ? [style.paddingTop, style.paddingBottom, style.borderTopWidth, style.borderBottomWidth].reduce((total, value) => total + (parseFloat(value) || 0), 0) : 0;
+  return content.offsetHeight + chrome;
+}
+function observePanelHeader(folder) {
+  const header = folder.firstElementChild;
+  if (!header) return () => {
+  };
+  const update = () => {
+    folder.style.setProperty("--dial-panel-header-height", `${header.offsetHeight}px`);
+  };
+  const observer = new ResizeObserver(update);
+  observer.observe(header);
+  update();
+  return () => {
+    observer.disconnect();
+    folder.style.removeProperty("--dial-panel-header-height");
+  };
+}
+var panelFolds = /* @__PURE__ */ new WeakMap();
+function finishSectionFold(section) {
+  for (const element4 of [section.content, section.toolbar]) {
+    element4.style.display = section.open ? "" : "none";
+    element4.style.removeProperty("height");
+    element4.inert = !section.open;
+  }
+  section.onSettled?.(section.open);
+}
+function createPanelSectionTransition(folder, initiallyOpen, onSettled) {
+  const content = folder.querySelector(":scope > .dialkit-folder-content");
+  const toolbar = folder.querySelector(":scope > .dialkit-folder-header > .dialkit-panel-section-toolbar-clip");
+  let open = initiallyOpen;
+  let panel = null;
+  finishSectionFold({ content, toolbar, open, onSettled });
+  return {
+    setOpen(next) {
+      if (next === open) return;
+      open = next;
+      panel = folder.closest(".dialkit-panel-inner");
+      if (!panel) {
+        finishSectionFold({ content, toolbar, open, onSettled });
+        return;
+      }
+      const root = panel.querySelector(":scope > .dialkit-folder-root");
+      const shell = panel.closest(".dialkit-panel");
+      const inline = panel.classList.contains("dialkit-panel-inline");
+      let group = panelFolds.get(panel);
+      if (!group) {
+        group = { sections: /* @__PURE__ */ new Map(), frame: 0 };
+        panelFolds.set(panel, group);
+      }
+      cancelAnimationFrame(group.frame);
+      const panelFrom = parseFloat(getComputedStyle(panel).height);
+      const scrollFrom = panel.scrollTop;
+      const section = group.sections.get(folder) ?? {
+        content,
+        toolbar,
+        open,
+        onSettled,
+        fromContent: 0,
+        toContent: 0,
+        fromToolbar: 0,
+        toToolbar: 0
+      };
+      section.open = open;
+      group.sections.set(folder, section);
+      for (const fold of group.sections.values()) {
+        fold.fromContent = fold.content.offsetHeight;
+        fold.fromToolbar = fold.toolbar.offsetHeight;
+        for (const [element4, height] of [[fold.content, fold.fromContent], [fold.toolbar, fold.fromToolbar]]) {
+          element4.style.height = `${height}px`;
+          element4.style.display = "";
+          element4.inert = !fold.open;
+        }
+        fold.toContent = fold.open ? fold.content.firstElementChild.offsetHeight : 0;
+        fold.toToolbar = fold.open ? fold.toolbar.firstElementChild.offsetHeight : 0;
+      }
+      const fullTarget = measurePanelHeight(root) + [...group.sections.values()].reduce(
+        (delta, fold) => delta + fold.toContent - fold.fromContent + fold.toToolbar - fold.fromToolbar,
+        0
+      );
+      const limits = [window.innerHeight - 32, parseFloat(getComputedStyle(panel).maxHeight)];
+      if (shell) limits.push(parseFloat(getComputedStyle(shell).maxHeight));
+      const panelTo = Math.min(fullTarget, ...limits.filter(Number.isFinite));
+      const scrollTo = Math.min(scrollFrom, Math.max(0, fullTarget - panelTo));
+      const duration = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 260;
+      const started = performance.now();
+      const activePanel = panel;
+      const activeGroup = group;
+      const heightHost = activePanel.parentElement;
+      const heightBefore = activePanel.style.height;
+      activePanel.setAttribute("data-folding", "true");
+      const tick = (now) => {
+        const time = duration === 0 ? 1 : Math.min(1, Math.max(0, (now - started) / duration));
+        const progress = 1 - (1 - time) ** 3;
+        for (const fold of activeGroup.sections.values()) {
+          fold.content.style.height = `${fold.fromContent + (fold.toContent - fold.fromContent) * progress}px`;
+          fold.toolbar.style.height = `${fold.fromToolbar + (fold.toToolbar - fold.fromToolbar) * progress}px`;
+        }
+        if (!inline) {
+          heightHost.style.setProperty("--dial-panel-fold-height", `${panelFrom + (panelTo - panelFrom) * progress}px`);
+          activePanel.scrollTop = scrollFrom + (scrollTo - scrollFrom) * progress;
+        }
+        if (time < 1) {
+          activeGroup.frame = requestAnimationFrame((next2) => tick(next2));
+          return;
+        }
+        for (const fold of activeGroup.sections.values()) finishSectionFold(fold);
+        activeGroup.sections.clear();
+        activeGroup.frame = requestAnimationFrame(() => {
+          if (!inline && activePanel.dataset.collapsed !== "true") activePanel.style.height = heightBefore;
+          activePanel.removeAttribute("data-folding");
+          heightHost.style.removeProperty("--dial-panel-fold-height");
+          panelFolds.delete(activePanel);
+        });
+      };
+      tick(started);
+    },
+    destroy() {
+      if (!panel) return;
+      const group = panelFolds.get(panel);
+      group?.sections.delete(folder);
+      if (group && group.sections.size === 0) {
+        cancelAnimationFrame(group.frame);
+        panel.removeAttribute("data-folding");
+        panel.parentElement?.style.removeProperty("--dial-panel-fold-height");
+        panelFolds.delete(panel);
+      }
+    }
+  };
+}
+
 // src/components/Folder.tsx
 var import_react4 = require("react");
 var import_react5 = require("motion/react");
 
 // src/icons.ts
 var ICON_CHEVRON = "M6 9.5L12 15.5L18 9.5";
+var ICON_CLOSE = "M6 6L18 18M18 6L6 18";
 var ICON_CHECK = "M5 12.75L10 19L19 5";
 var ICON_PAUSE = [
   "M6.75 3C5.23122 3 4 4.23122 4 5.75V18.25C4 19.7688 5.23122 21 6.75 21H7.25C8.76878 21 10 19.7688 10 18.25V5.75C10 4.23122 8.76878 3 7.25 3H6.75Z",
@@ -1844,13 +1994,7 @@ var ICON_CLIPBOARD = {
   sparkle: "M19.2405 16.1852L18.5436 14.3733C18.4571 14.1484 18.241 14 18 14C17.759 14 17.5429 14.1484 17.4564 14.3733L16.7595 16.1852C16.658 16.4493 16.4493 16.658 16.1852 16.7595L14.3733 17.4564C14.1484 17.5429 14 17.759 14 18C14 18.241 14.1484 18.4571 14.3733 18.5436L16.1852 19.2405C16.4493 19.342 16.658 19.5507 16.7595 19.8148L17.4564 21.6267C17.5429 21.8516 17.759 22 18 22C18.241 22 18.4571 21.8516 18.5436 21.6267L19.2405 19.8148C19.342 19.5507 19.5507 19.342 19.8148 19.2405L21.6267 18.5436C21.8516 18.4571 22 18.241 22 18C22 17.759 21.8516 17.5429 21.6267 17.4564L19.8148 16.7595C19.5507 16.658 19.342 16.4493 19.2405 16.1852Z",
   body: "M16 5H17C18.6569 5 20 6.34315 20 8V11M8 5H7C5.34315 5 4 6.34315 4 8V18C4 19.6569 5.34315 21 7 21H12"
 };
-var ICON_ADD_PRESET = [
-  "M4 6H20",
-  "M4 12H10",
-  "M15 15L21 15",
-  "M18 12V18",
-  "M4 18H10"
-];
+var ICON_PLUS = ["M5 12H19M12 5V19"];
 var ICON_PENCIL = [
   "M12 20h9",
   "M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"
@@ -2260,6 +2404,27 @@ function Folder({ title, children, open, defaultOpen = true, isRoot = false, inl
   const [localOpen, setIsOpen] = (0, import_react4.useState)(defaultOpen);
   const isOpen = open ?? localOpen;
   const isCollapsed = !isOpen;
+  const isSection = !isRoot && !!toolbar;
+  const rootRef = (0, import_react4.useRef)(null);
+  const sectionRef = (0, import_react4.useRef)(null);
+  const sectionTransition = (0, import_react4.useRef)(null);
+  const [sectionMounted, setSectionMounted] = (0, import_react4.useState)(isOpen);
+  (0, import_react4.useLayoutEffect)(() => {
+    if (!isSection || !sectionRef.current) return;
+    const transition = createPanelSectionTransition(sectionRef.current, isOpen, setSectionMounted);
+    sectionTransition.current = transition;
+    return () => {
+      transition.destroy();
+      sectionTransition.current = null;
+    };
+  }, [isSection]);
+  (0, import_react4.useLayoutEffect)(() => {
+    sectionTransition.current?.setOpen(isOpen);
+  }, [isOpen]);
+  (0, import_react4.useEffect)(() => {
+    if (!isRoot || !rootRef.current) return;
+    return observePanelHeader(rootRef.current);
+  }, [isRoot]);
   const handleToggle = () => {
     if (inline && isRoot) return;
     const next = !isOpen;
@@ -2274,22 +2439,23 @@ function Folder({ title, children, open, defaultOpen = true, isRoot = false, inl
   const folderContent = /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
     "div",
     {
-      className: `dialkit-folder ${isRoot ? "dialkit-folder-root" : ""}`,
+      ref: isRoot ? rootRef : isSection ? sectionRef : void 0,
+      className: `dialkit-folder ${isRoot ? "dialkit-folder-root" : isSection ? "dialkit-folder-section" : ""}`,
       "data-open": String(isOpen),
       children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: `dialkit-folder-header ${isRoot ? "dialkit-panel-header" : ""}`, "data-reset": !isRoot && onReset ? "" : void 0, "data-actions": !isRoot && actions ? "" : void 0, onClick: handleHeaderClick, children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "dialkit-folder-header-top", ...hintRow, role: inline && isRoot ? void 0 : "button", tabIndex: inline && isRoot ? void 0 : 0, "aria-label": title, "aria-expanded": isOpen, onKeyDown: (e) => activateOnKey(e, handleToggle), children: [
             isRoot ? isOpen && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dialkit-folder-title-row", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dialkit-folder-title dialkit-folder-title-root", children: title }) }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dialkit-folder-title-row", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dialkit-folder-title", children: title }) }),
-            isRoot && !inline && /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+            isRoot && !inline && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
               "svg",
               {
                 className: "dialkit-panel-icon",
-                viewBox: "0 0 16 16",
+                viewBox: isOpen ? "0 0 24 24" : "0 0 16 16",
                 fill: "none",
-                children: [
+                children: isOpen ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { d: ICON_CLOSE, stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round" }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
                   /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { opacity: "0.5", d: ICON_PANEL.path, fill: "currentColor" }),
                   ICON_PANEL.circles.map((c, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("circle", { cx: c.cx, cy: c.cy, r: c.r, fill: "currentColor", stroke: "currentColor", strokeWidth: "1.25" }, i))
-                ]
+                ] })
               }
             ),
             !isRoot && meta != null && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "dialkit-folder-meta", children: meta }),
@@ -2304,7 +2470,7 @@ function Folder({ title, children, open, defaultOpen = true, isRoot = false, inl
                 strokeLinecap: "round",
                 strokeLinejoin: "round",
                 initial: false,
-                animate: { rotate: isOpen ? 0 : 180 },
+                animate: { rotate: isOpen ? 180 : 0 },
                 transition: { type: "spring", visualDuration: 0.35, bounce: 0.15 },
                 children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { d: ICON_CHEVRON })
               }
@@ -2330,17 +2496,20 @@ function Folder({ title, children, open, defaultOpen = true, isRoot = false, inl
             )
           ] }) }),
           !isRoot && actions && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dialkit-folder-actions", children: actions }),
-          isRoot && toolbar && isOpen && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dialkit-panel-toolbar", "data-hint-align": "", onClick: (e) => e.stopPropagation(), children: toolbar })
+          isSection ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dialkit-panel-section-toolbar-clip", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dialkit-panel-section-toolbar", "data-hint-align": "", onClick: (e) => e.stopPropagation(), children: toolbar }) }) : isRoot && toolbar && isOpen ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dialkit-panel-toolbar", "data-hint-align": "", onClick: (e) => e.stopPropagation(), children: toolbar }) : null
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_react5.AnimatePresence, { initial: false, children: isOpen && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+        isSection ? (
+          // The fold animates this box from panel-size.ts, in step with the
+          // panel's height.
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dialkit-folder-content", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dialkit-folder-inner", children: isOpen || sectionMounted ? children : null }) })
+        ) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_react5.AnimatePresence, { initial: false, children: isOpen && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
           import_react5.motion.div,
           {
             className: "dialkit-folder-content",
-            initial: isRoot ? void 0 : { height: 0, opacity: 0 },
-            animate: isRoot ? void 0 : { height: "auto", opacity: 1 },
-            exit: isRoot ? void 0 : { height: 0, opacity: 0 },
+            initial: isRoot ? void 0 : { height: 0 },
+            animate: isRoot ? void 0 : { height: "auto" },
+            exit: isRoot ? void 0 : { height: 0 },
             transition: isRoot ? void 0 : { type: "spring", visualDuration: 0.35, bounce: 0.1 },
-            style: isRoot ? void 0 : { clipPath: "inset(0 -20px)" },
             children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "dialkit-folder-inner", children })
           }
         ) })
@@ -4647,7 +4816,7 @@ function observeDropdownKeyboard(trigger, getPopup, close2, kind = "select") {
     popup.setAttribute("aria-label", trigger.getAttribute("aria-label") || trigger.querySelector(".dialkit-select-label")?.textContent?.trim() || trigger.getAttribute("title") || trigger.textContent?.trim() || "Options");
     popup.tabIndex = -1;
     trigger.setAttribute("aria-controls", popup.id);
-    const selector = kind === "select" ? ".dialkit-select-option" : ".dialkit-preset-name, .dialkit-preset-delete";
+    const selector = kind === "select" ? ".dialkit-select-option" : ".dialkit-preset-name, .dialkit-preset-delete, .dialkit-preset-create";
     let active;
     let activeIndex = 0;
     let query = "";
@@ -4672,7 +4841,7 @@ function observeDropdownKeyboard(trigger, getPopup, close2, kind = "select") {
       const options = items();
       options.forEach((el) => {
         el.tabIndex = -1;
-        el.setAttribute("role", kind === "select" ? "option" : el.classList.contains("dialkit-preset-delete") ? "menuitem" : "menuitemradio");
+        el.setAttribute("role", kind === "select" ? "option" : !el.classList.contains("dialkit-preset-name") ? "menuitem" : "menuitemradio");
         if (kind === "select") el.setAttribute("aria-selected", el.dataset.selected ?? "false");
         else if (el.classList.contains("dialkit-preset-name")) el.setAttribute("aria-checked", el.parentElement?.dataset.active ?? "false");
       });
@@ -6487,6 +6656,9 @@ function pickerHint(noun, editable, lockable) {
   const actions = lockable ? "Rename, lock or delete" : editable ? "Rename or delete" : "Delete";
   return `Switches to another ${noun}. ${actions} a ${noun} from the list.`;
 }
+function PresetCheck({ active }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("svg", { className: "dialkit-preset-check", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", "aria-hidden": "true", children: active && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("path", { d: ICON_CHECK }) });
+}
 var DRAG_LIFT_PX = 4;
 var PRESET_DROPDOWN_MAX_WIDTH = 280;
 function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassName, noun = "version" }) {
@@ -6504,18 +6676,16 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassN
   const editable = DialStore.isPresetsEditable(panelId);
   const lockable = editable && DialStore.isPresetsLockable(panelId);
   const { hintRow } = useHint(pickerHint(noun, editable, lockable));
-  const hasPresets = presets.length > 0;
   const activePreset = presets.find((p) => p.id === activePresetId);
   const open = (0, import_react27.useCallback)(() => {
-    if (!hasPresets) return;
     const trigger = triggerRef.current;
     if (trigger) {
-      const dropdownHeight = 8 + (presets.length + 1) * 36;
+      const dropdownHeight = 8 + (presets.length + 1) * 36 + 41;
       const { top, left, width, above } = getDropdownPosition(trigger, document.body, { dropdownHeight, fixed: true });
       setPos({ top, left, width, above });
     }
     setIsOpen(true);
-  }, [hasPresets, presets.length]);
+  }, [presets.length]);
   const close2 = (0, import_react27.useCallback)(() => {
     setIsOpen(false);
     setEditingId(null);
@@ -6624,11 +6794,9 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassN
         onClick: toggle,
         "data-open": String(isOpen),
         "data-has-preset": String(!!activePreset),
-        "data-disabled": String(!hasPresets),
         type: "button",
         "aria-haspopup": "menu",
         "aria-expanded": isOpen,
-        disabled: !hasPresets,
         "aria-label": "Versions",
         onKeyDown: (e) => openDropdownOnKey(e, open),
         children: [
@@ -6643,7 +6811,7 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassN
               strokeWidth: "2.5",
               strokeLinecap: "round",
               strokeLinejoin: "round",
-              animate: { rotate: isOpen ? 180 : 0, opacity: hasPresets ? 0.6 : 0.25 },
+              animate: { rotate: isOpen ? 180 : 0, opacity: 0.6 },
               transition: { type: "spring", visualDuration: 0.2, bounce: 0.15 },
               children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("path", { d: ICON_CHEVRON })
             }
@@ -6675,13 +6843,16 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassN
           exit: { opacity: 0, y: pos.above ? 8 : -8, scale: 0.97, pointerEvents: "none" },
           transition: { type: "spring", visualDuration: 0.15, bounce: 0 },
           children: [
-            /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+            /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(
               "div",
               {
                 className: "dialkit-preset-item",
                 "data-active": String(!activePresetId),
                 onClick: () => handleSelect(null),
-                children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("button", { type: "button", className: "dialkit-preset-name", children: "Version 1" })
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(PresetCheck, { active: !activePresetId }),
+                  /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("button", { type: "button", className: "dialkit-preset-name", children: "Version 1" })
+                ]
               }
             ),
             presets.map((preset) => {
@@ -6708,6 +6879,7 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassN
                   onPointerCancel: (e) => handleRowPointerEnd(e, preset),
                   onLostPointerCapture: (e) => handleRowPointerEnd(e, preset),
                   children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(PresetCheck, { active: preset.id === activePresetId }),
                     isEditing ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
                       "input",
                       {
@@ -6784,6 +6956,24 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassN
                 preset.id
               );
             }),
+            /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "dialkit-preset-divider", role: "separator" }),
+            /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(
+              "button",
+              {
+                type: "button",
+                className: "dialkit-preset-create",
+                onClick: () => {
+                  onAdd();
+                  close2();
+                  triggerRef.current?.focus();
+                },
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("svg", { className: "dialkit-preset-check", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("path", { d: ICON_PLUS[0] }) }),
+                  "New ",
+                  noun
+                ]
+              }
+            ),
             draggingId && cueTop !== null && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "dialkit-preset-drop-cue", style: { top: cueTop } })
           ]
         }
@@ -6832,8 +7022,7 @@ function Panel({ panel, defaultOpen = true, inline = false, folderMode = "indepe
   const presets = DialStore.getPresets(panel.id);
   const activePresetId = DialStore.getActivePresetId(panel.id);
   const handleAddPreset = () => {
-    const nextNum = presets.length + 2;
-    DialStore.savePreset(panel.id, `Version ${nextNum}`);
+    DialStore.saveNewPreset(panel.id);
   };
   const handleCopy = async () => {
     try {
@@ -6874,7 +7063,7 @@ function Panel({ panel, defaultOpen = true, inline = false, folderMode = "indepe
         ...addHintRow,
         whileTap: { scale: 0.9 },
         transition: { type: "spring", visualDuration: 0.15, bounce: 0.3 },
-        children: /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round", children: ICON_ADD_PRESET.map((d, i) => /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("path", { d }, i)) })
+        children: /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round", children: ICON_PLUS.map((d, i) => /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("path", { d }, i)) })
       }
     ),
     /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
@@ -6934,10 +7123,7 @@ function Panel({ panel, defaultOpen = true, inline = false, folderMode = "indepe
     toolbarExtra
   ] });
   if (variant === "section") {
-    return /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { className: "dialkit-panel-section", "data-panel-name": panel.name, children: /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)(Folder, { title: panel.name, open: isOpen, onOpenChange: handleOpenChange, hint: panel.hint, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { className: "dialkit-panel-section-toolbar", "data-hint-align": "", onClick: (e) => e.stopPropagation(), children: toolbar }),
-      renderControls()
-    ] }) });
+    return /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { className: "dialkit-panel-section", "data-panel-name": panel.name, children: /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(Folder, { title: panel.name, open: isOpen, onOpenChange: handleOpenChange, hint: panel.hint, toolbar, children: renderControls() }) });
   }
   return /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { className: "dialkit-panel-wrapper", children: /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(Folder, { title: panel.name, open: isOpen, isRoot: true, inline, onOpenChange: handleOpenChange, toolbar, hint: panel.hint, children: renderControls() }) });
 }
@@ -9158,8 +9344,8 @@ var TimelineSection = (0, import_react35.memo)(function TimelineSection2({
     setTimeout(() => setCopied(false), 1500);
   }, [meta.clips, meta.id, meta.name]);
   const handleAddPreset = (0, import_react35.useCallback)(() => {
-    DialStore.savePreset(meta.id, `Sequence ${presets.length + 2}`);
-  }, [meta.id, presets.length]);
+    DialStore.saveNewPreset(meta.id, "Sequence");
+  }, [meta.id]);
   const { hintRow: addHintRow } = useHint(BAR_HINTS.add);
   const { hintRow: exportHintRow } = useHint(BAR_HINTS.export);
   const { hintRow: toggleHintRow } = useHint(BAR_HINTS.toggle);
@@ -9575,7 +9761,7 @@ var TimelineSection = (0, import_react35.memo)(function TimelineSection2({
                 "aria-label": "Add timeline version",
                 whileTap: { scale: 0.9 },
                 transition: { type: "spring", visualDuration: 0.15, bounce: 0.3 },
-                children: /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true", children: ICON_ADD_PRESET.map((d, i) => /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("path", { d }, i)) })
+                children: /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true", children: ICON_PLUS.map((d, i) => /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("path", { d }, i)) })
               }
             ),
             /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(

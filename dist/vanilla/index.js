@@ -803,6 +803,19 @@ var DialStoreClass = class {
   triggerAction(panelId, path) {
     this.actionListeners.get(panelId)?.forEach((fn) => fn(path));
   }
+  /**
+   * Saves the current values under the next free "<prefix> N" name. N is one
+   * more than the highest number in use, so deleting a preset never lets two
+   * share a name. The unsaved base counts as "<prefix> 1".
+   */
+  saveNewPreset(panelId, prefix = "Version") {
+    const pattern = new RegExp(`^${prefix} (\\d+)$`);
+    const highest = this.getPresets(panelId).reduce((max, preset) => {
+      const match = pattern.exec(preset.name);
+      return match ? Math.max(max, Number(match[1])) : max;
+    }, 1);
+    return this.savePreset(panelId, `${prefix} ${highest + 1}`);
+  }
   savePreset(panelId, name) {
     const panel = this.panels.get(panelId);
     if (!panel) throw new Error(`Panel ${panelId} not found`);
@@ -3878,7 +3891,7 @@ function observeDropdownKeyboard(trigger, getPopup, close, kind = "select") {
     popup.setAttribute("aria-label", trigger.getAttribute("aria-label") || trigger.querySelector(".dialkit-select-label")?.textContent?.trim() || trigger.getAttribute("title") || trigger.textContent?.trim() || "Options");
     popup.tabIndex = -1;
     trigger.setAttribute("aria-controls", popup.id);
-    const selector = kind === "select" ? ".dialkit-select-option" : ".dialkit-preset-name, .dialkit-preset-delete";
+    const selector = kind === "select" ? ".dialkit-select-option" : ".dialkit-preset-name, .dialkit-preset-delete, .dialkit-preset-create";
     let active2;
     let activeIndex = 0;
     let query = "";
@@ -3903,7 +3916,7 @@ function observeDropdownKeyboard(trigger, getPopup, close, kind = "select") {
       const options = items();
       options.forEach((el) => {
         el.tabIndex = -1;
-        el.setAttribute("role", kind === "select" ? "option" : el.classList.contains("dialkit-preset-delete") ? "menuitem" : "menuitemradio");
+        el.setAttribute("role", kind === "select" ? "option" : !el.classList.contains("dialkit-preset-name") ? "menuitem" : "menuitemradio");
         if (kind === "select") el.setAttribute("aria-selected", el.dataset.selected ?? "false");
         else if (el.classList.contains("dialkit-preset-name")) el.setAttribute("aria-checked", el.parentElement?.dataset.active ?? "false");
       });

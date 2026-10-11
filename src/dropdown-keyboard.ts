@@ -27,7 +27,7 @@ export function observeDropdownKeyboard(trigger: HTMLElement, getPopup: () => HT
     popup.tabIndex = -1;
     trigger.setAttribute('aria-controls', popup.id);
 
-    const selector = kind === 'select' ? '.dialkit-select-option' : '.dialkit-preset-name, .dialkit-preset-delete';
+    const selector = kind === 'select' ? '.dialkit-select-option' : '.dialkit-preset-name, .dialkit-preset-delete, .dialkit-preset-create';
     let active: HTMLElement | undefined;
     let activeIndex = 0;
     let query = '';
@@ -52,7 +52,7 @@ export function observeDropdownKeyboard(trigger: HTMLElement, getPopup: () => HT
       const options = items();
       options.forEach(el => {
         el.tabIndex = -1;
-        el.setAttribute('role', kind === 'select' ? 'option' : el.classList.contains('dialkit-preset-delete') ? 'menuitem' : 'menuitemradio');
+        el.setAttribute('role', kind === 'select' ? 'option' : !el.classList.contains('dialkit-preset-name') ? 'menuitem' : 'menuitemradio');
         if (kind === 'select') el.setAttribute('aria-selected', el.dataset.selected ?? 'false');
         else if (el.classList.contains('dialkit-preset-name')) el.setAttribute('aria-checked', el.parentElement?.dataset.active ?? 'false');
       });

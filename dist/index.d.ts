@@ -418,6 +418,12 @@ declare class DialStoreClass {
     subscribeGlobal(listener: Listener$3): () => void;
     subscribeActions(panelId: string, listener: ActionListener): () => void;
     triggerAction(panelId: string, path: string): void;
+    /**
+     * Saves the current values under the next free "<prefix> N" name. N is one
+     * more than the highest number in use, so deleting a preset never lets two
+     * share a name. The unsaved base counts as "<prefix> 1".
+     */
+    saveNewPreset(panelId: string, prefix?: string): string;
     savePreset(panelId: string, name: string): string;
     loadPreset(panelId: string, presetId: string): void;
     deletePreset(panelId: string, presetId: string): void;
@@ -1165,7 +1171,7 @@ interface PresetManagerProps {
     /** Extra class for the portal'd dropdown — the portal escapes the host's DOM
      *  context, so hosts (e.g. the timeline dock) need this to scope styling. */
     dropdownClassName?: string;
-    /** What a preset is called in the hint: a version (default) or a sequence. */
+    /** What a preset is called in the hint and the list: a version (default) or a sequence. */
     noun?: 'version' | 'sequence';
 }
 declare function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassName, noun }: PresetManagerProps): react_jsx_runtime.JSX.Element;

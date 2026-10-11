@@ -139,6 +139,7 @@
 
 
 .dialkit-panel-inner[data-collapsed="true"] {
+  transform-origin: center;
   border-radius: 50%;
   padding: 12px;
   box-sizing: border-box;
@@ -166,13 +167,48 @@
 .dialkit-panel-inner {
   -ms-overflow-style: none;
   scrollbar-width: none;
+  overflow-anchor: none;
+}
+
+.dialkit-panel-inner[data-folding="true"]:not(.dialkit-panel-inline) {
+  height: var(--dial-panel-fold-height) !important;
+}
+
+/* Put the top inset inside the sticky header so it never scrolls away. */
+.dialkit-panel-inner:not([data-collapsed="true"]) {
+  padding-top: 0;
+}
+
+.dialkit-panel-inner:not([data-collapsed="true"]) > .dialkit-folder-root > .dialkit-panel-header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  padding-top: 10px;
+  background: var(--dial-glass-bg);
+}
+
+/* Cover the side gutters too, including when a section pushes its header up. */
+.dialkit-panel-inner:not([data-collapsed="true"]) > .dialkit-folder-root > .dialkit-panel-header::before,
+.dialkit-folder-section > .dialkit-folder-header::before {
+  content: '';
+  position: absolute;
+  inset: 0 -12px;
+  z-index: -1;
+  background: var(--dial-glass-bg);
+  pointer-events: none;
+}
+
+/* The sticky header is the icon's box now, and it has no side padding. */
+.dialkit-panel-inner:not([data-collapsed="true"]) > .dialkit-folder-root > .dialkit-panel-header .dialkit-panel-icon {
+  right: 0;
 }
 
 .dialkit-panel-inline {
   width: 100%;
   height: auto;
   max-height: inherit;
-  overflow-y: auto;
+  /* Use the host's scroll container so sticky headers also work when embedded. */
+  overflow: visible;
   box-shadow: none;
   border-radius: 0;
   border: none;
@@ -249,6 +285,11 @@
 
 .dialkit-panel:not([data-mode="inline"]) .dialkit-panel-inner:not([data-collapsed="true"]) > .dialkit-folder-root > .dialkit-panel-header:active {
   cursor: grabbing;
+}
+
+.dialkit-panel:not([data-mode="inline"]) .dialkit-panel-inner:not([data-collapsed="true"]) .dialkit-panel-icon {
+  color: var(--dial-text-label);
+  opacity: 0.6;
 }
 
 .dialkit-panel:not([data-mode="inline"]) .dialkit-panel-icon {
@@ -333,6 +374,52 @@
 
 .dialkit-folder-content {
   will-change: transform;
+}
+
+/* Clip layout overflow as well as paint while a folder folds. A clip-path alone
+   leaves its full contents in the outer scroll range until they unmount. */
+.dialkit-folder:not(.dialkit-folder-root) > .dialkit-folder-content {
+  overflow-y: clip;
+}
+
+/* Only the sections of a group stick; ordinary folders scroll with the content. */
+.dialkit-panel .dialkit-folder.dialkit-folder-section > .dialkit-folder-header {
+  position: sticky;
+  top: var(--dial-panel-header-height, 0px);
+  z-index: 2;
+  /* The header holds the section's toolbar too, so it grows to fit it. */
+  height: auto;
+  background: var(--dial-glass-bg);
+}
+
+/* The header grows with its toolbar, so its title row keeps its own height
+   instead of the 100% every folder header row takes. */
+.dialkit-panel .dialkit-folder.dialkit-folder-section > .dialkit-folder-header > .dialkit-folder-header-top {
+  height: var(--dial-row-height);
+}
+
+.dialkit-folder-section > .dialkit-folder-header > .dialkit-panel-section-toolbar-clip > .dialkit-panel-section-toolbar {
+  padding-top: 4px;
+  padding-bottom: var(--dial-row-gap);
+  box-sizing: content-box;
+}
+
+.dialkit-folder-section {
+  --dial-section-header-height: calc(44px + var(--dial-row-height) + 10px);
+}
+
+/* Keyboard navigation must reveal controls below both pinned header rows. */
+.dialkit-folder-inner :is(button, input, textarea, [tabindex]) {
+  scroll-margin-top: calc(var(--dial-panel-header-height, 0px) + var(--dial-section-header-height, 0px) + var(--dial-row-gap));
+}
+
+.dialkit-panel-section-toolbar-clip {
+  overflow-y: clip;
+}
+
+.dialkit-panel-toolbar:empty,
+.dialkit-panel-section-toolbar:empty {
+  display: none;
 }
 
 .dialkit-folder-inner {
@@ -1757,14 +1844,20 @@
 }
 
 .dialkit-preset-item {
+  box-sizing: border-box;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 10px 8px 10px;
+  padding: 0 10px;
   gap: 8px;
   border-radius: 8px;
   cursor: pointer;
   transition: background 0.15s;
+}
+
+.dialkit-preset-item + .dialkit-preset-item {
+  margin-top: 2px;
 }
 
 .dialkit-preset-item:hover {
@@ -1834,10 +1927,15 @@
 .dialkit-preset-rename svg,
 .dialkit-preset-lock svg,
 .dialkit-preset-delete svg {
+  transition: color 150ms ease;
   width: 14px;
   height: 14px;
   color: var(--dial-text-focus);
   pointer-events: none;
+}
+
+.dialkit-preset-delete:hover svg {
+  color: #ff3b30;
 }
 
 /* A locked row always shows its closed lock, even without hover — at the
@@ -3409,3 +3507,51 @@
 
 .dialkit-hint-zone { display: contents; }
 @media (prefers-reduced-motion: reduce) { .dialkit-hint, .dialkit-hint-dim, .dialkit-hint-dim-hole { animation: none; transition: none; } }
+
+/* The version list in upstream's style: a check on the current version, and
+   a New version row at the end. */
+.dialkit-preset-check {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--dial-text-focus);
+}
+
+.dialkit-preset-item:has(> .dialkit-preset-check) {
+  justify-content: flex-start;
+}
+
+.dialkit-preset-item:has(> .dialkit-preset-check) > .dialkit-preset-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.dialkit-preset-divider {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--dial-surface-subtle);
+}
+
+.dialkit-preset-create {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dial-text-label);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background 150ms;
+}
+
+.dialkit-preset-create:hover,
+.dialkit-preset-create:focus-visible {
+  background: var(--dial-surface-hover);
+}

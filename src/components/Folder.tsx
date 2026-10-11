@@ -1,8 +1,9 @@
 import { activateOnKey } from '../control-keyboard';
-import { useState } from 'react';
+import { createPanelSectionTransition, observePanelHeader } from '../panel-size';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { MouseEvent, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ICON_PANEL, ICON_CHEVRON, ICON_RESET } from '../icons';
+import { ICON_CLOSE, ICON_PANEL, ICON_CHEVRON, ICON_RESET } from '../icons';
 import { useHint } from './Hint';
 
 interface FolderProps {
@@ -38,6 +39,29 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
   const [localOpen, setIsOpen] = useState(defaultOpen);
   const isOpen = open ?? localOpen;
   const isCollapsed = !isOpen;
+  // A panel shown as a section of a group passes its toolbar. Its header
+  // and toolbar stay pinned under the panel title while the panel scrolls.
+  const isSection = !isRoot && !!toolbar;
+  const rootRef = useRef<HTMLDivElement>(null);
+  const sectionRef = useRef<HTMLDivElement>(null);
+  const sectionTransition = useRef<ReturnType<typeof createPanelSectionTransition> | null>(null);
+  // A section keeps its controls while it folds shut, then drops them.
+  const [sectionMounted, setSectionMounted] = useState(isOpen);
+
+  useLayoutEffect(() => {
+    if (!isSection || !sectionRef.current) return;
+    const transition = createPanelSectionTransition(sectionRef.current, isOpen, setSectionMounted);
+    sectionTransition.current = transition;
+    return () => { transition.destroy(); sectionTransition.current = null; };
+  }, [isSection]);
+
+  useLayoutEffect(() => { sectionTransition.current?.setOpen(isOpen); }, [isOpen]);
+
+  // Section headers pin below the panel title: publish its height.
+  useEffect(() => {
+    if (!isRoot || !rootRef.current) return;
+    return observePanelHeader(rootRef.current);
+  }, [isRoot]);
 
   const handleToggle = () => {
     if (inline && isRoot) return;
@@ -58,7 +82,8 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
 
   const folderContent = (
     <div
-      className={`dialkit-folder ${isRoot ? 'dialkit-folder-root' : ''}`}
+      ref={isRoot ? rootRef : isSection ? sectionRef : undefined}
+      className={`dialkit-folder ${isRoot ? 'dialkit-folder-root' : isSection ? 'dialkit-folder-section' : ''}`}
       data-open={String(isOpen)}
     >
       <div className={`dialkit-folder-header ${isRoot ? 'dialkit-panel-header' : ''}`} data-reset={!isRoot && onReset ? '' : undefined} data-actions={!isRoot && actions ? '' : undefined} onClick={handleHeaderClick}>
@@ -81,13 +106,20 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
           {isRoot && !inline && (
             <svg
               className="dialkit-panel-icon"
-              viewBox="0 0 16 16"
+              viewBox={isOpen ? '0 0 24 24' : '0 0 16 16'}
               fill="none"
             >
-              <path opacity="0.5" d={ICON_PANEL.path} fill="currentColor"/>
-              {ICON_PANEL.circles.map((c, i) => (
-                <circle key={i} cx={c.cx} cy={c.cy} r={c.r} fill="currentColor" stroke="currentColor" strokeWidth="1.25"/>
-              ))}
+              {/* An open panel shows a close icon; a closed one, the panel icon. */}
+              {isOpen ? (
+                <path d={ICON_CLOSE} stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              ) : (
+                <>
+                  <path opacity="0.5" d={ICON_PANEL.path} fill="currentColor"/>
+                  {ICON_PANEL.circles.map((c, i) => (
+                    <circle key={i} cx={c.cx} cy={c.cy} r={c.r} fill="currentColor" stroke="currentColor" strokeWidth="1.25"/>
+                  ))}
+                </>
+              )}
             </svg>
           )}
           {!isRoot && meta != null && <span className="dialkit-folder-meta">{meta}</span>}
@@ -101,7 +133,7 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
               strokeLinecap="round"
               strokeLinejoin="round"
               initial={false}
-              animate={{ rotate: isOpen ? 0 : 180 }}
+              animate={{ rotate: isOpen ? 180 : 0 }}
               transition={{ type: 'spring', visualDuration: 0.35, bounce: 0.15 }}
             >
               <path d={ICON_CHEVRON} />
@@ -141,27 +173,40 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
         {/* Outside the header button too, at the right end. */}
         {!isRoot && actions && <div className="dialkit-folder-actions">{actions}</div>}
 
-        {isRoot && toolbar && isOpen && (
+        {isSection ? (
+          <div className="dialkit-panel-section-toolbar-clip">
+            <div className="dialkit-panel-section-toolbar" data-hint-align="" onClick={(e) => e.stopPropagation()}>
+              {toolbar}
+            </div>
+          </div>
+        ) : isRoot && toolbar && isOpen ? (
           <div className="dialkit-panel-toolbar" data-hint-align="" onClick={(e) => e.stopPropagation()}>
             {toolbar}
           </div>
-        )}
+        ) : null}
       </div>
 
-      <AnimatePresence initial={false}>
-        {isOpen && (
-          <motion.div
-            className="dialkit-folder-content"
-            initial={isRoot ? undefined : { height: 0, opacity: 0 }}
-            animate={isRoot ? undefined : { height: 'auto', opacity: 1 }}
-            exit={isRoot ? undefined : { height: 0, opacity: 0 }}
-            transition={isRoot ? undefined : { type: 'spring', visualDuration: 0.35, bounce: 0.1 }}
-            style={isRoot ? undefined : { clipPath: 'inset(0 -20px)' }}
-          >
-            <div className="dialkit-folder-inner">{children}</div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {isSection ? (
+        // The fold animates this box from panel-size.ts, in step with the
+        // panel's height.
+        <div className="dialkit-folder-content">
+          <div className="dialkit-folder-inner">{isOpen || sectionMounted ? children : null}</div>
+        </div>
+      ) : (
+        <AnimatePresence initial={false}>
+          {isOpen && (
+            <motion.div
+              className="dialkit-folder-content"
+              initial={isRoot ? undefined : { height: 0 }}
+              animate={isRoot ? undefined : { height: 'auto' }}
+              exit={isRoot ? undefined : { height: 0 }}
+              transition={isRoot ? undefined : { type: 'spring', visualDuration: 0.35, bounce: 0.1 }}
+            >
+              <div className="dialkit-folder-inner">{children}</div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      )}
     </div>
   );
 

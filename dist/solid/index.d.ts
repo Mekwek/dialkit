@@ -405,6 +405,12 @@ declare class DialStoreClass {
     subscribeGlobal(listener: Listener): () => void;
     subscribeActions(panelId: string, listener: ActionListener): () => void;
     triggerAction(panelId: string, path: string): void;
+    /**
+     * Saves the current values under the next free "<prefix> N" name. N is one
+     * more than the highest number in use, so deleting a preset never lets two
+     * share a name. The unsaved base counts as "<prefix> 1".
+     */
+    saveNewPreset(panelId: string, prefix?: string): string;
     savePreset(panelId: string, name: string): string;
     loadPreset(panelId: string, presetId: string): void;
     deletePreset(panelId: string, presetId: string): void;
