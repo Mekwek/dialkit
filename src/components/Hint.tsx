@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { getDialKitPortalRoot } from '../dropdown-position';
@@ -92,17 +92,33 @@ const tooltips: symbol[] = [];
 const radiusOf = (element: Element) => Number.parseFloat(getComputedStyle(element).borderTopLeftRadius) || 0;
 
 /**
- * The area the dim covers: the clip popover, panel or timeline bar a row sits
- * in. A panel's outer box is the rounded one; its root folder inside can be
+ * The area the dim covers: the color or image picker, clip popover, panel or
+ * timeline bar a row sits in. A panel's outer box is the rounded one; its root folder inside can be
  * taller and scroll.
  */
 function dimAreaOf(row: HTMLElement): Element | null {
   return (
+    row.closest('.dialkit-color-popover') ??
+    row.closest('.dialkit-image-popover') ??
     row.closest('.dialkit-timeline-popover') ??
     row.closest('.dialkit-panel-inner') ??
     row.closest('.dialkit-folder-root') ??
     row.closest('.dialkit-timeline-dock')
   );
+}
+
+/** Whether the browser has the top layer, where popovers paint above everything. */
+const hasTopLayer = () => typeof HTMLElement !== 'undefined' && typeof HTMLElement.prototype.showPopover === 'function';
+
+/**
+ * Puts the hint layer in the top layer. An open color or image picker is
+ * there too (observeDropdownPosition), and no z-index paints above it; the
+ * last one shown does.
+ */
+function raise(layer: HTMLElement | null) {
+  if (!layer || layer.matches(':popover-open')) return;
+  layer.setAttribute('popover', 'manual');
+  layer.showPopover();
 }
 
 /** How long the tooltip and the dim take to fade out. Matches theme.css. */
@@ -121,10 +137,16 @@ export function HintTooltip() {
   const [id] = useState(() => Symbol('hint-tooltip'));
   const [owner, setOwner] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const layer = useRef<HTMLDivElement | null>(null);
+  const layerRef = useCallback((element: HTMLDivElement | null) => {
+    layer.current = element;
+    raise(element);
+  }, []);
   // The point that position: fixed counts from. It is the window's corner,
   // unless the portal root has a transform (the timeline bar keeps one after
   // it slides in): then it is that root's corner, and every place below is
-  // shifted by it.
+  // shifted by it. In the top layer no transform applies: the point sits in
+  // the layer, at the window's corner.
   const origin = useRef<HTMLSpanElement>(null);
   const originOf = () => {
     const box = origin.current?.getBoundingClientRect();
@@ -188,6 +210,24 @@ export function HintTooltip() {
       window.removeEventListener('blur', release);
       release();
     };
+  }, [owner]);
+
+  // A picker that opens while a hint shows goes into the top layer above
+  // it: show the hint layer again, so it is the last one there.
+  useEffect(() => {
+    if (!owner || !hasTopLayer()) return;
+    const restack = (event: Event) => {
+      const opened = event.target;
+      if (!(opened instanceof HTMLElement) || opened === layer.current || !opened.hasAttribute('popover')) return;
+      if ((event as Event & { newState?: string }).newState !== 'open') return;
+      const current = layer.current;
+      if (!current?.matches(':popover-open')) return;
+      current.hidePopover();
+      current.showPopover();
+    };
+    // A popover's toggle event does not bubble: catch it on the way down.
+    document.addEventListener('toggle', restack, true);
+    return () => document.removeEventListener('toggle', restack, true);
   }, [owner]);
 
   // The hint stays when the pointer leaves its row, so it hides here when
@@ -261,7 +301,7 @@ export function HintTooltip() {
   const root = getDialKitPortalRoot(current.anchor) ?? document.body;
   const fading = !shown || undefined;
 
-  return createPortal(
+  const parts = (
     <>
       <span ref={origin} className="dialkit-hint-origin" aria-hidden="true" />
       {/* The dim is the panel's shape. Inside it, a box over the row casts
@@ -301,7 +341,19 @@ export function HintTooltip() {
       >
         {current.text}
       </div>
-    </>,
+    </>
+  );
+
+  // Where the browser has a top layer, the tooltip and the dim go there in
+  // one layer, so they paint above an open picker and keep their order.
+  return createPortal(
+    hasTopLayer() ? (
+      <div ref={layerRef} className="dialkit-hint-layer">
+        {parts}
+      </div>
+    ) : (
+      parts
+    ),
     root
   );
 }

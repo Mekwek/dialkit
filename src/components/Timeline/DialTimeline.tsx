@@ -50,6 +50,10 @@ const BAR_HINTS = {
   toggle: "Opens or closes the timeline's tracks.",
   ruler: 'Drag to move the playhead. Option-drag or Option-scroll to zoom. Shift-click resets the zoom.',
   playhead: 'The current time. Drag to scrub.',
+  copy: "Copies the sequence's values as text, ready to paste into code.",
+  resize: 'Drag to make the timeline taller or shorter.',
+  overview: 'Drag to move through the whole sequence.',
+  closeEditor: 'Closes the clip editor.',
 };
 import { findControl } from '../../shortcut-utils';
 import { ControlRenderer } from '../ControlRenderer';
@@ -147,6 +151,7 @@ function DialTimelineDock({
 }) {
   const [mounted, setMounted] = useState(false);
   const [dockMaxHeight, setDockMaxHeight] = useState(DEFAULT_DOCK_MAX_HEIGHT);
+  const { hintRow: resizeHintRow } = useHint(BAR_HINTS.resize);
   const visibilityControllerId = useRef(Symbol('dialkit-timeline-visibility'));
   const dockRef = useRef<HTMLDivElement>(null);
   const resizeCleanupRef = useRef<(() => void) | null>(null);
@@ -240,7 +245,7 @@ function DialTimelineDock({
         role="separator"
         aria-label="Resize timeline height"
         aria-orientation="horizontal"
-        title="Drag to resize timeline"
+        {...resizeHintRow}
       />
       <div
         ref={dockRef}
@@ -284,7 +289,6 @@ function PlayPauseButton({ id }: { id: string }) {
       className="dialkit-toolbar-add"
       {...hintRow}
       onClick={() => (playing ? TimelineStore.pause(id) : TimelineStore.play(id))}
-      title={playing ? 'Pause' : 'Play'}
       aria-label={playing ? 'Pause' : 'Play'}
       whileTap={{ scale: 0.9 }}
       transition={{ type: 'spring', visualDuration: 0.15, bounce: 0.3 }}
@@ -333,7 +337,6 @@ function ReplayButton({ onReplay }: { onReplay: () => void }) {
       className="dialkit-toolbar-add"
       {...hintRow}
       onClick={onReplay}
-      title="Replay"
       aria-label="Replay"
       whileTap={{ scale: 0.9 }}
       transition={{ type: 'spring', visualDuration: 0.15, bounce: 0.3 }}
@@ -352,7 +355,6 @@ function LoopButton({ id, loop }: { id: string; loop: boolean }) {
       className="dialkit-toolbar-add dialkit-timeline-toolbar-toggle"
       {...hintRow}
       onClick={() => TimelineStore.setLoop(id, !loop)}
-      title={loop ? 'Loop on' : 'Loop off'}
       aria-label="Toggle loop"
       aria-pressed={loop}
       data-active={loop || undefined}
@@ -478,7 +480,6 @@ function TimelinePlayheadFlag({
       aria-valuemin={0}
       aria-valuemax={duration}
       aria-valuenow={time}
-      title="Drag to scrub the timeline"
     >
       <div className="dialkit-timeline-playhead-stem" />
       <div className="dialkit-timeline-playhead-anchor">
@@ -550,6 +551,7 @@ function TimelineOverview({
   viewEnd: number;
   onNavigate: (time: number) => void;
 }) {
+  const { hintRow } = useHint(BAR_HINTS.overview);
   const subscribe = useTransportSubscribe(id);
   const getTime = useCallback(() => TimelineStore.getTransport(id).time, [id]);
   const time = useSyncExternalStore(subscribe, getTime, getTime);
@@ -595,7 +597,7 @@ function TimelineOverview({
       onPointerUp={finishScrub}
       onPointerCancel={finishScrub}
       onLostPointerCapture={finishScrub}
-      title="Drag to scrub the full timeline"
+      {...hintRow}
     >
       <div
         className="dialkit-timeline-overview-viewport"
@@ -1005,6 +1007,7 @@ const TimelineSection = memo(function TimelineSection({
   const { hintRow: exportHintRow } = useHint(BAR_HINTS.export);
   const { hintRow: toggleHintRow } = useHint(BAR_HINTS.toggle);
   const { hintRow: rulerHintRow } = useHint(BAR_HINTS.ruler);
+  const { hintRow: copyHintRow } = useHint(BAR_HINTS.copy);
 
   const closePopover = useCallback(() => setPopover(null), []);
 
@@ -1269,7 +1272,7 @@ const TimelineSection = memo(function TimelineSection({
         className="dialkit-timeline-row dialkit-timeline-single-row"
         data-lane={lane === undefined ? undefined : ''}
       >
-        <div className="dialkit-timeline-label" title={label ?? undefined}>
+        <div className="dialkit-timeline-label">
           {label}
         </div>
         <div className="dialkit-timeline-lane">
@@ -1333,7 +1336,7 @@ const TimelineSection = memo(function TimelineSection({
                 className="dialkit-timeline-group-toggle"
                 data-open={!isCollapsed}
                 onClick={() => toggleGroup(group)}
-                title={isCollapsed ? 'Expand layer' : 'Collapse layer'}
+                aria-label={isCollapsed ? 'Expand layer' : 'Collapse layer'}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d={ICON_CHEVRON} />
@@ -1363,7 +1366,7 @@ const TimelineSection = memo(function TimelineSection({
                 e.stopPropagation();
                 toggleTracks(clip.key);
               }}
-              title={tracksOpen ? 'Collapse properties' : 'Expand properties'}
+              aria-label={tracksOpen ? 'Collapse properties' : 'Expand properties'}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d={ICON_CHEVRON} />
@@ -1472,7 +1475,6 @@ const TimelineSection = memo(function TimelineSection({
             className="dialkit-toolbar-add"
             onClick={handleAddPreset}
             {...addHintRow}
-            title="Add timeline version"
             aria-label="Add timeline version"
             whileTap={{ scale: 0.9 }}
             transition={{ type: 'spring', visualDuration: 0.15, bounce: 0.3 }}
@@ -1492,8 +1494,8 @@ const TimelineSection = memo(function TimelineSection({
           <motion.button
             className="dialkit-toolbar-add"
             onClick={handleCopy}
-            title="Copy parameters"
             aria-label={copied ? 'Copied parameters' : 'Copy parameters'}
+            {...copyHintRow}
             whileTap={{ scale: 0.9 }}
             transition={{ type: 'spring', visualDuration: 0.15, bounce: 0.3 }}
           >
@@ -1542,7 +1544,6 @@ const TimelineSection = memo(function TimelineSection({
               className="dialkit-toolbar-add dialkit-timeline-export"
               onClick={onExport}
               {...exportHintRow}
-              title="Export video"
               aria-label="Export video"
               whileTap={{ scale: 0.9 }}
               transition={{ type: 'spring', visualDuration: 0.15, bounce: 0.3 }}
@@ -1561,7 +1562,7 @@ const TimelineSection = memo(function TimelineSection({
             aria-expanded={open}
             onClick={() => setOpen(!open)}
             {...toggleHintRow}
-            title={open ? 'Collapse timeline' : 'Expand timeline'}
+            aria-label={open ? 'Collapse timeline' : 'Expand timeline'}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d={ICON_CHEVRON} />
@@ -1609,7 +1610,6 @@ const TimelineSection = memo(function TimelineSection({
                 onPointerCancel={handleRulerPointerCancel}
                 onLostPointerCapture={handleRulerPointerCancel}
                 {...rulerHintRow}
-                title="Drag to seek · Option-drag or Option-scroll to zoom · Shift-click to reset zoom"
               >
                 {fineTicks.map((t) => (
                   <div key={`fine:${t}`} className="dialkit-timeline-tick dialkit-timeline-tick-fine" style={{ left: (t - safeViewStart) * pxPerSecond }} />
@@ -1707,6 +1707,7 @@ function ClipPopover({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [naturalHeight, setNaturalHeight] = useState(0);
+  const { hintRow: closeHintRow } = useHint(BAR_HINTS.closeEditor);
   const [viewport, setViewport] = useState(() => ({
     width: window.visualViewport?.width ?? window.innerWidth,
     height: window.visualViewport?.height ?? window.innerHeight,
@@ -1859,7 +1860,7 @@ function ClipPopover({
       >
         <div className="dialkit-timeline-popover-header">
           <span className="dialkit-timeline-popover-title">{title}</span>
-          <button className="dialkit-timeline-popover-close" onClick={onClose} title="Close editor" aria-label="Close editor">
+          <button className="dialkit-timeline-popover-close" onClick={onClose} aria-label="Close editor" {...closeHintRow}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M6 6L18 18M18 6L6 18" />
             </svg>
@@ -2250,10 +2251,6 @@ function TimelineClip({
   // idle is whatever lies between (see segmentWidths).
   const segmentParts = single && clip.segments ? segmentWidths(duration, clip.segments) : null;
 
-  const barTitle = composite
-    ? `${clip.label} — composite of its property tracks${looping ? ' · repeats through timeline' : ''} · click to expand`
-    : `${clip.label} — ${formatSeconds(at)} for ${durationText}${fixedDuration ? ' (duration set by spring physics)' : ''}${looping ? ' · repeats through timeline' : ''}${delayMode ? ' · drag to phase-shift' : ''}${segmentParts ? ` · in ${formatSeconds(segmentParts.in)}, idle ${formatSeconds(segmentParts.idle)}, out ${formatSeconds(segmentParts.out)}` : ''}`;
-
   return (
     <>
       {ghostCycles.map((cycle) => {
@@ -2319,7 +2316,6 @@ function TimelineClip({
           if (single) setHovered(false);
           clipHintRow.onPointerLeave?.();
         }}
-        title={barTitle}
       >
         {single ? (
           <>
@@ -2393,7 +2389,7 @@ function TimelineClip({
         )}
       </div>
       {looping && (
-        <span className="dialkit-timeline-loop-infinity" aria-hidden="true" title="Repeats indefinitely">
+        <span className="dialkit-timeline-loop-infinity" aria-hidden="true">
           ∞
         </span>
       )}

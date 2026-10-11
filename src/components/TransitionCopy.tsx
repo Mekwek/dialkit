@@ -5,11 +5,15 @@ import { DialStore } from '../store/DialStore';
 import type { TransitionConfig } from '../store/DialStore';
 import { TransitionLibrary } from '../store/TransitionLibrary';
 import { describeCopied } from '../transition-presets';
+import { useHint } from './Hint';
 
 const getCopied = () => TransitionLibrary.getCopied();
 
 /** How long the check mark shows after a copy or a paste. */
 const DONE_MS = 1200;
+
+/** The hint of the button that opens the copy and paste menu. */
+const COPY_MENU_HINT = 'Copies this transition, or pastes one you copied.';
 
 interface TransitionCopyProps {
   panelId: string;
@@ -27,6 +31,7 @@ export function TransitionCopyMenu({ panelId, path, value }: TransitionCopyProps
   const copied = useSyncExternalStore(TransitionLibrary.subscribe, getCopied, getCopied);
   const [open, setOpen] = useState(false);
   const [done, setDone] = useState(false);
+  const { hintRow } = useHint(COPY_MENU_HINT);
   const menu = useRef<HTMLDivElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>();
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -73,10 +78,10 @@ export function TransitionCopyMenu({ panelId, path, value }: TransitionCopyProps
         type="button"
         className="dialkit-copy-button"
         aria-label="Copy or paste"
-        title="Copy or paste"
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((next) => !next)}
+        {...hintRow}
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={done ? 2 : 3} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           {(done ? [ICON_CHECK] : ICON_MORE).map((d) => <path key={d} d={d} />)}

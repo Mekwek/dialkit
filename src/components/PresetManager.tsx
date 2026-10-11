@@ -329,7 +329,7 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdow
                         {editable && (
                           <button
                             className="dialkit-preset-rename"
-                            title="Rename preset"
+                            aria-label="Rename preset"
                             onClick={(e) => {
                               e.stopPropagation();
                               startEdit(preset);
@@ -348,7 +348,7 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdow
                           <button
                             className="dialkit-preset-lock"
                             data-locked={String(!!preset.locked)}
-                            title={preset.locked ? 'Unlock preset' : 'Lock preset'}
+                            aria-label={preset.locked ? 'Unlock preset' : 'Lock preset'}
                             onClick={(e) => {
                               e.stopPropagation();
                               DialStore.setPresetLocked(panelId, preset.id, !preset.locked);
@@ -369,7 +369,7 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdow
                             onClick={(e) => handleDelete(e, preset.id)}
                             onMouseDown={(e) => e.stopPropagation()}
                             onPointerDown={(e) => e.stopPropagation()}
-                            title="Delete preset"
+                            aria-label="Delete preset"
                           >
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               {ICON_TRASH.map((d, i) => (

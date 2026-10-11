@@ -180,13 +180,7 @@ function PresetList({ items, active, label, noun }: { items: PresetItem[]; activ
       {items.map((item) => (
         <div key={item.name} className="dialkit-preset" data-active={item.name === active || undefined}>
           <PresetPick item={item} active={item.name === active} noun={noun} />
-          {item.remove && (
-            <button type="button" className="dialkit-preset-remove" aria-label={`Delete ${item.name}`} title="Delete" onClick={item.remove}>
-              <svg viewBox="0 0 12 12" aria-hidden="true">
-                <path d="M3 3l6 6M9 3l-6 6" />
-              </svg>
-            </button>
-          )}
+          {item.remove && <PresetRemove name={item.name} remove={item.remove} noun={noun} />}
         </div>
       ))}
     </div>
@@ -201,6 +195,18 @@ function PresetPick({ item, active, noun }: { item: PresetItem; active: boolean;
     <button type="button" role="option" aria-selected={active} className="dialkit-preset-pick" onClick={item.pick} {...hintRow}>
       <span className="dialkit-preset-name">{item.name}</span>
       {item.picture}
+    </button>
+  );
+}
+
+/** The × that deletes a saved preset. */
+function PresetRemove({ name, remove, noun }: { name: string; remove: () => void; noun: string }) {
+  const { hintRow } = useHint(`Deletes this saved ${noun}.`);
+  return (
+    <button type="button" className="dialkit-preset-remove" aria-label={`Delete ${name}`} onClick={remove} {...hintRow}>
+      <svg viewBox="0 0 12 12" aria-hidden="true">
+        <path d="M3 3l6 6M9 3l-6 6" />
+      </svg>
     </button>
   );
 }

@@ -169,13 +169,11 @@ function mountDialPad(host, initial) {
     caption.hidden = !!props.hideLabel;
     root.toggleAttribute("data-no-label", !!props.hideLabel);
     root.toggleAttribute("data-drag-fields", !!props.dragFields);
-    label.title = props.label;
     const names = { x: props.labels?.x ?? "X", y: props.labels?.y ?? "Y" };
     surface.setAttribute("aria-label", `${props.label}: ${names.x} ${value.x}, ${names.y} ${value.y}`);
     inputs.forEach(({ axis, name, input }) => {
       const range = resolvePadAxis(props[axis]);
       name.textContent = names[axis];
-      name.title = names[axis];
       input.setAttribute("aria-label", `${props.label} ${names[axis]}`);
       input.setAttribute("aria-valuemin", String(range.min));
       input.setAttribute("aria-valuemax", String(range.max));

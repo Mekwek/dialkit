@@ -34,8 +34,12 @@ interface FolderProps {
 /** The hint of a panel's own header: clicking it closes the panel. */
 const PANEL_HEADER_HINT = 'Closes the panel to a small button. Click the button to open it again.';
 
+/** The hint of a section's reset button. */
+const SECTION_RESET_HINT = 'Sets every control in this section back to its default.';
+
 export function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, onReset, changed, meta, actions, hint }: FolderProps) {
   const { hintRow } = useHint(hint ?? (isRoot && !inline ? PANEL_HEADER_HINT : undefined));
+  const { hintRow: resetHintRow } = useHint(SECTION_RESET_HINT);
   const [localOpen, setIsOpen] = useState(defaultOpen);
   const isOpen = open ?? localOpen;
   const isCollapsed = !isOpen;
@@ -162,7 +166,7 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
                 type="button"
                 className="dialkit-section-reset"
                 aria-label={`Reset ${title}`}
-                title="Reset"
+                {...resetHintRow}
                 data-changed={changed || undefined}
                 onClick={(e) => {
                   e.stopPropagation();

@@ -99,7 +99,6 @@ export function AnchorGrid({ panelId, label, columns, rows, values, hint }: Anch
               role="radio"
               aria-checked={picked}
               aria-label={`${r.label}, ${c.label}`}
-              title={`${r.label}, ${c.label}`}
               tabIndex={picked ? 0 : -1}
               data-cell={`${ci}-${ri}`}
               className="dialkit-anchor-cell"

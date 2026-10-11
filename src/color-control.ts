@@ -4,6 +4,7 @@ import {
 } from './color';
 import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition } from './dropdown-position';
 import { handleSegmentKey, stepInputKey } from './control-keyboard';
+import { HintStore } from './store/HintStore';
 
 export type ColorControlProps = { label: string; value: string; onChange: (value: string) => void };
 
@@ -11,6 +12,17 @@ const FORMATS: ColorFormat[] = ['hex', 'rgb', 'hsl', 'oklch'];
 const FORMAT_LABEL: Record<ColorFormat, string> = { hex: 'Hex', rgb: 'RGB', hsl: 'HSL', oklch: 'OKLCH' };
 const MODE_KEY = 'dialkit:color-mode';
 const HEX_RE = /^#?([\da-f]{3}|[\da-f]{4}|[\da-f]{6}|[\da-f]{8})$/i;
+/** The hints of the picker's parts, shown while the hint key (H) is held. */
+const PICKER_HINTS = {
+  plane: 'Drag to change how light and how strong the color is.',
+  hue: 'Drag to change the hue.',
+  opacity: 'Drag to change how see-through the color is.',
+  format: 'Shows the color as hex, RGB, HSL or OKLCH.',
+  fields: 'Type a value. A hex, RGB, HSL or OKLCH color works.',
+  eyedropper: 'Picks a color from anywhere on the screen.',
+};
+/** The hint key, pressed on a picker part that takes no typing, still reaches the hint layer. */
+const isHintKey = (e: KeyboardEvent) => e.key.toLowerCase() === HintStore.getKey() && !(e.target instanceof HTMLInputElement);
 const EYEDROPPER_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m2 22 1-1h3l9-9"/><path d="M3 21v-3l9-9"/><path d="m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4Z"/></svg>';
 
 type EyeDropperCtor = new () => { open: () => Promise<{ sRGBHex: string }> };
@@ -86,6 +98,13 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
   let paintFrame = 0;
   let updatePicker = () => {};
   let rebuildFields = () => {};
+  // The picker parts with a hint; they take it down when the picker closes.
+  let hinted: HTMLElement[] = [];
+  const hint = (part: HTMLElement, text: string) => {
+    hinted.push(part);
+    part.addEventListener('pointerenter', () => HintStore.enter(part, text));
+    part.addEventListener('pointerleave', () => HintStore.leave(part));
+  };
   const row = element('div', 'dialkit-color-control');
   const label = element('span', 'dialkit-color-label');
   const inputs = element('div', 'dialkit-color-inputs');
@@ -107,7 +126,6 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
     valueInput.setAttribute('aria-label', `${props.label} color value`);
     // The row shows the six-digit colour only; the alpha lives in the panel.
     if (document.activeElement !== valueInput) valueInput.value = colorToHexSix(color);
-    valueInput.title = props.value;
     swatch.style.setProperty('--dial-color', formatColor(color, 'hex'));
     swatch.setAttribute('aria-label', `Pick ${props.label.toLowerCase()} color`);
     updatePicker();
@@ -127,7 +145,6 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
     const parsed = parseColor(input.value);
     if (!parsed) {
       input.setAttribute('aria-invalid', 'true');
-      input.title = 'Enter a hex, RGB, HSL or OKLCH color';
       return false;
     }
     input.removeAttribute('aria-invalid');
@@ -151,6 +168,8 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
     cancelAnimationFrame(paintFrame);
     popup?.remove();
     popup = undefined;
+    hinted.forEach(part => { HintStore.leave(part); HintStore.hide(part); });
+    hinted = [];
     updatePicker = () => {};
     rebuildFields = () => {};
     delete row.dataset.open;
@@ -166,10 +185,11 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
     if (!popup?.contains(e.target as Node) && !row.contains(e.target as Node)) close();
   };
 
-  const open = () => {
+  const open = (event?: Event) => {
     if (popup) { if (!inline) close(); return; }
     const root = inline ? host : getDialKitPortalRoot(host) ?? host;
     popup = element('div', 'dialkit-color-popover');
+    popup.tabIndex = -1;
     popup.dataset.presentation = presentation;
     popup.style.position = inline ? 'static' : 'fixed';
     popup.setAttribute('role', inline ? 'group' : 'dialog');
@@ -186,20 +206,22 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
     const marker = element('span', 'dialkit-color-marker');
     marker.setAttribute('aria-hidden', 'true');
     plane.append(canvas, marker);
+    hint(plane, PICKER_HINTS.plane);
 
     // The hue and opacity strips.
     const tracks = element('div', 'dialkit-color-tracks');
-    function track(name: string, max: number, step: number, className: string) {
+    function track(name: string, max: number, step: number, className: string, hintText: string) {
       // No visible name: the strips speak for themselves and take the full row.
       const line = element('label', 'dialkit-color-track-row');
       const input = element('input', `dialkit-color-track ${className}`);
       input.type = 'range'; input.min = '0'; input.max = String(max); input.step = String(step);
       input.setAttribute('aria-label', name);
       line.append(input); tracks.append(line);
+      hint(line, hintText);
       return input;
     }
-    const hue = track('Hue', 360, 0.1, 'dialkit-color-hue');
-    const opacity = track('Opacity', 100, 1, 'dialkit-color-opacity');
+    const hue = track('Hue', 360, 0.1, 'dialkit-color-hue', PICKER_HINTS.hue);
+    const opacity = track('Opacity', 100, 1, 'dialkit-color-opacity', PICKER_HINTS.opacity);
 
     // The mode switcher.
     const formatRow = element('div', 'dialkit-labeled-control dialkit-color-format-row');
@@ -208,6 +230,7 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
     formats.setAttribute('role', 'radiogroup');
     formats.addEventListener('keydown', handleSegmentKey);
     formats.setAttribute('aria-label', 'Color format');
+    hint(formats, PICKER_HINTS.format);
     const formatPill = element('div', 'dialkit-segmented-pill');
     formatPill.setAttribute('aria-hidden', 'true');
     formats.append(formatPill);
@@ -227,7 +250,6 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
     const EyeDropperApi = (window as unknown as { EyeDropper?: EyeDropperCtor }).EyeDropper;
     const eyedropper = element('button', 'dialkit-color-eyedropper');
     eyedropper.innerHTML = EYEDROPPER_ICON;
-    eyedropper.title = 'Pick a color from the screen';
     eyedropper.setAttribute('aria-label', 'Pick a color from the screen');
     eyedropper.addEventListener('click', async () => {
       if (!EyeDropperApi) return;
@@ -243,8 +265,12 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
     const alphaInput = textInput('dialkit-color-channel dialkit-color-alpha-input', 'Alpha percentage', 3);
     const alphaUnit = element('span', 'dialkit-color-unit', '%');
     alphaBox.append(alphaInput, alphaUnit);
-    if (EyeDropperApi) fieldsRow.append(eyedropper);
+    if (EyeDropperApi) {
+      fieldsRow.append(eyedropper);
+      hint(eyedropper, PICKER_HINTS.eyedropper);
+    }
     fields.append(channelBox, alphaBox);
+    hint(fields, PICKER_HINTS.fields);
     fieldsRow.append(fields);
     let channelInputs: HTMLInputElement[] = [];
     let syncChannels = () => {};
@@ -467,7 +493,7 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
           close();
         }
       }
-      e.stopPropagation();
+      if (!isHintKey(e)) e.stopPropagation();
     });
     popup.append(formatRow, plane, tracks, fieldsRow);
     root.append(popup);
@@ -485,7 +511,12 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
     swatch.setAttribute('aria-expanded', 'true');
     document.addEventListener('pointerdown', outside);
     document.addEventListener('focusin', focusOutside);
-    formatButtons.find(button => button.getAttribute('aria-checked') === 'true')?.focus({ preventScroll: true });
+    // A mouse click focuses the picker itself: focused on a button, the
+    // next key press (the hint key, H) would show that button's focus ring.
+    // A keyboard open (Enter or Space: no mouse, detail 0) still starts on
+    // the format that is on.
+    if (event instanceof MouseEvent && event.detail > 0) popup.focus({ preventScroll: true });
+    else formatButtons.find(button => button.getAttribute('aria-checked') === 'true')?.focus({ preventScroll: true });
   };
   swatch.addEventListener('click', open);
   render();

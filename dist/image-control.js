@@ -88,9 +88,83 @@ function getDialKitPortalRoot(trigger) {
   return trigger?.closest(".dialkit-root") ?? null;
 }
 
+// src/store/HintStore.ts
+var HintStoreClass = class {
+  constructor() {
+    this.key = "h";
+    this.keyHeld = false;
+    this.shown = null;
+    this.hovered = [];
+    this.listeners = /* @__PURE__ */ new Set();
+    this.subscribe = (listener) => {
+      this.listeners.add(listener);
+      return () => {
+        this.listeners.delete(listener);
+      };
+    };
+    /** The key held to show hints. */
+    this.getKey = () => this.key;
+    this.isKeyHeld = () => this.keyHeld;
+    this.getShown = () => this.shown;
+  }
+  notify() {
+    this.listeners.forEach((listener) => listener());
+  }
+  setKey(key) {
+    this.key = key.toLowerCase();
+    this.notify();
+  }
+  setKeyHeld(held) {
+    if (held === this.keyHeld) return;
+    this.keyHeld = held;
+    const top = this.hovered[this.hovered.length - 1];
+    if (!held) this.shown = null;
+    else if (top) this.shown = { text: top.text, anchor: top.anchor, box: top.anchor };
+    this.notify();
+  }
+  /** The pointer entered `anchor`, a row with a hint. */
+  enter(anchor, text) {
+    this.hovered = this.hovered.filter((row) => row.anchor !== anchor);
+    this.hovered.push({ anchor, text });
+    if (this.keyHeld) this.show(text, anchor);
+  }
+  /**
+   * The pointer left `anchor`. Its hint stays while the key is held, so the
+   * gap between two rows does not flicker: the next row replaces it.
+   */
+  leave(anchor) {
+    this.hovered = this.hovered.filter((row) => row.anchor !== anchor);
+  }
+  /** A hovered row's text changed. */
+  retext(anchor, text) {
+    const row = this.hovered.find((entry) => entry.anchor === anchor);
+    if (!row) return;
+    row.text = text;
+    if (this.shown?.anchor === anchor) this.show(text, anchor);
+  }
+  /** Shows `text` above `box`, the row; `anchor` is the element that asked. */
+  show(text, anchor, box = anchor) {
+    if (this.shown?.anchor === anchor && this.shown.text === text) return;
+    this.shown = { text, anchor, box };
+    this.notify();
+  }
+  /** Hides the hint, if `anchor` is the one it points at. */
+  hide(anchor) {
+    if (!this.shown || anchor && this.shown.anchor !== anchor) return;
+    this.shown = null;
+    this.notify();
+  }
+};
+var HintStore = new HintStoreClass();
+
 // src/image-control.ts
 var imageControlId = 0;
 var MAX_FILE_SIZE = 10 * 1024 * 1024;
+var PICKER_HINTS = {
+  upload: "Adds an image from your computer.",
+  clear: "Removes the image."
+};
+var isHintKey = (event) => event.key.toLowerCase() === HintStore.getKey() && !(event.target instanceof HTMLInputElement);
 function element(tag, className, text) {
   const el = document.createElement(tag);
   el.className = className;
@@ -145,12 +219,10 @@ function preview(className) {
   img.addEventListener("load", () => {
     img.hidden = false;
     fallback.hidden = true;
-    frame.removeAttribute("title");
   });
   img.addEventListener("error", () => {
     img.hidden = true;
     fallback.hidden = false;
-    frame.title = "Image unavailable";
   });
   return {
     frame,
@@ -159,7 +231,6 @@ function preview(className) {
       current = value;
       img.hidden = true;
       fallback.hidden = false;
-      frame.removeAttribute("title");
       if (value) img.src = value;
       else img.removeAttribute("src");
     }
@@ -178,6 +249,20 @@ function mountImageControl(host, initial, presentation = "popover") {
   let reader;
   let uploadRequest = 0;
   const popupId = `dialkit-image-picker-${++imageControlId}`;
+  let hinted = [];
+  const hint = (part, text) => {
+    if (!text) return;
+    hinted.push(part);
+    part.addEventListener("pointerenter", () => HintStore.enter(part, text));
+    part.addEventListener("pointerleave", () => HintStore.leave(part));
+  };
+  const unhint = (parts) => {
+    parts.forEach((part) => {
+      HintStore.leave(part);
+      HintStore.hide(part);
+    });
+    hinted = hinted.filter((part) => !parts.includes(part));
+  };
   const trigger = element("button", "dialkit-image-control");
   const label = element("span", "dialkit-image-label");
   const name = element("span", "dialkit-image-value");
@@ -213,6 +298,7 @@ function mountImageControl(host, initial, presentation = "popover") {
     stopPosition = void 0;
     popup?.remove();
     popup = void 0;
+    unhint(hinted);
     updatePicker = () => {
     };
     resetUpload = () => {
@@ -230,13 +316,14 @@ function mountImageControl(host, initial, presentation = "popover") {
   const focusOutside = (event) => {
     if (!popup?.contains(event.target) && !host.contains(event.target)) close();
   };
-  const open = () => {
+  const open = (event) => {
     if (popup) {
       if (!inline) close();
       return;
     }
     const root = inline ? host : getDialKitPortalRoot(host) ?? host;
     popup = element("div", "dialkit-image-popover");
+    popup.tabIndex = -1;
     popup.dataset.presentation = presentation;
     popup.style.position = inline ? "static" : "fixed";
     popup.id = popupId;
@@ -249,6 +336,7 @@ function mountImageControl(host, initial, presentation = "popover") {
       if (!inline) close(true);
     });
     heading.append(title, clear);
+    hint(clear, PICKER_HINTS.clear);
     const grid = element("div", "dialkit-image-grid");
     grid.setAttribute("role", "group");
     grid.setAttribute("aria-label", "Available images");
@@ -256,6 +344,7 @@ function mountImageControl(host, initial, presentation = "popover") {
     const upload = element("button", "dialkit-button dialkit-image-upload");
     const uploadText = element("span", "", "Upload image");
     upload.append(icon("upload"), uploadText);
+    hint(upload, PICKER_HINTS.upload);
     const status = element("div", "dialkit-image-status");
     status.setAttribute("role", "status");
     status.hidden = true;
@@ -322,29 +411,29 @@ function mountImageControl(host, initial, presentation = "popover") {
       fileInput.value = "";
       if (file) acceptFile(file);
     };
-    popup.addEventListener("dragover", (event) => {
-      if (!event.dataTransfer?.types.includes("Files")) return;
-      event.preventDefault();
-      event.dataTransfer.dropEffect = "copy";
+    popup.addEventListener("dragover", (event2) => {
+      if (!event2.dataTransfer?.types.includes("Files")) return;
+      event2.preventDefault();
+      event2.dataTransfer.dropEffect = "copy";
       popup.dataset.dragging = "true";
     });
-    popup.addEventListener("dragleave", (event) => {
-      if (!popup?.contains(event.relatedTarget)) delete popup.dataset.dragging;
+    popup.addEventListener("dragleave", (event2) => {
+      if (!popup?.contains(event2.relatedTarget)) delete popup.dataset.dragging;
     });
-    popup.addEventListener("drop", (event) => {
-      event.preventDefault();
+    popup.addEventListener("drop", (event2) => {
+      event2.preventDefault();
       delete popup.dataset.dragging;
-      const file = event.dataTransfer?.files[0];
+      const file = event2.dataTransfer?.files[0];
       if (file) acceptFile(file);
     });
-    grid.addEventListener("keydown", (event) => {
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
+    grid.addEventListener("keydown", (event2) => {
+      if (event2.metaKey || event2.ctrlKey || event2.altKey) return;
       const index = buttons.indexOf(document.activeElement);
       if (index < 0) return;
       const columns = getComputedStyle(grid).gridTemplateColumns.split(" ").length;
-      const next = event.key === "ArrowRight" ? index + 1 : event.key === "ArrowLeft" ? index - 1 : event.key === "ArrowDown" ? index + columns : event.key === "ArrowUp" ? index - columns : event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : void 0;
+      const next = event2.key === "ArrowRight" ? index + 1 : event2.key === "ArrowLeft" ? index - 1 : event2.key === "ArrowDown" ? index + columns : event2.key === "ArrowUp" ? index - columns : event2.key === "Home" ? 0 : event2.key === "End" ? buttons.length - 1 : void 0;
       if (next === void 0) return;
-      event.preventDefault();
+      event2.preventDefault();
       const button = buttons[Math.max(0, Math.min(buttons.length - 1, next))];
       buttons.forEach((item) => {
         item.tabIndex = item === button ? 0 : -1;
@@ -352,20 +441,20 @@ function mountImageControl(host, initial, presentation = "popover") {
       button.focus({ preventScroll: true });
       button.scrollIntoView({ block: "nearest" });
     });
-    popup.addEventListener("keydown", (event) => {
+    popup.addEventListener("keydown", (event2) => {
       if (inline) return;
-      event.stopPropagation();
-      if (event.key === "Escape") {
-        event.preventDefault();
+      if (!isHintKey(event2)) event2.stopPropagation();
+      if (event2.key === "Escape") {
+        event2.preventDefault();
         close(true);
       }
-      if (event.key === "Tab") {
+      if (event2.key === "Tab") {
         const first = clear.hidden ? buttons.find((button) => button.tabIndex === 0) ?? upload : clear;
-        if (event.shiftKey && document.activeElement === first || !event.shiftKey && document.activeElement === upload) {
-          const next = adjacentTabStop(trigger, event.shiftKey);
+        if (event2.shiftKey && document.activeElement === first || !event2.shiftKey && document.activeElement === upload) {
+          const next = adjacentTabStop(trigger, event2.shiftKey);
           close(true);
           if (next) {
-            event.preventDefault();
+            event2.preventDefault();
             next.focus();
           }
         }
@@ -375,6 +464,10 @@ function mountImageControl(host, initial, presentation = "popover") {
       popup?.setAttribute("aria-label", `${props.label} image picker`);
       title.textContent = props.label;
       clear.hidden = !props.value;
+      if (clear.hidden) {
+        HintStore.leave(clear);
+        HintStore.hide(clear);
+      }
       clear.setAttribute("aria-label", `Remove ${props.label.toLowerCase()} image`);
       const items = choices();
       empty.hidden = items.length > 0;
@@ -382,10 +475,11 @@ function mountImageControl(host, initial, presentation = "popover") {
       if (items.length !== previousItems.length || items.some((item, i) => item.value !== previousItems[i].value || item.label !== previousItems[i].label)) {
         const focusedIndex = buttons.indexOf(document.activeElement);
         previousItems = items;
+        unhint(buttons);
         buttons = items.map((item) => {
           const button = element("button", "dialkit-image-option");
           button.setAttribute("aria-label", item.label);
-          button.title = item.label;
+          hint(button, item.label);
           const thumb = preview("dialkit-image-option-preview");
           thumb.update(item.value);
           button.append(thumb.frame);
@@ -423,7 +517,8 @@ function mountImageControl(host, initial, presentation = "popover") {
     trigger.setAttribute("aria-controls", popupId);
     document.addEventListener("pointerdown", outside);
     document.addEventListener("focusin", focusOutside);
-    (buttons.find((button) => button.tabIndex === 0) ?? upload).focus({ preventScroll: true });
+    if (event instanceof MouseEvent && event.detail > 0) popup.focus({ preventScroll: true });
+    else (buttons.find((button) => button.tabIndex === 0) ?? upload).focus({ preventScroll: true });
   };
   trigger.addEventListener("click", open);
   trigger.addEventListener("keydown", (event) => {

@@ -12,6 +12,9 @@ import { useHint } from './Hint';
 /** The hint of the button that saves a version. */
 const ADD_VERSION_HINT = 'Saves the current settings as a new version.';
 
+/** The hint of the button that copies the panel's values. */
+const COPY_HINT = "Copies the panel's values as text, ready to paste into code.";
+
 interface PanelProps {
   panel: PanelConfig;
   defaultOpen?: boolean;
@@ -38,6 +41,7 @@ interface PanelProps {
 export function Panel({ panel, defaultOpen = true, inline = false, folderMode = 'independent', onOpenChange, variant = 'root', toolbarExtra }: PanelProps) {
   const [copied, setCopied] = useState(false);
   const { hintRow: addHintRow } = useHint(ADD_VERSION_HINT);
+  const { hintRow: copyHintRow } = useHint(COPY_HINT);
   const copyTimeout = useRef<ReturnType<typeof setTimeout>>();
   useEffect(() => () => clearTimeout(copyTimeout.current), []);
   const subscribe = useCallback(
@@ -134,7 +138,7 @@ export function Panel({ panel, defaultOpen = true, inline = false, folderMode = 
       <motion.button
         className="dialkit-toolbar-add"
         onClick={handleAddPreset}
-        title="Add preset"
+        aria-label="Add preset"
         {...addHintRow}
         whileTap={{ scale: 0.9 }}
         transition={{ type: 'spring', visualDuration: 0.15, bounce: 0.3 }}
@@ -156,7 +160,8 @@ export function Panel({ panel, defaultOpen = true, inline = false, folderMode = 
       <motion.button
         className="dialkit-toolbar-add"
         onClick={handleCopy}
-        title="Copy parameters"
+        aria-label="Copy parameters"
+        {...copyHintRow}
         whileTap={{ scale: 0.9 }}
         transition={{ type: 'spring', visualDuration: 0.15, bounce: 0.3 }}
       >

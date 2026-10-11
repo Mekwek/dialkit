@@ -1794,6 +1794,9 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   animation: dialkit-color-enter 0.16s ease-out;
 }
 .dialkit-color-popover *, .dialkit-color-popover *::before, .dialkit-color-popover *::after { box-sizing: border-box; }
+/* A mouse click focuses the picker box itself (color-control.ts): the box
+   shows no focus ring, only the controls inside it do. */
+.dialkit-color-popover:focus, .dialkit-image-popover:focus { outline: none; }
 .dialkit-color-plane { position: relative; height: 160px; border-radius: var(--dial-radius); touch-action: none; cursor: crosshair; user-select: none; }
 .dialkit-color-canvas { display: block; width: 100%; height: 100%; border-radius: inherit; }
 .dialkit-color-plane::after { content: ''; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px rgb(0 0 0 / 10%); pointer-events: none; }
@@ -3568,6 +3571,11 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
    pointer back on for its DialKit root's children (Theca's global.css
    does), so this rule must win. */
 .dialkit-hint, .dialkit-hint-dim { pointer-events: none !important; }
+/* The tooltip and the dim sit in one layer that goes into the top layer
+   (Hint.tsx), above an open color or image picker. The layer adds no box
+   of its own: these undo the browser's popover style. Nothing in it has a
+   transform, so position: fixed inside it counts from the window. */
+.dialkit-hint-layer { position: fixed; inset: 0 auto auto 0; width: 0; height: 0; margin: 0; padding: 0; border: 0; overflow: visible; background: none; color: inherit; pointer-events: none !important; }
 /* A hint zone adds no box: its children lay out as before. */
 /* A point at the corner that position: fixed counts from (see Hint.tsx). */
 .dialkit-hint-origin {

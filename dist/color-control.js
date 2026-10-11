@@ -295,11 +295,89 @@ function handleSegmentKey(event) {
   buttons[next].click();
 }
 
+// src/store/HintStore.ts
+var HintStoreClass = class {
+  constructor() {
+    this.key = "h";
+    this.keyHeld = false;
+    this.shown = null;
+    this.hovered = [];
+    this.listeners = /* @__PURE__ */ new Set();
+    this.subscribe = (listener) => {
+      this.listeners.add(listener);
+      return () => {
+        this.listeners.delete(listener);
+      };
+    };
+    /** The key held to show hints. */
+    this.getKey = () => this.key;
+    this.isKeyHeld = () => this.keyHeld;
+    this.getShown = () => this.shown;
+  }
+  notify() {
+    this.listeners.forEach((listener) => listener());
+  }
+  setKey(key) {
+    this.key = key.toLowerCase();
+    this.notify();
+  }
+  setKeyHeld(held) {
+    if (held === this.keyHeld) return;
+    this.keyHeld = held;
+    const top = this.hovered[this.hovered.length - 1];
+    if (!held) this.shown = null;
+    else if (top) this.shown = { text: top.text, anchor: top.anchor, box: top.anchor };
+    this.notify();
+  }
+  /** The pointer entered `anchor`, a row with a hint. */
+  enter(anchor, text) {
+    this.hovered = this.hovered.filter((row) => row.anchor !== anchor);
+    this.hovered.push({ anchor, text });
+    if (this.keyHeld) this.show(text, anchor);
+  }
+  /**
+   * The pointer left `anchor`. Its hint stays while the key is held, so the
+   * gap between two rows does not flicker: the next row replaces it.
+   */
+  leave(anchor) {
+    this.hovered = this.hovered.filter((row) => row.anchor !== anchor);
+  }
+  /** A hovered row's text changed. */
+  retext(anchor, text) {
+    const row = this.hovered.find((entry) => entry.anchor === anchor);
+    if (!row) return;
+    row.text = text;
+    if (this.shown?.anchor === anchor) this.show(text, anchor);
+  }
+  /** Shows `text` above `box`, the row; `anchor` is the element that asked. */
+  show(text, anchor, box = anchor) {
+    if (this.shown?.anchor === anchor && this.shown.text === text) return;
+    this.shown = { text, anchor, box };
+    this.notify();
+  }
+  /** Hides the hint, if `anchor` is the one it points at. */
+  hide(anchor) {
+    if (!this.shown || anchor && this.shown.anchor !== anchor) return;
+    this.shown = null;
+    this.notify();
+  }
+};
+var HintStore = new HintStoreClass();
+
 // src/color-control.ts
 var FORMATS = ["hex", "rgb", "hsl", "oklch"];
 var FORMAT_LABEL = { hex: "Hex", rgb: "RGB", hsl: "HSL", oklch: "OKLCH" };
 var MODE_KEY = "dialkit:color-mode";
 var HEX_RE = /^#?([\da-f]{3}|[\da-f]{4}|[\da-f]{6}|[\da-f]{8})$/i;
+var PICKER_HINTS = {
+  plane: "Drag to change how light and how strong the color is.",
+  hue: "Drag to change the hue.",
+  opacity: "Drag to change how see-through the color is.",
+  format: "Shows the color as hex, RGB, HSL or OKLCH.",
+  fields: "Type a value. A hex, RGB, HSL or OKLCH color works.",
+  eyedropper: "Picks a color from anywhere on the screen."
+};
+var isHintKey = (e) => e.key.toLowerCase() === HintStore.getKey() && !(e.target instanceof HTMLInputElement);
 var EYEDROPPER_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m2 22 1-1h3l9-9"/><path d="M3 21v-3l9-9"/><path d="m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4Z"/></svg>';
 var CHANNELS = {
   rgb: [
@@ -379,6 +457,12 @@ function mountColorControl(host, initial, presentation = "popover") {
   };
   let rebuildFields = () => {
   };
+  let hinted = [];
+  const hint = (part, text) => {
+    hinted.push(part);
+    part.addEventListener("pointerenter", () => HintStore.enter(part, text));
+    part.addEventListener("pointerleave", () => HintStore.leave(part));
+  };
   const row = element("div", "dialkit-color-control");
   const label = element("span", "dialkit-color-label");
   const inputs = element("div", "dialkit-color-inputs");
@@ -398,7 +482,6 @@ function mountColorControl(host, initial, presentation = "popover") {
     label.textContent = props.label;
     valueInput.setAttribute("aria-label", `${props.label} color value`);
     if (document.activeElement !== valueInput) valueInput.value = colorToHexSix(color);
-    valueInput.title = props.value;
     swatch.style.setProperty("--dial-color", formatColor(color, "hex"));
     swatch.setAttribute("aria-label", `Pick ${props.label.toLowerCase()} color`);
     updatePicker();
@@ -417,7 +500,6 @@ function mountColorControl(host, initial, presentation = "popover") {
     const parsed = parseColor(input.value);
     if (!parsed) {
       input.setAttribute("aria-invalid", "true");
-      input.title = "Enter a hex, RGB, HSL or OKLCH color";
       return false;
     }
     input.removeAttribute("aria-invalid");
@@ -446,6 +528,11 @@ function mountColorControl(host, initial, presentation = "popover") {
     cancelAnimationFrame(paintFrame);
     popup?.remove();
     popup = void 0;
+    hinted.forEach((part) => {
+      HintStore.leave(part);
+      HintStore.hide(part);
+    });
+    hinted = [];
     updatePicker = () => {
     };
     rebuildFields = () => {
@@ -462,13 +549,14 @@ function mountColorControl(host, initial, presentation = "popover") {
   const focusOutside = (e) => {
     if (!popup?.contains(e.target) && !row.contains(e.target)) close();
   };
-  const open = () => {
+  const open = (event) => {
     if (popup) {
       if (!inline) close();
       return;
     }
     const root = inline ? host : getDialKitPortalRoot(host) ?? host;
     popup = element("div", "dialkit-color-popover");
+    popup.tabIndex = -1;
     popup.dataset.presentation = presentation;
     popup.style.position = inline ? "static" : "fixed";
     popup.setAttribute("role", inline ? "group" : "dialog");
@@ -483,8 +571,9 @@ function mountColorControl(host, initial, presentation = "popover") {
     const marker = element("span", "dialkit-color-marker");
     marker.setAttribute("aria-hidden", "true");
     plane.append(canvas, marker);
+    hint(plane, PICKER_HINTS.plane);
     const tracks = element("div", "dialkit-color-tracks");
-    function track(name, max, step, className) {
+    function track(name, max, step, className, hintText) {
       const line = element("label", "dialkit-color-track-row");
       const input = element("input", `dialkit-color-track ${className}`);
       input.type = "range";
@@ -494,16 +583,18 @@ function mountColorControl(host, initial, presentation = "popover") {
       input.setAttribute("aria-label", name);
       line.append(input);
       tracks.append(line);
+      hint(line, hintText);
       return input;
     }
-    const hue = track("Hue", 360, 0.1, "dialkit-color-hue");
-    const opacity = track("Opacity", 100, 1, "dialkit-color-opacity");
+    const hue = track("Hue", 360, 0.1, "dialkit-color-hue", PICKER_HINTS.hue);
+    const opacity = track("Opacity", 100, 1, "dialkit-color-opacity", PICKER_HINTS.opacity);
     const formatRow = element("div", "dialkit-labeled-control dialkit-color-format-row");
     const formats = element("div", "dialkit-segmented dialkit-color-formats");
     formatRow.append(formats);
     formats.setAttribute("role", "radiogroup");
     formats.addEventListener("keydown", handleSegmentKey);
     formats.setAttribute("aria-label", "Color format");
+    hint(formats, PICKER_HINTS.format);
     const formatPill = element("div", "dialkit-segmented-pill");
     formatPill.setAttribute("aria-hidden", "true");
     formats.append(formatPill);
@@ -524,7 +615,6 @@ function mountColorControl(host, initial, presentation = "popover") {
     const EyeDropperApi = window.EyeDropper;
     const eyedropper = element("button", "dialkit-color-eyedropper");
     eyedropper.innerHTML = EYEDROPPER_ICON;
-    eyedropper.title = "Pick a color from the screen";
     eyedropper.setAttribute("aria-label", "Pick a color from the screen");
     eyedropper.addEventListener("click", async () => {
       if (!EyeDropperApi) return;
@@ -540,8 +630,12 @@ function mountColorControl(host, initial, presentation = "popover") {
     const alphaInput = textInput("dialkit-color-channel dialkit-color-alpha-input", "Alpha percentage", 3);
     const alphaUnit = element("span", "dialkit-color-unit", "%");
     alphaBox.append(alphaInput, alphaUnit);
-    if (EyeDropperApi) fieldsRow.append(eyedropper);
+    if (EyeDropperApi) {
+      fieldsRow.append(eyedropper);
+      hint(eyedropper, PICKER_HINTS.eyedropper);
+    }
     fields.append(channelBox, alphaBox);
+    hint(fields, PICKER_HINTS.fields);
     fieldsRow.append(fields);
     let channelInputs = [];
     let syncChannels = () => {
@@ -785,7 +879,7 @@ function mountColorControl(host, initial, presentation = "popover") {
           close();
         }
       }
-      e.stopPropagation();
+      if (!isHintKey(e)) e.stopPropagation();
     });
     popup.append(formatRow, plane, tracks, fieldsRow);
     root.append(popup);
@@ -806,7 +900,8 @@ function mountColorControl(host, initial, presentation = "popover") {
     swatch.setAttribute("aria-expanded", "true");
     document.addEventListener("pointerdown", outside);
     document.addEventListener("focusin", focusOutside);
-    formatButtons.find((button) => button.getAttribute("aria-checked") === "true")?.focus({ preventScroll: true });
+    if (event instanceof MouseEvent && event.detail > 0) popup.focus({ preventScroll: true });
+    else formatButtons.find((button) => button.getAttribute("aria-checked") === "true")?.focus({ preventScroll: true });
   };
   swatch.addEventListener("click", open);
   render();

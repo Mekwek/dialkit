@@ -1,6 +1,7 @@
 import type { ImageOption } from './store/DialStore';
 import { adjacentTabStop } from './control-keyboard';
 import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition } from './dropdown-position';
+import { HintStore } from './store/HintStore';
 
 export type ImageControlProps = {
   label: string;
@@ -12,6 +13,14 @@ export type ImageControlProps = {
 type NamedImage = { value: string; label: string };
 let imageControlId = 0;
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+/** The hints of the picker's buttons, shown while the hint key (H) is held. An image's hint is its name. */
+const PICKER_HINTS = {
+  upload: 'Adds an image from your computer.',
+  clear: 'Removes the image.',
+};
+/** The hint key, pressed on a picker part that takes no typing, still reaches the hint layer. */
+const isHintKey = (event: KeyboardEvent) => event.key.toLowerCase() === HintStore.getKey() && !(event.target instanceof HTMLInputElement);
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {
   const el = document.createElement(tag);
@@ -66,8 +75,8 @@ function preview(className: string) {
   img.hidden = true;
   frame.append(fallback, img);
   let current: string | undefined;
-  img.addEventListener('load', () => { img.hidden = false; fallback.hidden = true; frame.removeAttribute('title'); });
-  img.addEventListener('error', () => { img.hidden = true; fallback.hidden = false; frame.title = 'Image unavailable'; });
+  img.addEventListener('load', () => { img.hidden = false; fallback.hidden = true; });
+  img.addEventListener('error', () => { img.hidden = true; fallback.hidden = false; });
   return {
     frame,
     update(value: string) {
@@ -75,7 +84,6 @@ function preview(className: string) {
       current = value;
       img.hidden = true;
       fallback.hidden = false;
-      frame.removeAttribute('title');
       if (value) img.src = value;
       else img.removeAttribute('src');
     },
@@ -94,6 +102,19 @@ export function mountImageControl(host: HTMLElement, initial: ImageControlProps,
   let reader: FileReader | undefined;
   let uploadRequest = 0;
   const popupId = `dialkit-image-picker-${++imageControlId}`;
+  // The picker parts with a hint; they take it down when they leave the page.
+  let hinted: HTMLElement[] = [];
+  const hint = (part: HTMLElement, text: string) => {
+    // An image without a name has no hint, as a control without one.
+    if (!text) return;
+    hinted.push(part);
+    part.addEventListener('pointerenter', () => HintStore.enter(part, text));
+    part.addEventListener('pointerleave', () => HintStore.leave(part));
+  };
+  const unhint = (parts: HTMLElement[]) => {
+    parts.forEach(part => { HintStore.leave(part); HintStore.hide(part); });
+    hinted = hinted.filter(part => !parts.includes(part));
+  };
   const trigger = element('button', 'dialkit-image-control');
   const label = element('span', 'dialkit-image-label');
   const name = element('span', 'dialkit-image-value');
@@ -130,6 +151,7 @@ export function mountImageControl(host: HTMLElement, initial: ImageControlProps,
     stopPosition = undefined;
     popup?.remove();
     popup = undefined;
+    unhint(hinted);
     updatePicker = () => {};
     resetUpload = () => {};
     delete trigger.dataset.open;
@@ -146,10 +168,11 @@ export function mountImageControl(host: HTMLElement, initial: ImageControlProps,
     if (!popup?.contains(event.target as Node) && !host.contains(event.target as Node)) close();
   };
 
-  const open = () => {
+  const open = (event?: Event) => {
     if (popup) { if (!inline) close(); return; }
     const root = inline ? host : getDialKitPortalRoot(host) ?? host;
     popup = element('div', 'dialkit-image-popover');
+    popup.tabIndex = -1;
     popup.dataset.presentation = presentation;
     popup.style.position = inline ? 'static' : 'fixed';
     popup.id = popupId;
@@ -159,6 +182,7 @@ export function mountImageControl(host: HTMLElement, initial: ImageControlProps,
     const clear = element('button', 'dialkit-image-clear', 'Remove');
     clear.addEventListener('click', () => { commit(''); if (!inline) close(true); });
     heading.append(title, clear);
+    hint(clear, PICKER_HINTS.clear);
     const grid = element('div', 'dialkit-image-grid');
     grid.setAttribute('role', 'group');
     grid.setAttribute('aria-label', 'Available images');
@@ -166,6 +190,7 @@ export function mountImageControl(host: HTMLElement, initial: ImageControlProps,
     const upload = element('button', 'dialkit-button dialkit-image-upload');
     const uploadText = element('span', '', 'Upload image');
     upload.append(icon('upload'), uploadText);
+    hint(upload, PICKER_HINTS.upload);
     const status = element('div', 'dialkit-image-status');
     status.setAttribute('role', 'status');
     status.hidden = true;
@@ -261,7 +286,7 @@ export function mountImageControl(host: HTMLElement, initial: ImageControlProps,
     });
     popup.addEventListener('keydown', event => {
       if (inline) return;
-      event.stopPropagation();
+      if (!isHintKey(event)) event.stopPropagation();
       if (event.key === 'Escape') { event.preventDefault(); close(true); }
       if (event.key === 'Tab') {
         const first = clear.hidden ? buttons.find(button => button.tabIndex === 0) ?? upload : clear;
@@ -276,6 +301,8 @@ export function mountImageControl(host: HTMLElement, initial: ImageControlProps,
       popup?.setAttribute('aria-label', `${props.label} image picker`);
       title.textContent = props.label;
       clear.hidden = !props.value;
+      // A hidden Remove button takes its hint with it.
+      if (clear.hidden) { HintStore.leave(clear); HintStore.hide(clear); }
       clear.setAttribute('aria-label', `Remove ${props.label.toLowerCase()} image`);
       const items = choices();
       empty.hidden = items.length > 0;
@@ -283,10 +310,12 @@ export function mountImageControl(host: HTMLElement, initial: ImageControlProps,
       if (items.length !== previousItems.length || items.some((item, i) => item.value !== previousItems[i].value || item.label !== previousItems[i].label)) {
         const focusedIndex = buttons.indexOf(document.activeElement as HTMLButtonElement);
         previousItems = items;
+        // The old buttons leave the page with their hints.
+        unhint(buttons);
         buttons = items.map(item => {
           const button = element('button', 'dialkit-image-option');
           button.setAttribute('aria-label', item.label);
-          button.title = item.label;
+          hint(button, item.label);
           const thumb = preview('dialkit-image-option-preview');
           thumb.update(item.value);
           button.append(thumb.frame);
@@ -322,7 +351,10 @@ export function mountImageControl(host: HTMLElement, initial: ImageControlProps,
     trigger.setAttribute('aria-controls', popupId);
     document.addEventListener('pointerdown', outside);
     document.addEventListener('focusin', focusOutside);
-    (buttons.find(button => button.tabIndex === 0) ?? upload).focus({ preventScroll: true });
+    // A mouse click focuses the picker itself, so the next key press (H)
+    // shows no focus ring on an image. The keyboard starts on an image.
+    if (event instanceof MouseEvent && event.detail > 0) popup.focus({ preventScroll: true });
+    else (buttons.find(button => button.tabIndex === 0) ?? upload).focus({ preventScroll: true });
   };
   trigger.addEventListener('click', open);
   trigger.addEventListener('keydown', event => {

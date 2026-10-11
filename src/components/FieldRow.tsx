@@ -47,7 +47,6 @@ export function FieldRow({ panelId, control, values }: FieldRowProps) {
           type="button"
           className="dialkit-fields-button dialkit-fields-reset"
           aria-label={`Reset ${control.label}`}
-          title="Reset"
           data-changed={DialStore.hasChanges(panelId, paths) || undefined}
           onClick={() => DialStore.resetPaths(panelId, paths)}
         >
@@ -59,7 +58,6 @@ export function FieldRow({ panelId, control, values }: FieldRowProps) {
             className="dialkit-fields-button dialkit-fields-lock"
             aria-label={`${lock.label} ${control.label}`}
             aria-pressed={locked}
-            title={lock.label}
             onClick={() => DialStore.updateValue(panelId, lock.path, !locked)}
           >
             <StrokeIcon paths={ICON_LINK} />

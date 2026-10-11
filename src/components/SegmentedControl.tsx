@@ -5,7 +5,7 @@ interface SegmentedControlOption<T extends string> {
   value: T;
   label: string;
   /** SVG path data in a 16 × 16 box. The segment shows the icon instead
-   *  of the label, and the label becomes its hover and accessible name. */
+   *  of the label, and the label becomes its accessible name. */
   icon?: string;
 }
 
@@ -76,7 +76,6 @@ export function SegmentedControl<T extends string>({
             data-active={String(isActive)}
             type="button" role="radio" aria-checked={isActive} tabIndex={isActive ? 0 : -1}
             aria-label={icon ? option.label : undefined}
-            title={icon ? option.label : undefined}
           >
             {icon ? (
               <svg className="dialkit-segmented-icon" viewBox="0 0 16 16" aria-hidden="true">
