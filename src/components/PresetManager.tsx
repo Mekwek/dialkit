@@ -450,22 +450,25 @@ function PresetActions({ id, noun, locked, editable, lockable, onRename, onToggl
   // A locked row shows rename directly, no dots.
   const directRename = locked && lockable && rename;
 
-  // Direct rename follows the row's hover and focus, not the dots'.
+  // Direct rename follows the row's hover and keyboard focus, not the dots'.
+  // The menu focuses the selected row on every open so the arrows start
+  // there; after a click that focus is not visible and must not show rename.
   useEffect(() => {
     const row = host.current?.parentElement;
     if (!directRename || !row) return;
-    setRowHover(row.matches(':hover') || row.contains(document.activeElement));
+    setRowHover(row.matches(':hover') || !!row.querySelector(':focus-visible'));
     const show = () => setRowHover(true);
+    const focusIn = (e: FocusEvent) => { if ((e.target as Element).matches(':focus-visible')) show(); };
     const hide = () => setRowHover(false);
     const focusOut = (e: FocusEvent) => { if (!row.contains(e.relatedTarget as Node | null)) hide(); };
     row.addEventListener('pointerenter', show);
     row.addEventListener('pointerleave', hide);
-    row.addEventListener('focusin', show);
+    row.addEventListener('focusin', focusIn);
     row.addEventListener('focusout', focusOut);
     return () => {
       row.removeEventListener('pointerenter', show);
       row.removeEventListener('pointerleave', hide);
-      row.removeEventListener('focusin', show);
+      row.removeEventListener('focusin', focusIn);
       row.removeEventListener('focusout', focusOut);
     };
   }, [directRename]);
