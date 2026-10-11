@@ -18,7 +18,7 @@ const PICKER_HINTS = {
   hue: 'Drag to change the hue.',
   opacity: 'Drag to change how see-through the color is.',
   format: 'Shows the color as hex, RGB, HSL or OKLCH.',
-  fields: 'Type a value. A hex, RGB, HSL or OKLCH color works.',
+  fields: 'Type a value, or drag a letter or the % to change it.',
   eyedropper: 'Picks a color from anywhere on the screen.',
 };
 /** The hint key, pressed on a picker part that takes no typing, still reaches the hint layer. */
@@ -315,6 +315,42 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
         onCommit();
       });
     };
+    /**
+     * Dragging `grip` left or right changes a value by `range.step` per
+     * pixel (ten with Shift), as the X / Y / Z letters and the pad's labels
+     * do. A press that does not move does nothing, so the field still opens
+     * for typing; a hue wraps around, every other value stops at its ends.
+     */
+    const scrub = (grip: HTMLElement, range: Range, read: () => number, apply: (n: number) => void) => {
+      let press: { id: number; x: number; start: number; moved: boolean } | undefined;
+      grip.addEventListener('pointerdown', e => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        press = { id: e.pointerId, x: e.clientX, start: read(), moved: false };
+        grip.setPointerCapture(e.pointerId);
+      });
+      grip.addEventListener('pointermove', e => {
+        if (!press || e.pointerId !== press.id) return;
+        const dx = e.clientX - press.x;
+        if (!press.moved && Math.abs(dx) < 3) return;
+        press.moved = true;
+        const raw = press.start + dx * range.step * (e.shiftKey ? 10 : 1);
+        const span = range.max - range.min;
+        const n = range.wrap ? ((raw - range.min) % span + span) % span + range.min : clamp(raw, range.min, range.max);
+        apply(Number(n.toFixed(range.digits)));
+      });
+      const end = (e: PointerEvent) => {
+        if (!press || e.pointerId !== press.id) return;
+        press = undefined;
+        if (grip.hasPointerCapture(e.pointerId)) grip.releasePointerCapture(e.pointerId);
+      };
+      grip.addEventListener('pointerup', end);
+      grip.addEventListener('pointercancel', end);
+      // The letter sits in the field's label: without this, a drag would
+      // also open the number for typing.
+      grip.addEventListener('click', e => e.preventDefault());
+    };
+
     /** The mode's channel numbers for the current colour, in the fields' order. */
     const channelValues = (): number[] => format === 'hex' ? [] : format === 'rgb' ? colorToRgb255(color)
       : format === 'hsl' ? (({ h, s, l }) => [h, s * 100, l * 100])(colorToHsl(color, srgbHue))
@@ -330,9 +366,20 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
           const cell = element('label', 'dialkit-color-channel-cell');
           const input = textInput('dialkit-color-channel', channel.label, channel.width);
           const name = element('span', 'dialkit-color-channel-name', channel.key.toUpperCase());
-          cell.append(input, name);
+          // The letter first, at a fixed place; the value follows it.
+          cell.append(name, input);
           channelBox.append(cell);
           return input;
+        });
+        // Each channel's letter drags its value.
+        const mode = format;
+        channelBox.querySelectorAll<HTMLElement>('.dialkit-color-channel-name').forEach((name, i) => {
+          const channel = CHANNELS[mode][i];
+          scrub(name, channel, () => channelValues()[i], n => {
+            channelInputs[i].value = n.toFixed(channel.digits);
+            channelInputs[i].removeAttribute('aria-invalid');
+            commitChannels();
+          });
         });
       }
       channelInputs.forEach((input, i) => {
@@ -359,6 +406,8 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
       if (!Number.isFinite(percent)) { alphaInput.setAttribute('aria-invalid', 'true'); return; }
       commit({ ...color, a: clamp(percent, 0, 100) / 100 });
     }, { min: 0, max: 100, step: 1, digits: 0 }, () => percentByte(color.a));
+    // The % after the alpha drags it too.
+    scrub(alphaUnit, { min: 0, max: 100, step: 1, digits: 0 }, () => percentByte(color.a), n => commit({ ...color, a: n / 100 }));
 
     // Field geometry per space: x and y in 0..1, y from the top.
     let space: ColorSpace = fieldSpace(format);

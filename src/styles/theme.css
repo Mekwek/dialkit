@@ -1841,6 +1841,12 @@
 .dialkit-color-channel:focus { color: var(--dial-text-focus); }
 .dialkit-color-hex-input { flex: 1; width: 100%; text-align: left; text-transform: uppercase; }
 .dialkit-color-channel-name, .dialkit-color-unit { flex-shrink: 0; opacity: 0.6; }
+/* In RGB, HSL and OKLCH each value follows its letter, so the letters keep
+   their place whatever the values' widths; the value takes the rest of
+   its cell, so a click anywhere after the letter types. */
+.dialkit-color-channel-cell .dialkit-color-channel { flex: 1; width: 100%; text-align: left; }
+/* A channel's letter and the alpha's % drag their value left and right. */
+.dialkit-color-channel-name, .dialkit-color-alpha .dialkit-color-unit { cursor: ew-resize; touch-action: none; user-select: none; -webkit-user-select: none; }
 .dialkit-color-alpha { display: flex; align-items: center; gap: 1px; margin-left: auto; }
 .dialkit-color-eyedropper { display: flex; flex: 0 0 var(--dial-row-height); align-items: center; justify-content: center; width: var(--dial-row-height); padding: 0; border: 0; border-radius: var(--dial-radius); background: var(--dial-surface); color: var(--dial-text-label); cursor: pointer; transition: background 0.15s, color 0.15s; }
 .dialkit-color-eyedropper:hover { background: var(--dial-surface-hover); color: var(--dial-text-focus); }
