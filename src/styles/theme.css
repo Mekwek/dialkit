@@ -3249,6 +3249,11 @@
 .dialkit-timeline-section[data-single-track] {
   /* No label column — names live inside the bars. */
   --dial-timeline-label-w: 0px;
+  /* The light theme darkens every clip with an overlay (rows need it). A
+     single-track bar sets its own greys, and the overlay would sit under
+     the played part only: the rest of the bar would read darker than the
+     part the playhead has crossed. */
+  --dial-timeline-clip-overlay: transparent;
 
   /* A bar reads by its FILL, not an outline: rest, then the part the
      playhead has crossed, then a step up again on hover. Selection is the
