@@ -79,6 +79,12 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   --dial-checker-b: #333333;
   --dial-checker: repeating-conic-gradient(var(--dial-checker-b) 0% 25%, var(--dial-checker-a) 0% 50%) 0 0 / 8px 8px;
   --dial-radius: 8px;
+  /* The corners where a transition's curve box meets its four fields, and
+     between the fields. 0 joins them into one block; only the block's
+     outer corners stay round. */
+  --dial-curve-join-radius: var(--dial-radius);
+  /* The space under a transition's curve box and between its four fields. */
+  --dial-curve-gap: var(--dial-field-gap);
   --dial-row-height: 36px;
   --dial-row-gap: 6px;
   --dial-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
@@ -453,9 +459,12 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   right: 0;
   border-top: 1px solid var(--dial-surface-subtle);
   /* The panel's colour under the dashes and in the side gutters, so no
-     content shows through the row the line sits on. */
+     content shows through the row the line sits on. The first shadow
+     paints the row above the line in the panel's colour too: when a folder
+     follows a pinned header, that row holds the pinned header's own dashed
+     divider, and this line covers it instead of showing a second line. */
   background: var(--dial-glass-bg);
-  box-shadow: -12px 0 0 var(--dial-glass-bg), 12px 0 0 var(--dial-glass-bg);
+  box-shadow: 0 -1px 0 var(--dial-glass-bg), -12px 0 0 var(--dial-glass-bg), 12px 0 0 var(--dial-glass-bg);
   pointer-events: none;
 }
 
@@ -1170,7 +1179,13 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 .dialkit-ease-fields { display: flex; gap: var(--dial-field-gap); min-width: 0; }
 /* The fields sit as close under the curve box as they sit to each other:
    the column's 6px gap, less the difference. */
-.dialkit-transition .dialkit-ease-fields { margin-top: calc(var(--dial-field-gap) - 6px); }
+.dialkit-transition .dialkit-ease-fields { gap: var(--dial-curve-gap); margin-top: calc(var(--dial-curve-gap) - 6px); }
+/* The curve box and its fields read as one block: their facing corners
+   and the corners between the fields use --dial-curve-join-radius. */
+.dialkit-transition .dialkit-easing-viz { border-bottom-left-radius: var(--dial-curve-join-radius); border-bottom-right-radius: var(--dial-curve-join-radius); }
+.dialkit-transition .dialkit-ease-field { border-radius: var(--dial-curve-join-radius); }
+.dialkit-transition .dialkit-ease-field:first-child { border-bottom-left-radius: var(--dial-radius); }
+.dialkit-transition .dialkit-ease-field:last-child { border-bottom-right-radius: var(--dial-radius); }
 .dialkit-ease-field { flex: 1 1 0; min-width: 0; height: var(--dial-row-height); padding: 0 4px; border: 0; border-radius: var(--dial-radius); background: var(--dial-surface); color: var(--dial-text-label); font: 500 13px 'Geist Mono', monospace; text-align: center; outline: none; transition: background 0.15s, color 0.15s; }
 .dialkit-ease-field:hover, .dialkit-ease-field:focus { background: var(--dial-surface-hover); color: var(--dial-text-focus); }
 /* A field not open for typing drags its value. */
