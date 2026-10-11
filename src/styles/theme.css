@@ -35,6 +35,12 @@
   --dial-hint-padding: 8px; /* Space inside a hint, left and right */
   --dial-hint-dim: 0.7; /* How much the rest of the panel fades while the hint key is held: 0 none, 1 hidden */
   --dial-nested-line-style: dashed; /* Dividers of folders inside folders, so the depth reads at a glance */
+  /* The nested dividers' dashes, drawn by --dial-nested-line-image so their
+     length is set here, not by the browser (which draws 3px dashes). Set
+     --dial-nested-line-image to none for the browser's own dashes. */
+  --dial-nested-line-dash: 6px;
+  --dial-nested-line-gap: 2px;
+  --dial-nested-line-image: repeating-linear-gradient(90deg, var(--dial-surface-subtle) 0 var(--dial-nested-line-dash), transparent 0 calc(var(--dial-nested-line-dash) + var(--dial-nested-line-gap))) 1;
   /* The timeline pan bar's thumb — quieter than text so it reads as a
      position marker, not a control demanding attention. */
   --dial-timeline-scroll-thumb: rgba(255, 255, 255, 0.16);
@@ -454,6 +460,7 @@
 
 .dialkit-panel .dialkit-folder:not(.dialkit-folder-root) .dialkit-folder > .dialkit-folder-header::after {
   border-top-style: var(--dial-nested-line-style);
+  border-image: var(--dial-nested-line-image);
 }
 
 /* The ::before cover stops at the padding box, so a header's bottom border
@@ -507,6 +514,7 @@
 .dialkit-folder:not(.dialkit-folder-root) .dialkit-folder {
   border-top-style: var(--dial-nested-line-style);
   border-bottom-style: var(--dial-nested-line-style);
+  border-image: var(--dial-nested-line-image);
 }
 
 .dialkit-folder:not(.dialkit-folder-root):last-child {
@@ -555,6 +563,7 @@
  * nested line style. */
 .dialkit-folder:not(.dialkit-folder-root) .dialkit-folder-inner > .dialkit-control-wrap-folder:not(:last-child) > .dialkit-folder {
   border-bottom-style: var(--dial-nested-line-style);
+  border-image: var(--dial-nested-line-image);
 }
 
 /* Adjacent non-root folders collapse gap and share a single divider */
@@ -815,13 +824,13 @@
 /* X / Y / Z groups (FieldRow) */
 /* One line above a run of X / Y / Z groups, like a folder's divider: the
  * groups after the first keep no line. */
-.dialkit-fields-group { display: flex; flex-direction: column; gap: var(--dial-row-gap); padding-top: var(--dial-row-gap); border-top: 1px var(--dial-fields-line-style, solid) var(--dial-surface-subtle); }
+.dialkit-fields-group { display: flex; flex-direction: column; gap: var(--dial-row-gap); padding-top: var(--dial-row-gap); border-top: 1px var(--dial-fields-line-style, solid) var(--dial-surface-subtle); border-image: var(--dial-fields-line-image, none); }
 .dialkit-fields-group + .dialkit-fields-group,
 .dialkit-control-wrap-fields + .dialkit-control-wrap-fields > .dialkit-fields-group { padding-top: 0; border-top: none; }
 /* Inside a non-root folder the line sits at the same depth as a nested
  * folder's divider, so it uses the nested line style. Set as a variable so
  * it never brings back a line the rule above removed. */
-.dialkit-folder:not(.dialkit-folder-root) { --dial-fields-line-style: var(--dial-nested-line-style); }
+.dialkit-folder:not(.dialkit-folder-root) { --dial-fields-line-style: var(--dial-nested-line-style); --dial-fields-line-image: var(--dial-nested-line-image); }
 .dialkit-fields-label { display: flex; align-items: center; gap: 4px; min-width: 0; color: var(--dial-text-label); font-size: 13px; font-weight: 500; }
 .dialkit-fields-label-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* A section reset (`_reset`): an icon right of the section title, shown
@@ -3836,6 +3845,7 @@
   left: 0;
   right: 0;
   border-top: 1px var(--dial-nested-line-style) var(--dial-surface-subtle);
+  border-image: var(--dial-nested-line-image);
 }
 
 /* The panel title keeps its own divider: its fade draws none. */
