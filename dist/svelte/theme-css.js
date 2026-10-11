@@ -36,6 +36,12 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   --dial-hint-padding: 8px; /* Space inside a hint, left and right */
   --dial-hint-dim: 0.7; /* How much the rest of the panel fades while the hint key is held: 0 none, 1 hidden */
   --dial-nested-line-style: dashed; /* Dividers of folders inside folders, so the depth reads at a glance */
+  /* The nested dividers' dashes, drawn by --dial-nested-line-image so their
+     length is set here, not by the browser (which draws 3px dashes). Set
+     --dial-nested-line-image to none for the browser's own dashes. */
+  --dial-nested-line-dash: 6px;
+  --dial-nested-line-gap: 2px;
+  --dial-nested-line-image: repeating-linear-gradient(90deg, var(--dial-surface-subtle) 0 var(--dial-nested-line-dash), transparent 0 calc(var(--dial-nested-line-dash) + var(--dial-nested-line-gap))) 1;
   /* The timeline pan bar's thumb — quieter than text so it reads as a
      position marker, not a control demanding attention. */
   --dial-timeline-scroll-thumb: rgba(255, 255, 255, 0.16);
@@ -455,6 +461,7 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 
 .dialkit-panel .dialkit-folder:not(.dialkit-folder-root) .dialkit-folder > .dialkit-folder-header::after {
   border-top-style: var(--dial-nested-line-style);
+  border-image: var(--dial-nested-line-image);
 }
 
 /* The ::before cover stops at the padding box, so a header's bottom border
@@ -508,6 +515,7 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 .dialkit-folder:not(.dialkit-folder-root) .dialkit-folder {
   border-top-style: var(--dial-nested-line-style);
   border-bottom-style: var(--dial-nested-line-style);
+  border-image: var(--dial-nested-line-image);
 }
 
 .dialkit-folder:not(.dialkit-folder-root):last-child {
@@ -556,6 +564,7 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
  * nested line style. */
 .dialkit-folder:not(.dialkit-folder-root) .dialkit-folder-inner > .dialkit-control-wrap-folder:not(:last-child) > .dialkit-folder {
   border-bottom-style: var(--dial-nested-line-style);
+  border-image: var(--dial-nested-line-image);
 }
 
 /* Adjacent non-root folders collapse gap and share a single divider */
@@ -816,13 +825,13 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 /* X / Y / Z groups (FieldRow) */
 /* One line above a run of X / Y / Z groups, like a folder's divider: the
  * groups after the first keep no line. */
-.dialkit-fields-group { display: flex; flex-direction: column; gap: var(--dial-row-gap); padding-top: var(--dial-row-gap); border-top: 1px var(--dial-fields-line-style, solid) var(--dial-surface-subtle); }
+.dialkit-fields-group { display: flex; flex-direction: column; gap: var(--dial-row-gap); padding-top: var(--dial-row-gap); border-top: 1px var(--dial-fields-line-style, solid) var(--dial-surface-subtle); border-image: var(--dial-fields-line-image, none); }
 .dialkit-fields-group + .dialkit-fields-group,
 .dialkit-control-wrap-fields + .dialkit-control-wrap-fields > .dialkit-fields-group { padding-top: 0; border-top: none; }
 /* Inside a non-root folder the line sits at the same depth as a nested
  * folder's divider, so it uses the nested line style. Set as a variable so
  * it never brings back a line the rule above removed. */
-.dialkit-folder:not(.dialkit-folder-root) { --dial-fields-line-style: var(--dial-nested-line-style); }
+.dialkit-folder:not(.dialkit-folder-root) { --dial-fields-line-style: var(--dial-nested-line-style); --dial-fields-line-image: var(--dial-nested-line-image); }
 .dialkit-fields-label { display: flex; align-items: center; gap: 4px; min-width: 0; color: var(--dial-text-label); font-size: 13px; font-weight: 500; }
 .dialkit-fields-label-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* A section reset (\`_reset\`): an icon right of the section title, shown
@@ -1833,6 +1842,12 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 .dialkit-color-channel:focus { color: var(--dial-text-focus); }
 .dialkit-color-hex-input { flex: 1; width: 100%; text-align: left; text-transform: uppercase; }
 .dialkit-color-channel-name, .dialkit-color-unit { flex-shrink: 0; opacity: 0.6; }
+/* In RGB, HSL and OKLCH each value follows its letter, so the letters keep
+   their place whatever the values' widths; the value takes the rest of
+   its cell, so a click anywhere after the letter types. */
+.dialkit-color-channel-cell .dialkit-color-channel { flex: 1; width: 100%; text-align: left; }
+/* A channel's letter and the alpha's % drag their value left and right. */
+.dialkit-color-channel-name, .dialkit-color-alpha .dialkit-color-unit { cursor: ew-resize; touch-action: none; user-select: none; -webkit-user-select: none; }
 .dialkit-color-alpha { display: flex; align-items: center; gap: 1px; margin-left: auto; }
 .dialkit-color-eyedropper { display: flex; flex: 0 0 var(--dial-row-height); align-items: center; justify-content: center; width: var(--dial-row-height); padding: 0; border: 0; border-radius: var(--dial-radius); background: var(--dial-surface); color: var(--dial-text-label); cursor: pointer; transition: background 0.15s, color 0.15s; }
 .dialkit-color-eyedropper:hover { background: var(--dial-surface-hover); color: var(--dial-text-focus); }
@@ -2127,8 +2142,36 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   opacity: 0.6;
 }
 
+/* Reorder: the dragged row lifts and follows the pointer; the rows it
+   passes slide one row aside; on release it glides into its new place,
+   and the store takes the new order when the glide ends. */
+.dialkit-preset-dropdown[data-dragging="true"] .dialkit-preset-item[data-preset-id] {
+  transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.dialkit-preset-dropdown[data-dragging="true"]:not([data-settling]) .dialkit-preset-item[data-dragging="true"] {
+  transition: none;
+}
+
 .dialkit-preset-item[data-dragging="true"] {
-  opacity: 0.5;
+  --dial-preset-row-bg: var(--dial-surface-hover);
+  z-index: 2;
+  /* Solid, so the rows it passes never show through: the hover fill over
+     the menu's own colour, as the actions group's fade draws it. The two
+     layers are inner shadows over the row's usual hover fill, so on the
+     drop they go in one frame and the colour seen does not change (a
+     layered background would fade back through a darker fill). */
+  background: var(--dial-preset-row-bg);
+  box-shadow:
+    inset 0 0 0 100vmax var(--dial-preset-row-bg),
+    inset 0 0 0 100vmax var(--dial-dropdown-bg),
+    0 6px 16px rgba(0, 0, 0, 0.28);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialkit-preset-dropdown[data-dragging="true"] .dialkit-preset-item[data-preset-id] {
+    transition: none;
+  }
 }
 
 .dialkit-preset-dropdown[data-dragging="true"] {
@@ -3809,11 +3852,19 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   left: 0;
   right: 0;
   border-top: 1px var(--dial-nested-line-style) var(--dial-surface-subtle);
+  border-image: var(--dial-nested-line-image);
 }
 
 /* The panel title keeps its own divider: its fade draws none. */
 .dialkit-panel .dialkit-panel-header > .dialkit-folder-header-top::before {
   display: none;
+}
+
+/* That divider is the title's bottom border, which paints under the fade:
+   the title's fade starts just below it, so it never dims the line. The
+   title's background reaches under its border, so no content shows there. */
+.dialkit-panel .dialkit-panel-header > .dialkit-folder-header-top::after {
+  top: calc(100% + 1px);
 }
 
 /* The shown rules repeat the hidden rule's selector: a container query adds

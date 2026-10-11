@@ -484,6 +484,10 @@ var DialStoreClass = class {
     this.panelOpenListeners = /* @__PURE__ */ new Set();
     this.panelOpenStates = /* @__PURE__ */ new Map();
     this.panels = /* @__PURE__ */ new Map();
+    /** How many resets ran: a slider that sees it change springs to its new
+     *  value instead of jumping (see getResetCount). */
+    this.resetCount = 0;
+    this.lastResetAt = -Infinity;
     this.controlsByPanel = /* @__PURE__ */ new WeakMap();
     this.panelsSnapshot = [];
     this.standardPanelsSnapshot = [];
@@ -713,6 +717,8 @@ var DialStoreClass = class {
     const panel = this.panels.get(panelId);
     const defaults = this.defaultValues.get(panelId);
     if (!panel || !defaults) return;
+    this.resetCount++;
+    this.lastResetAt = performance.now();
     panel.values = { ...defaults };
     this.snapshots.set(panelId, { ...panel.values });
     this.baseValues.set(panelId, { ...defaults });
@@ -738,6 +744,19 @@ var DialStoreClass = class {
   resetTargets(panelId) {
     return this.hostResetValues.get(panelId) ?? this.defaultValues.get(panelId);
   }
+  /**
+   * Counts the resets so far (resetValues, resetPaths and so a section
+   * reset). A value that changes in the same render as a new count came
+   * from a reset, so a control can animate it; other outside changes, like
+   * timeline playback, keep following the value at once.
+   */
+  getResetCount() {
+    return this.resetCount;
+  }
+  /** When the last reset ran, in performance.now() time. */
+  getLastResetAt() {
+    return this.lastResetAt;
+  }
   /** The value a reset puts at `path`. */
   getResetValue(panelId, path) {
     return this.resetTargets(panelId)?.[path];
@@ -746,6 +765,8 @@ var DialStoreClass = class {
   resetPaths(panelId, paths) {
     const targets = this.resetTargets(panelId);
     if (!targets) return;
+    this.resetCount++;
+    this.lastResetAt = performance.now();
     const updates = {};
     for (const path of paths) {
       if (path in targets) updates[path] = targets[path];
@@ -3030,8 +3051,24 @@ function Slider({
     rubberStretchPx,
     (stretch) => stretch < 0 ? stretch : 0
   );
+  const seenResets = (0, import_react7.useRef)(DialStore.getResetCount());
   (0, import_react7.useEffect)(() => {
-    if (!isInteracting && !animRef.current) {
+    const resets = DialStore.getResetCount();
+    const fromReset = resets !== seenResets.current && performance.now() - DialStore.getLastResetAt() < 150;
+    seenResets.current = resets;
+    if (isInteracting) return;
+    if (fromReset && fillPercent.get() !== percentage) {
+      animRef.current?.stop();
+      animRef.current = (0, import_react8.animate)(fillPercent, percentage, {
+        type: "spring",
+        stiffness: 300,
+        damping: 25,
+        mass: 0.8,
+        onComplete: () => {
+          animRef.current = null;
+        }
+      });
+    } else if (!animRef.current) {
       fillPercent.jump(percentage);
     }
   }, [percentage, isInteracting, fillPercent]);
@@ -5223,7 +5260,7 @@ var PICKER_HINTS = {
   hue: "Drag to change the hue.",
   opacity: "Drag to change how see-through the color is.",
   format: "Shows the color as hex, RGB, HSL or OKLCH.",
-  fields: "Type a value. A hex, RGB, HSL or OKLCH color works.",
+  fields: "Type a value, or drag a letter or the % to change it.",
   eyedropper: "Picks a color from anywhere on the screen."
 };
 var isHintKey = (e) => e.key.toLowerCase() === HintStore.getKey() && !(e.target instanceof HTMLInputElement);
@@ -5544,6 +5581,33 @@ function mountColorControl(host, initial, presentation = "popover") {
         onCommit();
       });
     };
+    const scrub = (grip, range, read, apply) => {
+      let press;
+      grip.addEventListener("pointerdown", (e) => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        press = { id: e.pointerId, x: e.clientX, start: read(), moved: false };
+        grip.setPointerCapture(e.pointerId);
+      });
+      grip.addEventListener("pointermove", (e) => {
+        if (!press || e.pointerId !== press.id) return;
+        const dx = e.clientX - press.x;
+        if (!press.moved && Math.abs(dx) < 3) return;
+        press.moved = true;
+        const raw = press.start + dx * range.step * (e.shiftKey ? 10 : 1);
+        const span = range.max - range.min;
+        const n = range.wrap ? ((raw - range.min) % span + span) % span + range.min : clamp(raw, range.min, range.max);
+        apply(Number(n.toFixed(range.digits)));
+      });
+      const end = (e) => {
+        if (!press || e.pointerId !== press.id) return;
+        press = void 0;
+        if (grip.hasPointerCapture(e.pointerId)) grip.releasePointerCapture(e.pointerId);
+      };
+      grip.addEventListener("pointerup", end);
+      grip.addEventListener("pointercancel", end);
+      grip.addEventListener("click", (e) => e.preventDefault());
+    };
     const channelValues = () => format === "hex" ? [] : format === "rgb" ? colorToRgb255(color) : format === "hsl" ? (({ h, s, l }) => [h, s * 100, l * 100])(colorToHsl(color, srgbHue)) : [color.l, color.c, color.h];
     rebuildFields = () => {
       channelBox.replaceChildren();
@@ -5556,9 +5620,18 @@ function mountColorControl(host, initial, presentation = "popover") {
           const cell = element("label", "dialkit-color-channel-cell");
           const input = textInput("dialkit-color-channel", channel.label, channel.width);
           const name = element("span", "dialkit-color-channel-name", channel.key.toUpperCase());
-          cell.append(input, name);
+          cell.append(name, input);
           channelBox.append(cell);
           return input;
+        });
+        const mode = format;
+        channelBox.querySelectorAll(".dialkit-color-channel-name").forEach((name, i) => {
+          const channel = CHANNELS[mode][i];
+          scrub(name, channel, () => channelValues()[i], (n) => {
+            channelInputs[i].value = n.toFixed(channel.digits);
+            channelInputs[i].removeAttribute("aria-invalid");
+            commitChannels();
+          });
         });
       }
       channelInputs.forEach((input, i) => {
@@ -5588,6 +5661,7 @@ function mountColorControl(host, initial, presentation = "popover") {
       }
       commit({ ...color, a: clamp(percent, 0, 100) / 100 });
     }, { min: 0, max: 100, step: 1, digits: 0 }, () => percentByte(color.a));
+    scrub(alphaUnit, { min: 0, max: 100, step: 1, digits: 0 }, () => percentByte(color.a), (n) => commit({ ...color, a: n / 100 }));
     let space = fieldSpace(format);
     let lastPaintKey = "";
     let lastHueTrack = "";
@@ -6831,8 +6905,8 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassN
   const [editingId, setEditingId] = (0, import_react27.useState)(null);
   const [draft, setDraft] = (0, import_react27.useState)("");
   const cancelledRef = (0, import_react27.useRef)(false);
-  const [draggingId, setDraggingId] = (0, import_react27.useState)(null);
-  const [cueTop, setCueTop] = (0, import_react27.useState)(null);
+  const [rowDrag, setRowDrag] = (0, import_react27.useState)(null);
+  const draggingId = rowDrag?.id ?? null;
   const dragRef = (0, import_react27.useRef)(null);
   const suppressClickRef = (0, import_react27.useRef)(false);
   const editable = DialStore.isPresetsEditable(panelId);
@@ -6900,52 +6974,61 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassN
     if (!editable) return;
     if (editingId === preset.id) return;
     if (e.button !== 0) return;
-    dragRef.current = { id: preset.id, startY: e.clientY, lifted: false, slot: null };
+    if (rowDrag) return;
+    dragRef.current = { id: preset.id, startY: e.clientY, lifted: false };
     e.currentTarget.setPointerCapture(e.pointerId);
   };
   const handleRowPointerMove = (e, preset) => {
     const drag = dragRef.current;
     if (!drag || drag.id !== preset.id) return;
+    const dy = e.clientY - drag.startY;
     if (!drag.lifted) {
-      if (Math.abs(e.clientY - drag.startY) <= DRAG_LIFT_PX) return;
+      if (Math.abs(dy) <= DRAG_LIFT_PX) return;
       drag.lifted = true;
-      setDraggingId(drag.id);
     }
-    const dropdownEl = dropdownRef.current;
-    if (!dropdownEl) return;
-    const rows = Array.from(dropdownEl.querySelectorAll(".dialkit-preset-item[data-preset-id]"));
-    if (rows.length === 0) return;
-    const dropdownRect = dropdownEl.getBoundingClientRect();
-    let slot = rows.length;
-    for (let i = 0; i < rows.length; i++) {
-      const r = rows[i].getBoundingClientRect();
-      if (e.clientY < r.top + r.height / 2) {
-        slot = i;
-        break;
-      }
+    const from = presets.findIndex((p) => p.id === drag.id);
+    if (from < 0) return;
+    let step = rowDrag?.step ?? 0;
+    if (!step) {
+      const rows = dropdownRef.current?.querySelectorAll(".dialkit-preset-item[data-preset-id]");
+      const first = rows?.[0]?.getBoundingClientRect();
+      const second = rows?.[1]?.getBoundingClientRect();
+      step = first && second ? second.top - first.top : first?.height ?? 32;
     }
-    drag.slot = slot;
-    const top = slot < rows.length ? rows[slot].getBoundingClientRect().top - dropdownRect.top : rows[rows.length - 1].getBoundingClientRect().bottom - dropdownRect.top;
-    setCueTop(top);
+    const offset = Math.min(Math.max(dy, -from * step), (presets.length - 1 - from) * step);
+    const to = Math.min(Math.max(Math.round(from + offset / step), 0), presets.length - 1);
+    setRowDrag({ id: drag.id, from, to, offset, step, settling: false });
   };
-  const handleRowPointerEnd = (e, preset) => {
+  const commitReorder = (view) => {
+    const ids = presets.map((p) => p.id).filter((id) => id !== view.id);
+    ids.splice(view.to, 0, view.id);
+    DialStore.reorderPresets(panelId, ids);
+    setRowDrag(null);
+  };
+  const handleRowPointerEnd = (_e, preset) => {
     const drag = dragRef.current;
     dragRef.current = null;
     if (!drag || drag.id !== preset.id) return;
-    if (drag.lifted && drag.slot !== null) {
-      const currentIds = presets.map((p) => p.id);
-      const idx = currentIds.indexOf(drag.id);
-      const withoutDragged = currentIds.filter((id) => id !== drag.id);
-      const adjustedSlot = idx >= 0 && drag.slot > idx ? drag.slot - 1 : drag.slot;
-      withoutDragged.splice(adjustedSlot, 0, drag.id);
-      DialStore.reorderPresets(panelId, withoutDragged);
+    if (drag.lifted && rowDrag && !rowDrag.settling) {
+      const view = { ...rowDrag, settling: true };
+      setRowDrag(view);
+      const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      if (reduced || view.offset === (view.to - view.from) * view.step) commitReorder(view);
       suppressClickRef.current = true;
       setTimeout(() => {
         suppressClickRef.current = false;
       }, 0);
+    } else if (!drag.lifted) {
+      setRowDrag(null);
     }
-    setDraggingId(null);
-    setCueTop(null);
+  };
+  const rowShift = (preset, index) => {
+    if (!rowDrag) return 0;
+    const { id, from, to, offset, step, settling } = rowDrag;
+    if (preset.id === id) return settling ? (to - from) * step : offset;
+    if (from < to && index > from && index <= to) return -step;
+    if (to < from && index >= to && index < from) return step;
+    return 0;
   };
   return /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "dialkit-preset-manager", ...hintRow, children: [
     /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(
@@ -6988,6 +7071,7 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassN
           ref: dropdownRef,
           className: `dialkit-root dialkit-preset-dropdown${dropdownClassName ? ` ${dropdownClassName}` : ""}`,
           "data-dragging": draggingId ? "true" : void 0,
+          "data-settling": rowDrag?.settling ? "true" : void 0,
           style: {
             position: "fixed",
             top: pos.top,
@@ -7017,8 +7101,9 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassN
                 ]
               }
             ),
-            presets.map((preset) => {
+            presets.map((preset, index) => {
               const isEditing = editingId === preset.id;
+              const shift = rowShift(preset, index);
               return /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(
                 "div",
                 {
@@ -7027,6 +7112,12 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassN
                   "data-preset-id": preset.id,
                   "data-locked": preset.locked ? "true" : void 0,
                   "data-dragging": draggingId === preset.id ? "true" : void 0,
+                  style: shift ? { transform: `translateY(${shift}px)` } : void 0,
+                  onTransitionEnd: (e) => {
+                    if (rowDrag?.settling && preset.id === rowDrag.id && e.target === e.currentTarget && e.propertyName === "transform") {
+                      commitReorder(rowDrag);
+                    }
+                  },
                   onClick: () => {
                     if (isEditing) return;
                     if (suppressClickRef.current) {
@@ -7106,8 +7197,7 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassN
                   noun
                 ]
               }
-            ),
-            draggingId && cueTop !== null && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "dialkit-preset-drop-cue", style: { top: cueTop } })
+            )
           ]
         }
       ) }),

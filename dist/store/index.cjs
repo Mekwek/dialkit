@@ -312,6 +312,10 @@ var DialStoreClass = class {
     this.panelOpenListeners = /* @__PURE__ */ new Set();
     this.panelOpenStates = /* @__PURE__ */ new Map();
     this.panels = /* @__PURE__ */ new Map();
+    /** How many resets ran: a slider that sees it change springs to its new
+     *  value instead of jumping (see getResetCount). */
+    this.resetCount = 0;
+    this.lastResetAt = -Infinity;
     this.controlsByPanel = /* @__PURE__ */ new WeakMap();
     this.panelsSnapshot = [];
     this.standardPanelsSnapshot = [];
@@ -541,6 +545,8 @@ var DialStoreClass = class {
     const panel = this.panels.get(panelId);
     const defaults = this.defaultValues.get(panelId);
     if (!panel || !defaults) return;
+    this.resetCount++;
+    this.lastResetAt = performance.now();
     panel.values = { ...defaults };
     this.snapshots.set(panelId, { ...panel.values });
     this.baseValues.set(panelId, { ...defaults });
@@ -566,6 +572,19 @@ var DialStoreClass = class {
   resetTargets(panelId) {
     return this.hostResetValues.get(panelId) ?? this.defaultValues.get(panelId);
   }
+  /**
+   * Counts the resets so far (resetValues, resetPaths and so a section
+   * reset). A value that changes in the same render as a new count came
+   * from a reset, so a control can animate it; other outside changes, like
+   * timeline playback, keep following the value at once.
+   */
+  getResetCount() {
+    return this.resetCount;
+  }
+  /** When the last reset ran, in performance.now() time. */
+  getLastResetAt() {
+    return this.lastResetAt;
+  }
   /** The value a reset puts at `path`. */
   getResetValue(panelId, path) {
     return this.resetTargets(panelId)?.[path];
@@ -574,6 +593,8 @@ var DialStoreClass = class {
   resetPaths(panelId, paths) {
     const targets = this.resetTargets(panelId);
     if (!targets) return;
+    this.resetCount++;
+    this.lastResetAt = performance.now();
     const updates = {};
     for (const path of paths) {
       if (path in targets) updates[path] = targets[path];

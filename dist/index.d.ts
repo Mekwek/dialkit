@@ -338,6 +338,10 @@ declare class DialStoreClass {
     private panelOpenListeners;
     private panelOpenStates;
     private panels;
+    /** How many resets ran: a slider that sees it change springs to its new
+     *  value instead of jumping (see getResetCount). */
+    private resetCount;
+    private lastResetAt;
     private controlsByPanel;
     private panelsSnapshot;
     private standardPanelsSnapshot;
@@ -396,6 +400,15 @@ declare class DialStoreClass {
     setResetValues(panelId: string, values: Record<string, DialValue>): void;
     /** The value a reset puts at each path: setResetValues, else defaults. */
     private resetTargets;
+    /**
+     * Counts the resets so far (resetValues, resetPaths and so a section
+     * reset). A value that changes in the same render as a new count came
+     * from a reset, so a control can animate it; other outside changes, like
+     * timeline playback, keep following the value at once.
+     */
+    getResetCount(): number;
+    /** When the last reset ran, in performance.now() time. */
+    getLastResetAt(): number;
     /** The value a reset puts at `path`. */
     getResetValue(panelId: string, path: string): DialValue | undefined;
     /** Put the given paths back to their reset values. */

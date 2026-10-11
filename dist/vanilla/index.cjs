@@ -481,6 +481,10 @@ var DialStoreClass = class {
     this.panelOpenListeners = /* @__PURE__ */ new Set();
     this.panelOpenStates = /* @__PURE__ */ new Map();
     this.panels = /* @__PURE__ */ new Map();
+    /** How many resets ran: a slider that sees it change springs to its new
+     *  value instead of jumping (see getResetCount). */
+    this.resetCount = 0;
+    this.lastResetAt = -Infinity;
     this.controlsByPanel = /* @__PURE__ */ new WeakMap();
     this.panelsSnapshot = [];
     this.standardPanelsSnapshot = [];
@@ -710,6 +714,8 @@ var DialStoreClass = class {
     const panel = this.panels.get(panelId);
     const defaults = this.defaultValues.get(panelId);
     if (!panel || !defaults) return;
+    this.resetCount++;
+    this.lastResetAt = performance.now();
     panel.values = { ...defaults };
     this.snapshots.set(panelId, { ...panel.values });
     this.baseValues.set(panelId, { ...defaults });
@@ -735,6 +741,19 @@ var DialStoreClass = class {
   resetTargets(panelId) {
     return this.hostResetValues.get(panelId) ?? this.defaultValues.get(panelId);
   }
+  /**
+   * Counts the resets so far (resetValues, resetPaths and so a section
+   * reset). A value that changes in the same render as a new count came
+   * from a reset, so a control can animate it; other outside changes, like
+   * timeline playback, keep following the value at once.
+   */
+  getResetCount() {
+    return this.resetCount;
+  }
+  /** When the last reset ran, in performance.now() time. */
+  getLastResetAt() {
+    return this.lastResetAt;
+  }
   /** The value a reset puts at `path`. */
   getResetValue(panelId, path) {
     return this.resetTargets(panelId)?.[path];
@@ -743,6 +762,8 @@ var DialStoreClass = class {
   resetPaths(panelId, paths) {
     const targets = this.resetTargets(panelId);
     if (!targets) return;
+    this.resetCount++;
+    this.lastResetAt = performance.now();
     const updates = {};
     for (const path of paths) {
       if (path in targets) updates[path] = targets[path];
@@ -2148,7 +2169,7 @@ var PICKER_HINTS = {
   hue: "Drag to change the hue.",
   opacity: "Drag to change how see-through the color is.",
   format: "Shows the color as hex, RGB, HSL or OKLCH.",
-  fields: "Type a value. A hex, RGB, HSL or OKLCH color works.",
+  fields: "Type a value, or drag a letter or the % to change it.",
   eyedropper: "Picks a color from anywhere on the screen."
 };
 var isHintKey = (e) => e.key.toLowerCase() === HintStore.getKey() && !(e.target instanceof HTMLInputElement);
@@ -2469,6 +2490,33 @@ function mountColorControl(host, initial, presentation = "popover") {
         onCommit();
       });
     };
+    const scrub = (grip, range, read, apply) => {
+      let press;
+      grip.addEventListener("pointerdown", (e) => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        press = { id: e.pointerId, x: e.clientX, start: read(), moved: false };
+        grip.setPointerCapture(e.pointerId);
+      });
+      grip.addEventListener("pointermove", (e) => {
+        if (!press || e.pointerId !== press.id) return;
+        const dx = e.clientX - press.x;
+        if (!press.moved && Math.abs(dx) < 3) return;
+        press.moved = true;
+        const raw = press.start + dx * range.step * (e.shiftKey ? 10 : 1);
+        const span = range.max - range.min;
+        const n = range.wrap ? ((raw - range.min) % span + span) % span + range.min : clamp(raw, range.min, range.max);
+        apply(Number(n.toFixed(range.digits)));
+      });
+      const end = (e) => {
+        if (!press || e.pointerId !== press.id) return;
+        press = void 0;
+        if (grip.hasPointerCapture(e.pointerId)) grip.releasePointerCapture(e.pointerId);
+      };
+      grip.addEventListener("pointerup", end);
+      grip.addEventListener("pointercancel", end);
+      grip.addEventListener("click", (e) => e.preventDefault());
+    };
     const channelValues = () => format === "hex" ? [] : format === "rgb" ? colorToRgb255(color) : format === "hsl" ? (({ h, s, l }) => [h, s * 100, l * 100])(colorToHsl(color, srgbHue)) : [color.l, color.c, color.h];
     rebuildFields = () => {
       channelBox.replaceChildren();
@@ -2481,9 +2529,18 @@ function mountColorControl(host, initial, presentation = "popover") {
           const cell = element("label", "dialkit-color-channel-cell");
           const input = textInput("dialkit-color-channel", channel.label, channel.width);
           const name = element("span", "dialkit-color-channel-name", channel.key.toUpperCase());
-          cell.append(input, name);
+          cell.append(name, input);
           channelBox.append(cell);
           return input;
+        });
+        const mode = format;
+        channelBox.querySelectorAll(".dialkit-color-channel-name").forEach((name, i) => {
+          const channel = CHANNELS[mode][i];
+          scrub(name, channel, () => channelValues()[i], (n) => {
+            channelInputs[i].value = n.toFixed(channel.digits);
+            channelInputs[i].removeAttribute("aria-invalid");
+            commitChannels();
+          });
         });
       }
       channelInputs.forEach((input, i) => {
@@ -2513,6 +2570,7 @@ function mountColorControl(host, initial, presentation = "popover") {
       }
       commit({ ...color, a: clamp(percent, 0, 100) / 100 });
     }, { min: 0, max: 100, step: 1, digits: 0 }, () => percentByte(color.a));
+    scrub(alphaUnit, { min: 0, max: 100, step: 1, digits: 0 }, () => percentByte(color.a), (n) => commit({ ...color, a: n / 100 }));
     let space = fieldSpace(format);
     let lastPaintKey = "";
     let lastHueTrack = "";
