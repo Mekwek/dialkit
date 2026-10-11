@@ -23,7 +23,7 @@
   --dial-field-gap: 4px; /* Space between the fields of an X / Y / Z row */
   --dial-section-reset-size: 20px; /* The reset button in a section header */
   --dial-preset-thumb-width: 24px; /* The curve picture in a preset row */
-  --dial-preset-list-height: 240px; /* The tallest a preset list grows before it scrolls */
+  --dial-preset-list-height: 156px; /* Four rows of presets (four 36px rows, three 4px gaps); a longer list scrolls */
   --dial-field-padding: 8px; /* Space inside each field, left and right */
   --dial-anchor-row-height: 26px; /* Height of one row of an anchor grid */
   --dial-anchor-dot-size: 5px; /* Diameter of an anchor grid dot */
