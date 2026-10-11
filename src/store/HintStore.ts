@@ -1,5 +1,25 @@
 type Listener = () => void;
 
+/** Where the browser remembers that the hint key was pressed once. */
+const TIP_SEEN_KEY = 'dialkit-hint-tip-seen';
+
+/** Storage can be missing or blocked (a private window): the tip then shows until the key is pressed. */
+function readTipSeen(): boolean {
+  try {
+    return typeof localStorage !== 'undefined' && localStorage.getItem(TIP_SEEN_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeTipSeen(): void {
+  try {
+    localStorage.setItem(TIP_SEEN_KEY, '1');
+  } catch {
+    // Not remembered: the tip shows again on the next visit.
+  }
+}
+
 /** The hint on screen: its text, and the row it sits above. */
 export interface ShownHint {
   text: string;
@@ -16,9 +36,11 @@ export interface ShownHint {
  * one shows. One list, not a listener per row: two rows that each showed
  * their own hint on every change replaced each other without end.
  */
-class HintStoreClass {
+export class HintStoreClass {
   private key = 'h';
   private keyHeld = false;
+  /** Read from storage on first use; null until then. */
+  private tipSeen: boolean | null = null;
   private shown: ShownHint | null = null;
   private hovered: { anchor: HTMLElement; text: string }[] = [];
   private listeners = new Set<Listener>();
@@ -44,9 +66,22 @@ class HintStoreClass {
 
   isKeyHeld = (): boolean => this.keyHeld;
 
+  /**
+   * Whether the user has pressed the hint key once. Until then, every open
+   * panel shows a tip that says what the key does (HintTip).
+   */
+  isTipSeen = (): boolean => {
+    if (this.tipSeen === null) this.tipSeen = readTipSeen();
+    return this.tipSeen;
+  };
+
   setKeyHeld(held: boolean): void {
     if (held === this.keyHeld) return;
     this.keyHeld = held;
+    if (held && !this.isTipSeen()) {
+      this.tipSeen = true;
+      writeTipSeen();
+    }
     const top = this.hovered[this.hovered.length - 1];
     if (!held) this.shown = null;
     else if (top) this.shown = { text: top.text, anchor: top.anchor, box: top.anchor };

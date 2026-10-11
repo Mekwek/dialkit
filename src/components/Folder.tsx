@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { MouseEvent, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ICON_CLOSE, ICON_PANEL, ICON_CHEVRON, ICON_RESET } from '../icons';
-import { useHint } from './Hint';
+import { HintTip, useHint } from './Hint';
 
 interface FolderProps {
   title: string;
@@ -214,7 +214,11 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
               exit={isRoot ? undefined : { height: 0 }}
               transition={isRoot ? undefined : { type: 'spring', visualDuration: 0.35, bounce: 0.1 }}
             >
-              <div className="dialkit-folder-inner">{children}</div>
+              <div className="dialkit-folder-inner">
+                {children}
+                {/* A floating panel tells a first-time user about the hint key. */}
+                {isRoot && !inline && <HintTip />}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

@@ -63,6 +63,23 @@ export function useHint(hint: string | undefined): { hintRow: HintProps } {
 }
 
 /**
+ * Tells a first-time user what the hint key does: a line at the bottom of
+ * every open panel, until the key is pressed once, then never shows again in
+ * that browser. A server render shows nothing. `always` shows it whatever
+ * the user did, for a specimen of the line.
+ */
+export function HintTip({ always = false }: { always?: boolean }) {
+  const seen = useSyncExternalStore(HintStore.subscribe, HintStore.isTipSeen, () => true);
+  const key = useSyncExternalStore(HintStore.subscribe, HintStore.getKey, HintStore.getKey);
+  if (seen && !always) return null;
+  return (
+    <p className="dialkit-hint-tip" data-always={always || undefined}>
+      Hold <kbd className="dialkit-hint-tip-key">{key.toUpperCase()}</kbd> over a control to see what it does.
+    </p>
+  );
+}
+
+/**
  * Gives a part with no row of its own a hint, like the tabs of a
  * transition. It adds no box of its own to the layout.
  */

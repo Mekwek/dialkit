@@ -1,6 +1,6 @@
 import { afterEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { HintStore } from './store/HintStore';
+import { HintStore, HintStoreClass } from './store/HintStore';
 
 // HintStore only compares anchors by identity, so plain objects stand in for
 // the DOM rows in Node.
@@ -104,5 +104,39 @@ describe('HintStore', () => {
     HintStore.retext(a, 'New text');
     assert.equal(HintStore.getShown()?.text, 'New text');
     assert.equal(HintStore.getShown()?.anchor, a);
+  });
+});
+
+// The tip that says what the hint key does: a fresh store per test, with a
+// stand-in for the browser's storage.
+describe('HintStore tip', () => {
+  const realStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  function useStorage(storage: Partial<Storage> | undefined) {
+    Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true });
+  }
+  afterEach(() => {
+    if (realStorage) Object.defineProperty(globalThis, 'localStorage', realStorage);
+    else delete (globalThis as { localStorage?: Storage }).localStorage;
+  });
+
+  it('shows the tip until the first key press, then remembers it', () => {
+    const saved = new Map<string, string>();
+    useStorage({ getItem: (key) => saved.get(key) ?? null, setItem: (key, value) => void saved.set(key, value) });
+    const store = new HintStoreClass();
+    assert.equal(store.isTipSeen(), false);
+    store.setKeyHeld(true);
+    assert.equal(store.isTipSeen(), true);
+    assert.equal(new HintStoreClass().isTipSeen(), true);
+  });
+
+  it('shows the tip, and does not throw, when storage is blocked', () => {
+    useStorage({
+      getItem: () => { throw new Error('blocked'); },
+      setItem: () => { throw new Error('blocked'); },
+    });
+    const store = new HintStoreClass();
+    assert.equal(store.isTipSeen(), false);
+    assert.doesNotThrow(() => store.setKeyHeld(true));
+    assert.equal(store.isTipSeen(), true);
   });
 });
