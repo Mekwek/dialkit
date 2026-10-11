@@ -10,6 +10,8 @@ import { SpringVisualization } from './SpringVisualization';
 import { EasingVisualization } from './EasingVisualization';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { CURVE_MORPH_MS, EASING_CURVES, curveNameFor, customSpringNameFor, intensityEase, sameEase, springPresetNameFor } from '../transition-presets';
+import { TransitionLibrary } from '../store/TransitionLibrary';
+import type { CopiedTransition } from '../store/TransitionLibrary';
 import { CurvePicker, EaseFields, SpringPresetPicker, useCustomCurves, useCustomSprings } from './TransitionPresets';
 
 interface TransitionControlProps {
@@ -153,8 +155,9 @@ export function TransitionControl({
   const customCurves = useCustomCurves();
   const customSprings = useCustomSprings();
 
-  // A picked curve moves the line and the handles to its shape: the store
-  // gets the new curve at once, the curve box shows the steps between.
+  // A picked or pasted curve moves the line and the handles to its shape:
+  // the store gets the new curve at once, the curve box shows the steps
+  // between.
   const [shownEase, setShownEase] = useState<BezierPoints | null>(null);
   const morph = useRef<{ frame: number; cancelled: boolean } | null>(null);
   const stopMorph = () => {
@@ -181,13 +184,16 @@ export function TransitionControl({
     onChange({ ...easing, ease });
   };
 
-  const pickEase = (target: BezierPoints) => {
+  const pickEase = (target: BezierPoints) => morphEase({ ...easing, ease: target });
+
+  const morphEase = (next: EasingConfig) => {
     stopMorph();
     const from = shownEase ?? easing.ease;
+    const target = next.ease;
     // Show the start of the move in the same render as the new value, or the
     // box draws the new curve for one frame, then jumps back.
     setShownEase(from);
-    onChange({ ...easing, ease: target });
+    onChange(next);
     const state = { frame: 0, cancelled: false };
     morph.current = state;
     // The clock starts on the first drawn frame, so no frame is spent
@@ -210,6 +216,21 @@ export function TransitionControl({
     };
     state.frame = requestAnimationFrame((time) => step(time));
   };
+
+  // A curve pasted onto a curve moves like a picked one. A paste that
+  // changes the tab, or a spring, is left to the copy menu, which writes it
+  // at once.
+  const takePaste = useRef<(copied: CopiedTransition) => boolean>(() => false);
+  takePaste.current = (copied) => {
+    if (mode !== 'easing' || copied.mode !== 'easing' || copied.value.type !== 'easing') return false;
+    morphEase(structuredClone(copied.value));
+    return true;
+  };
+  useEffect(
+    () => TransitionLibrary.onPaste((pastePanel, pastePath, copied) =>
+      pastePanel === panelId && pastePath === path && takePaste.current(copied)),
+    [panelId, path]
+  );
 
   const durationSlider = !hideDuration && (isEasing || isSimpleSpring) ? (
     <Slider

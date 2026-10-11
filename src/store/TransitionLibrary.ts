@@ -4,6 +4,12 @@ import type { CustomSpring, EasingCurve, SpringMode } from '../transition-preset
 
 type Listener = () => void;
 
+/**
+ * A transition control that takes a paste itself, to animate it. It
+ * returns true when the paste was for it and it took it.
+ */
+type PasteListener = (panelId: string, path: string, copied: CopiedTransition) => boolean;
+
 /** A copied transition: its value and the tab it was on. */
 export interface CopiedTransition {
   value: TransitionConfig;
@@ -29,6 +35,7 @@ class TransitionLibraryClass {
   private springs: CustomSpring[] = [];
   private listeners = new Set<Listener>();
   private copied: CopiedTransition | null = null;
+  private pasteListeners = new Set<PasteListener>();
 
   subscribe = (listener: Listener): (() => void) => {
     this.listeners.add(listener);
@@ -89,6 +96,25 @@ class TransitionLibraryClass {
   copyTransition(value: TransitionConfig, mode: CopiedTransition['mode']): void {
     this.copied = { value: structuredClone(value), mode };
     this.notify();
+  }
+
+  /** Lets a transition control take the pastes meant for it. */
+  onPaste = (listener: PasteListener): (() => void) => {
+    this.pasteListeners.add(listener);
+    return () => this.pasteListeners.delete(listener);
+  };
+
+  /**
+   * Offers the copied transition to the control that shows `path`. Returns
+   * false when no control took it, and the caller then writes the value.
+   */
+  pasteInto(panelId: string, path: string): boolean {
+    const copied = this.copied;
+    if (!copied) return false;
+    for (const listener of this.pasteListeners) {
+      if (listener(panelId, path, copied)) return true;
+    }
+    return false;
   }
 }
 
