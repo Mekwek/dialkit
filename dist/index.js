@@ -5153,7 +5153,7 @@ function SelectControl({ label, value, options, onChange, hint }) {
 }
 
 // src/components/ColorControl.tsx
-import { useEffect as useEffect12, useRef as useRef16 } from "react";
+import { useEffect as useEffect12, useLayoutEffect as useLayoutEffect5, useRef as useRef16 } from "react";
 
 // src/color-control.ts
 var FORMATS = ["hex", "rgb", "hsl", "oklch"];
@@ -5722,7 +5722,7 @@ function ColorControl({ hint, ...props }) {
   const control = useRef16();
   const latest = useRef16(props);
   latest.current = props;
-  useEffect12(() => {
+  useLayoutEffect5(() => {
     control.current = mountColorControl(host.current, latest.current);
     return () => control.current?.destroy();
   }, []);
@@ -5733,7 +5733,7 @@ function ColorControl({ hint, ...props }) {
 }
 
 // src/components/ImageControl.tsx
-import { useEffect as useEffect13, useRef as useRef17 } from "react";
+import { useEffect as useEffect13, useLayoutEffect as useLayoutEffect6, useRef as useRef17 } from "react";
 
 // src/image-control.ts
 var imageControlId = 0;
@@ -6135,7 +6135,7 @@ function ImageControl({ hint, ...props }) {
   const control = useRef17();
   const latest = useRef17(props);
   latest.current = props;
-  useEffect13(() => {
+  useLayoutEffect6(() => {
     control.current = mountImageControl(host.current, latest.current);
     return () => control.current?.destroy();
   }, []);
@@ -6146,7 +6146,7 @@ function ImageControl({ hint, ...props }) {
 }
 
 // src/components/DialPad.tsx
-import { useEffect as useEffect14, useRef as useRef18 } from "react";
+import { useEffect as useEffect14, useLayoutEffect as useLayoutEffect7, useRef as useRef18 } from "react";
 
 // src/dial-pad-control.ts
 var nextId2 = 0;
@@ -6388,7 +6388,7 @@ function DialPad({ hint, ...props }) {
   const control = useRef18();
   const latest = useRef18(props);
   latest.current = props;
-  useEffect14(() => {
+  useLayoutEffect7(() => {
     control.current = mountDialPad(host.current, latest.current);
     return () => control.current?.destroy();
   }, []);
@@ -8702,7 +8702,7 @@ function useDialTimeline(name, config, options) {
 }
 
 // src/components/Timeline/DialTimeline.tsx
-import { memo, useCallback as useCallback15, useEffect as useEffect19, useLayoutEffect as useLayoutEffect5, useRef as useRef23, useState as useState15, useSyncExternalStore as useSyncExternalStore10 } from "react";
+import { memo, useCallback as useCallback15, useEffect as useEffect19, useLayoutEffect as useLayoutEffect8, useRef as useRef23, useState as useState15, useSyncExternalStore as useSyncExternalStore10 } from "react";
 import { createPortal as createPortal5 } from "react-dom";
 import { AnimatePresence as AnimatePresence7, motion as motion10 } from "motion/react";
 import { Fragment as Fragment9, jsx as jsx26, jsxs as jsxs18 } from "react/jsx-runtime";
@@ -9216,7 +9216,7 @@ var TimelineSection = memo(function TimelineSection2({
   const laneAreaRef = useRef23(null);
   const horizontalScrollRef = useRef23(null);
   const [laneWidth, setLaneWidth] = useState15(0);
-  useLayoutEffect5(() => {
+  useLayoutEffect8(() => {
     if (!open) return;
     const ruler = laneAreaRef.current;
     if (!ruler) return;
@@ -9240,7 +9240,7 @@ var TimelineSection = memo(function TimelineSection2({
   useEffect19(() => {
     setViewStart((current) => clampViewStart(current, meta.duration, meta.duration / zoom));
   }, [meta.duration, zoom]);
-  useLayoutEffect5(() => {
+  useLayoutEffect8(() => {
     const scroller = horizontalScrollRef.current;
     if (!scroller || pxPerSecond <= 0) return;
     const nextScrollLeft = safeViewStart * pxPerSecond;
@@ -10088,7 +10088,7 @@ function ClipPopover({
     offsetLeft: window.visualViewport?.offsetLeft ?? 0,
     offsetTop: window.visualViewport?.offsetTop ?? 0
   }));
-  useLayoutEffect5(() => {
+  useLayoutEffect8(() => {
     const element4 = ref.current;
     if (!element4) return;
     const measure = () => setNaturalHeight(element4.scrollHeight + 2);

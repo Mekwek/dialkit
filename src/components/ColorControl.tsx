@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { mountColorControl, type ColorControlProps } from '../color-control';
 import { useHint } from './Hint';
 
@@ -9,7 +9,9 @@ export function ColorControl({ hint, ...props }: ColorControlProps & { hint?: st
   const control = useRef<ReturnType<typeof mountColorControl>>();
   const latest = useRef(props);
   latest.current = props;
-  useEffect(() => {
+  // Built before layout effects run: a folder that opens measures its
+  // content in one, and an empty host would measure 0px tall.
+  useLayoutEffect(() => {
     control.current = mountColorControl(host.current!, latest.current);
     return () => control.current?.destroy();
   }, []);

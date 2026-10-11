@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { mountImageControl, type ImageControlProps } from '../image-control';
 import { useHint } from './Hint';
 
@@ -9,7 +9,9 @@ export function ImageControl({ hint, ...props }: ImageControlProps & { hint?: st
   const control = useRef<ReturnType<typeof mountImageControl>>();
   const latest = useRef(props);
   latest.current = props;
-  useEffect(() => {
+  // Built before layout effects run: a folder that opens measures its
+  // content in one, and an empty host would measure 0px tall.
+  useLayoutEffect(() => {
     control.current = mountImageControl(host.current!, latest.current);
     return () => control.current?.destroy();
   }, []);

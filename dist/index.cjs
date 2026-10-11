@@ -5780,7 +5780,7 @@ function ColorControl({ hint, ...props }) {
   const control = (0, import_react20.useRef)();
   const latest = (0, import_react20.useRef)(props);
   latest.current = props;
-  (0, import_react20.useEffect)(() => {
+  (0, import_react20.useLayoutEffect)(() => {
     control.current = mountColorControl(host.current, latest.current);
     return () => control.current?.destroy();
   }, []);
@@ -6193,7 +6193,7 @@ function ImageControl({ hint, ...props }) {
   const control = (0, import_react21.useRef)();
   const latest = (0, import_react21.useRef)(props);
   latest.current = props;
-  (0, import_react21.useEffect)(() => {
+  (0, import_react21.useLayoutEffect)(() => {
     control.current = mountImageControl(host.current, latest.current);
     return () => control.current?.destroy();
   }, []);
@@ -6446,7 +6446,7 @@ function DialPad({ hint, ...props }) {
   const control = (0, import_react22.useRef)();
   const latest = (0, import_react22.useRef)(props);
   latest.current = props;
-  (0, import_react22.useEffect)(() => {
+  (0, import_react22.useLayoutEffect)(() => {
     control.current = mountDialPad(host.current, latest.current);
     return () => control.current?.destroy();
   }, []);

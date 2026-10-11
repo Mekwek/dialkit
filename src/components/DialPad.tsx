@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { mountDialPad, type DialPadProps } from '../dial-pad-control';
 import { useHint } from './Hint';
 
@@ -9,7 +9,9 @@ export function DialPad({ hint, ...props }: DialPadProps & { hint?: string }) {
   const control = useRef<ReturnType<typeof mountDialPad>>();
   const latest = useRef(props);
   latest.current = props;
-  useEffect(() => {
+  // Built before layout effects run: a folder that opens measures its
+  // content in one, and an empty host would measure 0px tall.
+  useLayoutEffect(() => {
     control.current = mountDialPad(host.current!, latest.current);
     return () => control.current?.destroy();
   }, []);
