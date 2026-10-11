@@ -1,7 +1,7 @@
 import { handleSliderKey, stepInputKey } from '../control-keyboard';
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { motion, useMotionValue, useTransform, animate } from 'motion/react';
-import type { ShortcutConfig } from '../store/DialStore';
+import { DialStore, type ShortcutConfig } from '../store/DialStore';
 import { decimalsForStep, roundValue, snapToDecile, formatSliderShortcut } from '../shortcut-utils';
 import { useHint } from './Hint';
 
@@ -84,9 +84,28 @@ export function Slider({
     (stretch) => (stretch < 0 ? stretch : 0)
   );
 
-  // Sync from props when not interacting (skip if spring animation is active)
+  // Sync from props when not interacting (skip if spring animation is active).
+  // A value a reset put back springs there, like a click on the track; any
+  // other outside change (a version, timeline playback) follows at once.
+  const seenResets = useRef(DialStore.getResetCount());
   useEffect(() => {
-    if (!isInteracting && !animRef.current) {
+    // A slider that did not draw at the reset still holds an older count,
+    // so the change must also land right after the reset.
+    const resets = DialStore.getResetCount();
+    const fromReset = resets !== seenResets.current
+      && performance.now() - DialStore.getLastResetAt() < 150;
+    seenResets.current = resets;
+    if (isInteracting) return;
+    if (fromReset && fillPercent.get() !== percentage) {
+      animRef.current?.stop();
+      animRef.current = animate(fillPercent, percentage, {
+        type: 'spring',
+        stiffness: 300,
+        damping: 25,
+        mass: 0.8,
+        onComplete: () => { animRef.current = null; },
+      });
+    } else if (!animRef.current) {
       fillPercent.jump(percentage);
     }
   }, [percentage, isInteracting, fillPercent]);

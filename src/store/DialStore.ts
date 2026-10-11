@@ -636,6 +636,10 @@ class DialStoreClass {
   private panelOpenListeners = new Set<(panelId: string, open: boolean) => void>();
   private panelOpenStates = new Map<string, boolean>();
   private panels: Map<string, PanelConfig> = new Map();
+  /** How many resets ran: a slider that sees it change springs to its new
+   *  value instead of jumping (see getResetCount). */
+  private resetCount = 0;
+  private lastResetAt = -Infinity;
   private controlsByPanel = new WeakMap<PanelConfig, Map<string, ControlMeta>>();
   private panelsSnapshot: PanelConfig[] = [];
   private standardPanelsSnapshot: PanelConfig[] = [];
@@ -933,6 +937,8 @@ class DialStoreClass {
     const defaults = this.defaultValues.get(panelId);
     if (!panel || !defaults) return;
 
+    this.resetCount++;
+    this.lastResetAt = performance.now();
     panel.values = { ...defaults };
     this.snapshots.set(panelId, { ...panel.values });
     this.baseValues.set(panelId, { ...defaults });
@@ -962,6 +968,21 @@ class DialStoreClass {
     return this.hostResetValues.get(panelId) ?? this.defaultValues.get(panelId);
   }
 
+  /**
+   * Counts the resets so far (resetValues, resetPaths and so a section
+   * reset). A value that changes in the same render as a new count came
+   * from a reset, so a control can animate it; other outside changes, like
+   * timeline playback, keep following the value at once.
+   */
+  getResetCount(): number {
+    return this.resetCount;
+  }
+
+  /** When the last reset ran, in performance.now() time. */
+  getLastResetAt(): number {
+    return this.lastResetAt;
+  }
+
   /** The value a reset puts at `path`. */
   getResetValue(panelId: string, path: string): DialValue | undefined {
     return this.resetTargets(panelId)?.[path];
@@ -971,6 +992,8 @@ class DialStoreClass {
   resetPaths(panelId: string, paths: string[]): void {
     const targets = this.resetTargets(panelId);
     if (!targets) return;
+    this.resetCount++;
+    this.lastResetAt = performance.now();
     const updates: Record<string, DialValue> = {};
     for (const path of paths) {
       if (path in targets) updates[path] = targets[path];
