@@ -89,3 +89,18 @@ export const ICON_LINK = [
 ];
 
 export const ICON_MORE = ['M5 12h.01', 'M12 12h.01', 'M19 12h.01'];
+
+/** Two overlapping sheets: copy. */
+export const ICON_COPY = [
+  'M9 11a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-7a2 2 0 0 1-2-2z',
+  'M5 15a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2',
+];
+
+/** A clipboard with an arrow in: paste. */
+export const ICON_PASTE = [
+  'M9 3h6v3H9z',
+  'M15 4.5h2a2 2 0 0 1 2 2V10',
+  'M9 4.5H7a2 2 0 0 0-2 2V19a2 2 0 0 0 2 2h4',
+  'M14 16h7',
+  'm18 13 3 3-3 3',
+];

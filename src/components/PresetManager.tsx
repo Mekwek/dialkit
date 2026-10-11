@@ -5,6 +5,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
+import { GROUP_MOTION, GROUP_SPRING, ICON_MOTION } from './action-motion';
 import { DialStore, Preset } from '../store/DialStore';
 import { ICON_CHECK, ICON_CHEVRON, ICON_MORE, ICON_PENCIL, ICON_PLUS, ICON_TRASH, ICON_LOCK, ICON_LOCK_OPEN } from '../icons';
 import { useHint } from './Hint';
@@ -397,27 +398,6 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdow
     </div>
   );
 }
-
-/** How long a row's action group takes to open or close. */
-const GROUP_SPRING = { type: 'spring', visualDuration: 0.15, bounce: 0 } as const;
-
-/**
- * The group widens over the name while its icons pop out one after another,
- * the one next to the dots first; closing pops them in the other way.
- */
-const GROUP_MOTION = {
-  hidden: { width: 0, opacity: 0, transition: { ...GROUP_SPRING, staggerChildren: 0.045, staggerDirection: 1 } },
-  shown: { width: 'auto', opacity: 1, transition: { ...GROUP_SPRING, staggerChildren: 0.045, staggerDirection: -1 } },
-};
-
-/** The icons pop with a little bounce; the group's width does not, so its
-    faded edge never wobbles over the name. */
-const ICON_SPRING = { type: 'spring', visualDuration: 0.2, bounce: 0.35 } as const;
-
-const ICON_MOTION = {
-  hidden: { scale: 0.6, x: 2, transition: ICON_SPRING },
-  shown: { scale: 1, x: 0, transition: ICON_SPRING },
-};
 
 /** Stops a press on a row's action from selecting or dragging the row. */
 const keepPress = {

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { ICON_CHECK, ICON_MORE } from '../icons';
+import { ICON_CHECK, ICON_COPY, ICON_MORE, ICON_PASTE } from '../icons';
 import { DialStore } from '../store/DialStore';
 import type { TransitionConfig } from '../store/DialStore';
 import { TransitionLibrary } from '../store/TransitionLibrary';
 import { describeCopied } from '../transition-presets';
+import { GROUP_MOTION, ICON_MOTION } from './action-motion';
 import { useHint } from './Hint';
 
 const getCopied = () => TransitionLibrary.getCopied();
@@ -12,8 +13,10 @@ const getCopied = () => TransitionLibrary.getCopied();
 /** How long the check mark shows after a copy or a paste. */
 const DONE_MS = 1200;
 
-/** The hint of the button that opens the copy and paste menu. */
-const COPY_MENU_HINT = 'Copies this transition, or pastes one you copied.';
+/** The hints of the dots and of the two actions they open. */
+const DOTS_HINT = 'Shows copy and paste for this transition.';
+const COPY_HINT = 'Copies this transition and its tab (Easing, Time or Physics).';
+const PASTE_HINT = 'Pastes the transition you copied, with its tab.';
 
 interface TransitionCopyProps {
   panelId: string;
@@ -21,36 +24,32 @@ interface TransitionCopyProps {
   value: TransitionConfig;
 }
 
+function Icon({ paths, width = 2 }: { paths: string[]; width?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={width} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {paths.map((d) => <path key={d} d={d} />)}
+    </svg>
+  );
+}
+
 /**
- * The "⋯" menu in a transition's header: Copy keeps the value and its tab
- * (Easing, Time or Physics), Paste puts both into this control. The copied
- * transition is shared by every transition control on the page, so it
- * pastes into another version or another clip.
+ * The "⋯" in a transition's header, which opens copy and paste like the
+ * version menu's dots: hovering or clicking them pops the two icons out to
+ * their left, one after another, and leaving the group closes it. Copy keeps
+ * the value and its tab (Easing, Time or Physics), paste puts both into this
+ * control. The copied transition is shared by every transition control on
+ * the page, so it pastes into another version or another clip. After either,
+ * the dots show a check for a moment.
  */
 export function TransitionCopyMenu({ panelId, path, value }: TransitionCopyProps) {
   const copied = useSyncExternalStore(TransitionLibrary.subscribe, getCopied, getCopied);
   const [open, setOpen] = useState(false);
   const [done, setDone] = useState(false);
-  const { hintRow } = useHint(COPY_MENU_HINT);
-  const menu = useRef<HTMLDivElement>(null);
+  const { hintRow: dotsHint } = useHint(DOTS_HINT);
+  const { hintRow: copyHint } = useHint(COPY_HINT);
+  const { hintRow: pasteHint } = useHint(copied ? `${PASTE_HINT} Now: ${describeCopied(copied)}.` : PASTE_HINT);
   const timer = useRef<ReturnType<typeof setTimeout>>();
   useEffect(() => () => clearTimeout(timer.current), []);
-
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: PointerEvent) => {
-      if (!menu.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('pointerdown', close);
-    document.addEventListener('keydown', escape);
-    return () => {
-      document.removeEventListener('pointerdown', close);
-      document.removeEventListener('keydown', escape);
-    };
-  }, [open]);
 
   const finish = () => {
     setOpen(false);
@@ -66,47 +65,63 @@ export function TransitionCopyMenu({ panelId, path, value }: TransitionCopyProps
 
   const paste = () => {
     if (!copied) return;
-    DialStore.updateTransitionMode(panelId, path, copied.mode);
-    DialStore.updateValue(panelId, path, structuredClone(copied.value));
+    // The control animates a curve pasted onto a curve; anything else
+    // switches at once.
+    if (!TransitionLibrary.pasteInto(panelId, path)) {
+      DialStore.updateTransitionMode(panelId, path, copied.mode);
+      DialStore.updateValue(panelId, path, structuredClone(copied.value));
+    }
     finish();
   };
 
   return (
     // A click in the header must not open or close the folder.
-    <div className="dialkit-copy-actions" ref={menu} onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+    <div
+      className="dialkit-copy-actions"
+      data-open={open || undefined}
+      // A touch ends with a pointer leave: only a mouse closes the group by
+      // leaving it. A touch closes it by focusing elsewhere.
+      onPointerLeave={(e) => { if (e.pointerType === 'mouse') setOpen(false); }}
+      // Focus leaving closes the group, unless the pointer is still over it:
+      // a copy or paste removes its own button, and that is no reason to
+      // close a group the pointer has just opened again.
+      onBlur={(e) => {
+        if (e.currentTarget.contains(e.relatedTarget as Node | null) || e.currentTarget.matches(':hover')) return;
+        setOpen(false);
+      }}
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => {
+        event.stopPropagation();
+        if (event.key === 'Escape') setOpen(false);
+      }}
+    >
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div className="dialkit-copy-group" variants={GROUP_MOTION} initial="hidden" animate="shown" exit="hidden">
+            <motion.button type="button" variants={ICON_MOTION} className="dialkit-copy-action" aria-label="Copy transition" onClick={copy} {...copyHint}>
+              <Icon paths={ICON_COPY} />
+            </motion.button>
+            <motion.button type="button" variants={ICON_MOTION} className="dialkit-copy-action" aria-label="Paste transition" disabled={!copied} onClick={paste} {...pasteHint}>
+              <Icon paths={ICON_PASTE} />
+            </motion.button>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <button
         type="button"
         className="dialkit-copy-button"
         aria-label="Copy or paste"
-        aria-haspopup="menu"
         aria-expanded={open}
-        onClick={() => setOpen((next) => !next)}
-        {...hintRow}
+        {...dotsHint}
+        onPointerEnter={(e) => {
+          dotsHint.onPointerEnter?.(e);
+          if (e.pointerType === 'mouse') setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onClick={() => setOpen(true)}
       >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={done ? 2 : 3} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          {(done ? [ICON_CHECK] : ICON_MORE).map((d) => <path key={d} d={d} />)}
-        </svg>
+        <Icon paths={done ? [ICON_CHECK] : ICON_MORE} width={done ? 2 : 3} />
       </button>
-      {/* The same look and motion as a select's dropdown. */}
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            className="dialkit-select-dropdown dialkit-copy-menu"
-            role="menu"
-            initial={{ opacity: 0, y: -8, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.95 }}
-            transition={{ type: 'spring', visualDuration: 0.15, bounce: 0 }}
-          >
-            <button type="button" role="menuitem" className="dialkit-select-option" onClick={copy}>
-              Copy
-            </button>
-            <button type="button" role="menuitem" className="dialkit-select-option" disabled={!copied} onClick={paste}>
-              {copied ? `Paste ${describeCopied(copied)}` : 'Paste'}
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
