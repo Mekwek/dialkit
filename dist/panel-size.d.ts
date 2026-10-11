@@ -10,5 +10,14 @@ declare function createPanelSectionTransition(folder: HTMLElement, initiallyOpen
     setOpen(next: boolean): void;
     destroy(): void;
 };
+/**
+ * Fork: the scroll fades for browsers without CSS scroll-state queries
+ * (Safari, Firefox). Marks pinned folder headers (`data-stuck`) and a panel
+ * with more content below (`data-more`), which theme.css reads like the
+ * queries. Where the queries exist, it does nothing. One passive scroll
+ * listener and a size observer, at most one pass per frame: reads first,
+ * then writes.
+ */
+declare function observeScrollFades(root: HTMLElement): () => void;
 
-export { createPanelSectionTransition, measurePanelHeight, observePanelHeader };
+export { createPanelSectionTransition, measurePanelHeight, observePanelHeader, observeScrollFades };

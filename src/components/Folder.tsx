@@ -1,5 +1,5 @@
 import { activateOnKey } from '../control-keyboard';
-import { createPanelSectionTransition, observePanelHeader } from '../panel-size';
+import { createPanelSectionTransition, observePanelHeader, observeScrollFades } from '../panel-size';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { MouseEvent, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -58,9 +58,17 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
   useLayoutEffect(() => { sectionTransition.current?.setOpen(isOpen); }, [isOpen]);
 
   // Section headers pin below the panel title: publish its height.
+  // Section headers pin below the panel title: publish its height.
+  // Section headers pin below the panel title: publish its height. The scroll
+  // fades need a script only where CSS scroll-state queries are missing.
   useEffect(() => {
     if (!isRoot || !rootRef.current) return;
-    return observePanelHeader(rootRef.current);
+    const stopHeader = observePanelHeader(rootRef.current);
+    const stopFades = observeScrollFades(rootRef.current);
+    return () => {
+      stopHeader();
+      stopFades();
+    };
   }, [isRoot]);
 
   const handleToggle = () => {

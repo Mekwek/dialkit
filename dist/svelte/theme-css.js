@@ -386,7 +386,7 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 /* Only the sections of a group stick; ordinary folders scroll with the content. */
 .dialkit-panel .dialkit-folder.dialkit-folder-section > .dialkit-folder-header {
   position: sticky;
-  top: var(--dial-panel-header-height, 0px);
+  top: calc(var(--dial-pin-self) + 1px);
   z-index: 2;
   /* The header holds the section's toolbar too, so it grows to fit it. */
   height: auto;
@@ -407,6 +407,70 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 
 .dialkit-folder-section {
   --dial-section-header-height: calc(44px + var(--dial-row-height) + 10px);
+}
+
+/* Fork: every folder header inside a panel stays pinned too, under the
+   headers above it. Each folder pins at the offset its parent hands down
+   (--dial-pin-base), and hands down its own offset plus its header's row.
+   A pinned header leaves with its folder, so the stack never grows past
+   the folders still on screen. */
+.dialkit-panel .dialkit-folder:not(.dialkit-folder-root) {
+  /* A header pins 1px under this offset. The first level overlaps the
+     panel title's last row instead (offset - 2px): the title's divider
+     shows, not a second line under it. */
+  --dial-pin-self: var(--dial-pin-base, calc(var(--dial-panel-header-height, 0px) - 2px));
+}
+
+.dialkit-panel .dialkit-folder:not(.dialkit-folder-root) > .dialkit-folder-content {
+  --dial-pin-base: calc(var(--dial-pin-self) + 1px + var(--dial-row-height));
+}
+
+.dialkit-panel .dialkit-folder:not(.dialkit-folder-root, .dialkit-folder-section) > .dialkit-folder-header {
+  position: sticky;
+  /* 1px under the header above, for its divider line (::after, below).
+     The folder content around it is its own layer (will-change), so the
+     line cannot paint over the header above: it fills the row between. */
+  top: calc(var(--dial-pin-self) + 1px);
+  z-index: 2;
+  background: var(--dial-glass-bg);
+}
+
+/* Fork: a folder header always draws its folder's divider, 1px above
+   itself. At rest it lands on the folder's own top border, so nothing
+   changes. Pinned, the folder's border scrolls away and this line stays,
+   in the row between the header and the one above. */
+.dialkit-panel .dialkit-folder:not(.dialkit-folder-root, .dialkit-folder-section) > .dialkit-folder-header::after {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 0;
+  right: 0;
+  border-top: 1px solid var(--dial-surface-subtle);
+  /* The panel's colour under the dashes and in the side gutters, so no
+     content shows through the row the line sits on. */
+  background: var(--dial-glass-bg);
+  box-shadow: -12px 0 0 var(--dial-glass-bg), 12px 0 0 var(--dial-glass-bg);
+  pointer-events: none;
+}
+
+.dialkit-panel .dialkit-folder:not(.dialkit-folder-root) .dialkit-folder > .dialkit-folder-header::after {
+  border-top-style: var(--dial-nested-line-style);
+}
+
+/* The ::before cover stops at the padding box, so a header's bottom border
+   row would leave the gutters open: two side shadows close them. */
+.dialkit-panel-inner:not([data-collapsed="true"]) > .dialkit-folder-root > .dialkit-panel-header,
+.dialkit-panel .dialkit-folder:not(.dialkit-folder-root) > .dialkit-folder-header {
+  box-shadow: -12px 0 0 var(--dial-glass-bg), 12px 0 0 var(--dial-glass-bg);
+}
+
+.dialkit-panel .dialkit-folder:not(.dialkit-folder-root, .dialkit-folder-section) > .dialkit-folder-header::before {
+  content: '';
+  position: absolute;
+  inset: 0 -12px;
+  z-index: -1;
+  background: var(--dial-glass-bg);
+  pointer-events: none;
 }
 
 /* Keyboard navigation must reveal controls below both pinned header rows. */
@@ -1621,6 +1685,9 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 /* Without the label box, the X and Y fields share the row. */
 .dialkit-pad[data-no-label] .dialkit-pad-caption { display: none; }
 .dialkit-pad[data-no-label] .dialkit-pad-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* Without the pad's own label, each field's label names the pad too
+   ("Wave Freq"), so it may take most of the field. */
+.dialkit-pad[data-no-label] .dialkit-pad-axis { max-width: 70%; }
 /* The axis letter drags its value, as in the X / Y / Z fields. */
 .dialkit-pad[data-drag-fields] .dialkit-pad-axis { cursor: ew-resize; touch-action: none; user-select: none; -webkit-user-select: none; }
 /* Anchor grid: two selects as one grid of dots. The picked cell holds a
@@ -3556,4 +3623,106 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 .dialkit-preset-create:focus-visible {
   background: var(--dial-surface-hover);
 }
+
+/* Fork: scroll fades. A short fade from the panel colour under each pinned
+   header, while content passes under it, and at the panel's bottom while
+   more content sits below. CSS scroll-state queries drive it; where they
+   are missing, observeScrollFades (panel-size.ts) sets the same marks. */
+.dialkit-panel .dialkit-panel-inner:not([data-collapsed="true"]) {
+  container-type: scroll-state;
+  /* As long as Arqé's fades: a plain linear gradient over 28px. */
+  --dial-scroll-fade: 28px;
+  /* The fade starts at this share of the panel colour, so content shows a little through it. */
+  --dial-scroll-fade-color: color-mix(in srgb, var(--dial-glass-bg) 70%, transparent);
+}
+
+.dialkit-panel .dialkit-panel-inner:not([data-collapsed="true"]) .dialkit-folder-header {
+  container-type: scroll-state;
+}
+
+/* A hidden fade still counts as content: the last header's fade would hang
+   below the panel's content and make the panel scroll. Cut it off there.
+   clip, unlike hidden, keeps the pinned headers working, and the sides stay
+   open for the fades across the gutters. */
+.dialkit-panel .dialkit-panel-inner:not([data-collapsed="true"]) > .dialkit-folder-root {
+  overflow: visible clip;
+}
+
+.dialkit-panel .dialkit-folder-header > .dialkit-folder-header-top::before,
+.dialkit-panel .dialkit-folder-header > .dialkit-folder-header-top::after {
+  content: '';
+  position: absolute;
+  /* The header is the box (it is sticky), so these sit under the whole
+     header, toolbar included. They start on the header's last row, so a
+     scroll that stops between two pixels leaves no row of content
+     uncovered. */
+  top: calc(100% - 1px);
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+
+/* The fade, across the side gutters too. */
+.dialkit-panel .dialkit-folder-header > .dialkit-folder-header-top::after {
+  left: -12px;
+  right: -12px;
+  height: var(--dial-scroll-fade);
+  background: linear-gradient(var(--dial-scroll-fade-color), transparent);
+}
+
+/* The divider on the fade's top row, as wide as the other dividers: a
+   pinned header right under this one would draw it there, but this fade
+   paints over that header, so it draws the divider itself. */
+.dialkit-panel .dialkit-folder-header > .dialkit-folder-header-top::before {
+  z-index: 1;
+  left: 0;
+  right: 0;
+  border-top: 1px var(--dial-nested-line-style) var(--dial-surface-subtle);
+}
+
+/* The panel title keeps its own divider: its fade draws none. */
+.dialkit-panel .dialkit-panel-header > .dialkit-folder-header-top::before {
+  display: none;
+}
+
+/* The shown rules repeat the hidden rule's selector: a container query adds
+   no weight, so a shorter selector would lose to it. */
+@container scroll-state(stuck: top) {
+  .dialkit-panel .dialkit-folder-header > .dialkit-folder-header-top::before,
+  .dialkit-panel .dialkit-folder-header > .dialkit-folder-header-top::after {
+    opacity: 1;
+  }
+}
+
+/* The same, marked by observeScrollFades where the query is missing. */
+.dialkit-panel .dialkit-folder-header[data-stuck] > .dialkit-folder-header-top::before,
+.dialkit-panel .dialkit-folder-header[data-stuck] > .dialkit-folder-header-top::after {
+  opacity: 1;
+}
+
+.dialkit-panel .dialkit-panel-inner:not([data-collapsed="true"]) > .dialkit-folder-root::after {
+  content: '';
+  display: block;
+  position: sticky;
+  /* A pinned box stops at the panel's 10px bottom padding: reach through
+     it to the border, where the content scrolls out of sight. */
+  bottom: -10px;
+  height: var(--dial-scroll-fade);
+  margin: calc(var(--dial-scroll-fade) * -1) -12px 0;
+  background: linear-gradient(transparent, var(--dial-scroll-fade-color));
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+
+@container scroll-state(scrollable: bottom) {
+  .dialkit-panel .dialkit-panel-inner:not([data-collapsed="true"]) > .dialkit-folder-root::after {
+    opacity: 1;
+  }
+}
+
+.dialkit-panel .dialkit-panel-inner[data-more]:not([data-collapsed="true"]) > .dialkit-folder-root::after {
+  opacity: 1;
+}
+
 `;

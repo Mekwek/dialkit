@@ -133,9 +133,40 @@ function createPanelSectionTransition(folder, initiallyOpen, onSettled) {
     }
   };
 }
+function observeScrollFades(root) {
+  const scroller = root.parentElement;
+  if (!scroller || CSS.supports("container-type", "scroll-state")) return () => {
+  };
+  let frame = 0;
+  const update = () => {
+    frame = 0;
+    const headers = Array.from(root.querySelectorAll(".dialkit-folder-header"));
+    const stuck = headers.map((header) => {
+      if (header.parentElement === root) return scroller.scrollTop > 0;
+      const folder = header.parentElement;
+      return header.getBoundingClientRect().top - folder.getBoundingClientRect().top - folder.clientTop > 0.5;
+    });
+    const more = scroller.scrollTop + scroller.clientHeight < scroller.scrollHeight - 1;
+    headers.forEach((header, index) => header.toggleAttribute("data-stuck", stuck[index]));
+    scroller.toggleAttribute("data-more", more);
+  };
+  const schedule = () => {
+    if (!frame) frame = requestAnimationFrame(() => update());
+  };
+  const resize = new ResizeObserver(schedule);
+  resize.observe(root);
+  scroller.addEventListener("scroll", schedule, { passive: true });
+  schedule();
+  return () => {
+    resize.disconnect();
+    scroller.removeEventListener("scroll", schedule);
+    cancelAnimationFrame(frame);
+  };
+}
 export {
   createPanelSectionTransition,
   measurePanelHeight,
-  observePanelHeader
+  observePanelHeader,
+  observeScrollFades
 };
 //# sourceMappingURL=panel-size.js.map

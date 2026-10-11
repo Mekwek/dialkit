@@ -177,3 +177,41 @@ export function createPanelSectionTransition(
     },
   };
 }
+
+/**
+ * Fork: the scroll fades for browsers without CSS scroll-state queries
+ * (Safari, Firefox). Marks pinned folder headers (`data-stuck`) and a panel
+ * with more content below (`data-more`), which theme.css reads like the
+ * queries. Where the queries exist, it does nothing. One passive scroll
+ * listener and a size observer, at most one pass per frame: reads first,
+ * then writes.
+ */
+export function observeScrollFades(root: HTMLElement): () => void {
+  const scroller = root.parentElement;
+  if (!scroller || CSS.supports('container-type', 'scroll-state')) return () => {};
+  let frame = 0;
+  const update = () => {
+    frame = 0;
+    const headers = Array.from(root.querySelectorAll<HTMLElement>('.dialkit-folder-header'));
+    const stuck = headers.map((header) => {
+      if (header.parentElement === root) return scroller.scrollTop > 0;
+      const folder = header.parentElement!;
+      return header.getBoundingClientRect().top - folder.getBoundingClientRect().top - folder.clientTop > 0.5;
+    });
+    const more = scroller.scrollTop + scroller.clientHeight < scroller.scrollHeight - 1;
+    headers.forEach((header, index) => header.toggleAttribute('data-stuck', stuck[index]));
+    scroller.toggleAttribute('data-more', more);
+  };
+  const schedule = () => {
+    if (!frame) frame = requestAnimationFrame(() => update());
+  };
+  const resize = new ResizeObserver(schedule);
+  resize.observe(root);
+  scroller.addEventListener('scroll', schedule, { passive: true });
+  schedule();
+  return () => {
+    resize.disconnect();
+    scroller.removeEventListener('scroll', schedule);
+    cancelAnimationFrame(frame);
+  };
+}

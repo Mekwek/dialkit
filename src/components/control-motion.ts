@@ -15,8 +15,10 @@ import type { Transition } from 'motion/react';
  * The -6 value must match `.dialkit-folder-inner { gap: 6px }` in
  * theme.css — if the gap changes, update this value to match.
  *
- * `overflow: hidden` clips the child while the wrapper's height is
- * less than auto, giving the collapse-reveal effect.
+ * `overflow: clip` clips the child while the wrapper's height is less
+ * than auto, giving the collapse-reveal effect. Unlike `hidden`, it makes
+ * no scroll box, so a pinned folder header inside still sticks to the
+ * panel's scroll.
  */
 export const CONTROL_ANIM = {
   initial: { opacity: 0, height: 0, marginBottom: -6 },
@@ -27,5 +29,5 @@ export const CONTROL_ANIM = {
     visualDuration: 0.25,
     bounce: 0.1,
   } as Transition,
-  style: { overflow: 'hidden' as const },
+  style: { overflow: 'clip' as const },
 } as const;

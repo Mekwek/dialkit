@@ -1960,6 +1960,36 @@ function createPanelSectionTransition(folder, initiallyOpen, onSettled) {
     }
   };
 }
+function observeScrollFades(root) {
+  const scroller = root.parentElement;
+  if (!scroller || CSS.supports("container-type", "scroll-state")) return () => {
+  };
+  let frame = 0;
+  const update = () => {
+    frame = 0;
+    const headers = Array.from(root.querySelectorAll(".dialkit-folder-header"));
+    const stuck = headers.map((header) => {
+      if (header.parentElement === root) return scroller.scrollTop > 0;
+      const folder = header.parentElement;
+      return header.getBoundingClientRect().top - folder.getBoundingClientRect().top - folder.clientTop > 0.5;
+    });
+    const more = scroller.scrollTop + scroller.clientHeight < scroller.scrollHeight - 1;
+    headers.forEach((header, index) => header.toggleAttribute("data-stuck", stuck[index]));
+    scroller.toggleAttribute("data-more", more);
+  };
+  const schedule = () => {
+    if (!frame) frame = requestAnimationFrame(() => update());
+  };
+  const resize = new ResizeObserver(schedule);
+  resize.observe(root);
+  scroller.addEventListener("scroll", schedule, { passive: true });
+  schedule();
+  return () => {
+    resize.disconnect();
+    scroller.removeEventListener("scroll", schedule);
+    cancelAnimationFrame(frame);
+  };
+}
 
 // src/components/Folder.tsx
 var import_react4 = require("react");
@@ -2423,7 +2453,12 @@ function Folder({ title, children, open, defaultOpen = true, isRoot = false, inl
   }, [isOpen]);
   (0, import_react4.useEffect)(() => {
     if (!isRoot || !rootRef.current) return;
-    return observePanelHeader(rootRef.current);
+    const stopHeader = observePanelHeader(rootRef.current);
+    const stopFades = observeScrollFades(rootRef.current);
+    return () => {
+      stopHeader();
+      stopFades();
+    };
   }, [isRoot]);
   const handleToggle = () => {
     if (inline && isRoot) return;
@@ -2587,7 +2622,7 @@ var CONTROL_ANIM = {
     visualDuration: 0.25,
     bounce: 0.1
   },
-  style: { overflow: "hidden" }
+  style: { overflow: "clip" }
 };
 
 // src/components/ShortcutListener.tsx
