@@ -2,10 +2,11 @@ import { observeDropdownKeyboard } from '../dropdown-keyboard';
 import { getDropdownPosition } from '../dropdown-position';
 import { openDropdownOnKey } from '../control-keyboard';
 import { useState, useRef, useEffect, useCallback } from 'react';
+import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { DialStore, Preset } from '../store/DialStore';
-import { ICON_CHECK, ICON_CHEVRON, ICON_PENCIL, ICON_PLUS, ICON_TRASH, ICON_LOCK, ICON_LOCK_OPEN } from '../icons';
+import { ICON_CHECK, ICON_CHEVRON, ICON_MORE, ICON_PENCIL, ICON_PLUS, ICON_TRASH, ICON_LOCK, ICON_LOCK_OPEN } from '../icons';
 import { useHint } from './Hint';
 
 interface PresetManagerProps {
@@ -325,60 +326,16 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdow
                     )}
 
                     {!isEditing && (
-                      <>
-                        {editable && (
-                          <button
-                            className="dialkit-preset-rename"
-                            aria-label="Rename preset"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              startEdit(preset);
-                            }}
-                            onMouseDown={(e) => e.stopPropagation()}
-                            onPointerDown={(e) => e.stopPropagation()}
-                          >
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              {ICON_PENCIL.map((d, i) => (
-                                <path key={i} d={d} />
-                              ))}
-                            </svg>
-                          </button>
-                        )}
-                        {lockable && (
-                          <button
-                            className="dialkit-preset-lock"
-                            data-locked={String(!!preset.locked)}
-                            aria-label={preset.locked ? 'Unlock preset' : 'Lock preset'}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              DialStore.setPresetLocked(panelId, preset.id, !preset.locked);
-                            }}
-                            onMouseDown={(e) => e.stopPropagation()}
-                            onPointerDown={(e) => e.stopPropagation()}
-                          >
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              {(preset.locked ? ICON_LOCK : ICON_LOCK_OPEN).map((d, i) => (
-                                <path key={i} d={d} />
-                              ))}
-                            </svg>
-                          </button>
-                        )}
-                        {!preset.locked && (
-                          <button
-                            className="dialkit-preset-delete"
-                            onClick={(e) => handleDelete(e, preset.id)}
-                            onMouseDown={(e) => e.stopPropagation()}
-                            onPointerDown={(e) => e.stopPropagation()}
-                            aria-label="Delete preset"
-                          >
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              {ICON_TRASH.map((d, i) => (
-                                <path key={i} d={d} />
-                              ))}
-                            </svg>
-                          </button>
-                        )}
-                      </>
+                      <PresetActions
+                        id={preset.id}
+                        noun={noun}
+                        locked={!!preset.locked}
+                        editable={editable}
+                        lockable={lockable}
+                        onRename={() => startEdit(preset)}
+                        onToggleLock={() => DialStore.setPresetLocked(panelId, preset.id, !preset.locked)}
+                        onDelete={(e) => handleDelete(e, preset.id)}
+                      />
                     )}
                   </div>
                 );
@@ -408,3 +365,215 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdow
     </div>
   );
 }
+
+/** How long a row's action group takes to open or close. */
+const GROUP_SPRING = { type: 'spring', visualDuration: 0.15, bounce: 0 } as const;
+
+/**
+ * The group widens over the name while its icons pop out one after another,
+ * the one next to the dots first; closing pops them in the other way.
+ */
+const GROUP_MOTION = {
+  hidden: { width: 0, opacity: 0, transition: { ...GROUP_SPRING, staggerChildren: 0.045, staggerDirection: 1 } },
+  shown: { width: 'auto', opacity: 1, transition: { ...GROUP_SPRING, staggerChildren: 0.045, staggerDirection: -1 } },
+};
+
+/** The icons pop with a little bounce; the group's width does not, so its
+    faded edge never wobbles over the name. */
+const ICON_SPRING = { type: 'spring', visualDuration: 0.2, bounce: 0.35 } as const;
+
+const ICON_MOTION = {
+  hidden: { scale: 0.6, x: 2, transition: ICON_SPRING },
+  shown: { scale: 1, x: 0, transition: ICON_SPRING },
+};
+
+/** Stops a press on a row's action from selecting or dragging the row. */
+const keepPress = {
+  onMouseDown: (e: ReactMouseEvent) => e.stopPropagation(),
+  onPointerDown: (e: ReactPointerEvent) => e.stopPropagation(),
+};
+
+function Icon({ paths }: { paths: string[] }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {paths.map((d, i) => (
+        <path key={i} d={d} />
+      ))}
+    </svg>
+  );
+}
+
+/**
+ * A row's actions at its right end, so the name keeps the rest of the row.
+ * An unlocked row shows three dots; hovering or clicking them opens rename,
+ * lock and delete to their left, over the name, and leaving the group closes
+ * it. A locked row shows its closed lock there instead (a click unlocks it):
+ * rename, its only action, pops in on row hover. The lock and rename slide
+ * between the two layouts when the row locks or unlocks.
+ */
+/** The dots' hint names the actions they open, as the picker's hint does. */
+function dotsHint(noun: string, editable: boolean, lockable: boolean): string {
+  const actions = lockable ? 'rename, lock and delete' : editable ? 'rename and delete' : 'delete';
+  return `Shows ${actions} for this ${noun}.`;
+}
+
+function PresetActions({ id, noun, locked, editable, lockable, onRename, onToggleLock, onDelete }: {
+  id: string;
+  noun: string;
+  locked: boolean;
+  editable: boolean;
+  lockable: boolean;
+  onRename: () => void;
+  onToggleLock: () => void;
+  onDelete: (e: ReactMouseEvent) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [rowHover, setRowHover] = useState(false);
+  const { hintRow: dotsHintRow } = useHint(dotsHint(noun, editable, lockable));
+  const host = useRef<HTMLDivElement>(null);
+  const rename = editable;
+  const lockInGroup = lockable && !locked;
+  const remove = !locked;
+  const hasGroup = rename || lockInGroup || remove;
+  // A locked row shows rename directly, no dots.
+  const directRename = locked && lockable && rename;
+
+  // Direct rename follows the row's hover and focus, not the dots'.
+  useEffect(() => {
+    const row = host.current?.parentElement;
+    if (!directRename || !row) return;
+    setRowHover(row.matches(':hover') || row.contains(document.activeElement));
+    const show = () => setRowHover(true);
+    const hide = () => setRowHover(false);
+    const focusOut = (e: FocusEvent) => { if (!row.contains(e.relatedTarget as Node | null)) hide(); };
+    row.addEventListener('pointerenter', show);
+    row.addEventListener('pointerleave', hide);
+    row.addEventListener('focusin', show);
+    row.addEventListener('focusout', focusOut);
+    return () => {
+      row.removeEventListener('pointerenter', show);
+      row.removeEventListener('pointerleave', hide);
+      row.removeEventListener('focusin', show);
+      row.removeEventListener('focusout', focusOut);
+    };
+  }, [directRename]);
+
+  if (!hasGroup && !(locked && lockable)) return null;
+
+  // The lock and rename keep one identity across the group and the locked
+  // layout, so they slide instead of jumping.
+  const lockId = `dialkit-preset-lock-${id}`;
+  const renameId = `dialkit-preset-rename-${id}`;
+  const slide = { layout: GROUP_SPRING };
+
+  const lockedLock = locked && lockable && (
+    <motion.button
+      type="button"
+      layoutId={lockId}
+              layoutCrossfade={false}
+      transition={slide}
+      className="dialkit-preset-lock"
+      data-locked="true"
+      aria-label="Unlock preset"
+      onClick={onToggleLock}
+      {...keepPress}
+    >
+      <Icon paths={ICON_LOCK} />
+    </motion.button>
+  );
+  const dots = hasGroup && !directRename && (
+    <button
+      type="button"
+      className="dialkit-preset-more"
+      aria-label="More actions"
+      aria-expanded={open}
+      {...dotsHintRow}
+      onPointerEnter={(e) => {
+        dotsHintRow.onPointerEnter?.(e);
+        if (e.pointerType === 'mouse') setOpen(true);
+      }}
+      onFocus={() => setOpen(true)}
+      onClick={() => setOpen(true)}
+      {...keepPress}
+    >
+      <Icon paths={ICON_MORE} />
+    </button>
+  );
+
+  return (
+    <div
+      ref={host}
+      className="dialkit-preset-actions"
+      data-open={open || (directRename && rowHover) || undefined}
+      // A touch ends with a pointer leave: only a mouse closes the group by
+      // leaving it. A touch closes it by focusing elsewhere.
+      onPointerLeave={(e) => { if (e.pointerType === 'mouse') setOpen(false); }}
+      onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOpen(false); }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {/* DOM order is right to left (the row is reversed). */}
+      {lockedLock}
+      {dots}
+      {directRename && (
+        // The same group as the dots open, so rename widens and fades in and
+        // out like the other icons. Mounted already shown when the row locks
+        // under the pointer (initial={false}): rename then only slides.
+        <AnimatePresence initial={false}>
+          {rowHover && (
+            <motion.div
+              className="dialkit-preset-actions-group"
+              variants={GROUP_MOTION}
+              initial="hidden"
+              animate="shown"
+              exit="hidden"
+            >
+              <motion.button
+                type="button"
+                layoutId={renameId}
+                layoutCrossfade={false}
+                variants={ICON_MOTION}
+                transition={slide}
+                className="dialkit-preset-rename dialkit-preset-direct"
+                aria-label="Rename preset"
+                onClick={onRename}
+                {...keepPress}
+              >
+                <Icon paths={ICON_PENCIL} />
+              </motion.button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      )}
+      <AnimatePresence initial={false}>
+        {open && hasGroup && !directRename && (
+          <motion.div
+            className="dialkit-preset-actions-group"
+            variants={GROUP_MOTION}
+            initial="hidden"
+            animate="shown"
+            exit="hidden"
+          >
+            {rename && (
+              <motion.button type="button" layoutId={renameId}
+              layoutCrossfade={false} transition={slide} variants={ICON_MOTION} className="dialkit-preset-rename" aria-label="Rename preset" onClick={onRename} {...keepPress}>
+                <Icon paths={ICON_PENCIL} />
+              </motion.button>
+            )}
+            {lockInGroup && (
+              <motion.button type="button" layoutId={lockId}
+              layoutCrossfade={false} transition={slide} variants={ICON_MOTION} className="dialkit-preset-lock" data-locked="false" aria-label="Lock preset" onClick={onToggleLock} {...keepPress}>
+                <Icon paths={ICON_LOCK_OPEN} />
+              </motion.button>
+            )}
+            {remove && (
+              <motion.button type="button" variants={ICON_MOTION} className="dialkit-preset-delete" aria-label="Delete preset" onClick={onDelete} {...keepPress}>
+                <Icon paths={ICON_TRASH} />
+              </motion.button>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+

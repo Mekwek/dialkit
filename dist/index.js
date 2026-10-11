@@ -4871,7 +4871,7 @@ function observeDropdownKeyboard(trigger, getPopup, close2, kind = "select") {
     popup.setAttribute("aria-label", trigger.getAttribute("aria-label") || trigger.querySelector(".dialkit-select-label")?.textContent?.trim() || trigger.getAttribute("title") || trigger.textContent?.trim() || "Options");
     popup.tabIndex = -1;
     trigger.setAttribute("aria-controls", popup.id);
-    const selector = kind === "select" ? ".dialkit-select-option" : ".dialkit-preset-name, .dialkit-preset-delete, .dialkit-preset-create";
+    const selector = kind === "select" ? ".dialkit-select-option" : ".dialkit-preset-name, .dialkit-preset-more, .dialkit-preset-actions > .dialkit-preset-lock, .dialkit-preset-actions-group > button, .dialkit-preset-direct, .dialkit-preset-create";
     let active;
     let activeIndex = 0;
     let query = "";
@@ -6755,7 +6755,7 @@ function ControlRenderer({
 import { useState as useState12, useRef as useRef19, useEffect as useEffect15, useCallback as useCallback10 } from "react";
 import { createPortal as createPortal3 } from "react-dom";
 import { motion as motion7, AnimatePresence as AnimatePresence5 } from "motion/react";
-import { Fragment as Fragment7, jsx as jsx22, jsxs as jsxs15 } from "react/jsx-runtime";
+import { jsx as jsx22, jsxs as jsxs15 } from "react/jsx-runtime";
 function pickerHint(noun, editable, lockable) {
   const actions = lockable ? "Rename, lock or delete" : editable ? "Rename or delete" : "Delete";
   return `Switches to another ${noun}. ${actions} a ${noun} from the list.`;
@@ -7013,48 +7013,19 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassN
                         onPointerDown: (e) => e.stopPropagation()
                       }
                     ) : /* @__PURE__ */ jsx22("button", { type: "button", className: "dialkit-preset-name", children: preset.name }),
-                    !isEditing && /* @__PURE__ */ jsxs15(Fragment7, { children: [
-                      editable && /* @__PURE__ */ jsx22(
-                        "button",
-                        {
-                          className: "dialkit-preset-rename",
-                          "aria-label": "Rename preset",
-                          onClick: (e) => {
-                            e.stopPropagation();
-                            startEdit(preset);
-                          },
-                          onMouseDown: (e) => e.stopPropagation(),
-                          onPointerDown: (e) => e.stopPropagation(),
-                          children: /* @__PURE__ */ jsx22("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", children: ICON_PENCIL.map((d, i) => /* @__PURE__ */ jsx22("path", { d }, i)) })
-                        }
-                      ),
-                      lockable && /* @__PURE__ */ jsx22(
-                        "button",
-                        {
-                          className: "dialkit-preset-lock",
-                          "data-locked": String(!!preset.locked),
-                          "aria-label": preset.locked ? "Unlock preset" : "Lock preset",
-                          onClick: (e) => {
-                            e.stopPropagation();
-                            DialStore.setPresetLocked(panelId, preset.id, !preset.locked);
-                          },
-                          onMouseDown: (e) => e.stopPropagation(),
-                          onPointerDown: (e) => e.stopPropagation(),
-                          children: /* @__PURE__ */ jsx22("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", children: (preset.locked ? ICON_LOCK : ICON_LOCK_OPEN).map((d, i) => /* @__PURE__ */ jsx22("path", { d }, i)) })
-                        }
-                      ),
-                      !preset.locked && /* @__PURE__ */ jsx22(
-                        "button",
-                        {
-                          className: "dialkit-preset-delete",
-                          onClick: (e) => handleDelete(e, preset.id),
-                          onMouseDown: (e) => e.stopPropagation(),
-                          onPointerDown: (e) => e.stopPropagation(),
-                          "aria-label": "Delete preset",
-                          children: /* @__PURE__ */ jsx22("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", children: ICON_TRASH.map((d, i) => /* @__PURE__ */ jsx22("path", { d }, i)) })
-                        }
-                      )
-                    ] })
+                    !isEditing && /* @__PURE__ */ jsx22(
+                      PresetActions,
+                      {
+                        id: preset.id,
+                        noun,
+                        locked: !!preset.locked,
+                        editable,
+                        lockable,
+                        onRename: () => startEdit(preset),
+                        onToggleLock: () => DialStore.setPresetLocked(panelId, preset.id, !preset.locked),
+                        onDelete: (e) => handleDelete(e, preset.id)
+                      }
+                    )
                   ]
                 },
                 preset.id
@@ -7086,9 +7057,189 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassN
     )
   ] });
 }
+var GROUP_SPRING = { type: "spring", visualDuration: 0.15, bounce: 0 };
+var GROUP_MOTION = {
+  hidden: { width: 0, opacity: 0, transition: { ...GROUP_SPRING, staggerChildren: 0.045, staggerDirection: 1 } },
+  shown: { width: "auto", opacity: 1, transition: { ...GROUP_SPRING, staggerChildren: 0.045, staggerDirection: -1 } }
+};
+var ICON_SPRING = { type: "spring", visualDuration: 0.2, bounce: 0.35 };
+var ICON_MOTION = {
+  hidden: { scale: 0.6, x: 2, transition: ICON_SPRING },
+  shown: { scale: 1, x: 0, transition: ICON_SPRING }
+};
+var keepPress = {
+  onMouseDown: (e) => e.stopPropagation(),
+  onPointerDown: (e) => e.stopPropagation()
+};
+function Icon({ paths }) {
+  return /* @__PURE__ */ jsx22("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", children: paths.map((d, i) => /* @__PURE__ */ jsx22("path", { d }, i)) });
+}
+function dotsHint(noun, editable, lockable) {
+  const actions = lockable ? "rename, lock and delete" : editable ? "rename and delete" : "delete";
+  return `Shows ${actions} for this ${noun}.`;
+}
+function PresetActions({ id, noun, locked, editable, lockable, onRename, onToggleLock, onDelete }) {
+  const [open, setOpen] = useState12(false);
+  const [rowHover, setRowHover] = useState12(false);
+  const { hintRow: dotsHintRow } = useHint(dotsHint(noun, editable, lockable));
+  const host = useRef19(null);
+  const rename = editable;
+  const lockInGroup = lockable && !locked;
+  const remove = !locked;
+  const hasGroup = rename || lockInGroup || remove;
+  const directRename = locked && lockable && rename;
+  useEffect15(() => {
+    const row = host.current?.parentElement;
+    if (!directRename || !row) return;
+    setRowHover(row.matches(":hover") || row.contains(document.activeElement));
+    const show = () => setRowHover(true);
+    const hide = () => setRowHover(false);
+    const focusOut = (e) => {
+      if (!row.contains(e.relatedTarget)) hide();
+    };
+    row.addEventListener("pointerenter", show);
+    row.addEventListener("pointerleave", hide);
+    row.addEventListener("focusin", show);
+    row.addEventListener("focusout", focusOut);
+    return () => {
+      row.removeEventListener("pointerenter", show);
+      row.removeEventListener("pointerleave", hide);
+      row.removeEventListener("focusin", show);
+      row.removeEventListener("focusout", focusOut);
+    };
+  }, [directRename]);
+  if (!hasGroup && !(locked && lockable)) return null;
+  const lockId = `dialkit-preset-lock-${id}`;
+  const renameId = `dialkit-preset-rename-${id}`;
+  const slide = { layout: GROUP_SPRING };
+  const lockedLock = locked && lockable && /* @__PURE__ */ jsx22(
+    motion7.button,
+    {
+      type: "button",
+      layoutId: lockId,
+      layoutCrossfade: false,
+      transition: slide,
+      className: "dialkit-preset-lock",
+      "data-locked": "true",
+      "aria-label": "Unlock preset",
+      onClick: onToggleLock,
+      ...keepPress,
+      children: /* @__PURE__ */ jsx22(Icon, { paths: ICON_LOCK })
+    }
+  );
+  const dots = hasGroup && !directRename && /* @__PURE__ */ jsx22(
+    "button",
+    {
+      type: "button",
+      className: "dialkit-preset-more",
+      "aria-label": "More actions",
+      "aria-expanded": open,
+      ...dotsHintRow,
+      onPointerEnter: (e) => {
+        dotsHintRow.onPointerEnter?.(e);
+        if (e.pointerType === "mouse") setOpen(true);
+      },
+      onFocus: () => setOpen(true),
+      onClick: () => setOpen(true),
+      ...keepPress,
+      children: /* @__PURE__ */ jsx22(Icon, { paths: ICON_MORE })
+    }
+  );
+  return /* @__PURE__ */ jsxs15(
+    "div",
+    {
+      ref: host,
+      className: "dialkit-preset-actions",
+      "data-open": open || directRename && rowHover || void 0,
+      onPointerLeave: (e) => {
+        if (e.pointerType === "mouse") setOpen(false);
+      },
+      onBlur: (e) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false);
+      },
+      onClick: (e) => e.stopPropagation(),
+      children: [
+        lockedLock,
+        dots,
+        directRename && // The same group as the dots open, so rename widens and fades in and
+        // out like the other icons. Mounted already shown when the row locks
+        // under the pointer (initial={false}): rename then only slides.
+        /* @__PURE__ */ jsx22(AnimatePresence5, { initial: false, children: rowHover && /* @__PURE__ */ jsx22(
+          motion7.div,
+          {
+            className: "dialkit-preset-actions-group",
+            variants: GROUP_MOTION,
+            initial: "hidden",
+            animate: "shown",
+            exit: "hidden",
+            children: /* @__PURE__ */ jsx22(
+              motion7.button,
+              {
+                type: "button",
+                layoutId: renameId,
+                layoutCrossfade: false,
+                variants: ICON_MOTION,
+                transition: slide,
+                className: "dialkit-preset-rename dialkit-preset-direct",
+                "aria-label": "Rename preset",
+                onClick: onRename,
+                ...keepPress,
+                children: /* @__PURE__ */ jsx22(Icon, { paths: ICON_PENCIL })
+              }
+            )
+          }
+        ) }),
+        /* @__PURE__ */ jsx22(AnimatePresence5, { initial: false, children: open && hasGroup && !directRename && /* @__PURE__ */ jsxs15(
+          motion7.div,
+          {
+            className: "dialkit-preset-actions-group",
+            variants: GROUP_MOTION,
+            initial: "hidden",
+            animate: "shown",
+            exit: "hidden",
+            children: [
+              rename && /* @__PURE__ */ jsx22(
+                motion7.button,
+                {
+                  type: "button",
+                  layoutId: renameId,
+                  layoutCrossfade: false,
+                  transition: slide,
+                  variants: ICON_MOTION,
+                  className: "dialkit-preset-rename",
+                  "aria-label": "Rename preset",
+                  onClick: onRename,
+                  ...keepPress,
+                  children: /* @__PURE__ */ jsx22(Icon, { paths: ICON_PENCIL })
+                }
+              ),
+              lockInGroup && /* @__PURE__ */ jsx22(
+                motion7.button,
+                {
+                  type: "button",
+                  layoutId: lockId,
+                  layoutCrossfade: false,
+                  transition: slide,
+                  variants: ICON_MOTION,
+                  className: "dialkit-preset-lock",
+                  "data-locked": "false",
+                  "aria-label": "Lock preset",
+                  onClick: onToggleLock,
+                  ...keepPress,
+                  children: /* @__PURE__ */ jsx22(Icon, { paths: ICON_LOCK_OPEN })
+                }
+              ),
+              remove && /* @__PURE__ */ jsx22(motion7.button, { type: "button", variants: ICON_MOTION, className: "dialkit-preset-delete", "aria-label": "Delete preset", onClick: onDelete, ...keepPress, children: /* @__PURE__ */ jsx22(Icon, { paths: ICON_TRASH }) })
+            ]
+          }
+        ) })
+      ]
+    }
+  );
+}
 
 // src/components/Panel.tsx
-import { Fragment as Fragment8, jsx as jsx23, jsxs as jsxs16 } from "react/jsx-runtime";
+import { Fragment as Fragment7, jsx as jsx23, jsxs as jsxs16 } from "react/jsx-runtime";
 var ADD_VERSION_HINT = "Saves the current settings as a new version.";
 var COPY_HINT = "Copies the panel's values as text, ready to paste into code.";
 function Panel({ panel, defaultOpen = true, inline = false, folderMode = "independent", onOpenChange, variant = "root", toolbarExtra }) {
@@ -7159,7 +7310,7 @@ function Panel({ panel, defaultOpen = true, inline = false, folderMode = "indepe
     }
   );
   const iconTransition = { type: "spring", visualDuration: 0.4, bounce: 0.1 };
-  const toolbar = /* @__PURE__ */ jsxs16(Fragment8, { children: [
+  const toolbar = /* @__PURE__ */ jsxs16(Fragment7, { children: [
     /* @__PURE__ */ jsx23(
       motion8.button,
       {
@@ -8705,7 +8856,7 @@ function useDialTimeline(name, config, options) {
 import { memo, useCallback as useCallback15, useEffect as useEffect19, useLayoutEffect as useLayoutEffect8, useRef as useRef23, useState as useState15, useSyncExternalStore as useSyncExternalStore10 } from "react";
 import { createPortal as createPortal5 } from "react-dom";
 import { AnimatePresence as AnimatePresence7, motion as motion10 } from "motion/react";
-import { Fragment as Fragment9, jsx as jsx26, jsxs as jsxs18 } from "react/jsx-runtime";
+import { Fragment as Fragment8, jsx as jsx26, jsxs as jsxs18 } from "react/jsx-runtime";
 var BAR_HINTS = {
   play: "Plays or pauses the sequence.",
   replay: "Plays the sequence again from the start.",
@@ -10480,7 +10631,7 @@ function TimelineClip({
     }
   }
   const segmentParts = single && clip.segments ? segmentWidths(duration, clip.segments) : null;
-  return /* @__PURE__ */ jsxs18(Fragment9, { children: [
+  return /* @__PURE__ */ jsxs18(Fragment8, { children: [
     ghostCycles.map((cycle) => {
       const ghostWidth = Math.max(1, cycle.duration * pxPerSecond - 2);
       return /* @__PURE__ */ jsx26(
@@ -10548,9 +10699,9 @@ function TimelineClip({
           if (single) setHovered(false);
           clipHintRow.onPointerLeave?.();
         },
-        children: single ? /* @__PURE__ */ jsxs18(Fragment9, { children: [
+        children: single ? /* @__PURE__ */ jsxs18(Fragment8, { children: [
           /* @__PURE__ */ jsx26(ClipFill, { id: timelineId, at, duration }),
-          segmentParts && /* @__PURE__ */ jsxs18(Fragment9, { children: [
+          segmentParts && /* @__PURE__ */ jsxs18(Fragment8, { children: [
             /* @__PURE__ */ jsx26(
               "span",
               {
@@ -10575,7 +10726,7 @@ function TimelineClip({
           width > 56 && /* @__PURE__ */ jsx26("span", { className: "dialkit-timeline-clip-duration", children: durationText }),
           resizable && /* @__PURE__ */ jsx26("div", { className: "dialkit-timeline-clip-handle", "data-edge": "end" }),
           highlighted && /* @__PURE__ */ jsx26("svg", { className: "dialkit-timeline-clip-ants", "aria-hidden": "true", children: /* @__PURE__ */ jsx26("rect", { rx: "4.5", ry: "4.5" }) })
-        ] }) : composite ? /* @__PURE__ */ jsx26(Fragment9, { children: width > 56 && /* @__PURE__ */ jsx26("span", { className: "dialkit-timeline-clip-duration", children: durationText }) }) : isSteps ? /* @__PURE__ */ jsxs18(Fragment9, { children: [
+        ] }) : composite ? /* @__PURE__ */ jsx26(Fragment8, { children: width > 56 && /* @__PURE__ */ jsx26("span", { className: "dialkit-timeline-clip-duration", children: durationText }) }) : isSteps ? /* @__PURE__ */ jsxs18(Fragment8, { children: [
           steps.map((step) => {
             const segmentWidth = step.duration * pxPerSecond;
             return /* @__PURE__ */ jsx26(
@@ -10602,7 +10753,7 @@ function TimelineClip({
             )
           ),
           !steps[0].isPhysics && /* @__PURE__ */ jsx26("div", { className: "dialkit-timeline-clip-handle", "data-edge": "start" })
-        ] }) : /* @__PURE__ */ jsxs18(Fragment9, { children: [
+        ] }) : /* @__PURE__ */ jsxs18(Fragment8, { children: [
           resizable && /* @__PURE__ */ jsx26("div", { className: "dialkit-timeline-clip-handle", "data-edge": "start" }),
           width > 56 && /* @__PURE__ */ jsx26("span", { className: "dialkit-timeline-clip-duration", children: durationText }),
           resizable && /* @__PURE__ */ jsx26("div", { className: "dialkit-timeline-clip-handle", "data-edge": "end" })
@@ -10631,7 +10782,7 @@ function ButtonGroup({ buttons }) {
 import { useState as useState16, useRef as useRef24, useEffect as useEffect20, useCallback as useCallback16 } from "react";
 import { createPortal as createPortal6 } from "react-dom";
 import { motion as motion11, AnimatePresence as AnimatePresence8 } from "motion/react";
-import { Fragment as Fragment10, jsx as jsx28, jsxs as jsxs19 } from "react/jsx-runtime";
+import { Fragment as Fragment9, jsx as jsx28, jsxs as jsxs19 } from "react/jsx-runtime";
 function formatShortcutKey(sc) {
   if (!sc.key) return "\u2014";
   const mod = sc.modifier === "alt" ? "\u2325" : sc.modifier === "shift" ? "\u21E7" : sc.modifier === "meta" ? "\u2318" : "";
@@ -10708,7 +10859,7 @@ function ShortcutsMenu({ panelId }) {
       label: findLabel(panel.controls)
     };
   });
-  return /* @__PURE__ */ jsxs19(Fragment10, { children: [
+  return /* @__PURE__ */ jsxs19(Fragment9, { children: [
     /* @__PURE__ */ jsx28(
       motion11.button,
       {

@@ -4929,7 +4929,7 @@ function observeDropdownKeyboard(trigger, getPopup, close2, kind = "select") {
     popup.setAttribute("aria-label", trigger.getAttribute("aria-label") || trigger.querySelector(".dialkit-select-label")?.textContent?.trim() || trigger.getAttribute("title") || trigger.textContent?.trim() || "Options");
     popup.tabIndex = -1;
     trigger.setAttribute("aria-controls", popup.id);
-    const selector = kind === "select" ? ".dialkit-select-option" : ".dialkit-preset-name, .dialkit-preset-delete, .dialkit-preset-create";
+    const selector = kind === "select" ? ".dialkit-select-option" : ".dialkit-preset-name, .dialkit-preset-more, .dialkit-preset-actions > .dialkit-preset-lock, .dialkit-preset-actions-group > button, .dialkit-preset-direct, .dialkit-preset-create";
     let active;
     let activeIndex = 0;
     let query = "";
@@ -7071,48 +7071,19 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassN
                         onPointerDown: (e) => e.stopPropagation()
                       }
                     ) : /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("button", { type: "button", className: "dialkit-preset-name", children: preset.name }),
-                    !isEditing && /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(import_jsx_runtime22.Fragment, { children: [
-                      editable && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
-                        "button",
-                        {
-                          className: "dialkit-preset-rename",
-                          "aria-label": "Rename preset",
-                          onClick: (e) => {
-                            e.stopPropagation();
-                            startEdit(preset);
-                          },
-                          onMouseDown: (e) => e.stopPropagation(),
-                          onPointerDown: (e) => e.stopPropagation(),
-                          children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", children: ICON_PENCIL.map((d, i) => /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("path", { d }, i)) })
-                        }
-                      ),
-                      lockable && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
-                        "button",
-                        {
-                          className: "dialkit-preset-lock",
-                          "data-locked": String(!!preset.locked),
-                          "aria-label": preset.locked ? "Unlock preset" : "Lock preset",
-                          onClick: (e) => {
-                            e.stopPropagation();
-                            DialStore.setPresetLocked(panelId, preset.id, !preset.locked);
-                          },
-                          onMouseDown: (e) => e.stopPropagation(),
-                          onPointerDown: (e) => e.stopPropagation(),
-                          children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", children: (preset.locked ? ICON_LOCK : ICON_LOCK_OPEN).map((d, i) => /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("path", { d }, i)) })
-                        }
-                      ),
-                      !preset.locked && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
-                        "button",
-                        {
-                          className: "dialkit-preset-delete",
-                          onClick: (e) => handleDelete(e, preset.id),
-                          onMouseDown: (e) => e.stopPropagation(),
-                          onPointerDown: (e) => e.stopPropagation(),
-                          "aria-label": "Delete preset",
-                          children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", children: ICON_TRASH.map((d, i) => /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("path", { d }, i)) })
-                        }
-                      )
-                    ] })
+                    !isEditing && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+                      PresetActions,
+                      {
+                        id: preset.id,
+                        noun,
+                        locked: !!preset.locked,
+                        editable,
+                        lockable,
+                        onRename: () => startEdit(preset),
+                        onToggleLock: () => DialStore.setPresetLocked(panelId, preset.id, !preset.locked),
+                        onDelete: (e) => handleDelete(e, preset.id)
+                      }
+                    )
                   ]
                 },
                 preset.id
@@ -7143,6 +7114,186 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassN
       document.body
     )
   ] });
+}
+var GROUP_SPRING = { type: "spring", visualDuration: 0.15, bounce: 0 };
+var GROUP_MOTION = {
+  hidden: { width: 0, opacity: 0, transition: { ...GROUP_SPRING, staggerChildren: 0.045, staggerDirection: 1 } },
+  shown: { width: "auto", opacity: 1, transition: { ...GROUP_SPRING, staggerChildren: 0.045, staggerDirection: -1 } }
+};
+var ICON_SPRING = { type: "spring", visualDuration: 0.2, bounce: 0.35 };
+var ICON_MOTION = {
+  hidden: { scale: 0.6, x: 2, transition: ICON_SPRING },
+  shown: { scale: 1, x: 0, transition: ICON_SPRING }
+};
+var keepPress = {
+  onMouseDown: (e) => e.stopPropagation(),
+  onPointerDown: (e) => e.stopPropagation()
+};
+function Icon({ paths }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", children: paths.map((d, i) => /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("path", { d }, i)) });
+}
+function dotsHint(noun, editable, lockable) {
+  const actions = lockable ? "rename, lock and delete" : editable ? "rename and delete" : "delete";
+  return `Shows ${actions} for this ${noun}.`;
+}
+function PresetActions({ id, noun, locked, editable, lockable, onRename, onToggleLock, onDelete }) {
+  const [open, setOpen] = (0, import_react27.useState)(false);
+  const [rowHover, setRowHover] = (0, import_react27.useState)(false);
+  const { hintRow: dotsHintRow } = useHint(dotsHint(noun, editable, lockable));
+  const host = (0, import_react27.useRef)(null);
+  const rename = editable;
+  const lockInGroup = lockable && !locked;
+  const remove = !locked;
+  const hasGroup = rename || lockInGroup || remove;
+  const directRename = locked && lockable && rename;
+  (0, import_react27.useEffect)(() => {
+    const row = host.current?.parentElement;
+    if (!directRename || !row) return;
+    setRowHover(row.matches(":hover") || row.contains(document.activeElement));
+    const show = () => setRowHover(true);
+    const hide = () => setRowHover(false);
+    const focusOut = (e) => {
+      if (!row.contains(e.relatedTarget)) hide();
+    };
+    row.addEventListener("pointerenter", show);
+    row.addEventListener("pointerleave", hide);
+    row.addEventListener("focusin", show);
+    row.addEventListener("focusout", focusOut);
+    return () => {
+      row.removeEventListener("pointerenter", show);
+      row.removeEventListener("pointerleave", hide);
+      row.removeEventListener("focusin", show);
+      row.removeEventListener("focusout", focusOut);
+    };
+  }, [directRename]);
+  if (!hasGroup && !(locked && lockable)) return null;
+  const lockId = `dialkit-preset-lock-${id}`;
+  const renameId = `dialkit-preset-rename-${id}`;
+  const slide = { layout: GROUP_SPRING };
+  const lockedLock = locked && lockable && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+    import_react28.motion.button,
+    {
+      type: "button",
+      layoutId: lockId,
+      layoutCrossfade: false,
+      transition: slide,
+      className: "dialkit-preset-lock",
+      "data-locked": "true",
+      "aria-label": "Unlock preset",
+      onClick: onToggleLock,
+      ...keepPress,
+      children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(Icon, { paths: ICON_LOCK })
+    }
+  );
+  const dots = hasGroup && !directRename && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+    "button",
+    {
+      type: "button",
+      className: "dialkit-preset-more",
+      "aria-label": "More actions",
+      "aria-expanded": open,
+      ...dotsHintRow,
+      onPointerEnter: (e) => {
+        dotsHintRow.onPointerEnter?.(e);
+        if (e.pointerType === "mouse") setOpen(true);
+      },
+      onFocus: () => setOpen(true),
+      onClick: () => setOpen(true),
+      ...keepPress,
+      children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(Icon, { paths: ICON_MORE })
+    }
+  );
+  return /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(
+    "div",
+    {
+      ref: host,
+      className: "dialkit-preset-actions",
+      "data-open": open || directRename && rowHover || void 0,
+      onPointerLeave: (e) => {
+        if (e.pointerType === "mouse") setOpen(false);
+      },
+      onBlur: (e) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false);
+      },
+      onClick: (e) => e.stopPropagation(),
+      children: [
+        lockedLock,
+        dots,
+        directRename && // The same group as the dots open, so rename widens and fades in and
+        // out like the other icons. Mounted already shown when the row locks
+        // under the pointer (initial={false}): rename then only slides.
+        /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(import_react28.AnimatePresence, { initial: false, children: rowHover && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+          import_react28.motion.div,
+          {
+            className: "dialkit-preset-actions-group",
+            variants: GROUP_MOTION,
+            initial: "hidden",
+            animate: "shown",
+            exit: "hidden",
+            children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+              import_react28.motion.button,
+              {
+                type: "button",
+                layoutId: renameId,
+                layoutCrossfade: false,
+                variants: ICON_MOTION,
+                transition: slide,
+                className: "dialkit-preset-rename dialkit-preset-direct",
+                "aria-label": "Rename preset",
+                onClick: onRename,
+                ...keepPress,
+                children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(Icon, { paths: ICON_PENCIL })
+              }
+            )
+          }
+        ) }),
+        /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(import_react28.AnimatePresence, { initial: false, children: open && hasGroup && !directRename && /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(
+          import_react28.motion.div,
+          {
+            className: "dialkit-preset-actions-group",
+            variants: GROUP_MOTION,
+            initial: "hidden",
+            animate: "shown",
+            exit: "hidden",
+            children: [
+              rename && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+                import_react28.motion.button,
+                {
+                  type: "button",
+                  layoutId: renameId,
+                  layoutCrossfade: false,
+                  transition: slide,
+                  variants: ICON_MOTION,
+                  className: "dialkit-preset-rename",
+                  "aria-label": "Rename preset",
+                  onClick: onRename,
+                  ...keepPress,
+                  children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(Icon, { paths: ICON_PENCIL })
+                }
+              ),
+              lockInGroup && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+                import_react28.motion.button,
+                {
+                  type: "button",
+                  layoutId: lockId,
+                  layoutCrossfade: false,
+                  transition: slide,
+                  variants: ICON_MOTION,
+                  className: "dialkit-preset-lock",
+                  "data-locked": "false",
+                  "aria-label": "Lock preset",
+                  onClick: onToggleLock,
+                  ...keepPress,
+                  children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(Icon, { paths: ICON_LOCK_OPEN })
+                }
+              ),
+              remove && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(import_react28.motion.button, { type: "button", variants: ICON_MOTION, className: "dialkit-preset-delete", "aria-label": "Delete preset", onClick: onDelete, ...keepPress, children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(Icon, { paths: ICON_TRASH }) })
+            ]
+          }
+        ) })
+      ]
+    }
+  );
 }
 
 // src/components/Panel.tsx

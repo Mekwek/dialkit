@@ -1914,6 +1914,10 @@
 }
 
 .dialkit-preset-item {
+  /* The row's own fill, over the menu: the actions group repeats it so it
+     covers the name exactly like the row does. */
+  --dial-preset-row-bg: transparent;
+  position: relative;
   box-sizing: border-box;
   height: 32px;
   display: flex;
@@ -1931,11 +1935,13 @@
 }
 
 .dialkit-preset-item:hover {
-  background: var(--dial-surface-hover);
+  --dial-preset-row-bg: var(--dial-surface-hover);
+  background: var(--dial-preset-row-bg);
 }
 
 .dialkit-preset-item[data-active="true"] {
-  background: var(--dial-surface-active);
+  --dial-preset-row-bg: var(--dial-surface-active);
+  background: var(--dial-preset-row-bg);
 }
 
 .dialkit-preset-name {
@@ -1986,7 +1992,113 @@
 .dialkit-preset-item:focus-within .dialkit-preset-rename,
 .dialkit-preset-item:focus-within .dialkit-preset-lock,
 .dialkit-preset-item:focus-within .dialkit-preset-delete { opacity: 0.6; }
-.dialkit-preset-item:focus-within { background: var(--dial-surface-hover); }
+.dialkit-preset-item:focus-within { --dial-preset-row-bg: var(--dial-surface-hover); background: var(--dial-preset-row-bg); }
+
+/* Fork: a row's actions sit over the end of its name, so the name keeps the
+   whole row (PresetActions). Right to left: the dots, or a locked row's
+   lock, then the group the dots open (or a locked row's rename). */
+.dialkit-preset-actions {
+  position: absolute;
+  /* 2px in from the row's edges: the row's focus ring sits there. */
+  top: 2px;
+  right: 6px;
+  bottom: 2px;
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: center;
+}
+
+/* The row's fill behind the actions, fading out over the name on the left.
+   Two layers: the menu, then the row's own fill on top of it. */
+.dialkit-preset-actions::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 0 calc(var(--dial-preset-fade, 20px) * -1);
+  background: linear-gradient(var(--dial-preset-row-bg), var(--dial-preset-row-bg)), var(--dial-dropdown-bg);
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--dial-preset-fade, 20px));
+  mask-image: linear-gradient(to right, transparent, #000 var(--dial-preset-fade, 20px));
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+
+.dialkit-preset-item:hover .dialkit-preset-actions::before,
+.dialkit-preset-item:focus-within .dialkit-preset-actions::before {
+  opacity: 1;
+}
+
+.dialkit-preset-actions > *,
+.dialkit-preset-actions-group > * {
+  position: relative;
+}
+
+.dialkit-preset-actions-group {
+  display: flex;
+  /* The icons sit at the right, by the dots: the group widening reveals
+     them in place instead of carrying them left with its edge. */
+  justify-content: flex-end;
+  overflow: hidden;
+}
+
+/* Open, the group shows its buttons whether or not the row is hovered: a
+   tap or a keyboard opens it too. */
+.dialkit-preset-actions-group > button,
+.dialkit-preset-actions > .dialkit-preset-direct {
+  /* !important: a sliding icon (layoutId) gets an inline opacity from the
+     animation library while it moves; the icon keeps its own level. */
+  opacity: 0.6 !important;
+}
+
+.dialkit-preset-actions-group > button:hover,
+.dialkit-preset-actions-group > button:focus-visible,
+.dialkit-preset-actions > .dialkit-preset-direct:hover,
+.dialkit-preset-actions > .dialkit-preset-direct:focus-visible {
+  opacity: 1 !important;
+}
+
+/* The focus ring goes round the whole row, not the name: the name runs
+   under the actions, which would hide the ring's right end. */
+.dialkit-preset-item > .dialkit-preset-name:focus-visible {
+  outline: none;
+}
+
+.dialkit-preset-item:has(> .dialkit-preset-name:focus-visible) {
+  outline: 2px solid var(--dial-focus-ring);
+  outline-offset: -2px;
+}
+
+.dialkit-preset-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.dialkit-preset-more svg {
+  width: 14px;
+  height: 14px;
+  color: var(--dial-text-focus);
+  pointer-events: none;
+}
+
+/* Every row with actions has an icon at its right end at rest (the dots,
+   or a locked row's lock): the name stops before it. */
+.dialkit-preset-item:has(> .dialkit-preset-actions) .dialkit-preset-name {
+  padding-right: 24px;
+}
+
+.dialkit-preset-more:hover,
+.dialkit-preset-actions[data-open] .dialkit-preset-more {
+  opacity: 1 !important;
+}
 
 .dialkit-preset-rename:hover,
 .dialkit-preset-lock:hover,

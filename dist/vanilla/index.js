@@ -4040,7 +4040,7 @@ function observeDropdownKeyboard(trigger, getPopup, close, kind = "select") {
     popup.setAttribute("aria-label", trigger.getAttribute("aria-label") || trigger.querySelector(".dialkit-select-label")?.textContent?.trim() || trigger.getAttribute("title") || trigger.textContent?.trim() || "Options");
     popup.tabIndex = -1;
     trigger.setAttribute("aria-controls", popup.id);
-    const selector = kind === "select" ? ".dialkit-select-option" : ".dialkit-preset-name, .dialkit-preset-delete, .dialkit-preset-create";
+    const selector = kind === "select" ? ".dialkit-select-option" : ".dialkit-preset-name, .dialkit-preset-more, .dialkit-preset-actions > .dialkit-preset-lock, .dialkit-preset-actions-group > button, .dialkit-preset-direct, .dialkit-preset-create";
     let active2;
     let activeIndex = 0;
     let query = "";

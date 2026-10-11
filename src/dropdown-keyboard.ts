@@ -27,7 +27,10 @@ export function observeDropdownKeyboard(trigger: HTMLElement, getPopup: () => HT
     popup.tabIndex = -1;
     trigger.setAttribute('aria-controls', popup.id);
 
-    const selector = kind === 'select' ? '.dialkit-select-option' : '.dialkit-preset-name, .dialkit-preset-delete, .dialkit-preset-create';
+    // Fork: a row's actions sit at its right end. The arrows stop on the dots,
+    // which opens the group, then on each button in it, or on a locked row's
+    // lock and rename.
+    const selector = kind === 'select' ? '.dialkit-select-option' : '.dialkit-preset-name, .dialkit-preset-more, .dialkit-preset-actions > .dialkit-preset-lock, .dialkit-preset-actions-group > button, .dialkit-preset-direct, .dialkit-preset-create';
     let active: HTMLElement | undefined;
     let activeIndex = 0;
     let query = '';
