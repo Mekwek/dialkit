@@ -3853,6 +3853,13 @@
   display: none;
 }
 
+/* That divider is the title's bottom border, which paints under the fade:
+   the title's fade starts just below it, so it never dims the line. The
+   title's background reaches under its border, so no content shows there. */
+.dialkit-panel .dialkit-panel-header > .dialkit-folder-header-top::after {
+  top: calc(100% + 1px);
+}
+
 /* The shown rules repeat the hidden rule's selector: a container query adds
    no weight, so a shorter selector would lose to it. */
 @container scroll-state(stuck: top) {
