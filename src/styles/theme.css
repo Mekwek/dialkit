@@ -26,6 +26,11 @@
   --dial-unit-gap: 2px; /* Space before a unit that is a word (s), not a sign (°) */
   --dial-field-gap: 4px; /* Space between the fields of an X / Y / Z row */
   --dial-section-reset-size: 20px; /* The reset button in a section header */
+  /* The spring of the version menu's icons (action-motion.ts ICON_SPRING:
+     visualDuration 0.2, bounce 0.35) as a CSS curve, for icons that move
+     with CSS. */
+  --dial-icon-spring: linear(0.0000, 0.0473, 0.1532, 0.2693, 0.4153, 0.5580, 0.6874, 0.7979, 0.8756, 0.9467, 0.9980, 1.0323, 1.0526, 1.0612, 1.0635, 1.0601, 1.0531, 1.0443, 1.0363, 1.0273, 1.0192, 1.0123, 1.0067, 1.0031, 0.9999, 0.9978, 0.9966, 0.9960, 0.9960, 0.9962, 0.9967, 0.9972, 0.9978, 0.9983, 0.9988, 0.9993, 0.9996, 0.9999, 1.0000, 1.0001, 1.0000);
+  --dial-icon-spring-duration: 453ms;
   --dial-preset-thumb-width: 24px; /* The curve picture in a preset row */
   --dial-preset-list-height: 156px; /* Four rows of presets (four 36px rows, three 4px gaps); a longer list scrolls */
   --dial-field-padding: 8px; /* Space inside each field, left and right */
@@ -893,9 +898,6 @@
 .dialkit-section-reset svg { width: 100%; height: 100%; }
 .dialkit-section-reset:hover, .dialkit-section-reset:focus-visible { color: var(--dial-text-focus); background: var(--dial-surface-hover); }
 
-/* A reset next to a title shows only when its values changed. */
-.dialkit-section-reset:not([data-changed]),
-.dialkit-fields-reset:not([data-changed]) { visibility: hidden; }
 
 /* An icon next to a title centers on the lowercase letters, where a word
    looks centered, not on the capitals: it moves down by half a cap height
@@ -909,6 +911,37 @@
 .dialkit-fields-button svg { width: 100%; height: 100%; }
 .dialkit-fields-button:hover, .dialkit-fields-button:focus-visible { color: var(--dial-text-focus); background: var(--dial-surface-hover); }
 .dialkit-fields-lock[aria-pressed="true"] { color: var(--dial-text-focus); }
+
+/* A reset next to a title shows only when its values changed. It comes in
+   turning the way its arrow points (counter-clockwise, an undo), and
+   leaves on the same turn once a reset puts the values back, on the
+   version menu icons' spring. Hidden, it cannot take the focus either. */
+.dialkit-section-reset,
+.dialkit-fields-reset {
+  transition: color 0.15s, background 0.15s, opacity 140ms ease-out, scale var(--dial-icon-spring-duration) var(--dial-icon-spring), rotate var(--dial-icon-spring-duration) var(--dial-icon-spring), visibility 0s;
+}
+.dialkit-section-reset:not([data-changed]),
+.dialkit-fields-reset:not([data-changed]) {
+  visibility: hidden;
+  opacity: 0;
+  scale: 0.6;
+  rotate: -180deg;
+  pointer-events: none;
+  transition: color 0.15s, background 0.15s, opacity 180ms ease-in, scale var(--dial-icon-spring-duration) var(--dial-icon-spring), rotate var(--dial-icon-spring-duration) var(--dial-icon-spring), visibility 0s linear 180ms;
+}
+.dialkit-section-reset[data-changed],
+.dialkit-fields-reset[data-changed] {
+  animation: dialkit-reset-in var(--dial-icon-spring-duration) var(--dial-icon-spring);
+}
+/* The fade is quick and plain; only the turn and the scale spring. */
+@keyframes dialkit-reset-in {
+  from { opacity: 0; scale: 0.6; rotate: 180deg; }
+  30% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dialkit-section-reset,
+  .dialkit-fields-reset { rotate: none !important; animation: none; }
+}
 .dialkit-fields { display: flex; gap: var(--dial-field-gap); min-width: 0; }
 .dialkit-field { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 4px; height: var(--dial-row-height); padding: 0 var(--dial-field-padding); border-radius: var(--dial-radius); background: var(--dial-surface); transition: background 0.15s; }
 .dialkit-field:hover, .dialkit-field:focus-within, .dialkit-field[data-editing] { background: var(--dial-surface-hover); }
