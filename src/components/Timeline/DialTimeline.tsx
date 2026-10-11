@@ -37,7 +37,7 @@ import type { SingleTrackClipSpan, TimelineClipLoop, TimelineStepStatic } from '
 import { clamp, round2 } from '../../transition-math';
 import { buildCopyInstruction } from '../../copy-instruction';
 import { isDevDefault } from '../../env';
-import { ICON_PLUS, ICON_CHEVRON, ICON_CHECK, ICON_CLIPBOARD, ICON_LOOP, ICON_PAUSE, ICON_PLAY, ICON_REPLAY } from '../../icons';
+import { ICON_CHEVRON, ICON_CHECK, ICON_CLIPBOARD, ICON_LOOP, ICON_PAUSE, ICON_PLAY, ICON_REPLAY } from '../../icons';
 import { useHint } from '../Hint';
 
 /** The hints of the timeline bar's buttons, shown while the hint key is held. */
@@ -45,7 +45,6 @@ const BAR_HINTS = {
   play: 'Plays or pauses the sequence.',
   replay: 'Plays the sequence again from the start.',
   loop: 'Loops the sequence endlessly.',
-  add: 'Adds a new sequence.',
   export: 'Exports the sequence as a video.',
   toggle: "Opens or closes the timeline's tracks.",
   ruler: 'Drag to move the playhead. Option-drag or Option-scroll to zoom. Shift-click resets the zoom.',
@@ -1003,7 +1002,6 @@ const TimelineSection = memo(function TimelineSection({
     DialStore.saveNewPreset(meta.id, 'Sequence');
   }, [meta.id]);
 
-  const { hintRow: addHintRow } = useHint(BAR_HINTS.add);
   const { hintRow: exportHintRow } = useHint(BAR_HINTS.export);
   const { hintRow: toggleHintRow } = useHint(BAR_HINTS.toggle);
   const { hintRow: rulerHintRow } = useHint(BAR_HINTS.ruler);
@@ -1471,18 +1469,6 @@ const TimelineSection = memo(function TimelineSection({
           />
         )}
         <div className="dialkit-timeline-actions">
-          <motion.button
-            className="dialkit-toolbar-add"
-            onClick={handleAddPreset}
-            {...addHintRow}
-            aria-label="Add timeline version"
-            whileTap={{ scale: 0.9 }}
-            transition={{ type: 'spring', visualDuration: 0.15, bounce: 0.3 }}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              {ICON_PLUS.map((d, i) => <path key={i} d={d} />)}
-            </svg>
-          </motion.button>
           <PresetManager
             panelId={meta.id}
             presets={presets}
