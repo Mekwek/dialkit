@@ -1471,7 +1471,7 @@ function useDialKitController(name, config, options) {
 }
 
 // src/components/DialRoot.tsx
-import { useEffect as useEffect17, useState as useState14, useRef as useRef21, useCallback as useCallback13, useMemo as useMemo2 } from "react";
+import { useEffect as useEffect18, useState as useState14, useRef as useRef21, useCallback as useCallback13, useMemo as useMemo2 } from "react";
 import { createPortal as createPortal4 } from "react-dom";
 
 // src/store/TimelineStore.ts
@@ -2623,7 +2623,7 @@ function Folder({ title, children, open, defaultOpen = true, isRoot = false, inl
 }
 
 // src/components/Panel.tsx
-import { useCallback as useCallback11, useEffect as useEffect16, useRef as useRef20, useState as useState13, useSyncExternalStore as useSyncExternalStore7 } from "react";
+import { useCallback as useCallback11, useEffect as useEffect17, useRef as useRef20, useState as useState13, useSyncExternalStore as useSyncExternalStore7 } from "react";
 import { motion as motion8, AnimatePresence as AnimatePresence6 } from "motion/react";
 
 // src/copy-instruction.ts
@@ -4409,10 +4409,10 @@ function EasingVisualization(props) {
 }
 
 // src/components/TransitionControl.tsx
-import { useCallback as useCallback8, useEffect as useEffect10, useRef as useRef13, useState as useState9, useSyncExternalStore as useSyncExternalStore6 } from "react";
+import { useCallback as useCallback8, useEffect as useEffect11, useRef as useRef13, useState as useState9, useSyncExternalStore as useSyncExternalStore6 } from "react";
 
 // src/components/TransitionPresets.tsx
-import { useRef as useRef12, useState as useState8, useSyncExternalStore as useSyncExternalStore5 } from "react";
+import { useEffect as useEffect10, useRef as useRef12, useState as useState8, useSyncExternalStore as useSyncExternalStore5 } from "react";
 import { Fragment as Fragment4, jsx as jsx12, jsxs as jsxs10 } from "react/jsx-runtime";
 var getCurves = () => TransitionLibrary.getCustomCurves();
 var getSprings = () => TransitionLibrary.getCustomSprings();
@@ -4532,8 +4532,35 @@ function SpringThumb({ spring }) {
   const points = samples.map((y, i) => `${pad + i / 24 * (THUMB_W - pad * 2)} ${THUMB_H - pad - y / high * (THUMB_H - pad * 2)}`);
   return /* @__PURE__ */ jsx12("svg", { className: "dialkit-preset-thumb", viewBox: `0 0 ${THUMB_W} ${THUMB_H}`, "aria-hidden": "true", children: /* @__PURE__ */ jsx12("path", { d: `M ${points.join(" L ")}` }) });
 }
+function useScrollEdges() {
+  const ref = useRef12(null);
+  useEffect10(() => {
+    const list = ref.current;
+    if (!list) return;
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      list.toggleAttribute("data-above", list.scrollTop > 0.5);
+      list.toggleAttribute("data-below", list.scrollTop + list.clientHeight < list.scrollHeight - 0.5);
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(update);
+    };
+    const resize = new ResizeObserver(schedule);
+    resize.observe(list);
+    list.addEventListener("scroll", schedule, { passive: true });
+    update();
+    return () => {
+      resize.disconnect();
+      list.removeEventListener("scroll", schedule);
+      cancelAnimationFrame(frame);
+    };
+  }, []);
+  return ref;
+}
 function PresetList({ items, active, label, noun }) {
-  return /* @__PURE__ */ jsx12("div", { className: "dialkit-presets", role: "listbox", "aria-label": label, children: items.map((item) => /* @__PURE__ */ jsxs10("div", { className: "dialkit-preset", "data-active": item.name === active || void 0, children: [
+  const listRef = useScrollEdges();
+  return /* @__PURE__ */ jsx12("div", { ref: listRef, className: "dialkit-presets", role: "listbox", "aria-label": label, children: items.map((item) => /* @__PURE__ */ jsxs10("div", { className: "dialkit-preset", "data-active": item.name === active || void 0, children: [
     /* @__PURE__ */ jsx12(PresetPick, { item, active: item.name === active, noun }),
     item.remove && /* @__PURE__ */ jsx12(PresetRemove, { name: item.name, remove: item.remove, noun })
   ] }, item.name)) });
@@ -4710,7 +4737,7 @@ function TransitionControl({
     }
     setShownEase(null);
   };
-  useEffect10(() => () => stopMorph(), []);
+  useEffect11(() => () => stopMorph(), []);
   const [intensity, setIntensity] = useState9(50);
   const intensityBase = useRef13(easing.ease);
   if (!sameEase(intensityEase(intensityBase.current, intensity), easing.ease)) {
@@ -4752,7 +4779,7 @@ function TransitionControl({
     morphEase(structuredClone(copied.value));
     return true;
   };
-  useEffect10(
+  useEffect11(
     () => TransitionLibrary.onPaste((pastePanel, pastePath, copied) => pastePanel === panelId && pastePath === path && takePaste.current(copied)),
     [panelId, path]
   );
@@ -5112,7 +5139,7 @@ function observeDropdownKeyboard(trigger, getPopup, close2, kind = "select") {
 }
 
 // src/components/SelectControl.tsx
-import { useState as useState10, useRef as useRef15, useEffect as useEffect11, useCallback as useCallback9 } from "react";
+import { useState as useState10, useRef as useRef15, useEffect as useEffect12, useCallback as useCallback9 } from "react";
 import { createPortal as createPortal2 } from "react-dom";
 import { motion as motion4, AnimatePresence as AnimatePresence3 } from "motion/react";
 import { jsx as jsx15, jsxs as jsxs13 } from "react/jsx-runtime";
@@ -5149,10 +5176,10 @@ function SelectControl({ label, value, options, onChange, hint }) {
     const dropdownHeight = dropdownRef.current ? dropdownRef.current.scrollHeight + 2 : 10 + normalized.length * 36;
     setPos(getDropdownPosition(el, portalTarget, { dropdownHeight, fixed: true }));
   }, [normalized.length, portalTarget]);
-  useEffect11(() => {
+  useEffect12(() => {
     setPortalTarget(getDialKitPortalRoot(triggerRef.current) ?? document.body);
   }, []);
-  useEffect11(() => {
+  useEffect12(() => {
     if (!isOpen) return;
     if (!triggerRef.current) return;
     const stopPosition = observeDropdownPosition(triggerRef.current, updatePos, () => dropdownRef.current);
@@ -5162,7 +5189,7 @@ function SelectControl({ label, value, options, onChange, hint }) {
       stopPosition();
     };
   }, [isOpen, updatePos]);
-  useEffect11(() => {
+  useEffect12(() => {
     if (!isOpen) return;
     const handleClick = (e) => {
       const target = e.target;
@@ -5248,7 +5275,7 @@ function SelectControl({ label, value, options, onChange, hint }) {
 }
 
 // src/components/ColorControl.tsx
-import { useEffect as useEffect12, useLayoutEffect as useLayoutEffect5, useRef as useRef16 } from "react";
+import { useEffect as useEffect13, useLayoutEffect as useLayoutEffect5, useRef as useRef16 } from "react";
 
 // src/color-control.ts
 var FORMATS = ["hex", "rgb", "hsl", "oklch"];
@@ -5858,14 +5885,14 @@ function ColorControl({ hint, ...props }) {
     control.current = mountColorControl(host.current, latest.current);
     return () => control.current?.destroy();
   }, []);
-  useEffect12(() => {
+  useEffect13(() => {
     control.current?.update(props);
   });
   return /* @__PURE__ */ jsx16("div", { ref: host, className: "dialkit-color-host", ...hintRow });
 }
 
 // src/components/ImageControl.tsx
-import { useEffect as useEffect13, useLayoutEffect as useLayoutEffect6, useRef as useRef17 } from "react";
+import { useEffect as useEffect14, useLayoutEffect as useLayoutEffect6, useRef as useRef17 } from "react";
 
 // src/image-control.ts
 var imageControlId = 0;
@@ -6271,14 +6298,14 @@ function ImageControl({ hint, ...props }) {
     control.current = mountImageControl(host.current, latest.current);
     return () => control.current?.destroy();
   }, []);
-  useEffect13(() => {
+  useEffect14(() => {
     control.current?.update(props);
   });
   return /* @__PURE__ */ jsx17("div", { ref: host, className: "dialkit-image-host", ...hintRow });
 }
 
 // src/components/DialPad.tsx
-import { useEffect as useEffect14, useLayoutEffect as useLayoutEffect7, useRef as useRef18 } from "react";
+import { useEffect as useEffect15, useLayoutEffect as useLayoutEffect7, useRef as useRef18 } from "react";
 
 // src/dial-pad-control.ts
 var nextId2 = 0;
@@ -6524,7 +6551,7 @@ function DialPad({ hint, ...props }) {
     control.current = mountDialPad(host.current, latest.current);
     return () => control.current?.destroy();
   }, []);
-  useEffect14(() => {
+  useEffect15(() => {
     control.current?.update(props);
   });
   return /* @__PURE__ */ jsx18("div", { ref: host, className: "dialkit-pad-host", ...hintRow });
@@ -6884,7 +6911,7 @@ function ControlRenderer({
 }
 
 // src/components/PresetManager.tsx
-import { useState as useState12, useRef as useRef19, useEffect as useEffect15, useCallback as useCallback10 } from "react";
+import { useState as useState12, useRef as useRef19, useEffect as useEffect16, useCallback as useCallback10 } from "react";
 import { createPortal as createPortal3 } from "react-dom";
 import { motion as motion7, AnimatePresence as AnimatePresence5 } from "motion/react";
 import { jsx as jsx22, jsxs as jsxs15 } from "react/jsx-runtime";
@@ -6930,7 +6957,7 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, dropdownClassN
     if (isOpen) close2();
     else open();
   }, [isOpen, open, close2]);
-  useEffect15(() => {
+  useEffect16(() => {
     if (!isOpen) return;
     const handler = (e) => {
       const target = e.target;
@@ -7226,23 +7253,26 @@ function PresetActions({ id, noun, locked, editable, lockable, onRename, onToggl
   const remove = !locked;
   const hasGroup = rename || lockInGroup || remove;
   const directRename = locked && lockable && rename;
-  useEffect15(() => {
+  useEffect16(() => {
     const row = host.current?.parentElement;
     if (!directRename || !row) return;
-    setRowHover(row.matches(":hover") || row.contains(document.activeElement));
+    setRowHover(row.matches(":hover") || !!row.querySelector(":focus-visible"));
     const show = () => setRowHover(true);
+    const focusIn = (e) => {
+      if (e.target.matches(":focus-visible")) show();
+    };
     const hide = () => setRowHover(false);
     const focusOut = (e) => {
       if (!row.contains(e.relatedTarget)) hide();
     };
     row.addEventListener("pointerenter", show);
     row.addEventListener("pointerleave", hide);
-    row.addEventListener("focusin", show);
+    row.addEventListener("focusin", focusIn);
     row.addEventListener("focusout", focusOut);
     return () => {
       row.removeEventListener("pointerenter", show);
       row.removeEventListener("pointerleave", hide);
-      row.removeEventListener("focusin", show);
+      row.removeEventListener("focusin", focusIn);
       row.removeEventListener("focusout", focusOut);
     };
   }, [directRename]);
@@ -7385,7 +7415,7 @@ function Panel({ panel, defaultOpen = true, inline = false, folderMode = "indepe
   const { hintRow: addHintRow } = useHint(ADD_VERSION_HINT);
   const { hintRow: copyHintRow } = useHint(COPY_HINT2);
   const copyTimeout = useRef20();
-  useEffect16(() => () => clearTimeout(copyTimeout.current), []);
+  useEffect17(() => () => clearTimeout(copyTimeout.current), []);
   const subscribe = useCallback11(
     (callback) => DialStore.subscribe(panel.id, callback),
     [panel.id]
@@ -7411,7 +7441,7 @@ function Panel({ panel, defaultOpen = true, inline = false, folderMode = "indepe
   const values = useSyncExternalStore7(subscribe, getSnapshot, getSnapshot);
   const storeOpen = useSyncExternalStore7(subscribe, getOpenSnapshot, getOpenSnapshot);
   const isOpen = storeOpen ?? defaultOpen;
-  useEffect16(() => {
+  useEffect17(() => {
     DialStore.initPanelOpen(panel.id, defaultOpen);
   }, [panel.id, defaultOpen]);
   const presets = DialStore.getPresets(panel.id);
@@ -7725,7 +7755,7 @@ function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover"
   const rootOpenRef = useRef21(null);
   const rootEntries = useMemo2(() => partitionPanels(panels), [panels]);
   const rootKeys = useMemo2(() => rootEntries.map((entry) => entry.key), [rootEntries]);
-  useEffect17(() => {
+  useEffect18(() => {
     setMounted(true);
     setPanels(DialStore.getPanels("panel"));
     setTimelineCount(TimelineStore.getTimelines().length);
@@ -7740,7 +7770,7 @@ function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover"
       unsubscribeTimelines();
     };
   }, []);
-  useEffect17(() => {
+  useEffect18(() => {
     const fallbackOpen = inline || defaultOpen;
     const nextStates = /* @__PURE__ */ new Map();
     for (const key of rootKeys) {
@@ -7749,7 +7779,7 @@ function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover"
     panelOpenStatesRef.current = nextStates;
     rootOpenRef.current = Array.from(nextStates.values()).some(Boolean);
   }, [defaultOpen, inline, rootKeys]);
-  useEffect17(() => {
+  useEffect18(() => {
     if (!panelRef.current || inline) return;
     const observer = new MutationObserver(() => {
       const inners = panelRef.current?.querySelectorAll(".dialkit-panel-inner");
@@ -7825,7 +7855,7 @@ function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover"
     setGroupOpen((prev) => prev[group] === open ? prev : { ...prev, [group]: open });
     handlePanelOpenChange(groupRootKey(group), open);
   }, [handlePanelOpenChange]);
-  useEffect17(() => DialStore.subscribePanelOpen((id, open) => {
+  useEffect18(() => DialStore.subscribePanelOpen((id, open) => {
     const panel = panels.find((p) => p.id === id);
     if (!panel) return;
     if (panel.group) {
@@ -7929,7 +7959,7 @@ function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover"
 }
 
 // src/hooks/useDialTimeline.ts
-import { useCallback as useCallback14, useEffect as useEffect18, useMemo as useMemo3, useRef as useRef22, useSyncExternalStore as useSyncExternalStore9 } from "react";
+import { useCallback as useCallback14, useEffect as useEffect19, useMemo as useMemo3, useRef as useRef22, useSyncExternalStore as useSyncExternalStore9 } from "react";
 
 // src/timeline-core.ts
 var CLIP_VALUE_STEP = 0.01;
@@ -8957,12 +8987,12 @@ function useDialTimeline(name, config, options) {
   );
   const buildMetaRef = useRef22(buildMeta);
   buildMetaRef.current = buildMeta;
-  useEffect18(() => {
+  useEffect19(() => {
     TimelineStore.register(buildMetaRef.current(), { autoplay: optionsRef.current?.autoplay ?? true });
     return () => TimelineStore.unregister(panelId);
   }, [panelId, name]);
   const mountedRef = useRef22(false);
-  useEffect18(() => {
+  useEffect19(() => {
     if (!mountedRef.current) {
       mountedRef.current = true;
       return;
@@ -8991,7 +9021,7 @@ function useDialTimeline(name, config, options) {
 }
 
 // src/components/Timeline/DialTimeline.tsx
-import { memo, useCallback as useCallback15, useEffect as useEffect19, useLayoutEffect as useLayoutEffect8, useRef as useRef23, useState as useState15, useSyncExternalStore as useSyncExternalStore10 } from "react";
+import { memo, useCallback as useCallback15, useEffect as useEffect20, useLayoutEffect as useLayoutEffect8, useRef as useRef23, useState as useState15, useSyncExternalStore as useSyncExternalStore10 } from "react";
 import { createPortal as createPortal5 } from "react-dom";
 import { AnimatePresence as AnimatePresence7, motion as motion10 } from "motion/react";
 import { Fragment as Fragment8, jsx as jsx26, jsxs as jsxs18 } from "react/jsx-runtime";
@@ -9082,22 +9112,22 @@ function DialTimelineDock({
   const visibilityControllerId = useRef23(/* @__PURE__ */ Symbol("dialkit-timeline-visibility"));
   const dockRef = useRef23(null);
   const resizeCleanupRef = useRef23(null);
-  useEffect19(() => TimelineUiStore.registerController(visibilityControllerId.current, {
+  useEffect20(() => TimelineUiStore.registerController(visibilityControllerId.current, {
     visible,
     defaultVisible,
     onVisibilityChange
   }), []);
-  useEffect19(() => {
+  useEffect20(() => {
     TimelineUiStore.updateController(visibilityControllerId.current, {
       visible,
       defaultVisible,
       onVisibilityChange
     });
   }, [defaultVisible, onVisibilityChange, visible]);
-  useEffect19(() => {
+  useEffect20(() => {
     setMounted(true);
   }, []);
-  useEffect19(() => () => resizeCleanupRef.current?.(), []);
+  useEffect20(() => () => resizeCleanupRef.current?.(), []);
   const handleResizePointerDown = useCallback15((e) => {
     const dock = dockRef.current;
     if (!dock) return;
@@ -9128,7 +9158,7 @@ function DialTimelineDock({
     getTimelineVisibility,
     getTimelineVisibility
   );
-  useEffect19(() => {
+  useEffect20(() => {
     const dock = dockRef.current;
     if (!dock) return;
     const root = document.documentElement;
@@ -9326,7 +9356,7 @@ function TimelinePlayheadFlag({
     window.addEventListener("pointercancel", finishWindowScrub);
     cleanupScrubRef.current = finishWindowScrub;
   }, [duration, id, onResetView, rulerRef, seekFromClientX, viewEnd, viewStart]);
-  useEffect19(() => () => cleanupScrubRef.current?.(), []);
+  useEffect20(() => () => cleanupScrubRef.current?.(), []);
   if (time < viewStart || time > viewEnd || laneWidth <= 0) return null;
   const x = clamp2(
     (time - viewStart) * pxPerSecond,
@@ -9508,11 +9538,11 @@ var TimelineSection = memo(function TimelineSection2({
     if (!open) return;
     const ruler = laneAreaRef.current;
     if (!ruler) return;
-    const measure = () => {
-      setLaneWidth(ruler.getBoundingClientRect().width);
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
+    setLaneWidth(ruler.getBoundingClientRect().width);
+    const observer = new ResizeObserver((entries) => {
+      const box = entries[0]?.borderBoxSize?.[0];
+      setLaneWidth(box ? box.inlineSize : ruler.offsetWidth);
+    });
     observer.observe(ruler);
     return () => observer.disconnect();
   }, [open]);
@@ -9522,10 +9552,10 @@ var TimelineSection = memo(function TimelineSection2({
   const pxPerSecond = visibleDuration > 0 && laneWidth > 0 ? laneWidth / visibleDuration : 0;
   const millisecondReadableZoom = laneWidth > 0 && meta.duration > 0 ? MAJOR_TICK_TARGET_PX * meta.duration / (MILLISECOND_STEP * 10 * laneWidth) : MIN_TIMELINE_MAX_ZOOM;
   const maxZoom = Math.max(MIN_TIMELINE_MAX_ZOOM, millisecondReadableZoom);
-  useEffect19(() => {
+  useEffect20(() => {
     setZoom((current) => clamp2(current, 1, maxZoom));
   }, [maxZoom]);
-  useEffect19(() => {
+  useEffect20(() => {
     setViewStart((current) => clampViewStart(current, meta.duration, meta.duration / zoom));
   }, [meta.duration, zoom]);
   useLayoutEffect8(() => {
@@ -9536,10 +9566,10 @@ var TimelineSection = memo(function TimelineSection2({
       scroller.scrollLeft = nextScrollLeft;
     }
   }, [open, pxPerSecond, safeViewStart]);
-  useEffect19(() => {
+  useEffect20(() => {
     if (!dockVisible) setPopover(null);
   }, [dockVisible]);
-  useEffect19(() => {
+  useEffect20(() => {
     if (!singleTrack) return;
     const onPointerDown = (e) => {
       const target = e.target;
@@ -9611,7 +9641,7 @@ var TimelineSection = memo(function TimelineSection2({
     e.preventDefault();
     scroller.scrollLeft += horizontalDelta;
   };
-  useEffect19(() => {
+  useEffect20(() => {
     const body = bodyRef.current;
     if (!open || !body) return;
     const onWheel = (e) => wheelHandlerRef.current(e);
@@ -10373,7 +10403,7 @@ function ClipPopover({
     observer.observe(body ?? element4);
     return () => observer.disconnect();
   }, [popover.clip.key, popover.stepKey]);
-  useEffect19(() => {
+  useEffect20(() => {
     const updateViewport = () => setViewport({
       width: window.visualViewport?.width ?? window.innerWidth,
       height: window.visualViewport?.height ?? window.innerHeight,
@@ -10389,7 +10419,7 @@ function ClipPopover({
       window.visualViewport?.removeEventListener("scroll", updateViewport);
     };
   }, []);
-  useEffect19(() => {
+  useEffect20(() => {
     const handlePointerDown = (e) => {
       const target = e.target;
       if (ref.current?.contains(target)) return;
@@ -10903,7 +10933,7 @@ function ButtonGroup({ buttons }) {
 }
 
 // src/components/ShortcutsMenu.tsx
-import { useState as useState16, useRef as useRef24, useEffect as useEffect20, useCallback as useCallback16 } from "react";
+import { useState as useState16, useRef as useRef24, useEffect as useEffect21, useCallback as useCallback16 } from "react";
 import { createPortal as createPortal6 } from "react-dom";
 import { motion as motion11, AnimatePresence as AnimatePresence8 } from "motion/react";
 import { Fragment as Fragment9, jsx as jsx28, jsxs as jsxs19 } from "react/jsx-runtime";
@@ -10928,7 +10958,7 @@ function formatInteraction(sc) {
 function ShortcutsMenu({ panelId }) {
   const [isOpen, setIsOpen] = useState16(false);
   const [panel, setPanel] = useState16(() => DialStore.getPanel(panelId));
-  useEffect20(() => {
+  useEffect21(() => {
     const update = () => setPanel(DialStore.getPanel(panelId));
     const stop = DialStore.subscribeGlobal(update);
     update();
@@ -10949,7 +10979,7 @@ function ShortcutsMenu({ panelId }) {
     if (isOpen) close2();
     else open();
   }, [isOpen, open, close2]);
-  useEffect20(() => {
+  useEffect21(() => {
     if (!isOpen) return;
     const handler = (e) => {
       const target = e.target;

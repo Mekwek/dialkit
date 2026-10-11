@@ -4590,8 +4590,35 @@ function SpringThumb({ spring }) {
   const points = samples.map((y, i) => `${pad + i / 24 * (THUMB_W - pad * 2)} ${THUMB_H - pad - y / high * (THUMB_H - pad * 2)}`);
   return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("svg", { className: "dialkit-preset-thumb", viewBox: `0 0 ${THUMB_W} ${THUMB_H}`, "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("path", { d: `M ${points.join(" L ")}` }) });
 }
+function useScrollEdges() {
+  const ref = (0, import_react15.useRef)(null);
+  (0, import_react15.useEffect)(() => {
+    const list = ref.current;
+    if (!list) return;
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      list.toggleAttribute("data-above", list.scrollTop > 0.5);
+      list.toggleAttribute("data-below", list.scrollTop + list.clientHeight < list.scrollHeight - 0.5);
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(update);
+    };
+    const resize = new ResizeObserver(schedule);
+    resize.observe(list);
+    list.addEventListener("scroll", schedule, { passive: true });
+    update();
+    return () => {
+      resize.disconnect();
+      list.removeEventListener("scroll", schedule);
+      cancelAnimationFrame(frame);
+    };
+  }, []);
+  return ref;
+}
 function PresetList({ items, active, label, noun }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "dialkit-presets", role: "listbox", "aria-label": label, children: items.map((item) => /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dialkit-preset", "data-active": item.name === active || void 0, children: [
+  const listRef = useScrollEdges();
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { ref: listRef, className: "dialkit-presets", role: "listbox", "aria-label": label, children: items.map((item) => /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "dialkit-preset", "data-active": item.name === active || void 0, children: [
     /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(PresetPick, { item, active: item.name === active, noun }),
     item.remove && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(PresetRemove, { name: item.name, remove: item.remove, noun })
   ] }, item.name)) });
@@ -7287,20 +7314,23 @@ function PresetActions({ id, noun, locked, editable, lockable, onRename, onToggl
   (0, import_react27.useEffect)(() => {
     const row = host.current?.parentElement;
     if (!directRename || !row) return;
-    setRowHover(row.matches(":hover") || row.contains(document.activeElement));
+    setRowHover(row.matches(":hover") || !!row.querySelector(":focus-visible"));
     const show = () => setRowHover(true);
+    const focusIn = (e) => {
+      if (e.target.matches(":focus-visible")) show();
+    };
     const hide = () => setRowHover(false);
     const focusOut = (e) => {
       if (!row.contains(e.relatedTarget)) hide();
     };
     row.addEventListener("pointerenter", show);
     row.addEventListener("pointerleave", hide);
-    row.addEventListener("focusin", show);
+    row.addEventListener("focusin", focusIn);
     row.addEventListener("focusout", focusOut);
     return () => {
       row.removeEventListener("pointerenter", show);
       row.removeEventListener("pointerleave", hide);
-      row.removeEventListener("focusin", show);
+      row.removeEventListener("focusin", focusIn);
       row.removeEventListener("focusout", focusOut);
     };
   }, [directRename]);
@@ -9566,11 +9596,11 @@ var TimelineSection = (0, import_react35.memo)(function TimelineSection2({
     if (!open) return;
     const ruler = laneAreaRef.current;
     if (!ruler) return;
-    const measure = () => {
-      setLaneWidth(ruler.getBoundingClientRect().width);
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
+    setLaneWidth(ruler.getBoundingClientRect().width);
+    const observer = new ResizeObserver((entries) => {
+      const box = entries[0]?.borderBoxSize?.[0];
+      setLaneWidth(box ? box.inlineSize : ruler.offsetWidth);
+    });
     observer.observe(ruler);
     return () => observer.disconnect();
   }, [open]);
