@@ -2126,8 +2126,36 @@
   opacity: 0.6;
 }
 
+/* Reorder: the dragged row lifts and follows the pointer; the rows it
+   passes slide one row aside; on release it glides into its new place,
+   and the store takes the new order when the glide ends. */
+.dialkit-preset-dropdown[data-dragging="true"] .dialkit-preset-item[data-preset-id] {
+  transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.dialkit-preset-dropdown[data-dragging="true"]:not([data-settling]) .dialkit-preset-item[data-dragging="true"] {
+  transition: none;
+}
+
 .dialkit-preset-item[data-dragging="true"] {
-  opacity: 0.5;
+  --dial-preset-row-bg: var(--dial-surface-hover);
+  z-index: 2;
+  /* Solid, so the rows it passes never show through: the hover fill over
+     the menu's own colour, as the actions group's fade draws it. The two
+     layers are inner shadows over the row's usual hover fill, so on the
+     drop they go in one frame and the colour seen does not change (a
+     layered background would fade back through a darker fill). */
+  background: var(--dial-preset-row-bg);
+  box-shadow:
+    inset 0 0 0 100vmax var(--dial-preset-row-bg),
+    inset 0 0 0 100vmax var(--dial-dropdown-bg),
+    0 6px 16px rgba(0, 0, 0, 0.28);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialkit-preset-dropdown[data-dragging="true"] .dialkit-preset-item[data-preset-id] {
+    transition: none;
+  }
 }
 
 .dialkit-preset-dropdown[data-dragging="true"] {

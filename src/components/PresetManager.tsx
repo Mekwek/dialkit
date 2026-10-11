@@ -37,7 +37,15 @@ function PresetCheck({ active }: { active: boolean }) {
   );
 }
 
-type RowDrag = { id: string; startY: number; lifted: boolean; slot: number | null };
+type RowDrag = { id: string; startY: number; lifted: boolean };
+
+/**
+ * A row being dragged to a new place, as drawn: it follows the pointer by
+ * `offset` px, and the rows between its old index `from` and its new index
+ * `to` slide one row (`step` px) aside. `settling` is the glide into its
+ * new place after the release, before the store takes the new order.
+ */
+type RowDragView = { id: string; from: number; to: number; offset: number; step: number; settling: boolean };
 
 // Minimum pointer travel (px) before a press on a row turns into a reorder
 // drag rather than a click-to-select.
@@ -57,8 +65,8 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdow
   const cancelledRef = useRef(false);
 
   // Drag-anywhere-on-row reorder
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [cueTop, setCueTop] = useState<number | null>(null);
+  const [rowDrag, setRowDrag] = useState<RowDragView | null>(null);
+  const draggingId = rowDrag?.id ?? null;
   const dragRef = useRef<RowDrag | null>(null);
   const suppressClickRef = useRef(false);
 
@@ -146,54 +154,63 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdow
     if (!editable) return;
     if (editingId === preset.id) return;
     if (e.button !== 0) return;
-    dragRef.current = { id: preset.id, startY: e.clientY, lifted: false, slot: null };
+    // A row still gliding into its new place takes no new drag.
+    if (rowDrag) return;
+    dragRef.current = { id: preset.id, startY: e.clientY, lifted: false };
     e.currentTarget.setPointerCapture(e.pointerId);
   };
 
   const handleRowPointerMove = (e: React.PointerEvent<HTMLDivElement>, preset: Preset) => {
     const drag = dragRef.current;
     if (!drag || drag.id !== preset.id) return;
+    const dy = e.clientY - drag.startY;
 
     if (!drag.lifted) {
-      if (Math.abs(e.clientY - drag.startY) <= DRAG_LIFT_PX) return;
+      if (Math.abs(dy) <= DRAG_LIFT_PX) return;
       drag.lifted = true;
-      setDraggingId(drag.id);
     }
 
-    const dropdownEl = dropdownRef.current;
-    if (!dropdownEl) return;
-    const rows = Array.from(dropdownEl.querySelectorAll<HTMLElement>('.dialkit-preset-item[data-preset-id]'));
-    if (rows.length === 0) return;
-
-    const dropdownRect = dropdownEl.getBoundingClientRect();
-    let slot = rows.length;
-    for (let i = 0; i < rows.length; i++) {
-      const r = rows[i].getBoundingClientRect();
-      if (e.clientY < r.top + r.height / 2) {
-        slot = i;
-        break;
-      }
+    const from = presets.findIndex((p) => p.id === drag.id);
+    if (from < 0) return;
+    // One row's travel: its height plus the gap, measured from the rows as
+    // they sit before the drag moves any of them.
+    let step = rowDrag?.step ?? 0;
+    if (!step) {
+      const rows = dropdownRef.current?.querySelectorAll<HTMLElement>('.dialkit-preset-item[data-preset-id]');
+      const first = rows?.[0]?.getBoundingClientRect();
+      const second = rows?.[1]?.getBoundingClientRect();
+      step = first && second ? second.top - first.top : (first?.height ?? 32);
     }
-    drag.slot = slot;
-
-    const top = slot < rows.length
-      ? rows[slot].getBoundingClientRect().top - dropdownRect.top
-      : rows[rows.length - 1].getBoundingClientRect().bottom - dropdownRect.top;
-    setCueTop(top);
+    // The row stays inside the list, and its new place is the slot its
+    // centre is over.
+    const offset = Math.min(Math.max(dy, -from * step), (presets.length - 1 - from) * step);
+    const to = Math.min(Math.max(Math.round(from + offset / step), 0), presets.length - 1);
+    setRowDrag({ id: drag.id, from, to, offset, step, settling: false });
   };
 
-  const handleRowPointerEnd = (e: React.PointerEvent<HTMLDivElement>, preset: Preset) => {
+  /** Puts the dragged row at its new place in the store's order. */
+  const commitReorder = (view: RowDragView) => {
+    const ids = presets.map((p) => p.id).filter((id) => id !== view.id);
+    ids.splice(view.to, 0, view.id);
+    DialStore.reorderPresets(panelId, ids);
+    setRowDrag(null);
+  };
+
+  const handleRowPointerEnd = (_e: React.PointerEvent<HTMLDivElement>, preset: Preset) => {
     const drag = dragRef.current;
     dragRef.current = null;
     if (!drag || drag.id !== preset.id) return;
 
-    if (drag.lifted && drag.slot !== null) {
-      const currentIds = presets.map((p) => p.id);
-      const idx = currentIds.indexOf(drag.id);
-      const withoutDragged = currentIds.filter((id) => id !== drag.id);
-      const adjustedSlot = idx >= 0 && drag.slot > idx ? drag.slot - 1 : drag.slot;
-      withoutDragged.splice(adjustedSlot, 0, drag.id);
-      DialStore.reorderPresets(panelId, withoutDragged);
+    if (drag.lifted && rowDrag && !rowDrag.settling) {
+      // The row glides from the pointer into its new place; the store
+      // takes the new order when the glide ends (onTransitionEnd), so the
+      // rows never jump.
+      const view = { ...rowDrag, settling: true };
+      setRowDrag(view);
+      // No glide to wait for: the row already sits in its place, or the
+      // user asked for reduced motion (no transition, so no transitionend).
+      const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      if (reduced || view.offset === (view.to - view.from) * view.step) commitReorder(view);
       // The click that follows this release must not select the row. It is
       // dispatched inside the same input task, so a macrotask reset still
       // runs after it — and clears the flag when no click follows at all
@@ -202,9 +219,19 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdow
       setTimeout(() => {
         suppressClickRef.current = false;
       }, 0);
+    } else if (!drag.lifted) {
+      setRowDrag(null);
     }
-    setDraggingId(null);
-    setCueTop(null);
+  };
+
+  /** How far a row is drawn from its place while a row is dragged. */
+  const rowShift = (preset: Preset, index: number): number => {
+    if (!rowDrag) return 0;
+    const { id, from, to, offset, step, settling } = rowDrag;
+    if (preset.id === id) return settling ? (to - from) * step : offset;
+    if (from < to && index > from && index <= to) return -step;
+    if (to < from && index >= to && index < from) return step;
+    return 0;
   };
 
   return (
@@ -243,6 +270,7 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdow
               ref={dropdownRef}
               className={`dialkit-root dialkit-preset-dropdown${dropdownClassName ? ` ${dropdownClassName}` : ''}`}
               data-dragging={draggingId ? 'true' : undefined}
+              data-settling={rowDrag?.settling ? 'true' : undefined}
               style={{
                 position: 'fixed',
                 top: pos.top,
@@ -269,8 +297,9 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdow
                 <button type="button" className="dialkit-preset-name">Version 1</button>
               </div>
 
-              {presets.map((preset) => {
+              {presets.map((preset, index) => {
                 const isEditing = editingId === preset.id;
+                const shift = rowShift(preset, index);
                 return (
                   <div
                     key={preset.id}
@@ -279,6 +308,12 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdow
                     data-preset-id={preset.id}
                     data-locked={preset.locked ? 'true' : undefined}
                     data-dragging={draggingId === preset.id ? 'true' : undefined}
+                    style={shift ? { transform: `translateY(${shift}px)` } : undefined}
+                    onTransitionEnd={(e) => {
+                      if (rowDrag?.settling && preset.id === rowDrag.id && e.target === e.currentTarget && e.propertyName === 'transform') {
+                        commitReorder(rowDrag);
+                      }
+                    }}
                     onClick={() => {
                       if (isEditing) return;
                       if (suppressClickRef.current) {
@@ -354,9 +389,6 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, dropdow
                 New {noun}
               </button>
 
-              {draggingId && cueTop !== null && (
-                <div className="dialkit-preset-drop-cue" style={{ top: cueTop }} />
-              )}
             </motion.div>
           )}
         </AnimatePresence>,
