@@ -9,6 +9,8 @@
   --dial-surface-hover: rgba(255, 255, 255, 0.06);
   --dial-surface-active: rgba(255, 255, 255, 0.08);
   --dial-surface-subtle: rgba(255, 255, 255, 0.04);
+  /* The divider lines between folders and groups, nested ones too. */
+  --dial-divider: rgba(255, 255, 255, 0.06);
 
   /* Text hierarchy - 3 levels */
   --dial-text-root: #FFFFFF;   /* Root title */
@@ -38,9 +40,9 @@
   /* The nested dividers' dashes, drawn by --dial-nested-line-image so their
      length is set here, not by the browser (which draws 3px dashes). Set
      --dial-nested-line-image to none for the browser's own dashes. */
-  --dial-nested-line-dash: 12px;
+  --dial-nested-line-dash: 6px;
   --dial-nested-line-gap: 6px;
-  --dial-nested-line-image: repeating-linear-gradient(90deg, var(--dial-surface-subtle) 0 var(--dial-nested-line-dash), transparent 0 calc(var(--dial-nested-line-dash) + var(--dial-nested-line-gap))) 1;
+  --dial-nested-line-image: repeating-linear-gradient(90deg, var(--dial-divider) 0 var(--dial-nested-line-dash), transparent 0 calc(var(--dial-nested-line-dash) + var(--dial-nested-line-gap))) 1;
   /* The timeline pan bar's thumb — quieter than text so it reads as a
      position marker, not a control demanding attention. */
   --dial-timeline-scroll-thumb: rgba(255, 255, 255, 0.16);
@@ -260,7 +262,7 @@
 .dialkit-folder {
   padding-bottom: 8px;
   margin-bottom: 8px;
-  border-bottom: 1px solid var(--dial-surface-subtle);
+  border-bottom: 1px solid var(--dial-divider);
 }
 
 .dialkit-folder-inner > .dialkit-folder:last-child:not(.dialkit-folder-root) {
@@ -288,7 +290,7 @@
 .dialkit-panel-header {
   padding-bottom: 6px;
   margin-bottom: 12px;
-  border-bottom: 1px solid var(--dial-surface-subtle);
+  border-bottom: 1px solid var(--dial-divider);
 }
 
 .dialkit-panel:not([data-mode="inline"]) .dialkit-panel-inner:not([data-collapsed="true"]) > .dialkit-folder-root > .dialkit-panel-header {
@@ -456,7 +458,7 @@
   top: -1px;
   left: 0;
   right: 0;
-  border-top: 1px solid var(--dial-surface-subtle);
+  border-top: 1px solid var(--dial-divider);
   /* The panel's colour under the dashes and in the side gutters, so no
      content shows through the row the line sits on. The first shadow
      paints the row above the line in the panel's colour too: when a folder
@@ -511,8 +513,8 @@
 
 /* Non-root folders - top & bottom HR dividers */
 .dialkit-folder:not(.dialkit-folder-root) {
-  border-top: 1px solid var(--dial-surface-subtle);
-  border-bottom: 1px solid var(--dial-surface-subtle);
+  border-top: 1px solid var(--dial-divider);
+  border-bottom: 1px solid var(--dial-divider);
   margin-top: 4px;
   margin-bottom: 4px;
   padding-bottom: 0;
@@ -565,7 +567,7 @@
  * same as an unwrapped folder.
  */
 .dialkit-folder-inner > .dialkit-control-wrap-folder:not(:last-child) > .dialkit-folder:not(.dialkit-folder-root) {
-  border-bottom: 1px solid var(--dial-surface-subtle);
+  border-bottom: 1px solid var(--dial-divider);
   margin-bottom: 4px;
 }
 /* The same divider for a wrapped folder inside another folder keeps the
@@ -691,7 +693,7 @@
 .dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder {
   margin: 0;
   padding-bottom: 0;
-  border-top: 1px solid var(--dial-surface-subtle);
+  border-top: 1px solid var(--dial-divider);
   border-bottom: none;
 }
 
@@ -833,7 +835,7 @@
 /* X / Y / Z groups (FieldRow) */
 /* One line above a run of X / Y / Z groups, like a folder's divider: the
  * groups after the first keep no line. */
-.dialkit-fields-group { display: flex; flex-direction: column; gap: var(--dial-row-gap); padding-top: var(--dial-row-gap); border-top: 1px var(--dial-fields-line-style, solid) var(--dial-surface-subtle); border-image: var(--dial-fields-line-image, none); }
+.dialkit-fields-group { display: flex; flex-direction: column; gap: var(--dial-row-gap); padding-top: var(--dial-row-gap); border-top: 1px var(--dial-fields-line-style, solid) var(--dial-divider); border-image: var(--dial-fields-line-image, none); }
 .dialkit-fields-group + .dialkit-fields-group,
 .dialkit-control-wrap-fields + .dialkit-control-wrap-fields > .dialkit-fields-group { padding-top: 0; border-top: none; }
 /* Inside a non-root folder the line sits at the same depth as a nested
@@ -2422,6 +2424,7 @@
   --dial-surface-hover: rgba(0, 0, 0, 0.08);
   --dial-surface-active: rgba(0, 0, 0, 0.1);
   --dial-surface-subtle: rgba(0, 0, 0, 0.06);
+  --dial-divider: rgba(0, 0, 0, 0.08);
 
   --dial-text-root: #000000;
   --dial-text-section: rgba(0, 0, 0, 0.65);
@@ -2486,6 +2489,7 @@
     --dial-surface-hover: rgba(0, 0, 0, 0.08);
     --dial-surface-active: rgba(0, 0, 0, 0.1);
     --dial-surface-subtle: rgba(0, 0, 0, 0.06);
+    --dial-divider: rgba(0, 0, 0, 0.08);
 
     --dial-text-root: #000000;
     --dial-text-section: rgba(0, 0, 0, 0.65);
@@ -3769,7 +3773,7 @@
 
 /* The line at the bottom of a panel until the hint key is pressed once
    (HintTip), under a divider like the panel title's. */
-.dialkit-hint-tip { margin: 4px 0 0; padding: 10px 0 2px; border-top: 1px solid var(--dial-surface-subtle); color: var(--dial-text-label); opacity: 0.8; font-size: var(--dial-hint-font-size); line-height: 1.4; text-wrap: pretty; }
+.dialkit-hint-tip { margin: 4px 0 0; padding: 10px 0 2px; border-top: 1px solid var(--dial-divider); color: var(--dial-text-label); opacity: 0.8; font-size: var(--dial-hint-font-size); line-height: 1.4; text-wrap: pretty; }
 .dialkit-hint-tip-key { display: inline-block; min-width: 18px; padding: 0 5px; border: 1px solid var(--dial-border); border-radius: 4px; font: inherit; line-height: 16px; text-align: center; }
 @media (prefers-reduced-motion: reduce) { .dialkit-hint, .dialkit-hint-dim, .dialkit-hint-dim-hole { animation: none; transition: none; } }
 
@@ -3874,7 +3878,7 @@
   z-index: 1;
   left: 0;
   right: 0;
-  border-top: 1px var(--dial-nested-line-style) var(--dial-surface-subtle);
+  border-top: 1px var(--dial-nested-line-style) var(--dial-divider);
   border-image: var(--dial-nested-line-image);
 }
 
