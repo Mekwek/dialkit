@@ -23,8 +23,11 @@ export { default as ColorControl } from './components/ColorControl.svelte';
 export { default as ImageControl } from './components/ImageControl.svelte';
 export { default as DialPad } from './components/DialPad.svelte';
 export type { DialPadProps } from '../dial-pad-control';
+export { default as BackgroundControl } from './components/BackgroundControl.svelte';
+export type { BackgroundControlProps } from '../background-control';
 export { default as PresetManager } from './components/PresetManager.svelte';
 export { default as DialTimeline } from './components/Timeline/DialTimeline.svelte';
 export { DialStore, withVisibility, unwrapVisibility } from 'dialkit/store';
-export type { SpringConfig, EasingConfig, TransitionConfig, ActionConfig, SelectConfig, ColorConfig, ImageConfig, ImageOption, DialPadAxis, DialPadConfig, DialPadValue, TextConfig, ShortcutConfig, Preset, DialValue, DialConfig, DialKitPersistOptions, DialKitValueUpdates, ResolvedValues, ControlMeta, PanelConfig, VisibleWhen, VisibleWhenValue, ControlWithVisibility, } from 'dialkit/store';
+export { setBackgroundHost, getBackgroundHost, setSavedGradients, getSavedGradients, subscribeBackgroundHost, backgroundGradientCss, defaultBackgroundValue, normalizeBackgroundValue, } from 'dialkit/store';
+export type { SpringConfig, EasingConfig, TransitionConfig, ActionConfig, SelectConfig, ColorConfig, ImageConfig, ImageOption, BackgroundConfig, BackgroundGradient, BackgroundMedia, BackgroundMediaDisplay, BackgroundStop, BackgroundValue, BackgroundHost, SavedGradient, DialPadAxis, DialPadConfig, DialPadValue, TextConfig, ShortcutConfig, Preset, DialValue, DialConfig, DialKitPersistOptions, DialKitValueUpdates, ResolvedValues, ControlMeta, PanelConfig, VisibleWhen, VisibleWhenValue, ControlWithVisibility, } from 'dialkit/store';
 //# sourceMappingURL=index.d.ts.map

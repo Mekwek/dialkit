@@ -2,6 +2,8 @@ import { DialStore, type ControlMeta, type DialValue, type SpringConfig, type Tr
 import { mountColorControl } from '../color-control';
 import { mountImageControl } from '../image-control';
 import { mountDialPad } from '../dial-pad-control';
+import { mountBackgroundControl } from '../background-control';
+import type { BackgroundValue } from '../background';
 import type { DialPadValue } from '../dial-pad';
 import { mountFolder, mountSlider, mountTextControl, mountToggle } from './controls';
 import { mountSelectControl } from './menus';
@@ -62,6 +64,9 @@ export function mountControlRenderer(host: HTMLElement, initial: ControlRenderer
           break;
         case 'pad':
           mount(mountDialPad, () => ({ ...control.pad, label: control.label, value: value() as DialPadValue, onChange: change }));
+          break;
+        case 'background':
+          mount(mountBackgroundControl, () => ({ label: control.label, value: value() as BackgroundValue, onChange: change }));
           break;
         case 'spring':
           mount(mountSpringControl, () => ({ panelId: props.panelId, path: control.path, label: control.label, spring: value() as SpringConfig, onChange: change }));

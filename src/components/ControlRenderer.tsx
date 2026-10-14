@@ -15,10 +15,12 @@ import { SelectControl, SelectPills } from './SelectControl';
 import { ColorControl } from './ColorControl';
 import { ImageControl } from './ImageControl';
 import { DialPad } from './DialPad';
+import { BackgroundControl } from './BackgroundControl';
 import { PadGroup } from './PadGroup';
 import { AnchorGrid } from './AnchorGrid';
 import { useHint } from './Hint';
 import type { DialPadValue } from '../dial-pad';
+import type { BackgroundValue } from '../background';
 
 interface ControlRendererProps {
   panelId: string;
@@ -280,6 +282,17 @@ export function ControlRenderer({
             mapping={control.pad?.mapping}
             hideLabel={control.pad?.hideLabel}
             dragFields={control.pad?.dragFields}
+            onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
+            hint={control.hint}
+          />
+        );
+
+      case 'background':
+        return (
+          <BackgroundControl
+            key={control.path}
+            label={control.label}
+            value={value as BackgroundValue}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
             hint={control.hint}
           />

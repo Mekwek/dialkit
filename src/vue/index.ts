@@ -40,6 +40,18 @@ export { SelectControl } from './components/SelectControl';
 export { ColorControl } from './components/ColorControl';
 export { ImageControl } from './components/ImageControl';
 export { DialPad } from './components/DialPad';
+export { BackgroundControl } from './components/BackgroundControl';
+export type { BackgroundControlProps } from '../background-control';
+export {
+  setBackgroundHost,
+  getBackgroundHost,
+  setSavedGradients,
+  getSavedGradients,
+  subscribeBackgroundHost,
+  backgroundGradientCss,
+  defaultBackgroundValue,
+  normalizeBackgroundValue,
+} from '../store/DialStore';
 export { PresetManager } from './components/PresetManager';
 export { ControlRenderer } from './components/ControlRenderer';
 
@@ -53,6 +65,14 @@ export type {
   ColorConfig,
   ImageConfig,
   ImageOption,
+  BackgroundConfig,
+  BackgroundGradient,
+  BackgroundMedia,
+  BackgroundMediaDisplay,
+  BackgroundStop,
+  BackgroundValue,
+  BackgroundHost,
+  SavedGradient,
   DialPadAxis,
   DialPadConfig,
   DialPadValue,

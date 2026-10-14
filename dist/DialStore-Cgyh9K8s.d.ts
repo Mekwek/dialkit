@@ -1,4 +1,5 @@
 import { DialPadConfig, DialPadValue } from './dial-pad.js';
+import { BackgroundConfig, BackgroundValue } from './background.js';
 
 type SpringConfig = {
     type: 'spring';
@@ -56,7 +57,7 @@ type TextConfig = {
     default?: string;
     placeholder?: string;
 };
-type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue;
+type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue | BackgroundConfig | BackgroundValue;
 type VisibleWhenValue = string | boolean | number;
 /**
  * Rule for conditional control visibility. Exactly one of `is` or `not`
@@ -110,7 +111,7 @@ type ShortcutConfig = {
     interaction?: ShortcutInteraction;
 };
 type ControlMeta = {
-    type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'image' | 'text' | 'pad';
+    type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'image' | 'text' | 'pad' | 'background';
     path: string;
     label: string;
     min?: number;
@@ -145,6 +146,10 @@ type ControlMeta = {
     hideLabel?: boolean;
     placeholder?: string;
     pad?: DialPadConfig;
+    /** Background only: the config, with its default made valid. */
+    background?: BackgroundConfig & {
+        default: BackgroundValue;
+    };
     shortcut?: ShortcutConfig;
     /** Conditional visibility rule attached via {@link withVisibility}. */
     visibleWhen?: VisibleWhen;

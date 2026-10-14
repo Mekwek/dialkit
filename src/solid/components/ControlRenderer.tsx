@@ -10,7 +10,9 @@ import { useShortcutContext } from './ShortcutListener';
 import { ColorControl } from './ColorControl';
 import { ImageControl } from './ImageControl';
 import { DialPad } from './DialPad';
+import { BackgroundControl } from './BackgroundControl';
 import type { DialPadValue } from '../../dial-pad';
+import type { BackgroundValue } from '../../background';
 import { Folder } from './Folder';
 import { SelectControl } from './SelectControl';
 import { Slider } from './Slider';
@@ -125,6 +127,14 @@ export function ControlRenderer(props: ControlRendererProps) {
             x={control.pad?.x}
             y={control.pad?.y}
             labels={control.pad?.labels}
+            onChange={(next) => DialStore.updateValue(props.panelId, control.path, next)}
+          />
+        );
+      case 'background':
+        return (
+          <BackgroundControl
+            label={control.label}
+            value={value() as BackgroundValue}
             onChange={(next) => DialStore.updateValue(props.panelId, control.path, next)}
           />
         );

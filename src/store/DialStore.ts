@@ -1,7 +1,16 @@
 import { roundValue } from '../numeric';
 import { parseColor } from '../color';
 import { normalizePadValue, type DialPadConfig, type DialPadValue } from '../dial-pad';
+import { backgroundConfigDefault, normalizeBackgroundValue, sameBackgroundValue, type BackgroundConfig, type BackgroundValue } from '../background';
 export type { DialPadAxis, DialPadConfig, DialPadValue } from '../dial-pad';
+export type {
+  BackgroundConfig, BackgroundGradient, BackgroundMedia, BackgroundMediaDisplay, BackgroundStop, BackgroundValue, SavedGradient,
+} from '../background';
+export { backgroundGradientCss, defaultBackgroundValue, normalizeBackgroundValue } from '../background';
+export {
+  getBackgroundHost, getSavedGradients, setBackgroundHost, setSavedGradients, subscribeBackgroundHost,
+} from './BackgroundHost';
+export type { BackgroundHost } from './BackgroundHost';
 
 // Lightweight state store with subscriptions for dialkit
 
@@ -65,7 +74,7 @@ export type TextConfig = {
   placeholder?: string;
 };
 
-export type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue;
+export type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue | BackgroundConfig | BackgroundValue;
 
 export type VisibleWhenValue = string | boolean | number;
 
@@ -245,9 +254,11 @@ export type ResolvedValues<T extends DialConfig> = {
               ? string
               : T[K] extends DialPadConfig
                 ? DialPadValue
-                : T[K] extends DialConfig
-                  ? ResolvedValues<T[K]>
-                  : T[K];
+                : T[K] extends BackgroundConfig
+                  ? BackgroundValue
+                  : T[K] extends DialConfig
+                    ? ResolvedValues<T[K]>
+                    : T[K];
 };
 
 export type DialKitValueUpdates<T extends DialConfig> = {
@@ -263,9 +274,11 @@ export type DialKitValueUpdates<T extends DialConfig> = {
           ? string
           : T[K] extends DialPadConfig
             ? DialPadValue
-            : T[K] extends DialConfig
-              ? DialKitValueUpdates<T[K]>
-              : T[K];
+            : T[K] extends BackgroundConfig
+              ? BackgroundValue
+              : T[K] extends DialConfig
+                ? DialKitValueUpdates<T[K]>
+                : T[K];
 };
 
 export type ShortcutMode = 'fine' | 'normal' | 'coarse';
@@ -279,7 +292,7 @@ export type ShortcutConfig = {
 };
 
 export type ControlMeta = {
-  type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'image' | 'text' | 'pad';
+  type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'image' | 'text' | 'pad' | 'background';
   path: string;
   label: string;
   min?: number;
@@ -314,6 +327,8 @@ export type ControlMeta = {
   hideLabel?: boolean;
   placeholder?: string;
   pad?: DialPadConfig;
+  /** Background only: the config, with its default made valid. */
+  background?: BackgroundConfig & { default: BackgroundValue };
   shortcut?: ShortcutConfig;
   /** Conditional visibility rule attached via {@link withVisibility}. */
   visibleWhen?: VisibleWhen;
@@ -519,7 +534,8 @@ export function isLeafConfigValue(value: unknown): boolean {
     isColorConfigValue(value) ||
     isImageConfigValue(value) ||
     isTextConfigValue(value) ||
-    isPadConfigValue(value)
+    isPadConfigValue(value) ||
+    isBackgroundConfigValue(value)
   );
 }
 
@@ -531,6 +547,7 @@ function configDefaultValue(value: DialConfig[string]): DialValue {
   if (isImageConfigValue(value)) return value.default ?? getFirstOptionValue(value.options ?? []);
   if (isTextConfigValue(value)) return value.default ?? '';
   if (isPadConfigValue(value)) return normalizePadValue(undefined, value);
+  if (isBackgroundConfigValue(value)) return backgroundConfigDefault(value);
   return value as DialValue;
 }
 
@@ -540,7 +557,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function sameControlValue(previous: unknown, next: unknown, control?: ControlMeta): boolean {
   return Object.is(previous, next) || (control?.type === 'pad' &&
-    isRecord(previous) && isRecord(next) && previous.x === next.x && previous.y === next.y);
+    isRecord(previous) && isRecord(next) && previous.x === next.x && previous.y === next.y) ||
+    (control?.type === 'background' && sameBackgroundValue(previous, next));
 }
 
 /** Equal values, with objects and arrays compared by their content. Zero
@@ -615,6 +633,10 @@ function isTextConfigValue(value: unknown): value is TextConfig {
 
 function isPadConfigValue(value: unknown): value is DialPadConfig {
   return hasType(value, 'pad');
+}
+
+function isBackgroundConfigValue(value: unknown): value is BackgroundConfig {
+  return hasType(value, 'background');
 }
 
 function getFirstOptionValue(options: (string | { value: string; label: string })[]): string {
@@ -894,7 +916,9 @@ class DialStoreClass {
         continue;
       }
 
-      const next = control?.type === 'pad' ? normalizePadValue(value, control.pad) : value;
+      const next = control?.type === 'pad' ? normalizePadValue(value, control.pad)
+        : control?.type === 'background' ? normalizeBackgroundValue(value, control.background?.default)
+        : value;
       if (sameControlValue(panel.values[path], next, control) &&
         (!target || sameControlValue(target[path], next, control))) continue;
       panel.values[path] = next;
@@ -1581,6 +1605,8 @@ class DialStoreClass {
           control = { type: 'text', path, label, placeholder: value.placeholder };
         } else if (isPadConfigValue(value)) {
           control = { type: 'pad', path, label, pad: value };
+        } else if (isBackgroundConfigValue(value)) {
+          control = { type: 'background', path, label, background: { ...value, default: backgroundConfigDefault(value) } };
         } else if (typeof value === 'string') {
           // Auto-detect: hex color vs text
           if (parseColor(value) && value !== 'transparent') {
@@ -1666,6 +1692,9 @@ class DialStoreClass {
         return typeof existingValue === 'boolean' ? existingValue : defaultValue;
       case 'pad':
         return normalizePadValue(existingValue, control.pad);
+      case 'background':
+        // Each invalid field falls back to the default's; a valid value is kept.
+        return normalizeBackgroundValue(existingValue, control.background?.default);
       case 'select': {
         if (typeof existingValue !== 'string') {
           return defaultValue;

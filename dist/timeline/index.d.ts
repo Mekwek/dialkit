@@ -26,6 +26,59 @@ type DialPadConfig = {
     dragFields?: boolean;
 };
 
+/**
+ * The background control's value: a solid color, a gradient or a media file.
+ * Pure data helpers, with no DOM, shared by the store and the control.
+ */
+interface BackgroundStop {
+    /** Position along the gradient, 0..100 (%). */
+    at: number;
+    /** '#rrggbb', lowercase. */
+    color: string;
+    /** Opacity, 0..100 (%). */
+    alpha: number;
+}
+interface BackgroundGradient {
+    shape: 'linear' | 'radial';
+    /** Degrees 0..360, CSS convention: 0 points up, 90 right, 180 down. Unused for radial. */
+    angle: number;
+    /** 2..8 stops, kept sorted by `at`. */
+    stops: BackgroundStop[];
+}
+interface BackgroundMedia {
+    /** The host's storage key, never a URL. */
+    key: string;
+    kind: 'image' | 'video';
+}
+interface BackgroundMediaDisplay {
+    /** fill = CSS cover, fit = contain, stretch = fill the box ignoring the media's shape, tile = repeat. */
+    fit: 'fill' | 'fit' | 'stretch' | 'tile';
+    /** The media box's shape; 'source' is the file's own shape. */
+    ratio: '16:9' | '4:3' | '1:1' | '4:5' | '3:4' | '9:16' | 'source';
+    /** 1..3, step 0.1. */
+    zoom: number;
+    /** Tile mode: one tile's height as a share of the canvas height, 0.05..1, step 0.01. */
+    tileScale: number;
+    /** Left, center, right. */
+    pinX: -1 | 0 | 1;
+    /** Top, center, bottom. */
+    pinY: -1 | 0 | 1;
+}
+interface BackgroundValue {
+    /** The tab that is on. The key is `mode`, never `type`: DialKit reads `type` as a config type. */
+    mode: 'solid' | 'gradient' | 'media';
+    /** The Solid tab, '#rrggbb'. */
+    color: string;
+    gradient: BackgroundGradient;
+    media: BackgroundMedia | null;
+    /** How the media sits in its box. Replacing or removing the file keeps it. */
+    mediaDisplay: BackgroundMediaDisplay;
+}
+interface BackgroundConfig {
+    type: 'background';
+    default?: BackgroundValue;
+}
+
 type SpringConfig = {
     type: 'spring';
     stiffness?: number;
@@ -83,7 +136,7 @@ type TextConfig = {
     default?: string;
     placeholder?: string;
 };
-type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue;
+type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue | BackgroundConfig | BackgroundValue;
 type VisibleWhenValue = string | boolean | number;
 /**
  * Rule for conditional control visibility. Exactly one of `is` or `not`
@@ -128,7 +181,7 @@ type DialConfig = {
 type ResolvedValues<T extends DialConfig> = {
     [K in keyof T]: T[K] extends ControlWithVisibility<infer U> ? U extends DialConfigValue ? ResolvedValues<{
         value: U;
-    }>['value'] : never : T[K] extends RangeConfig ? number : T[K] extends SpringConfig ? TransitionConfig : T[K] extends EasingConfig ? TransitionConfig : T[K] extends SelectConfig ? string : T[K] extends ColorConfig | ImageConfig ? string : T[K] extends TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends DialConfig ? ResolvedValues<T[K]> : T[K];
+    }>['value'] : never : T[K] extends RangeConfig ? number : T[K] extends SpringConfig ? TransitionConfig : T[K] extends EasingConfig ? TransitionConfig : T[K] extends SelectConfig ? string : T[K] extends ColorConfig | ImageConfig ? string : T[K] extends TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends BackgroundConfig ? BackgroundValue : T[K] extends DialConfig ? ResolvedValues<T[K]> : T[K];
 };
 type DialKitPersistOptions = boolean | {
     key?: string;

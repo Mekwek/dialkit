@@ -114,6 +114,189 @@ function normalizePadValue(value, config = {}) {
   };
 }
 
+// src/background.ts
+var BACKGROUND_MODES = ["solid", "gradient", "media"];
+var BACKGROUND_FITS = ["fill", "fit", "stretch", "tile"];
+var BACKGROUND_RATIOS = ["16:9", "4:3", "1:1", "4:5", "3:4", "9:16", "source"];
+var BACKGROUND_MIN_STOPS = 2;
+var BACKGROUND_MAX_STOPS = 8;
+var BACKGROUND_ZOOM = { min: 1, max: 3, step: 0.1 };
+var BACKGROUND_TILE_SCALE = { min: 0.05, max: 1, step: 0.01 };
+var PINS = [-1, 0, 1];
+function defaultBackgroundValue() {
+  return {
+    mode: "solid",
+    color: "#000000",
+    gradient: {
+      shape: "linear",
+      angle: 180,
+      stops: [{ at: 0, color: "#000000", alpha: 100 }, { at: 100, color: "#ffffff", alpha: 100 }]
+    },
+    media: null,
+    mediaDisplay: defaultMediaDisplay()
+  };
+}
+function defaultMediaDisplay() {
+  return { fit: "fill", ratio: "source", zoom: 1, tileScale: 0.25, pinX: 0, pinY: 0 };
+}
+function isRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+var clamp2 = (n, min, max) => Math.min(max, Math.max(min, n));
+var round2 = (n) => Math.round(n * 100) / 100;
+function normalizeHex(value) {
+  if (typeof value !== "string") return null;
+  const match = /^#([\da-f]{3}|[\da-f]{6})$/i.exec(value.trim());
+  if (!match) return null;
+  const hex = match[1].length === 3 ? [...match[1]].map((c) => c + c).join("") : match[1];
+  return `#${hex.toLowerCase()}`;
+}
+function normalizeAngle(value) {
+  if (value === 360) return 360;
+  return round2((value % 360 + 360) % 360);
+}
+function sortStops(stops) {
+  return stops.map((stop, i) => ({ stop, i })).sort((a, b) => a.stop.at - b.stop.at || a.i - b.i).map(({ stop }) => stop);
+}
+function normalizeStop(value) {
+  if (!isRecord(value)) return null;
+  const color = normalizeHex(value.color);
+  if (!color || typeof value.at !== "number" || !Number.isFinite(value.at)) return null;
+  const alpha = typeof value.alpha === "number" && Number.isFinite(value.alpha) ? value.alpha : 100;
+  return { at: round2(clamp2(value.at, 0, 100)), color, alpha: round2(clamp2(alpha, 0, 100)) };
+}
+function normalizeGradient(value, fallback = defaultBackgroundValue().gradient) {
+  if (!isRecord(value)) return cloneGradient(fallback);
+  const shape = value.shape === "linear" || value.shape === "radial" ? value.shape : fallback.shape;
+  const angle = typeof value.angle === "number" && Number.isFinite(value.angle) ? normalizeAngle(value.angle) : fallback.angle;
+  const stops = Array.isArray(value.stops) ? value.stops.map(normalizeStop).filter((stop) => stop !== null) : [];
+  return {
+    shape,
+    angle,
+    stops: stops.length >= BACKGROUND_MIN_STOPS ? sortStops(stops).slice(0, BACKGROUND_MAX_STOPS) : fallback.stops.map((stop) => ({ ...stop }))
+  };
+}
+function normalizeMedia(value) {
+  if (!isRecord(value)) return null;
+  if (typeof value.key !== "string" || !value.key) return null;
+  if (value.kind !== "image" && value.kind !== "video") return null;
+  return { key: value.key, kind: value.kind };
+}
+function normalizeMediaDisplay(value, fallback = defaultMediaDisplay()) {
+  const input = isRecord(value) ? value : {};
+  const zoom = typeof input.zoom === "number" && Number.isFinite(input.zoom) ? Math.round(clamp2(input.zoom, BACKGROUND_ZOOM.min, BACKGROUND_ZOOM.max) * 10) / 10 : fallback.zoom;
+  const tileScale = typeof input.tileScale === "number" && Number.isFinite(input.tileScale) ? Math.round(clamp2(input.tileScale, BACKGROUND_TILE_SCALE.min, BACKGROUND_TILE_SCALE.max) * 100) / 100 : fallback.tileScale;
+  return {
+    fit: BACKGROUND_FITS.includes(input.fit) ? input.fit : fallback.fit,
+    ratio: BACKGROUND_RATIOS.includes(input.ratio) ? input.ratio : fallback.ratio,
+    zoom,
+    tileScale,
+    pinX: PINS.includes(input.pinX) ? input.pinX : fallback.pinX,
+    pinY: PINS.includes(input.pinY) ? input.pinY : fallback.pinY
+  };
+}
+function normalizeBackgroundValue(value, fallback = defaultBackgroundValue()) {
+  const base = fallback;
+  if (!isRecord(value)) return cloneBackgroundValue(base);
+  return {
+    mode: BACKGROUND_MODES.includes(value.mode) ? value.mode : base.mode,
+    color: normalizeHex(value.color) ?? base.color,
+    gradient: normalizeGradient(value.gradient, base.gradient),
+    media: "media" in value ? normalizeMedia(value.media) : base.media && { ...base.media },
+    mediaDisplay: normalizeMediaDisplay(value.mediaDisplay, base.mediaDisplay)
+  };
+}
+function backgroundConfigDefault(config) {
+  return normalizeBackgroundValue(config?.default, defaultBackgroundValue());
+}
+function cloneGradient(gradient) {
+  return { shape: gradient.shape, angle: gradient.angle, stops: gradient.stops.map((stop) => ({ ...stop })) };
+}
+function cloneBackgroundValue(value) {
+  return {
+    mode: value.mode,
+    color: value.color,
+    gradient: cloneGradient(value.gradient),
+    media: value.media && { ...value.media },
+    mediaDisplay: { ...value.mediaDisplay }
+  };
+}
+function sameStops(a, b) {
+  return a.length === b.length && a.every((stop, i) => stop.at === b[i].at && stop.color === b[i].color && stop.alpha === b[i].alpha);
+}
+function sameGradient(a, b) {
+  return a.shape === b.shape && a.angle === b.angle && sameStops(a.stops, b.stops);
+}
+function sameBackgroundValue(a, b) {
+  if (!isRecord(a) || !isRecord(b)) return false;
+  const x = a;
+  const y = b;
+  if (x.mode !== y.mode || x.color !== y.color) return false;
+  if (!isRecord(x.gradient) || !isRecord(y.gradient) || !Array.isArray(x.gradient.stops) || !Array.isArray(y.gradient.stops)) return false;
+  if (!sameGradient(x.gradient, y.gradient)) return false;
+  if (x.media === null !== (y.media === null)) return false;
+  if (x.media && y.media && (x.media.key !== y.media.key || x.media.kind !== y.media.kind)) return false;
+  const p = x.mediaDisplay;
+  const q = y.mediaDisplay;
+  if (!isRecord(p) || !isRecord(q)) return p === q;
+  return p.fit === q.fit && p.ratio === q.ratio && p.zoom === q.zoom && p.tileScale === q.tileScale && p.pinX === q.pinX && p.pinY === q.pinY;
+}
+function hexToRgb(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return [n >> 16 & 255, n >> 8 & 255, n & 255];
+}
+function stopCssColor(stop) {
+  const [r, g, b] = hexToRgb(stop.color);
+  return `rgb(${r} ${g} ${b} / ${round2(stop.alpha / 100)})`;
+}
+function backgroundGradientCss(gradient, direction) {
+  const stops = gradient.stops.map((stop) => `${stopCssColor(stop)} ${stop.at}%`).join(", ");
+  if (direction) return `linear-gradient(${direction}, ${stops})`;
+  return gradient.shape === "radial" ? `radial-gradient(circle at center, ${stops})` : `linear-gradient(${gradient.angle}deg, ${stops})`;
+}
+
+// src/store/BackgroundHost.ts
+var STATE_KEY = /* @__PURE__ */ Symbol.for("dialkit.backgroundHost");
+function state() {
+  const scope = globalThis;
+  let current = scope[STATE_KEY];
+  if (!current) {
+    current = { host: {}, saved: [], listeners: /* @__PURE__ */ new Set() };
+    scope[STATE_KEY] = current;
+  }
+  return current;
+}
+function notify() {
+  state().listeners.forEach((listener) => listener());
+}
+function cloneSaved(list) {
+  return list.map((saved) => ({
+    id: saved.id,
+    gradient: { shape: saved.gradient.shape, angle: saved.gradient.angle, stops: saved.gradient.stops.map((stop) => ({ ...stop })) }
+  }));
+}
+function setBackgroundHost(host) {
+  state().host = { ...host };
+  notify();
+}
+function getBackgroundHost() {
+  return state().host;
+}
+function setSavedGradients(list) {
+  state().saved = cloneSaved(list);
+  notify();
+}
+function getSavedGradients() {
+  return state().saved;
+}
+function subscribeBackgroundHost(listener) {
+  const listeners = state().listeners;
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
 // src/store/DialStore.ts
 function anchorConfigOf(value) {
   return value === true || typeof value === "object" && value !== null && !Array.isArray(value) ? {} : void 0;
@@ -195,7 +378,7 @@ function flattenConfigUpdates(config, updates, prefix, values) {
   }
 }
 function isLeafConfigValue(value) {
-  return Array.isArray(value) && value.length <= 5 && typeof value[0] === "number" || typeof value === "number" || typeof value === "boolean" || typeof value === "string" || isSpringConfigValue(value) || isEasingConfigValue(value) || isActionConfigValue(value) || isSelectConfigValue(value) || isColorConfigValue(value) || isImageConfigValue(value) || isTextConfigValue(value) || isPadConfigValue(value);
+  return Array.isArray(value) && value.length <= 5 && typeof value[0] === "number" || typeof value === "number" || typeof value === "boolean" || typeof value === "string" || isSpringConfigValue(value) || isEasingConfigValue(value) || isActionConfigValue(value) || isSelectConfigValue(value) || isColorConfigValue(value) || isImageConfigValue(value) || isTextConfigValue(value) || isPadConfigValue(value) || isBackgroundConfigValue(value);
 }
 function configDefaultValue(value) {
   if (Array.isArray(value)) return value[0];
@@ -204,20 +387,21 @@ function configDefaultValue(value) {
   if (isImageConfigValue(value)) return value.default ?? getFirstOptionValue(value.options ?? []);
   if (isTextConfigValue(value)) return value.default ?? "";
   if (isPadConfigValue(value)) return normalizePadValue(void 0, value);
+  if (isBackgroundConfigValue(value)) return backgroundConfigDefault(value);
   return value;
 }
-function isRecord(value) {
+function isRecord2(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function sameControlValue(previous, next, control) {
-  return Object.is(previous, next) || control?.type === "pad" && isRecord(previous) && isRecord(next) && previous.x === next.x && previous.y === next.y;
+  return Object.is(previous, next) || control?.type === "pad" && isRecord2(previous) && isRecord2(next) && previous.x === next.x && previous.y === next.y || control?.type === "background" && sameBackgroundValue(previous, next);
 }
 function sameValue(a, b) {
   if (a === b || Object.is(a, b)) return true;
   if (Array.isArray(a) && Array.isArray(b)) {
     return a.length === b.length && a.every((item, i) => sameValue(item, b[i]));
   }
-  if (isRecord(a) && isRecord(b)) return sameRecord(a, b);
+  if (isRecord2(a) && isRecord2(b)) return sameRecord(a, b);
   return false;
 }
 function sameRecord(a, b) {
@@ -263,6 +447,9 @@ function isTextConfigValue(value) {
 }
 function isPadConfigValue(value) {
   return hasType(value, "pad");
+}
+function isBackgroundConfigValue(value) {
+  return hasType(value, "background");
 }
 function getFirstOptionValue(options) {
   const first = options[0];
@@ -483,7 +670,7 @@ var DialStoreClass = class {
       if (control?.type === "action") {
         continue;
       }
-      const next = control?.type === "pad" ? normalizePadValue(value, control.pad) : value;
+      const next = control?.type === "pad" ? normalizePadValue(value, control.pad) : control?.type === "background" ? normalizeBackgroundValue(value, control.background?.default) : value;
       if (sameControlValue(panel.values[path], next, control) && (!target || sameControlValue(target[path], next, control))) continue;
       panel.values[path] = next;
       validUpdates[path] = next;
@@ -897,13 +1084,13 @@ var DialStoreClass = class {
       const raw = storage.getItem(config.key);
       if (!raw) return null;
       const parsed = JSON.parse(raw);
-      if (!isRecord(parsed) || parsed.version !== 1) return null;
-      const values = isRecord(parsed.values) ? parsed.values : void 0;
-      const presets = config.presets && Array.isArray(parsed.presets) ? parsed.presets.filter((preset) => isRecord(preset) && typeof preset.id === "string" && typeof preset.name === "string" && isRecord(preset.values)) : [];
+      if (!isRecord2(parsed) || parsed.version !== 1) return null;
+      const values = isRecord2(parsed.values) ? parsed.values : void 0;
+      const presets = config.presets && Array.isArray(parsed.presets) ? parsed.presets.filter((preset) => isRecord2(preset) && typeof preset.id === "string" && typeof preset.name === "string" && isRecord2(preset.values)) : [];
       return {
         version: 1,
         values,
-        baseValues: config.presets && isRecord(parsed.baseValues) ? parsed.baseValues : values,
+        baseValues: config.presets && isRecord2(parsed.baseValues) ? parsed.baseValues : values,
         presets,
         activePresetId: presets.some((preset) => preset.id === parsed.activePresetId) ? parsed.activePresetId : null
       };
@@ -918,14 +1105,14 @@ var DialStoreClass = class {
     if (!storage) return;
     const values = this.snapshots.get(id) ?? this.panels.get(id)?.values;
     if (!values) return;
-    const state = { version: 1, values };
+    const state2 = { version: 1, values };
     if (config.presets) {
-      state.baseValues = this.baseValues.get(id) ?? values;
-      state.presets = this.presets.get(id) ?? [];
-      state.activePresetId = this.activePreset.get(id) ?? null;
+      state2.baseValues = this.baseValues.get(id) ?? values;
+      state2.presets = this.presets.get(id) ?? [];
+      state2.activePresetId = this.activePreset.get(id) ?? null;
     }
     try {
-      storage.setItem(config.key, JSON.stringify(state));
+      storage.setItem(config.key, JSON.stringify(state2));
     } catch {
     }
   }
@@ -1021,6 +1208,8 @@ var DialStoreClass = class {
           control = { type: "text", path, label, placeholder: value.placeholder };
         } else if (isPadConfigValue(value)) {
           control = { type: "pad", path, label, pad: value };
+        } else if (isBackgroundConfigValue(value)) {
+          control = { type: "background", path, label, background: { ...value, default: backgroundConfigDefault(value) } };
         } else if (typeof value === "string") {
           if (parseColor(value) && value !== "transparent") {
             control = { type: "color", path, label };
@@ -1092,6 +1281,8 @@ var DialStoreClass = class {
         return typeof existingValue === "boolean" ? existingValue : defaultValue;
       case "pad":
         return normalizePadValue(existingValue, control.pad);
+      case "background":
+        return normalizeBackgroundValue(existingValue, control.background?.default);
       case "select": {
         if (typeof existingValue !== "string") {
           return defaultValue;
@@ -1193,15 +1384,23 @@ function sameControlPaths(a, b) {
 var DialStore = /* @__PURE__ */ new DialStoreClass();
 export {
   DialStore,
+  backgroundGradientCss,
+  defaultBackgroundValue,
   flattenDialValueUpdates,
   formatLabel,
+  getBackgroundHost,
+  getSavedGradients,
   inferStep,
   isEasingConfigValue,
   isFolderMetaKey,
   isHexColor,
   isLeafConfigValue,
   isSpringConfigValue,
+  normalizeBackgroundValue,
   resolveDialValues,
+  setBackgroundHost,
+  setSavedGradients,
+  subscribeBackgroundHost,
   unwrapVisibility,
   withVisibility
 };

@@ -26,6 +26,96 @@ type DialPadConfig = {
     dragFields?: boolean;
 };
 
+/**
+ * The background control's value: a solid color, a gradient or a media file.
+ * Pure data helpers, with no DOM, shared by the store and the control.
+ */
+interface BackgroundStop {
+    /** Position along the gradient, 0..100 (%). */
+    at: number;
+    /** '#rrggbb', lowercase. */
+    color: string;
+    /** Opacity, 0..100 (%). */
+    alpha: number;
+}
+interface BackgroundGradient {
+    shape: 'linear' | 'radial';
+    /** Degrees 0..360, CSS convention: 0 points up, 90 right, 180 down. Unused for radial. */
+    angle: number;
+    /** 2..8 stops, kept sorted by `at`. */
+    stops: BackgroundStop[];
+}
+interface BackgroundMedia {
+    /** The host's storage key, never a URL. */
+    key: string;
+    kind: 'image' | 'video';
+}
+interface BackgroundMediaDisplay {
+    /** fill = CSS cover, fit = contain, stretch = fill the box ignoring the media's shape, tile = repeat. */
+    fit: 'fill' | 'fit' | 'stretch' | 'tile';
+    /** The media box's shape; 'source' is the file's own shape. */
+    ratio: '16:9' | '4:3' | '1:1' | '4:5' | '3:4' | '9:16' | 'source';
+    /** 1..3, step 0.1. */
+    zoom: number;
+    /** Tile mode: one tile's height as a share of the canvas height, 0.05..1, step 0.01. */
+    tileScale: number;
+    /** Left, center, right. */
+    pinX: -1 | 0 | 1;
+    /** Top, center, bottom. */
+    pinY: -1 | 0 | 1;
+}
+interface BackgroundValue {
+    /** The tab that is on. The key is `mode`, never `type`: DialKit reads `type` as a config type. */
+    mode: 'solid' | 'gradient' | 'media';
+    /** The Solid tab, '#rrggbb'. */
+    color: string;
+    gradient: BackgroundGradient;
+    media: BackgroundMedia | null;
+    /** How the media sits in its box. Replacing or removing the file keeps it. */
+    mediaDisplay: BackgroundMediaDisplay;
+}
+interface SavedGradient {
+    id: string;
+    gradient: BackgroundGradient;
+}
+interface BackgroundConfig {
+    type: 'background';
+    default?: BackgroundValue;
+}
+declare function defaultBackgroundValue(): BackgroundValue;
+/**
+ * A fresh, valid value. Each field that is missing or invalid falls back to
+ * the same field of `fallback` (the control's default), so one bad field
+ * never resets the rest.
+ */
+declare function normalizeBackgroundValue(value: unknown, fallback?: BackgroundValue): BackgroundValue;
+/** The gradient as a CSS image, for previews and for hosts that paint with CSS. */
+declare function backgroundGradientCss(gradient: BackgroundGradient, direction?: string): string;
+
+/**
+ * What the host gives the background control. The control never uploads or
+ * stores anything itself: it calls these.
+ */
+interface BackgroundHost {
+    /** Uploads a file and returns its storage key. Without it, the Media tab shows a disabled message. */
+    upload?: (file: File) => Promise<BackgroundMedia>;
+    /** The URL that shows a stored media file. */
+    mediaUrl?: (media: BackgroundMedia) => string;
+    /** Saves a gradient. Without it, the Save gradient button is hidden. */
+    saveGradient?: (gradient: BackgroundGradient) => Promise<SavedGradient>;
+    /** Deletes a saved gradient. Without it, saved gradients show no delete button. */
+    deleteGradient?: (id: string) => Promise<void>;
+}
+type Listener$1 = () => void;
+/** Sets the host's upload, media URL and saved-gradient hooks. Replaces the previous host. */
+declare function setBackgroundHost(host: BackgroundHost): void;
+declare function getBackgroundHost(): BackgroundHost;
+/** Sets the saved gradients every background control shows. */
+declare function setSavedGradients(list: SavedGradient[]): void;
+declare function getSavedGradients(): SavedGradient[];
+/** Calls `listener` when the host or the saved gradients change. Returns the unsubscribe. */
+declare function subscribeBackgroundHost(listener: Listener$1): () => void;
+
 type SpringConfig = {
     type: 'spring';
     stiffness?: number;
@@ -83,7 +173,7 @@ type TextConfig = {
     default?: string;
     placeholder?: string;
 };
-type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue;
+type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue | BackgroundConfig | BackgroundValue;
 type VisibleWhenValue = string | boolean | number;
 /**
  * Rule for conditional control visibility. Exactly one of `is` or `not`
@@ -187,12 +277,12 @@ type DialConfig = {
 type ResolvedValues<T extends DialConfig> = {
     [K in keyof T]: T[K] extends ControlWithVisibility<infer U> ? U extends DialConfigValue ? ResolvedValues<{
         value: U;
-    }>['value'] : never : T[K] extends RangeConfig ? number : T[K] extends SpringConfig ? TransitionConfig : T[K] extends EasingConfig ? TransitionConfig : T[K] extends SelectConfig ? string : T[K] extends ColorConfig | ImageConfig ? string : T[K] extends TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends DialConfig ? ResolvedValues<T[K]> : T[K];
+    }>['value'] : never : T[K] extends RangeConfig ? number : T[K] extends SpringConfig ? TransitionConfig : T[K] extends EasingConfig ? TransitionConfig : T[K] extends SelectConfig ? string : T[K] extends ColorConfig | ImageConfig ? string : T[K] extends TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends BackgroundConfig ? BackgroundValue : T[K] extends DialConfig ? ResolvedValues<T[K]> : T[K];
 };
 type DialKitValueUpdates<T extends DialConfig> = {
     [K in keyof T as K extends FolderMetaKey ? never : K]?: T[K] extends ControlWithVisibility<infer U> ? U extends DialConfigValue ? DialKitValueUpdates<{
         value: U;
-    }>['value'] : never : T[K] extends RangeConfig ? number : T[K] extends SpringConfig | EasingConfig ? TransitionConfig : T[K] extends ActionConfig ? never : T[K] extends SelectConfig | ColorConfig | ImageConfig | TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends DialConfig ? DialKitValueUpdates<T[K]> : T[K];
+    }>['value'] : never : T[K] extends RangeConfig ? number : T[K] extends SpringConfig | EasingConfig ? TransitionConfig : T[K] extends ActionConfig ? never : T[K] extends SelectConfig | ColorConfig | ImageConfig | TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends BackgroundConfig ? BackgroundValue : T[K] extends DialConfig ? DialKitValueUpdates<T[K]> : T[K];
 };
 type ShortcutMode = 'fine' | 'normal' | 'coarse';
 type ShortcutInteraction = 'scroll' | 'drag' | 'move' | 'scroll-only';
@@ -203,7 +293,7 @@ type ShortcutConfig = {
     interaction?: ShortcutInteraction;
 };
 type ControlMeta = {
-    type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'image' | 'text' | 'pad';
+    type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'image' | 'text' | 'pad' | 'background';
     path: string;
     label: string;
     min?: number;
@@ -238,6 +328,10 @@ type ControlMeta = {
     hideLabel?: boolean;
     placeholder?: string;
     pad?: DialPadConfig;
+    /** Background only: the config, with its default made valid. */
+    background?: BackgroundConfig & {
+        default: BackgroundValue;
+    };
     shortcut?: ShortcutConfig;
     /** Conditional visibility rule attached via {@link withVisibility}. */
     visibleWhen?: VisibleWhen;
@@ -509,4 +603,4 @@ declare class DialStoreClass {
 }
 declare const DialStore: DialStoreClass;
 
-export { type ActionConfig, type AnchorGridConfig, type ColorConfig, type ControlMeta, type ControlWithVisibility, type DialConfig, type DialKitPersistOptions, type DialKitValueUpdates, type DialPadAxis, type DialPadConfig, type DialPadValue, DialStore, type DialStorePanelOptions, type DialValue, type EasingConfig, type FieldsConfig, type HintsConfig, type ImageConfig, type ImageOption, type LabelsConfig, type PadGroupConfig, type PanelConfig, type Preset, type RangeConfig, type ResolvedValues, type SelectConfig, type SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, type SpringConfig, type TextConfig, type TransitionConfig, type VisibleWhen, type VisibleWhenValue, flattenDialValueUpdates, formatLabel, inferStep, isEasingConfigValue, isFolderMetaKey, isHexColor, isLeafConfigValue, isSpringConfigValue, resolveDialValues, unwrapVisibility, withVisibility };
+export { type ActionConfig, type AnchorGridConfig, type BackgroundConfig, type BackgroundGradient, type BackgroundHost, type BackgroundMedia, type BackgroundMediaDisplay, type BackgroundStop, type BackgroundValue, type ColorConfig, type ControlMeta, type ControlWithVisibility, type DialConfig, type DialKitPersistOptions, type DialKitValueUpdates, type DialPadAxis, type DialPadConfig, type DialPadValue, DialStore, type DialStorePanelOptions, type DialValue, type EasingConfig, type FieldsConfig, type HintsConfig, type ImageConfig, type ImageOption, type LabelsConfig, type PadGroupConfig, type PanelConfig, type Preset, type RangeConfig, type ResolvedValues, type SavedGradient, type SelectConfig, type SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, type SpringConfig, type TextConfig, type TransitionConfig, type VisibleWhen, type VisibleWhenValue, backgroundGradientCss, defaultBackgroundValue, flattenDialValueUpdates, formatLabel, getBackgroundHost, getSavedGradients, inferStep, isEasingConfigValue, isFolderMetaKey, isHexColor, isLeafConfigValue, isSpringConfigValue, normalizeBackgroundValue, resolveDialValues, setBackgroundHost, setSavedGradients, subscribeBackgroundHost, unwrapVisibility, withVisibility };

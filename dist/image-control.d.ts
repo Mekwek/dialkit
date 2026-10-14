@@ -1,5 +1,6 @@
-import { I as ImageOption } from './DialStore-DatNkWxe.js';
+import { I as ImageOption } from './DialStore-Cgyh9K8s.js';
 import './dial-pad.js';
+import './background.js';
 
 type ImageControlProps = {
     label: string;

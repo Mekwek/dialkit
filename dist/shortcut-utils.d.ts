@@ -1,5 +1,6 @@
-import { C as ControlMeta, S as ShortcutConfig } from './DialStore-DatNkWxe.js';
+import { C as ControlMeta, S as ShortcutConfig } from './DialStore-Cgyh9K8s.js';
 import './dial-pad.js';
+import './background.js';
 
 /** Decimal places needed by a step or range endpoint, including scientific notation. */
 declare function decimalsForStep(step: number, min?: number, max?: number): number;

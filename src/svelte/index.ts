@@ -45,11 +45,23 @@ export { default as ColorControl } from './components/ColorControl.svelte';
 export { default as ImageControl } from './components/ImageControl.svelte';
 export { default as DialPad } from './components/DialPad.svelte';
 export type { DialPadProps } from '../dial-pad-control';
+export { default as BackgroundControl } from './components/BackgroundControl.svelte';
+export type { BackgroundControlProps } from '../background-control';
 export { default as PresetManager } from './components/PresetManager.svelte';
 export { default as DialTimeline } from './components/Timeline/DialTimeline.svelte';
 
 // Store exports (via dialkit/store subpath — svelte-package doesn't bundle, so relative paths to src/store would break in dist)
 export { DialStore, withVisibility, unwrapVisibility } from 'dialkit/store';
+export {
+  setBackgroundHost,
+  getBackgroundHost,
+  setSavedGradients,
+  getSavedGradients,
+  subscribeBackgroundHost,
+  backgroundGradientCss,
+  defaultBackgroundValue,
+  normalizeBackgroundValue,
+} from 'dialkit/store';
 export type {
   SpringConfig,
   EasingConfig,
@@ -59,6 +71,14 @@ export type {
   ColorConfig,
   ImageConfig,
   ImageOption,
+  BackgroundConfig,
+  BackgroundGradient,
+  BackgroundMedia,
+  BackgroundMediaDisplay,
+  BackgroundStop,
+  BackgroundValue,
+  BackgroundHost,
+  SavedGradient,
   DialPadAxis,
   DialPadConfig,
   DialPadValue,

@@ -21,6 +21,7 @@ var DialKit = (() => {
   // src/vanilla/index.ts
   var vanilla_exports = {};
   __export(vanilla_exports, {
+    BackgroundControl: () => mountBackgroundControl,
     ButtonGroup: () => mountButtonGroup,
     ColorControl: () => mountColorControl,
     ControlRenderer: () => mountControlRenderer,
@@ -42,12 +43,17 @@ var DialKit = (() => {
     TimelineStore: () => TimelineStore,
     Toggle: () => mountToggle,
     TransitionControl: () => mountTransitionControl,
+    backgroundGradientCss: () => backgroundGradientCss,
     createDialKit: () => createDialKit,
     createDialKitController: () => createDialKitController,
     createDialRoot: () => createDialRoot,
     createDialTimeline: () => createDialTimeline,
     createDialTimelineRoot: () => createDialTimelineRoot,
+    defaultBackgroundValue: () => defaultBackgroundValue,
     formatClock: () => formatClock,
+    getBackgroundHost: () => getBackgroundHost,
+    getSavedGradients: () => getSavedGradients,
+    mountBackgroundControl: () => mountBackgroundControl,
     mountButtonGroup: () => mountButtonGroup,
     mountColorControl: () => mountColorControl,
     mountControlRenderer: () => mountControlRenderer,
@@ -65,7 +71,11 @@ var DialKit = (() => {
     mountSpringVisualization: () => mountSpringVisualization,
     mountTextControl: () => mountTextControl,
     mountToggle: () => mountToggle,
-    mountTransitionControl: () => mountTransitionControl
+    mountTransitionControl: () => mountTransitionControl,
+    normalizeBackgroundValue: () => normalizeBackgroundValue,
+    setBackgroundHost: () => setBackgroundHost,
+    setSavedGradients: () => setSavedGradients,
+    subscribeBackgroundHost: () => subscribeBackgroundHost
   });
 
   // src/numeric.ts
@@ -323,6 +333,234 @@ var DialKit = (() => {
     return { ...value, [axis]: snapPadAxis(value[axis] + direction * range.step * (shift ? 10 : 1), range) };
   }
 
+  // src/background.ts
+  var BACKGROUND_MODES = ["solid", "gradient", "media"];
+  var BACKGROUND_FITS = ["fill", "fit", "stretch", "tile"];
+  var BACKGROUND_RATIOS = ["16:9", "4:3", "1:1", "4:5", "3:4", "9:16", "source"];
+  var BACKGROUND_MIN_STOPS = 2;
+  var BACKGROUND_MAX_STOPS = 8;
+  var BACKGROUND_ZOOM = { min: 1, max: 3, step: 0.1 };
+  var BACKGROUND_TILE_SCALE = { min: 0.05, max: 1, step: 0.01 };
+  var PINS = [-1, 0, 1];
+  function defaultBackgroundValue() {
+    return {
+      mode: "solid",
+      color: "#000000",
+      gradient: {
+        shape: "linear",
+        angle: 180,
+        stops: [{ at: 0, color: "#000000", alpha: 100 }, { at: 100, color: "#ffffff", alpha: 100 }]
+      },
+      media: null,
+      mediaDisplay: defaultMediaDisplay()
+    };
+  }
+  function defaultMediaDisplay() {
+    return { fit: "fill", ratio: "source", zoom: 1, tileScale: 0.25, pinX: 0, pinY: 0 };
+  }
+  function isRecord(value) {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+  }
+  var clamp2 = (n, min, max) => Math.min(max, Math.max(min, n));
+  var round2 = (n) => Math.round(n * 100) / 100;
+  function normalizeHex(value) {
+    if (typeof value !== "string") return null;
+    const match = /^#([\da-f]{3}|[\da-f]{6})$/i.exec(value.trim());
+    if (!match) return null;
+    const hex = match[1].length === 3 ? [...match[1]].map((c) => c + c).join("") : match[1];
+    return `#${hex.toLowerCase()}`;
+  }
+  function normalizeAngle(value) {
+    if (value === 360) return 360;
+    return round2((value % 360 + 360) % 360);
+  }
+  function sortStops(stops) {
+    return stops.map((stop2, i) => ({ stop: stop2, i })).sort((a, b) => a.stop.at - b.stop.at || a.i - b.i).map(({ stop: stop2 }) => stop2);
+  }
+  function normalizeStop(value) {
+    if (!isRecord(value)) return null;
+    const color = normalizeHex(value.color);
+    if (!color || typeof value.at !== "number" || !Number.isFinite(value.at)) return null;
+    const alpha = typeof value.alpha === "number" && Number.isFinite(value.alpha) ? value.alpha : 100;
+    return { at: round2(clamp2(value.at, 0, 100)), color, alpha: round2(clamp2(alpha, 0, 100)) };
+  }
+  function normalizeGradient(value, fallback = defaultBackgroundValue().gradient) {
+    if (!isRecord(value)) return cloneGradient(fallback);
+    const shape = value.shape === "linear" || value.shape === "radial" ? value.shape : fallback.shape;
+    const angle = typeof value.angle === "number" && Number.isFinite(value.angle) ? normalizeAngle(value.angle) : fallback.angle;
+    const stops = Array.isArray(value.stops) ? value.stops.map(normalizeStop).filter((stop2) => stop2 !== null) : [];
+    return {
+      shape,
+      angle,
+      stops: stops.length >= BACKGROUND_MIN_STOPS ? sortStops(stops).slice(0, BACKGROUND_MAX_STOPS) : fallback.stops.map((stop2) => ({ ...stop2 }))
+    };
+  }
+  function normalizeMedia(value) {
+    if (!isRecord(value)) return null;
+    if (typeof value.key !== "string" || !value.key) return null;
+    if (value.kind !== "image" && value.kind !== "video") return null;
+    return { key: value.key, kind: value.kind };
+  }
+  function normalizeMediaDisplay(value, fallback = defaultMediaDisplay()) {
+    const input = isRecord(value) ? value : {};
+    const zoom = typeof input.zoom === "number" && Number.isFinite(input.zoom) ? Math.round(clamp2(input.zoom, BACKGROUND_ZOOM.min, BACKGROUND_ZOOM.max) * 10) / 10 : fallback.zoom;
+    const tileScale = typeof input.tileScale === "number" && Number.isFinite(input.tileScale) ? Math.round(clamp2(input.tileScale, BACKGROUND_TILE_SCALE.min, BACKGROUND_TILE_SCALE.max) * 100) / 100 : fallback.tileScale;
+    return {
+      fit: BACKGROUND_FITS.includes(input.fit) ? input.fit : fallback.fit,
+      ratio: BACKGROUND_RATIOS.includes(input.ratio) ? input.ratio : fallback.ratio,
+      zoom,
+      tileScale,
+      pinX: PINS.includes(input.pinX) ? input.pinX : fallback.pinX,
+      pinY: PINS.includes(input.pinY) ? input.pinY : fallback.pinY
+    };
+  }
+  function normalizeBackgroundValue(value, fallback = defaultBackgroundValue()) {
+    const base = fallback;
+    if (!isRecord(value)) return cloneBackgroundValue(base);
+    return {
+      mode: BACKGROUND_MODES.includes(value.mode) ? value.mode : base.mode,
+      color: normalizeHex(value.color) ?? base.color,
+      gradient: normalizeGradient(value.gradient, base.gradient),
+      media: "media" in value ? normalizeMedia(value.media) : base.media && { ...base.media },
+      mediaDisplay: normalizeMediaDisplay(value.mediaDisplay, base.mediaDisplay)
+    };
+  }
+  function backgroundConfigDefault(config) {
+    return normalizeBackgroundValue(config?.default, defaultBackgroundValue());
+  }
+  function cloneGradient(gradient) {
+    return { shape: gradient.shape, angle: gradient.angle, stops: gradient.stops.map((stop2) => ({ ...stop2 })) };
+  }
+  function cloneBackgroundValue(value) {
+    return {
+      mode: value.mode,
+      color: value.color,
+      gradient: cloneGradient(value.gradient),
+      media: value.media && { ...value.media },
+      mediaDisplay: { ...value.mediaDisplay }
+    };
+  }
+  function sameStops(a, b) {
+    return a.length === b.length && a.every((stop2, i) => stop2.at === b[i].at && stop2.color === b[i].color && stop2.alpha === b[i].alpha);
+  }
+  function sameGradient(a, b) {
+    return a.shape === b.shape && a.angle === b.angle && sameStops(a.stops, b.stops);
+  }
+  function sameBackgroundValue(a, b) {
+    if (!isRecord(a) || !isRecord(b)) return false;
+    const x = a;
+    const y = b;
+    if (x.mode !== y.mode || x.color !== y.color) return false;
+    if (!isRecord(x.gradient) || !isRecord(y.gradient) || !Array.isArray(x.gradient.stops) || !Array.isArray(y.gradient.stops)) return false;
+    if (!sameGradient(x.gradient, y.gradient)) return false;
+    if (x.media === null !== (y.media === null)) return false;
+    if (x.media && y.media && (x.media.key !== y.media.key || x.media.kind !== y.media.kind)) return false;
+    const p = x.mediaDisplay;
+    const q = y.mediaDisplay;
+    if (!isRecord(p) || !isRecord(q)) return p === q;
+    return p.fit === q.fit && p.ratio === q.ratio && p.zoom === q.zoom && p.tileScale === q.tileScale && p.pinX === q.pinX && p.pinY === q.pinY;
+  }
+  function hexToRgb(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    return [n >> 16 & 255, n >> 8 & 255, n & 255];
+  }
+  function rgbToHex(rgb) {
+    return `#${rgb.map((n) => Math.round(clamp2(n, 0, 255)).toString(16).padStart(2, "0")).join("")}`;
+  }
+  function gradientColorAt(stops, at) {
+    if (stops.length === 0) return { color: "#000000", alpha: 100 };
+    if (at <= stops[0].at) return { color: stops[0].color, alpha: stops[0].alpha };
+    const last = stops[stops.length - 1];
+    if (at >= last.at) return { color: last.color, alpha: last.alpha };
+    for (let i = 0; i < stops.length - 1; i++) {
+      const a = stops[i];
+      const b = stops[i + 1];
+      if (at < a.at || at > b.at) continue;
+      const t = b.at === a.at ? 0 : (at - a.at) / (b.at - a.at);
+      const ca = hexToRgb(a.color);
+      const cb = hexToRgb(b.color);
+      return {
+        color: rgbToHex(ca.map((n, k) => n + (cb[k] - n) * t)),
+        alpha: Math.round(a.alpha + (b.alpha - a.alpha) * t)
+      };
+    }
+    return { color: last.color, alpha: last.alpha };
+  }
+  function moveItem(list, from, to) {
+    const next = list.slice();
+    if (from < 0 || from >= next.length) return next;
+    const [item] = next.splice(from, 1);
+    next.splice(clamp2(to, 0, next.length), 0, item);
+    return next;
+  }
+  function moveStopPayload(stops, from, to) {
+    const payload = moveItem(stops.map(({ color, alpha }) => ({ color, alpha })), from, to);
+    return stops.map((stop2, i) => ({ at: stop2.at, ...payload[i] }));
+  }
+  function widestGapMiddle(stops) {
+    let best = 0;
+    let middle = 50;
+    for (let i = 0; i < stops.length - 1; i++) {
+      const gap = stops[i + 1].at - stops[i].at;
+      if (gap > best) {
+        best = gap;
+        middle = stops[i].at + gap / 2;
+      }
+    }
+    return Math.round(middle * 100) / 100;
+  }
+  function stopCssColor(stop2) {
+    const [r, g, b] = hexToRgb(stop2.color);
+    return `rgb(${r} ${g} ${b} / ${round2(stop2.alpha / 100)})`;
+  }
+  function backgroundGradientCss(gradient, direction) {
+    const stops = gradient.stops.map((stop2) => `${stopCssColor(stop2)} ${stop2.at}%`).join(", ");
+    if (direction) return `linear-gradient(${direction}, ${stops})`;
+    return gradient.shape === "radial" ? `radial-gradient(circle at center, ${stops})` : `linear-gradient(${gradient.angle}deg, ${stops})`;
+  }
+
+  // src/store/BackgroundHost.ts
+  var STATE_KEY = /* @__PURE__ */ Symbol.for("dialkit.backgroundHost");
+  function state() {
+    const scope = globalThis;
+    let current = scope[STATE_KEY];
+    if (!current) {
+      current = { host: {}, saved: [], listeners: /* @__PURE__ */ new Set() };
+      scope[STATE_KEY] = current;
+    }
+    return current;
+  }
+  function notify() {
+    state().listeners.forEach((listener) => listener());
+  }
+  function cloneSaved(list) {
+    return list.map((saved) => ({
+      id: saved.id,
+      gradient: { shape: saved.gradient.shape, angle: saved.gradient.angle, stops: saved.gradient.stops.map((stop2) => ({ ...stop2 })) }
+    }));
+  }
+  function setBackgroundHost(host) {
+    state().host = { ...host };
+    notify();
+  }
+  function getBackgroundHost() {
+    return state().host;
+  }
+  function setSavedGradients(list) {
+    state().saved = cloneSaved(list);
+    notify();
+  }
+  function getSavedGradients() {
+    return state().saved;
+  }
+  function subscribeBackgroundHost(listener) {
+    const listeners2 = state().listeners;
+    listeners2.add(listener);
+    return () => {
+      listeners2.delete(listener);
+    };
+  }
+
   // src/store/DialStore.ts
   function anchorConfigOf(value) {
     return value === true || typeof value === "object" && value !== null && !Array.isArray(value) ? {} : void 0;
@@ -401,7 +639,7 @@ var DialKit = (() => {
     }
   }
   function isLeafConfigValue(value) {
-    return Array.isArray(value) && value.length <= 5 && typeof value[0] === "number" || typeof value === "number" || typeof value === "boolean" || typeof value === "string" || isSpringConfigValue(value) || isEasingConfigValue(value) || isActionConfigValue(value) || isSelectConfigValue(value) || isColorConfigValue(value) || isImageConfigValue(value) || isTextConfigValue(value) || isPadConfigValue(value);
+    return Array.isArray(value) && value.length <= 5 && typeof value[0] === "number" || typeof value === "number" || typeof value === "boolean" || typeof value === "string" || isSpringConfigValue(value) || isEasingConfigValue(value) || isActionConfigValue(value) || isSelectConfigValue(value) || isColorConfigValue(value) || isImageConfigValue(value) || isTextConfigValue(value) || isPadConfigValue(value) || isBackgroundConfigValue(value);
   }
   function configDefaultValue(value) {
     if (Array.isArray(value)) return value[0];
@@ -410,20 +648,21 @@ var DialKit = (() => {
     if (isImageConfigValue(value)) return value.default ?? getFirstOptionValue(value.options ?? []);
     if (isTextConfigValue(value)) return value.default ?? "";
     if (isPadConfigValue(value)) return normalizePadValue(void 0, value);
+    if (isBackgroundConfigValue(value)) return backgroundConfigDefault(value);
     return value;
   }
-  function isRecord(value) {
+  function isRecord2(value) {
     return typeof value === "object" && value !== null && !Array.isArray(value);
   }
   function sameControlValue(previous, next, control) {
-    return Object.is(previous, next) || control?.type === "pad" && isRecord(previous) && isRecord(next) && previous.x === next.x && previous.y === next.y;
+    return Object.is(previous, next) || control?.type === "pad" && isRecord2(previous) && isRecord2(next) && previous.x === next.x && previous.y === next.y || control?.type === "background" && sameBackgroundValue(previous, next);
   }
   function sameValue(a, b) {
     if (a === b || Object.is(a, b)) return true;
     if (Array.isArray(a) && Array.isArray(b)) {
       return a.length === b.length && a.every((item, i) => sameValue(item, b[i]));
     }
-    if (isRecord(a) && isRecord(b)) return sameRecord(a, b);
+    if (isRecord2(a) && isRecord2(b)) return sameRecord(a, b);
     return false;
   }
   function sameRecord(a, b) {
@@ -469,6 +708,9 @@ var DialKit = (() => {
   }
   function isPadConfigValue(value) {
     return hasType(value, "pad");
+  }
+  function isBackgroundConfigValue(value) {
+    return hasType(value, "background");
   }
   function getFirstOptionValue(options) {
     const first = options[0];
@@ -689,7 +931,7 @@ var DialKit = (() => {
         if (control?.type === "action") {
           continue;
         }
-        const next = control?.type === "pad" ? normalizePadValue(value, control.pad) : value;
+        const next = control?.type === "pad" ? normalizePadValue(value, control.pad) : control?.type === "background" ? normalizeBackgroundValue(value, control.background?.default) : value;
         if (sameControlValue(panel.values[path], next, control) && (!target || sameControlValue(target[path], next, control))) continue;
         panel.values[path] = next;
         validUpdates[path] = next;
@@ -1103,13 +1345,13 @@ var DialKit = (() => {
         const raw = storage.getItem(config.key);
         if (!raw) return null;
         const parsed = JSON.parse(raw);
-        if (!isRecord(parsed) || parsed.version !== 1) return null;
-        const values = isRecord(parsed.values) ? parsed.values : void 0;
-        const presets = config.presets && Array.isArray(parsed.presets) ? parsed.presets.filter((preset) => isRecord(preset) && typeof preset.id === "string" && typeof preset.name === "string" && isRecord(preset.values)) : [];
+        if (!isRecord2(parsed) || parsed.version !== 1) return null;
+        const values = isRecord2(parsed.values) ? parsed.values : void 0;
+        const presets = config.presets && Array.isArray(parsed.presets) ? parsed.presets.filter((preset) => isRecord2(preset) && typeof preset.id === "string" && typeof preset.name === "string" && isRecord2(preset.values)) : [];
         return {
           version: 1,
           values,
-          baseValues: config.presets && isRecord(parsed.baseValues) ? parsed.baseValues : values,
+          baseValues: config.presets && isRecord2(parsed.baseValues) ? parsed.baseValues : values,
           presets,
           activePresetId: presets.some((preset) => preset.id === parsed.activePresetId) ? parsed.activePresetId : null
         };
@@ -1124,14 +1366,14 @@ var DialKit = (() => {
       if (!storage) return;
       const values = this.snapshots.get(id) ?? this.panels.get(id)?.values;
       if (!values) return;
-      const state = { version: 1, values };
+      const state2 = { version: 1, values };
       if (config.presets) {
-        state.baseValues = this.baseValues.get(id) ?? values;
-        state.presets = this.presets.get(id) ?? [];
-        state.activePresetId = this.activePreset.get(id) ?? null;
+        state2.baseValues = this.baseValues.get(id) ?? values;
+        state2.presets = this.presets.get(id) ?? [];
+        state2.activePresetId = this.activePreset.get(id) ?? null;
       }
       try {
-        storage.setItem(config.key, JSON.stringify(state));
+        storage.setItem(config.key, JSON.stringify(state2));
       } catch {
       }
     }
@@ -1227,6 +1469,8 @@ var DialKit = (() => {
             control = { type: "text", path, label, placeholder: value.placeholder };
           } else if (isPadConfigValue(value)) {
             control = { type: "pad", path, label, pad: value };
+          } else if (isBackgroundConfigValue(value)) {
+            control = { type: "background", path, label, background: { ...value, default: backgroundConfigDefault(value) } };
           } else if (typeof value === "string") {
             if (parseColor(value) && value !== "transparent") {
               control = { type: "color", path, label };
@@ -1298,6 +1542,8 @@ var DialKit = (() => {
           return typeof existingValue === "boolean" ? existingValue : defaultValue;
         case "pad":
           return normalizePadValue(existingValue, control.pad);
+        case "background":
+          return normalizeBackgroundValue(existingValue, control.background?.default);
         case "select": {
           if (typeof existingValue !== "string") {
             return defaultValue;
@@ -1862,6 +2108,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
 
   // src/icons.ts
   var ICON_CHEVRON = "M6 9.5L12 15.5L18 9.5";
+  var ICON_CLOSE = "M6 6L18 18M18 6L6 18";
   var ICON_CHECK = "M5 12.75L10 19L19 5";
   var ICON_PAUSE = [
     "M6.75 3C5.23122 3 4 4.23122 4 5.75V18.25C4 19.7688 5.23122 21 6.75 21H7.25C8.76878 21 10 19.7688 10 18.25V5.75C10 4.23122 8.76878 3 7.25 3H6.75Z",
@@ -1877,6 +2124,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
     sparkle: "M19.2405 16.1852L18.5436 14.3733C18.4571 14.1484 18.241 14 18 14C17.759 14 17.5429 14.1484 17.4564 14.3733L16.7595 16.1852C16.658 16.4493 16.4493 16.658 16.1852 16.7595L14.3733 17.4564C14.1484 17.5429 14 17.759 14 18C14 18.241 14.1484 18.4571 14.3733 18.5436L16.1852 19.2405C16.4493 19.342 16.658 19.5507 16.7595 19.8148L17.4564 21.6267C17.5429 21.8516 17.759 22 18 22C18.241 22 18.4571 21.8516 18.5436 21.6267L19.2405 19.8148C19.342 19.5507 19.5507 19.342 19.8148 19.2405L21.6267 18.5436C21.8516 18.4571 22 18.241 22 18C22 17.759 21.8516 17.5429 21.6267 17.4564L19.8148 16.7595C19.5507 16.658 19.342 16.4493 19.2405 16.1852Z",
     body: "M16 5H17C18.6569 5 20 6.34315 20 8V11M8 5H7C5.34315 5 4 6.34315 4 8V18C4 19.6569 5.34315 21 7 21H12"
   };
+  var ICON_PLUS = ["M5 12H19M12 5V19"];
   var ICON_ADD_PRESET = [
     "M4 6H20",
     "M4 12H10",
@@ -3379,6 +3627,1478 @@ Apply these values as the new defaults in the ${hookName} call.`;
     };
   }
 
+  // src/components/control-motion.ts
+  var CONTROL_ANIM = {
+    initial: { opacity: 0, height: 0, marginBottom: -6 },
+    animate: { opacity: 1, height: "auto", marginBottom: 0 },
+    exit: { opacity: 0, height: 0, marginBottom: -6 },
+    transition: {
+      type: "spring",
+      visualDuration: 0.25,
+      bounce: 0.1
+    },
+    style: { overflow: "clip" }
+  };
+
+  // src/transition-math.ts
+  function round22(value) {
+    return Math.round(value * 100) / 100;
+  }
+  function clamp3(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+  function isTransitionConfig(value) {
+    return isSpringConfigValue(value) || isEasingConfigValue(value);
+  }
+  function isPhysicsSpring(transition) {
+    return transition.type === "spring" && (transition.stiffness !== void 0 || transition.damping !== void 0 || transition.mass !== void 0);
+  }
+  function springParams(spring) {
+    if (isPhysicsSpring(spring)) {
+      return { stiffness: spring.stiffness ?? 200, damping: spring.damping ?? 25, mass: spring.mass ?? 1 };
+    }
+    const visualDuration = Math.max(0.05, spring.visualDuration ?? 0.3);
+    const bounce = spring.bounce ?? 0.3;
+    const root = 2 * Math.PI / (visualDuration * 1.2);
+    const stiffness = root * root;
+    const damping = 2 * Math.min(1, Math.max(0.05, 1 - bounce)) * Math.sqrt(stiffness);
+    return { stiffness, damping, mass: 1 };
+  }
+  function springProgress(t, { stiffness, damping, mass }) {
+    if (t <= 0) return 0;
+    const w0 = Math.sqrt(stiffness / mass);
+    const zeta = damping / (2 * Math.sqrt(stiffness * mass));
+    if (zeta < 0.9999) {
+      const wd2 = w0 * Math.sqrt(1 - zeta * zeta);
+      return 1 - Math.exp(-zeta * w0 * t) * (Math.cos(wd2 * t) + zeta * w0 / wd2 * Math.sin(wd2 * t));
+    }
+    if (zeta < 1.0001) {
+      return 1 - Math.exp(-w0 * t) * (1 + w0 * t);
+    }
+    const wd = w0 * Math.sqrt(zeta * zeta - 1);
+    const r1 = -zeta * w0 + wd;
+    const r2 = -zeta * w0 - wd;
+    return 1 + (r2 * Math.exp(r1 * t) - r1 * Math.exp(r2 * t)) / (r1 - r2);
+  }
+  function springSettleDuration(params) {
+    const w0 = Math.sqrt(params.stiffness / params.mass);
+    const zeta = params.damping / (2 * Math.sqrt(params.stiffness * params.mass));
+    const decay = zeta >= 1 ? zeta * w0 - w0 * Math.sqrt(Math.max(0, zeta * zeta - 1)) : zeta * w0;
+    const duration = Math.log(200) / Math.max(decay, 1e-6);
+    return round22(clamp3(duration, 0.05, 10));
+  }
+  function cubicBezierProgress(p, [x1, y1, x2, y2]) {
+    if (p <= 0) return 0;
+    if (p >= 1) return 1;
+    const sampleX = (t2) => bezierAxis(t2, x1, x2);
+    const sampleY = (t2) => bezierAxis(t2, y1, y2);
+    let t = p;
+    for (let i = 0; i < 8; i++) {
+      const x = sampleX(t) - p;
+      if (Math.abs(x) < 1e-5) return sampleY(t);
+      const dx = bezierAxisDerivative(t, x1, x2);
+      if (Math.abs(dx) < 1e-6) break;
+      t -= x / dx;
+    }
+    let lo = 0;
+    let hi = 1;
+    t = p;
+    while (hi - lo > 1e-5) {
+      if (sampleX(t) < p) lo = t;
+      else hi = t;
+      t = (lo + hi) / 2;
+    }
+    return sampleY(t);
+  }
+  function bezierAxis(t, a1, a2) {
+    return (1 - 3 * a2 + 3 * a1) * t * t * t + (3 * a2 - 6 * a1) * t * t + 3 * a1 * t;
+  }
+  function bezierAxisDerivative(t, a1, a2) {
+    return 3 * (1 - 3 * a2 + 3 * a1) * t * t + 2 * (3 * a2 - 6 * a1) * t + 3 * a1;
+  }
+  function resolveClipTransition(raw, clipDuration) {
+    const safeDuration = Math.max(0.05, clipDuration);
+    if (raw.type === "easing") {
+      return {
+        transition: { ...raw, duration: safeDuration },
+        duration: safeDuration,
+        isPhysics: false
+      };
+    }
+    if (isPhysicsSpring(raw)) {
+      return {
+        transition: raw,
+        // An explicit stored duration wins — a host may deliberately reserve
+        // a bar LONGER than the spring's motion (e.g. covering a staggered
+        // wave's spread plus each particle's settle, so the bar's end means
+        // "everything at rest"). The spring's own settle time is only the
+        // default when no real duration was stored.
+        duration: clipDuration > 0 ? safeDuration : springSettleDuration(springParams(raw)),
+        isPhysics: true
+      };
+    }
+    return {
+      transition: { type: "spring", bounce: raw.bounce ?? 0.2, visualDuration: safeDuration },
+      duration: safeDuration,
+      isPhysics: false
+    };
+  }
+
+  // src/vanilla/animation.ts
+  function animateSpring(node, frame, visualDuration = 0.35, bounce = 0.1) {
+    if (typeof node.animate !== "function" || window.matchMedia("(prefers-reduced-motion: reduce)").matches)
+      return;
+    const params = springParams({ type: "spring", visualDuration, bounce });
+    const duration = springSettleDuration(params);
+    const count = Math.max(2, Math.ceil(duration * 60));
+    const frames = Array.from({ length: count + 1 }, (_, index) => frame(index === count ? 1 : springProgress(index / count * duration, params)));
+    return node.animate(frames, { duration: duration * 1e3, easing: "linear" });
+  }
+
+  // src/background-control.ts
+  var MODE_OPTIONS = [
+    { value: "solid", label: "Solid" },
+    { value: "gradient", label: "Gradient" },
+    { value: "media", label: "Media" }
+  ];
+  var SHAPE_OPTIONS = [
+    { value: "linear", label: "Linear" },
+    { value: "radial", label: "Radial" }
+  ];
+  var FIT_LABEL = { fill: "Fill", fit: "Fit", stretch: "Stretch", tile: "Tile" };
+  var RATIO_LABEL = (ratio) => ratio === "source" ? "Source" : ratio;
+  var PIN_COLUMNS = ["Left", "Center", "Right"];
+  var PIN_ROWS = ["Top", "Middle", "Bottom"];
+  var ICON_MINUS = "M5 12H19";
+  var ICON_GRIP = ["M9 6h.01", "M15 6h.01", "M9 12h.01", "M15 12h.01", "M9 18h.01", "M15 18h.01"];
+  var LAYOUT_SPRING = CONTROL_ANIM.transition;
+  var DRAG_LIFT_PX = 4;
+  var HANDLE_OVERHANG = 6;
+  function stripCss(gradient) {
+    const stops = gradient.stops.map((stop2) => `${stopCssColor(stop2)} calc(${HANDLE_OVERHANG}px + (100% - ${2 * HANDLE_OVERHANG}px) * ${stop2.at / 100})`);
+    return `linear-gradient(to right, ${stops.join(", ")})`;
+  }
+  var reducedMotion = () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  var ICON_REVERSE = ["M7 7h13", "M16 3l4 4-4 4", "M17 17H4", "M8 13l-4 4 4 4"];
+  var ICON_UPLOAD = ["M12 16V3", "M8 7l4-4 4 4", "M4 15v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5"];
+  var DRAG_THRESHOLD = 3;
+  var isHintKey3 = (e) => e.key.toLowerCase() === HintStore.getKey() && !(e.target instanceof HTMLInputElement);
+  function element4(tag, className, text) {
+    const el = document.createElement(tag);
+    el.className = className;
+    if (text) el.textContent = text;
+    if (el instanceof HTMLButtonElement) el.type = "button";
+    return el;
+  }
+  function strokeIcon(paths) {
+    const ns = "http://www.w3.org/2000/svg";
+    const svg2 = document.createElementNS(ns, "svg");
+    svg2.setAttribute("viewBox", "0 0 24 24");
+    svg2.setAttribute("fill", "none");
+    svg2.setAttribute("stroke", "currentColor");
+    svg2.setAttribute("stroke-width", "2");
+    svg2.setAttribute("stroke-linecap", "round");
+    svg2.setAttribute("stroke-linejoin", "round");
+    svg2.setAttribute("aria-hidden", "true");
+    for (const d of typeof paths === "string" ? [paths] : paths) {
+      const path = document.createElementNS(ns, "path");
+      path.setAttribute("d", d);
+      svg2.append(path);
+    }
+    return svg2;
+  }
+  function iconButton(className, label, paths) {
+    const button2 = element4("button", `dialkit-bg-icon-button ${className}`);
+    button2.setAttribute("aria-label", label);
+    button2.append(strokeIcon(paths));
+    return button2;
+  }
+  var clamp4 = (n, min, max) => Math.min(max, Math.max(min, n));
+  var formatNumber = (n) => String(Math.round(n * 10) / 10 || 0);
+  var errorMessage = (error, fallback) => error instanceof Error && error.message ? error.message : fallback;
+  function segmented(options, ariaLabel, onPick) {
+    const group = element4("div", "dialkit-segmented dialkit-bg-segmented");
+    group.setAttribute("data-fill", "");
+    group.setAttribute("role", "radiogroup");
+    group.setAttribute("aria-label", ariaLabel);
+    group.addEventListener("keydown", handleSegmentKey);
+    const pill = element4("div", "dialkit-segmented-pill");
+    pill.setAttribute("aria-hidden", "true");
+    pill.style.width = `calc((100% - 8px) / ${options.length})`;
+    group.append(pill);
+    const buttons = options.map((option) => {
+      const button2 = element4("button", "dialkit-segmented-button");
+      button2.setAttribute("role", "radio");
+      button2.append(element4("span", "dialkit-segmented-text", option.label));
+      button2.addEventListener("click", () => onPick(option.value));
+      group.append(button2);
+      return button2;
+    });
+    return {
+      group,
+      buttons,
+      set(value) {
+        options.forEach((option, i) => {
+          const active2 = option.value === value;
+          buttons[i].setAttribute("aria-checked", String(active2));
+          buttons[i].dataset.active = String(active2);
+          buttons[i].tabIndex = active2 ? 0 : -1;
+          if (active2) pill.style.transform = `translateX(${i * 100}%)`;
+        });
+      }
+    };
+  }
+  function numberField(options) {
+    const root = element4("div", `dialkit-field dialkit-bg-field ${options.className}`);
+    const input = element4("input", "dialkit-field-input dialkit-bg-field-input");
+    input.type = "text";
+    input.inputMode = "decimal";
+    input.autocomplete = "off";
+    input.spellcheck = false;
+    input.setAttribute("role", "spinbutton");
+    input.setAttribute("aria-valuemin", String(options.min));
+    input.setAttribute("aria-valuemax", String(options.max));
+    const grips = [];
+    if (options.grip) {
+      const grip = element4("span", "dialkit-field-axis dialkit-bg-field-grip", options.grip);
+      grip.setAttribute("aria-hidden", "true");
+      root.append(grip);
+      grips.push(grip);
+    }
+    root.append(input);
+    const unit = element4("span", "dialkit-bg-field-unit", options.unit);
+    unit.setAttribute("aria-hidden", "true");
+    root.append(unit);
+    grips.push(unit);
+    const fit = (n) => {
+      if (options.wrap) {
+        const span = options.max - options.min;
+        return n === options.max ? n : ((n - options.min) % span + span) % span + options.min;
+      }
+      return clamp4(n, options.min, options.max);
+    };
+    const readDraft = () => {
+      const n = Number.parseFloat(input.value.replace(options.unit, "").trim());
+      return Number.isFinite(n) ? n : null;
+    };
+    const sync = () => {
+      const value = options.read();
+      input.setAttribute("aria-label", options.label());
+      input.setAttribute("aria-valuenow", String(value));
+      input.setAttribute("aria-valuetext", `${formatNumber(value)}${options.unit}`);
+      if (document.activeElement !== input) input.value = formatNumber(value);
+    };
+    let skipBlur = false;
+    let applying = false;
+    const run = (n) => {
+      applying = true;
+      try {
+        options.apply(n);
+      } finally {
+        applying = false;
+      }
+    };
+    const commitDraft = () => {
+      const n = readDraft();
+      if (n !== null && n !== options.read()) run(fit(n));
+      input.value = formatNumber(options.read());
+    };
+    input.addEventListener("focus", () => input.select());
+    input.addEventListener("blur", () => {
+      if (applying) return;
+      if (skipBlur) {
+        skipBlur = false;
+        return;
+      }
+      commitDraft();
+    });
+    input.addEventListener("keydown", (event) => {
+      event.stopPropagation();
+      if (event.key === "Enter") {
+        event.preventDefault();
+        commitDraft();
+        if (document.activeElement === input) input.select();
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        input.value = formatNumber(options.read());
+        skipBlur = true;
+        input.blur();
+        return;
+      }
+      const stepped = stepInputKey(event, input.value, options.read(), options.min, options.max, options.step, options.wrap);
+      if (stepped === void 0) return;
+      run(stepped);
+      input.value = formatNumber(options.read());
+    });
+    for (const grip of grips) {
+      let press;
+      grip.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0) return;
+        event.preventDefault();
+        press = { id: event.pointerId, x: event.clientX, start: options.read(), moved: false };
+        grip.setPointerCapture(event.pointerId);
+      });
+      grip.addEventListener("pointermove", (event) => {
+        if (!press || event.pointerId !== press.id) return;
+        const dx = event.clientX - press.x;
+        if (!press.moved && Math.abs(dx) < DRAG_THRESHOLD) return;
+        press.moved = true;
+        const next = fit(press.start + dx * options.step * (event.shiftKey ? 10 : 1));
+        run(Math.round(next / options.step) * options.step);
+      });
+      const end = (event) => {
+        if (!press || event.pointerId !== press.id) return;
+        press = void 0;
+        if (grip.hasPointerCapture(event.pointerId)) grip.releasePointerCapture(event.pointerId);
+      };
+      grip.addEventListener("pointerup", end);
+      grip.addEventListener("pointercancel", end);
+    }
+    return { root, input, sync };
+  }
+  function stopPickerValue(stop2) {
+    if (stop2.alpha >= 100) return stop2.color;
+    return stop2.color + Math.round(clamp4(stop2.alpha, 0, 100) / 100 * 255).toString(16).padStart(2, "0");
+  }
+  function readPicked(raw) {
+    const parsed = parseColor(raw);
+    if (!parsed) return null;
+    const color = "#" + colorToRgb255(parsed).map((n) => n.toString(16).padStart(2, "0")).join("");
+    return { color, alpha: Math.round(clamp4(parsed.a, 0, 1) * 100) };
+  }
+  function mountBackgroundControl(host, initial) {
+    let props = initial;
+    let value = normalizeBackgroundValue(props.value);
+    let selected = 0;
+    let destroyed = false;
+    let saving = false;
+    let uploading = false;
+    let uploadRequest = 0;
+    let gradientStatus = "";
+    let mediaStatus = "";
+    let mediaError = false;
+    const emit = (next) => {
+      if (sameBackgroundValue(next, value)) {
+        render();
+        return;
+      }
+      value = next;
+      render();
+      props.onChange(cloneBackgroundValue(value));
+    };
+    const setGradient = (gradient) => emit({ ...value, gradient });
+    const root = element4("div", "dialkit-bg");
+    const body = element4("div", "dialkit-bg-body");
+    root.append(body);
+    const caption = element4("div", "dialkit-bg-caption");
+    const modes = segmented(MODE_OPTIONS, "Background type", (mode) => emit({ ...value, mode }));
+    body.append(caption, modes.group);
+    const solidPane = element4("div", "dialkit-bg-pane dialkit-bg-solid");
+    const solidHost = element4("div", "dialkit-color-host");
+    solidPane.append(solidHost);
+    let solidPicked;
+    const solidValue = () => solidPicked && solidPicked.color === value.color ? solidPicked.raw : value.color;
+    const solid = mountColorControl(solidHost, {
+      label: "Color",
+      value: solidValue(),
+      onChange: (raw) => {
+        const picked = readPicked(raw);
+        if (!picked) return;
+        solidPicked = { raw, color: picked.color };
+        emit({ ...value, color: picked.color });
+      }
+    });
+    const gradientPane = element4("div", "dialkit-bg-pane dialkit-bg-gradient");
+    const shapeRow = element4("div", "dialkit-bg-shape-row");
+    const shapes = segmented(SHAPE_OPTIONS, "Gradient shape", (shape) => setGradient({ ...value.gradient, shape }));
+    const angle = numberField({
+      className: "dialkit-bg-angle",
+      label: () => "Gradient angle",
+      grip: "Angle",
+      unit: "\xB0",
+      min: 0,
+      max: 360,
+      step: 1,
+      wrap: true,
+      read: () => value.gradient.angle,
+      apply: (n) => setGradient({ ...value.gradient, angle: normalizeAngle(n) })
+    });
+    shapeRow.append(shapes.group, angle.root);
+    const angleRow = conditionalRow(angle.root, shapeRow, "width");
+    const bar = element4("div", "dialkit-bg-bar");
+    const track = element4("div", "dialkit-bg-track");
+    const trackPaint = element4("div", "dialkit-bg-track-paint");
+    track.append(trackPaint);
+    const handlesLayer = element4("div", "dialkit-bg-handles");
+    bar.append(track, handlesLayer);
+    bar.title = "Click the bar to add a stop";
+    let handles = [];
+    const stopsHeader = element4("div", "dialkit-bg-stops-header");
+    const stopsTitle = element4("span", "dialkit-bg-stops-title", "Stops");
+    const reverseButton = iconButton("dialkit-bg-reverse", "Reverse stops", ICON_REVERSE);
+    const addButton = iconButton("dialkit-bg-add", "Add stop", ICON_PLUS);
+    stopsHeader.append(stopsTitle, reverseButton, addButton);
+    const stopsList = element4("div", "dialkit-bg-stops");
+    let nextStopId = 0;
+    let stopIds = value.gradient.stops.map(() => ++nextStopId);
+    const rowById = /* @__PURE__ */ new Map();
+    const liveRows = () => stopIds.map((id) => rowById.get(id)).filter((row) => !!row);
+    const reconcileIds = () => {
+      const count = value.gradient.stops.length;
+      if (stopIds.length > count) stopIds = stopIds.slice(0, count);
+      while (stopIds.length < count) stopIds = [...stopIds, ++nextStopId];
+    };
+    const saveRow = element4("div", "dialkit-bg-save-row");
+    const saveButton = element4("button", "dialkit-preset-save dialkit-bg-save", "Save gradient");
+    saveRow.append(saveButton);
+    const gradientStatusLine = element4("div", "dialkit-bg-status");
+    gradientStatusLine.setAttribute("role", "status");
+    gradientStatusLine.setAttribute("aria-live", "polite");
+    const savedList = element4("div", "dialkit-bg-saved");
+    savedList.setAttribute("role", "group");
+    savedList.setAttribute("aria-label", "Saved gradients");
+    let savedItems = [];
+    let savedSignature = "";
+    gradientPane.append(shapeRow, bar, stopsHeader, stopsList, saveRow, gradientStatusLine, savedList);
+    const entries = () => value.gradient.stops.map((stop2, i) => ({ stop: stop2, id: stopIds[i] }));
+    const commitEntries = (list, selectId = stopIds[selected]) => {
+      const sorted = list.map((entry, i) => ({ entry, i })).sort((a, b) => a.entry.stop.at - b.entry.stop.at || a.i - b.i).map(({ entry }) => entry);
+      stopIds = sorted.map((entry) => entry.id);
+      const index = stopIds.indexOf(selectId);
+      selected = index >= 0 ? index : clamp4(selected, 0, sorted.length - 1);
+      setGradient({ ...value.gradient, stops: sorted.map((entry) => entry.stop) });
+    };
+    const updateStop = (index, patch) => {
+      const list = entries();
+      const current = list[index];
+      if (!current) return;
+      list[index] = { id: current.id, stop: { ...current.stop, ...patch } };
+      commitEntries(list, current.id);
+    };
+    const addStopAt = (at) => {
+      if (value.gradient.stops.length >= BACKGROUND_MAX_STOPS) return;
+      const position = Math.round(clamp4(at, 0, 100) * 100) / 100;
+      const entry = { id: ++nextStopId, stop: { at: position, ...gradientColorAt(value.gradient.stops, position) } };
+      commitEntries([...entries(), entry], entry.id);
+    };
+    const removeStop = (index) => {
+      if (value.gradient.stops.length <= BACKGROUND_MIN_STOPS) return;
+      const list = entries();
+      const removed = list[index]?.id;
+      const selectId = removed === stopIds[selected] ? (list[index - 1] ?? list[index + 1])?.id : stopIds[selected];
+      commitEntries(list.filter((entry) => entry.id !== removed), selectId);
+    };
+    const reorderRows = (base, from, to, selectId) => {
+      stopIds = moveItem(base.map((entry) => entry.id), from, to);
+      selected = Math.max(0, stopIds.indexOf(selectId));
+      setGradient({ ...value.gradient, stops: moveStopPayload(base.map((entry) => entry.stop), from, to) });
+    };
+    const select = (index) => {
+      if (index === selected || index < 0) return;
+      selected = index;
+      renderSelection();
+    };
+    reverseButton.addEventListener("click", () => {
+      commitEntries(entries().map(({ id, stop: stop2 }) => ({ id, stop: { ...stop2, at: Math.round((100 - stop2.at) * 100) / 100 } })));
+    });
+    addButton.addEventListener("click", () => addStopAt(widestGapMiddle(value.gradient.stops)));
+    let drag;
+    const fractionAt = (clientX) => {
+      const rect = handlesLayer.getBoundingClientRect();
+      return rect.width ? clamp4((clientX - rect.left) / rect.width, 0, 1) : 0;
+    };
+    const startDrag = (event, index, moved) => {
+      drag = { id: event.pointerId, index, x: event.clientX, moved };
+      bar.setPointerCapture(event.pointerId);
+      bar.dataset.dragging = "true";
+    };
+    const endDrag = (event) => {
+      if (!drag || event && event.pointerId !== drag.id) return;
+      const id = drag.id;
+      drag = void 0;
+      delete bar.dataset.dragging;
+      if (bar.hasPointerCapture(id)) bar.releasePointerCapture(id);
+    };
+    bar.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0 || drag) return;
+      const handle = event.target.closest(".dialkit-bg-handle");
+      event.preventDefault();
+      if (handle) {
+        const index = handles.indexOf(handle);
+        if (index < 0) return;
+        select(index);
+        handle.focus({ preventScroll: true });
+        startDrag(event, index, false);
+        return;
+      }
+      if (value.gradient.stops.length >= BACKGROUND_MAX_STOPS) return;
+      addStopAt(Math.round(fractionAt(event.clientX) * 100));
+      handles[selected]?.focus({ preventScroll: true });
+      startDrag(event, selected, true);
+    });
+    bar.addEventListener("pointermove", (event) => {
+      if (!drag || event.pointerId !== drag.id) return;
+      if (!drag.moved && Math.abs(event.clientX - drag.x) < DRAG_THRESHOLD) return;
+      drag.moved = true;
+      updateStop(drag.index, { at: Math.round(fractionAt(event.clientX) * 100) });
+      drag.index = selected;
+      handles[selected]?.focus({ preventScroll: true });
+    });
+    bar.addEventListener("pointerup", (event) => endDrag(event));
+    bar.addEventListener("pointercancel", (event) => endDrag(event));
+    bar.addEventListener("lostpointercapture", (event) => endDrag(event));
+    const buildHandles = () => {
+      handlesLayer.replaceChildren();
+      handles = value.gradient.stops.map((_, i) => {
+        const handle = element4("button", "dialkit-bg-handle");
+        handle.setAttribute("role", "slider");
+        handle.setAttribute("aria-valuemin", "0");
+        handle.setAttribute("aria-valuemax", "100");
+        const chip = element4("span", "dialkit-bg-handle-chip");
+        chip.setAttribute("aria-hidden", "true");
+        handle.append(chip);
+        handle.addEventListener("focus", () => select(handles.indexOf(handle)));
+        handle.addEventListener("keydown", (event) => {
+          if (event.altKey || event.metaKey || event.ctrlKey) return;
+          const index = handles.indexOf(handle);
+          const stop2 = value.gradient.stops[index];
+          if (!stop2) return;
+          let at;
+          if (event.key === "ArrowLeft" || event.key === "ArrowDown") at = stop2.at - (event.shiftKey ? 10 : 1);
+          else if (event.key === "ArrowRight" || event.key === "ArrowUp") at = stop2.at + (event.shiftKey ? 10 : 1);
+          else if (event.key === "Home") at = 0;
+          else if (event.key === "End") at = 100;
+          else if ((event.key === "Delete" || event.key === "Backspace") && value.gradient.stops.length > BACKGROUND_MIN_STOPS) {
+            event.preventDefault();
+            event.stopPropagation();
+            removeStop(index);
+            handles[selected]?.focus({ preventScroll: true });
+            return;
+          } else return;
+          event.preventDefault();
+          event.stopPropagation();
+          updateStop(index, { at: Math.round(clamp4(at, 0, 100)) });
+          handles[selected]?.focus({ preventScroll: true });
+        });
+        handlesLayer.append(handle);
+        return handle;
+      });
+    };
+    const buildRow = (id) => {
+      const index = () => stopIds.indexOf(id);
+      const stop2 = () => value.gradient.stops[index()];
+      const rowRoot = element4("div", "dialkit-bg-stop");
+      rowRoot.addEventListener("pointerdown", () => select(index()));
+      rowRoot.addEventListener("focusin", () => select(index()));
+      const grip = iconButton("dialkit-bg-stop-grip", "Reorder stop", ICON_GRIP);
+      grip.setAttribute("aria-keyshortcuts", "Alt+ArrowUp Alt+ArrowDown");
+      const at = numberField({
+        className: "dialkit-bg-stop-at",
+        label: () => `Stop ${index() + 1} position`,
+        unit: "%",
+        min: 0,
+        max: 100,
+        step: 1,
+        read: () => stop2()?.at ?? 0,
+        apply: (n) => updateStop(index(), { at: Math.round(n * 100) / 100 })
+      });
+      const colorHost = element4("div", "dialkit-color-host dialkit-bg-stop-color");
+      const row = {
+        id,
+        root: rowRoot,
+        grip,
+        at,
+        alpha: numberField({
+          className: "dialkit-bg-stop-alpha",
+          label: () => `Stop ${index() + 1} opacity`,
+          unit: "%",
+          min: 0,
+          max: 100,
+          step: 1,
+          read: () => stop2()?.alpha ?? 100,
+          apply: (n) => updateStop(index(), { alpha: Math.round(n * 100) / 100 })
+        }),
+        color: mountColorControl(colorHost, {
+          label: `Stop ${index() + 1}`,
+          value: stopPickerValue(stop2()),
+          onChange: (raw) => pickStopColor(row, raw)
+        }),
+        remove: iconButton("dialkit-bg-stop-remove", "Remove stop", ICON_MINUS)
+      };
+      row.remove.addEventListener("click", () => removeStop(index()));
+      bindRowDrag(row, index);
+      rowRoot.append(grip, at.root, colorHost, row.alpha.root, row.remove);
+      return row;
+    };
+    const pickStopColor = (row, raw) => {
+      const picked = readPicked(raw);
+      if (!picked) return;
+      row.picked = { raw, ...picked };
+      updateStop(stopIds.indexOf(row.id), picked);
+    };
+    const dropRow = (row) => {
+      row.flip?.cancel();
+      row.color.destroy();
+      row.root.remove();
+    };
+    let rowDrag;
+    const paintRowDrag = () => {
+      if (!rowDrag) return;
+      const { id, from, to, offset, step, settling, base } = rowDrag;
+      base.forEach((entry, k) => {
+        const row = rowById.get(entry.id);
+        if (!row) return;
+        const shift = entry.id === id ? settling ? (to - from) * step : offset : from < to && k > from && k <= to ? -step : to < from && k >= to && k < from ? step : 0;
+        row.root.style.transform = shift ? `translateY(${shift}px)` : "";
+      });
+    };
+    const finishRowDrag = () => {
+      if (!rowDrag) return;
+      const { base } = rowDrag;
+      rowDrag = void 0;
+      delete stopsList.dataset.dragging;
+      delete stopsList.dataset.settling;
+      base.forEach((entry) => {
+        const row = rowById.get(entry.id);
+        if (!row) return;
+        delete row.root.dataset.dragging;
+        row.root.style.transform = "";
+      });
+      placeRows();
+      render();
+    };
+    const bindRowDrag = (row, index) => {
+      const { grip } = row;
+      grip.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0 || rowDrag) return;
+        event.preventDefault();
+        const from = index();
+        rowDrag = {
+          id: row.id,
+          pointerId: event.pointerId,
+          startY: event.clientY,
+          lifted: false,
+          from,
+          to: from,
+          offset: 0,
+          step: 0,
+          settling: false,
+          base: entries(),
+          selectId: stopIds[selected]
+        };
+        grip.setPointerCapture(event.pointerId);
+      });
+      grip.addEventListener("pointermove", (event) => {
+        const drag2 = rowDrag;
+        if (!drag2 || drag2.id !== row.id || drag2.pointerId !== event.pointerId || drag2.settling) return;
+        const dy = event.clientY - drag2.startY;
+        if (!drag2.lifted) {
+          if (Math.abs(dy) <= DRAG_LIFT_PX) return;
+          drag2.lifted = true;
+          const rows = drag2.base.map((entry) => rowById.get(entry.id)).filter((r) => !!r);
+          rows.forEach((r) => {
+            r.flip?.cancel();
+            r.flip = void 0;
+          });
+          const first = rows[0]?.root.getBoundingClientRect();
+          const second = rows[1]?.root.getBoundingClientRect();
+          drag2.step = first && second ? second.top - first.top : first?.height ?? 40;
+          stopsList.dataset.dragging = "true";
+          row.root.dataset.dragging = "true";
+        }
+        const n = drag2.base.length;
+        drag2.offset = clamp4(dy, -drag2.from * drag2.step, (n - 1 - drag2.from) * drag2.step);
+        const to = clamp4(Math.round(drag2.from + drag2.offset / drag2.step), 0, n - 1);
+        if (to !== drag2.to) {
+          drag2.to = to;
+          reorderRows(drag2.base, drag2.from, to, drag2.selectId);
+        }
+        paintRowDrag();
+      });
+      const release = (event) => {
+        const drag2 = rowDrag;
+        if (!drag2 || drag2.id !== row.id || drag2.pointerId !== event.pointerId || drag2.settling) return;
+        if (grip.hasPointerCapture(event.pointerId)) grip.releasePointerCapture(event.pointerId);
+        if (!drag2.lifted) {
+          rowDrag = void 0;
+          return;
+        }
+        drag2.settling = true;
+        stopsList.dataset.settling = "true";
+        paintRowDrag();
+        if (reducedMotion() || drag2.offset === (drag2.to - drag2.from) * drag2.step) {
+          finishRowDrag();
+          return;
+        }
+        let timer = 0;
+        const done = (e) => {
+          if (e && (e.target !== row.root || e.propertyName !== "transform")) return;
+          row.root.removeEventListener("transitionend", done);
+          clearTimeout(timer);
+          finishRowDrag();
+        };
+        row.root.addEventListener("transitionend", done);
+        timer = window.setTimeout(done, 400);
+      };
+      grip.addEventListener("pointerup", release);
+      grip.addEventListener("pointercancel", release);
+      grip.addEventListener("lostpointercapture", release);
+      grip.addEventListener("keydown", (event) => {
+        if (!event.altKey || event.metaKey || event.ctrlKey || rowDrag) return;
+        if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+        event.preventDefault();
+        event.stopPropagation();
+        const from = index();
+        const to = from + (event.key === "ArrowUp" ? -1 : 1);
+        if (to < 0 || to >= stopIds.length) return;
+        reorderRows(entries(), from, to, stopIds[selected]);
+        if (document.activeElement !== grip) grip.focus({ preventScroll: true });
+      });
+    };
+    const placeRows = () => {
+      const active2 = document.activeElement;
+      const rows = liveRows();
+      rows.forEach((row, i) => {
+        const at = stopsList.children[i];
+        if (at !== row.root) stopsList.insertBefore(row.root, at ?? null);
+      });
+      if (active2 instanceof HTMLElement && active2 !== document.activeElement && active2.isConnected && stopsList.contains(active2)) {
+        active2.focus({ preventScroll: true });
+      }
+    };
+    const syncRows = (before, listTop, animate) => {
+      const live = new Set(stopIds);
+      const entering = [];
+      for (const id of stopIds) {
+        if (rowById.has(id)) continue;
+        const row = buildRow(id);
+        rowById.set(id, row);
+        entering.push(row);
+      }
+      const leaving = [];
+      for (const [id, row] of rowById) {
+        if (live.has(id)) continue;
+        rowById.delete(id);
+        leaving.push(row);
+      }
+      if (rowDrag && (entering.length || leaving.length)) {
+        rowDrag = void 0;
+        delete stopsList.dataset.dragging;
+        delete stopsList.dataset.settling;
+        stopsList.querySelectorAll(".dialkit-bg-stop").forEach((el) => {
+          el.style.transform = "";
+          delete el.dataset.dragging;
+        });
+      }
+      if (!rowDrag) placeRows();
+      for (const row of leaving) {
+        row.leaving = true;
+        row.root.inert = true;
+        row.root.setAttribute("aria-hidden", "true");
+        const top = before.get(row.id);
+        if (!animate || top === void 0) {
+          dropRow(row);
+          continue;
+        }
+        row.flip?.cancel();
+        row.root.dataset.leaving = "true";
+        row.root.style.top = `${top - listTop}px`;
+        stopsList.append(row.root);
+        const fade = animateSpring(row.root, (p) => ({ opacity: String(clamp4(1 - p, 0, 1)), transform: `scale(${1 - 0.04 * clamp4(p, 0, 1)})` }), LAYOUT_SPRING.visualDuration, LAYOUT_SPRING.bounce);
+        if (!fade) dropRow(row);
+        else {
+          row.flip = fade;
+          fade.onfinish = () => dropRow(row);
+        }
+      }
+      if (!animate || rowDrag) return;
+      const running = (anim) => !!anim && (anim.playState === "running" || anim.pending);
+      for (const row of liveRows()) {
+        const target = row.root.offsetTop;
+        if (entering.includes(row)) {
+          row.flipTarget = target;
+          row.flip = animateSpring(row.root, (p) => ({ opacity: String(clamp4(p, 0, 1)), transform: `scale(${0.96 + 0.04 * clamp4(p, 0, 1)})` }), LAYOUT_SPRING.visualDuration, LAYOUT_SPRING.bounce);
+          continue;
+        }
+        if (running(row.flip) && row.flipTarget === target) continue;
+        const from = before.get(row.id);
+        if (from === void 0) continue;
+        const delta = from - listTop - target;
+        row.flip?.cancel();
+        row.flip = void 0;
+        row.flipTarget = void 0;
+        if (Math.abs(delta) < 0.5) continue;
+        row.flipTarget = target;
+        row.flip = animateSpring(row.root, (p) => ({ transform: `translateY(${delta * (1 - p)}px)` }), LAYOUT_SPRING.visualDuration, LAYOUT_SPRING.bounce);
+      }
+    };
+    const renderSelection = () => {
+      handles.forEach((handle, i) => handle.toggleAttribute("data-selected", i === selected));
+      liveRows().forEach((row, i) => row.root.toggleAttribute("data-selected", i === selected));
+    };
+    const buildSaved = () => {
+      const list = getSavedGradients();
+      const canDelete = !!getBackgroundHost().deleteGradient;
+      const signature = JSON.stringify([list, canDelete]);
+      if (signature === savedSignature) return;
+      savedSignature = signature;
+      savedList.replaceChildren();
+      savedItems = list.map((saved, i) => {
+        const item = element4("div", "dialkit-bg-saved-item");
+        const swatch = element4("button", "dialkit-bg-saved-swatch");
+        swatch.setAttribute("aria-label", `Apply saved gradient ${i + 1}`);
+        swatch.style.setProperty("--dial-bg-gradient", backgroundGradientCss(saved.gradient));
+        swatch.addEventListener("click", () => {
+          selected = 0;
+          emit({ ...value, mode: "gradient", gradient: cloneGradient(saved.gradient) });
+        });
+        item.append(swatch);
+        if (canDelete) {
+          const remove = iconButton("dialkit-bg-saved-delete", `Delete saved gradient ${i + 1}`, ICON_CLOSE);
+          remove.addEventListener("click", async () => {
+            const deleteGradient = getBackgroundHost().deleteGradient;
+            if (!deleteGradient) return;
+            remove.disabled = true;
+            try {
+              await deleteGradient(saved.id);
+              if (getSavedGradients().some((entry) => entry.id === saved.id)) {
+                setSavedGradients(getSavedGradients().filter((entry) => entry.id !== saved.id));
+              }
+              gradientStatus = "";
+            } catch (error) {
+              gradientStatus = errorMessage(error, "Could not delete the gradient.");
+              remove.disabled = false;
+            }
+            if (!destroyed) render();
+          });
+          item.append(remove);
+        }
+        savedList.append(item);
+        return { id: saved.id, gradient: saved.gradient, swatch };
+      });
+    };
+    saveButton.addEventListener("click", async () => {
+      const saveGradient = getBackgroundHost().saveGradient;
+      if (!saveGradient || saving) return;
+      saving = true;
+      gradientStatus = "";
+      render();
+      try {
+        const saved = await saveGradient(cloneGradient(value.gradient));
+        if (saved && typeof saved.id === "string" && !getSavedGradients().some((entry) => entry.id === saved.id)) {
+          setSavedGradients([...getSavedGradients(), saved]);
+        }
+      } catch (error) {
+        gradientStatus = errorMessage(error, "Could not save the gradient.");
+      } finally {
+        saving = false;
+        if (!destroyed) render();
+      }
+    });
+    const mediaPane = element4("div", "dialkit-bg-pane dialkit-bg-media");
+    const fileInput = element4("input", "dialkit-bg-file");
+    fileInput.type = "file";
+    fileInput.accept = "image/*,video/*";
+    fileInput.tabIndex = -1;
+    fileInput.setAttribute("aria-hidden", "true");
+    const drop = element4("button", "dialkit-bg-drop");
+    const dropText = element4("span", "dialkit-bg-drop-text");
+    drop.append(strokeIcon(ICON_UPLOAD), dropText);
+    const preview2 = element4("button", "dialkit-bg-media-preview");
+    preview2.setAttribute("aria-label", "Media options");
+    preview2.setAttribute("aria-haspopup", "dialog");
+    preview2.setAttribute("aria-expanded", "false");
+    const previewFrame = element4("span", "dialkit-bg-media-frame");
+    const previewBadge = element4("span", "dialkit-bg-media-badge");
+    previewBadge.setAttribute("aria-hidden", "true");
+    preview2.append(previewFrame, previewBadge);
+    let previewSignature = "";
+    const actions = element4("div", "dialkit-bg-media-actions");
+    const replaceButton = element4("button", "dialkit-button dialkit-bg-media-action", "Replace");
+    const removeButton = element4("button", "dialkit-button dialkit-bg-media-action", "Remove");
+    actions.append(replaceButton, removeButton);
+    const mediaStatusLine = element4("div", "dialkit-bg-status");
+    mediaStatusLine.setAttribute("role", "status");
+    mediaStatusLine.setAttribute("aria-live", "polite");
+    mediaPane.append(drop, preview2, actions, mediaStatusLine, fileInput);
+    const chooseFile = () => {
+      if (!getBackgroundHost().upload || uploading) return;
+      fileInput.value = "";
+      fileInput.click();
+    };
+    const uploadFile = async (file) => {
+      const upload = getBackgroundHost().upload;
+      if (!file || !upload) return;
+      if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
+        mediaStatus = "Choose an image or a video file.";
+        mediaError = true;
+        render();
+        return;
+      }
+      const request = ++uploadRequest;
+      uploading = true;
+      mediaStatus = `Uploading ${file.name}\u2026`;
+      mediaError = false;
+      render();
+      try {
+        const media = await upload(file);
+        if (destroyed || request !== uploadRequest) return;
+        if (!media || typeof media.key !== "string" || !media.key || media.kind !== "image" && media.kind !== "video") {
+          throw new Error("The upload returned no file.");
+        }
+        mediaStatus = "";
+        uploading = false;
+        emit({ ...value, mode: "media", media: { key: media.key, kind: media.kind } });
+      } catch (error) {
+        if (destroyed || request !== uploadRequest) return;
+        mediaStatus = errorMessage(error, "The upload failed.");
+        mediaError = true;
+      } finally {
+        if (!destroyed && request === uploadRequest) {
+          uploading = false;
+          render();
+        }
+      }
+    };
+    drop.addEventListener("click", chooseFile);
+    replaceButton.addEventListener("click", chooseFile);
+    removeButton.addEventListener("click", () => {
+      closeOptions();
+      emit({ ...value, media: null });
+      drop.focus({ preventScroll: true });
+    });
+    fileInput.addEventListener("change", () => {
+      void uploadFile(fileInput.files?.[0]);
+    });
+    mediaPane.addEventListener("dragover", (event) => {
+      if (!getBackgroundHost().upload || uploading) return;
+      event.preventDefault();
+      mediaPane.dataset.dragging = "true";
+    });
+    mediaPane.addEventListener("dragleave", (event) => {
+      if (!mediaPane.contains(event.relatedTarget)) delete mediaPane.dataset.dragging;
+    });
+    mediaPane.addEventListener("drop", (event) => {
+      delete mediaPane.dataset.dragging;
+      if (!getBackgroundHost().upload || uploading) return;
+      event.preventDefault();
+      void uploadFile(event.dataTransfer?.files?.[0]);
+    });
+    const renderPreview = (media) => {
+      const url = getBackgroundHost().mediaUrl?.(media) ?? "";
+      const signature = `${media.kind}
+${media.key}
+${url}`;
+      if (signature === previewSignature) return;
+      previewSignature = signature;
+      previewFrame.replaceChildren();
+      if (!url) {
+        previewFrame.append(element4("span", "dialkit-bg-media-key", media.key));
+      } else if (media.kind === "video") {
+        const video = element4("video", "dialkit-bg-media-el");
+        video.muted = true;
+        video.defaultMuted = true;
+        video.setAttribute("muted", "");
+        video.loop = true;
+        video.playsInline = true;
+        video.autoplay = true;
+        video.preload = "metadata";
+        video.src = url;
+        previewFrame.append(video);
+        void video.play?.()?.catch?.(() => {
+        });
+      } else {
+        const img = element4("img", "dialkit-bg-media-el");
+        img.alt = "";
+        img.decoding = "async";
+        img.draggable = false;
+        img.src = url;
+        previewFrame.append(img);
+      }
+    };
+    const setDisplay = (patch) => emit({ ...value, mediaDisplay: { ...value.mediaDisplay, ...patch } });
+    let popup;
+    let stopPosition;
+    let syncOptions = () => {
+    };
+    const closeOptions = (restoreFocus = false) => {
+      stopPosition?.();
+      stopPosition = void 0;
+      popup?.remove();
+      popup = void 0;
+      syncOptions = () => {
+      };
+      delete preview2.dataset.open;
+      preview2.setAttribute("aria-expanded", "false");
+      document.removeEventListener("pointerdown", outside);
+      document.removeEventListener("focusin", focusOutside);
+      if (restoreFocus) preview2.focus({ preventScroll: true });
+    };
+    const outside = (event) => {
+      if (!popup?.contains(event.target) && !preview2.contains(event.target)) closeOptions();
+    };
+    const focusOutside = (event) => {
+      if (!popup?.contains(event.target) && !preview2.contains(event.target)) closeOptions();
+    };
+    const openOptions = (event) => {
+      if (popup) {
+        closeOptions();
+        return;
+      }
+      const portal = getDialKitPortalRoot(host) ?? host;
+      const shell = element4("div", "dialkit-bg-popover");
+      popup = shell;
+      shell.tabIndex = -1;
+      shell.style.position = "fixed";
+      shell.setAttribute("role", "dialog");
+      shell.setAttribute("aria-label", `${props.label} media options`);
+      const section = (title, control) => {
+        const wrap = element4("div", "dialkit-bg-popover-section");
+        const heading = element4("div", "dialkit-bg-popover-label", title);
+        wrap.append(heading, control);
+        shell.append(wrap);
+      };
+      const fits = segmented(BACKGROUND_FITS.map((fit) => ({ value: fit, label: FIT_LABEL[fit] })), "Fit", (fit) => setDisplay({ fit }));
+      section("Fit", fits.group);
+      const tileWrap = element4("div", "dialkit-bg-tile-wrap");
+      const tileSize = shellSlider({
+        label: "Tile Size",
+        ...BACKGROUND_TILE_SCALE,
+        scale: 100,
+        decimals: 0,
+        unit: "%",
+        read: () => value.mediaDisplay.tileScale,
+        apply: (n) => setDisplay({ tileScale: n })
+      });
+      tileWrap.append(tileSize.root);
+      shell.append(tileWrap);
+      const tileRow = conditionalRow(tileWrap, shell);
+      const ratios = element4("div", "dialkit-bg-ratios");
+      ratios.setAttribute("role", "radiogroup");
+      ratios.setAttribute("aria-label", "Ratio");
+      ratios.addEventListener("keydown", handleSegmentKey);
+      const ratioButtons = BACKGROUND_RATIOS.map((ratio) => {
+        const button2 = element4("button", "dialkit-segmented-button dialkit-bg-ratio");
+        button2.setAttribute("role", "radio");
+        button2.append(element4("span", "dialkit-segmented-text", RATIO_LABEL(ratio)));
+        button2.addEventListener("click", () => setDisplay({ ratio }));
+        ratios.append(button2);
+        return button2;
+      });
+      section("Ratio", ratios);
+      const zoom = shellSlider({
+        label: "Zoom",
+        ...BACKGROUND_ZOOM,
+        scale: 1,
+        decimals: 1,
+        unit: "\xD7",
+        read: () => value.mediaDisplay.zoom,
+        apply: (n) => setDisplay({ zoom: n })
+      });
+      shell.append(zoom.root);
+      const anchor = element4("div", "dialkit-anchor dialkit-bg-pin");
+      anchor.setAttribute("role", "radiogroup");
+      anchor.setAttribute("aria-label", "Pin");
+      anchor.style.setProperty("--dial-anchor-columns", "3");
+      anchor.style.setProperty("--dial-anchor-rows", "3");
+      const anchorPill = element4("span", "dialkit-anchor-pill dialkit-bg-pin-pill");
+      anchorPill.setAttribute("aria-hidden", "true");
+      anchor.append(anchorPill);
+      const cells = [];
+      for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 3; c++) {
+          const cell = element4("button", "dialkit-anchor-cell");
+          cell.setAttribute("role", "radio");
+          cell.setAttribute("aria-label", `${PIN_ROWS[r]}, ${PIN_COLUMNS[c]}`);
+          cell.dataset.cell = `${c}-${r}`;
+          cell.append(element4("span", "dialkit-anchor-dot"));
+          cell.addEventListener("click", () => setDisplay({ pinX: c - 1, pinY: r - 1 }));
+          anchor.append(cell);
+          cells.push(cell);
+        }
+      }
+      anchor.addEventListener("keydown", (e) => {
+        const moves = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+        const move = moves[e.key];
+        if (!move) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const c = clamp4(value.mediaDisplay.pinX + 1 + move[0], 0, 2);
+        const r = clamp4(value.mediaDisplay.pinY + 1 + move[1], 0, 2);
+        setDisplay({ pinX: c - 1, pinY: r - 1 });
+        cells[r * 3 + c].focus({ preventScroll: true });
+      });
+      section("Pin", anchor);
+      syncOptions = () => {
+        const display = value.mediaDisplay;
+        fits.set(display.fit);
+        tileRow.set(display.fit === "tile");
+        tileSize.sync();
+        BACKGROUND_RATIOS.forEach((ratio, i) => {
+          const active2 = ratio === display.ratio;
+          ratioButtons[i].setAttribute("aria-checked", String(active2));
+          ratioButtons[i].dataset.active = String(active2);
+          ratioButtons[i].tabIndex = active2 ? 0 : -1;
+        });
+        zoom.sync();
+        const col = display.pinX + 1;
+        const row = display.pinY + 1;
+        anchorPill.style.transform = `translate(${col * 100}%, ${row * 100}%)`;
+        cells.forEach((cell, i) => {
+          const picked = i === row * 3 + col;
+          cell.setAttribute("aria-checked", String(picked));
+          cell.tabIndex = picked ? 0 : -1;
+        });
+      };
+      shell.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          e.stopPropagation();
+          closeOptions(true);
+          return;
+        }
+        if (e.key === "Tab") {
+          const stops = Array.from(shell.querySelectorAll('button, input, [tabindex="0"]')).filter((el) => el.tabIndex >= 0 && el.getClientRects().length > 0);
+          const first = stops[0];
+          const last = stops[stops.length - 1];
+          if (e.shiftKey && document.activeElement === first || !e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            closeOptions(true);
+            return;
+          }
+        }
+        if (!isHintKey3(e)) e.stopPropagation();
+      });
+      portal.append(shell);
+      syncOptions();
+      const updatePosition = () => {
+        if (!popup) return;
+        if (!host.isConnected || preview2.getClientRects().length === 0) {
+          closeOptions();
+          return;
+        }
+        const p = getDropdownPosition(preview2, portal, { dropdownHeight: popup.scrollHeight + 2, width: 280, maxHeight: 480, preferSide: true, fixed: true, gap: 8 });
+        Object.assign(popup.style, { left: `${p.left}px`, top: `${p.top}px`, width: `${p.width}px`, maxHeight: `${p.maxHeight}px`, transformOrigin: p.above ? "bottom" : "top" });
+      };
+      stopPosition = observeDropdownPosition(preview2, updatePosition, () => popup);
+      preview2.dataset.open = "true";
+      preview2.setAttribute("aria-expanded", "true");
+      document.addEventListener("pointerdown", outside);
+      document.addEventListener("focusin", focusOutside);
+      if (event instanceof MouseEvent && event.detail > 0) shell.focus({ preventScroll: true });
+      else fits.buttons.find((button2) => button2.dataset.active === "true")?.focus({ preventScroll: true });
+    };
+    preview2.addEventListener("click", openOptions);
+    body.append(solidPane, gradientPane, mediaPane);
+    host.append(root);
+    let heightAnim;
+    let heightTarget = -1;
+    let built = false;
+    let shownMode = value.mode;
+    function render() {
+      if (destroyed) return;
+      const animate = built && root.isConnected && root.getClientRects().length > 0 && !reducedMotion();
+      const beforeHeight = root.getBoundingClientRect().height;
+      const listTop = stopsList.getBoundingClientRect().top;
+      const before = /* @__PURE__ */ new Map();
+      if (animate && stopsList.getClientRects().length > 0) {
+        for (const row of rowById.values()) if (!row.leaving) before.set(row.id, row.root.getBoundingClientRect().top);
+      }
+      renderNow(before, listTop, animate);
+      built = true;
+      if (!animate) return;
+      if (value.mode !== shownMode) {
+        shownMode = value.mode;
+        const pane = value.mode === "solid" ? solidPane : value.mode === "gradient" ? gradientPane : mediaPane;
+        animateSpring(pane, (p) => ({ opacity: String(clamp4(p, 0, 1)) }), LAYOUT_SPRING.visualDuration, 0);
+      }
+      const after = body.getBoundingClientRect().height;
+      if (heightAnim && Math.abs(after - heightTarget) < 0.5) return;
+      if (Math.abs(after - beforeHeight) < 0.5) {
+        heightAnim?.cancel();
+        return;
+      }
+      heightAnim?.cancel();
+      root.style.overflow = "clip";
+      heightTarget = after;
+      const anim = animateSpring(root, (p) => ({ height: `${beforeHeight + (after - beforeHeight) * p}px` }), LAYOUT_SPRING.visualDuration, LAYOUT_SPRING.bounce);
+      heightAnim = anim;
+      if (!anim) {
+        root.style.overflow = "";
+        heightTarget = -1;
+        return;
+      }
+      const done = () => {
+        if (heightAnim !== anim) return;
+        heightAnim = void 0;
+        heightTarget = -1;
+        root.style.overflow = "";
+      };
+      anim.onfinish = done;
+      anim.oncancel = done;
+    }
+    function renderNow(before, listTop, animate) {
+      shownMode = animate ? shownMode : value.mode;
+      const backgroundHost = getBackgroundHost();
+      caption.textContent = props.label;
+      modes.group.setAttribute("aria-label", `${props.label} type`);
+      modes.set(value.mode);
+      solidPane.hidden = value.mode !== "solid";
+      gradientPane.hidden = value.mode !== "gradient";
+      mediaPane.hidden = value.mode !== "media";
+      if (value.mode !== "media" || !value.media) closeOptions();
+      solid.update({ label: "Color", value: solidValue(), onChange: (raw) => {
+        const picked = readPicked(raw);
+        if (!picked) return;
+        solidPicked = { raw, color: picked.color };
+        emit({ ...value, color: picked.color });
+      } });
+      const gradient = value.gradient;
+      const stops = gradient.stops;
+      selected = clamp4(selected, 0, stops.length - 1);
+      shapes.set(gradient.shape);
+      angleRow.set(gradient.shape !== "radial");
+      angle.sync();
+      trackPaint.style.backgroundImage = stripCss(gradient);
+      if (handles.length !== stops.length) buildHandles();
+      handles.forEach((handle, i) => {
+        const stop2 = stops[i];
+        handle.style.left = `${stop2.at}%`;
+        handle.style.setProperty("--dial-bg-stop", stopCssColor(stop2));
+        handle.setAttribute("aria-label", `Stop ${i + 1} position`);
+        handle.setAttribute("aria-valuenow", String(stop2.at));
+        handle.setAttribute("aria-valuetext", `${formatNumber(stop2.at)}%, ${stop2.color}`);
+        handle.style.zIndex = i === selected ? "2" : "1";
+      });
+      reconcileIds();
+      syncRows(before, listTop, animate);
+      liveRows().forEach((row, i) => {
+        const stop2 = stops[i];
+        row.at.sync();
+        row.alpha.sync();
+        const picked = row.picked && row.picked.color === stop2.color && row.picked.alpha === stop2.alpha ? row.picked.raw : stopPickerValue(stop2);
+        row.color.update({ label: `Stop ${i + 1}`, value: picked, onChange: (raw) => pickStopColor(row, raw) });
+        row.remove.disabled = stops.length <= BACKGROUND_MIN_STOPS;
+        row.remove.setAttribute("aria-label", `Remove stop ${i + 1}`);
+        row.grip.setAttribute("aria-label", "Reorder stop");
+        row.grip.setAttribute("aria-description", `Stop ${i + 1} of ${stops.length}. Drag, or press Alt with the up or down arrow, to move it.`);
+      });
+      renderSelection();
+      addButton.disabled = stops.length >= BACKGROUND_MAX_STOPS;
+      bar.toggleAttribute("data-full", stops.length >= BACKGROUND_MAX_STOPS);
+      saveRow.hidden = !backgroundHost.saveGradient;
+      saveButton.disabled = saving;
+      saveButton.textContent = saving ? "Saving\u2026" : "Save gradient";
+      gradientStatusLine.textContent = gradientStatus;
+      gradientStatusLine.hidden = !gradientStatus;
+      buildSaved();
+      savedList.hidden = savedItems.length === 0;
+      savedItems.forEach((item) => item.swatch.setAttribute("aria-pressed", String(sameGradient(item.gradient, gradient))));
+      const canUpload = !!backgroundHost.upload;
+      const media = value.media;
+      drop.hidden = !!media;
+      drop.disabled = !canUpload || uploading;
+      drop.setAttribute("aria-busy", String(uploading));
+      dropText.textContent = !canUpload ? "Uploads are not available here." : uploading ? "Uploading\u2026" : "Upload or drop an image or a video";
+      preview2.hidden = !media;
+      actions.hidden = !media;
+      if (media) renderPreview(media);
+      else previewSignature = "";
+      const display = value.mediaDisplay;
+      const fitText = display.fit === "tile" ? `Tile ${Math.round(display.tileScale * 100)}%` : FIT_LABEL[display.fit];
+      previewBadge.textContent = `${fitText} \xB7 ${RATIO_LABEL(display.ratio)} \xB7 ${formatNumber(display.zoom)}\xD7`;
+      replaceButton.disabled = !canUpload || uploading;
+      replaceButton.setAttribute("aria-busy", String(uploading));
+      replaceButton.textContent = uploading ? "Uploading\u2026" : "Replace";
+      removeButton.disabled = uploading;
+      mediaPane.toggleAttribute("data-busy", uploading);
+      mediaStatusLine.textContent = mediaStatus;
+      mediaStatusLine.hidden = !mediaStatus;
+      mediaStatusLine.toggleAttribute("data-error", mediaError);
+      syncOptions();
+    }
+    const unsubscribe = subscribeBackgroundHost(() => render());
+    render();
+    return {
+      update(next) {
+        props = next;
+        const incoming = normalizeBackgroundValue(next.value);
+        if (!sameBackgroundValue(incoming, value)) {
+          value = incoming;
+          reconcileIds();
+        }
+        render();
+      },
+      destroy() {
+        destroyed = true;
+        uploadRequest++;
+        unsubscribe();
+        endDrag();
+        closeOptions();
+        solid.destroy();
+        heightAnim?.cancel();
+        rowDrag = void 0;
+        rowById.forEach((row) => dropRow(row));
+        rowById.clear();
+        root.remove();
+      }
+    };
+  }
+  function conditionalRow(row, parent, axis = "height") {
+    const { visualDuration, bounce } = LAYOUT_SPRING;
+    let shown;
+    let animation;
+    row.style.overflow = "clip";
+    return {
+      set(show) {
+        if (show === shown) return;
+        const first = shown === void 0;
+        shown = show;
+        animation?.cancel();
+        animation = void 0;
+        if (first || !row.isConnected) {
+          row.hidden = !show;
+          return;
+        }
+        const style = getComputedStyle(parent);
+        const gap = Number.parseFloat(axis === "height" ? style.rowGap : style.columnGap) || 0;
+        row.hidden = false;
+        const size = axis === "height" ? show ? row.scrollHeight : row.offsetHeight : row.offsetWidth;
+        const own = getComputedStyle(row);
+        const padLeft = Number.parseFloat(own.paddingLeft) || 0;
+        const padRight = Number.parseFloat(own.paddingRight) || 0;
+        animation = animateSpring(row, (p) => {
+          const t = show ? p : 1 - p;
+          const shut = 1 - clamp4(t, 0, 1);
+          return axis === "height" ? { height: `${Math.max(0, size * t)}px`, opacity: String(clamp4(t, 0, 1)), marginBottom: `${-gap * shut}px` } : {
+            flexBasis: `${Math.max(0, size * t)}px`,
+            minWidth: "0px",
+            opacity: String(clamp4(t, 0, 1)),
+            marginLeft: `${-gap * shut}px`,
+            paddingLeft: `${padLeft * clamp4(t, 0, 1)}px`,
+            paddingRight: `${padRight * clamp4(t, 0, 1)}px`
+          };
+        }, visualDuration, bounce);
+        if (!show) {
+          if (!animation) row.hidden = true;
+          else animation.onfinish = () => {
+            if (!shown) row.hidden = true;
+          };
+        }
+      }
+    };
+  }
+  function shellSlider(options) {
+    const { min, max, step, scale, decimals, unit: unitText, read, apply } = options;
+    const root = element4("div", "dialkit-slider-wrapper dialkit-bg-slider");
+    const slider = element4("div", "dialkit-slider");
+    slider.tabIndex = 0;
+    slider.setAttribute("role", "slider");
+    slider.setAttribute("aria-label", options.label);
+    slider.setAttribute("aria-valuemin", String(min));
+    slider.setAttribute("aria-valuemax", String(max));
+    const fill = element4("div", "dialkit-slider-fill");
+    const handle = element4("div", "dialkit-slider-handle dialkit-bg-slider-handle");
+    const label = element4("span", "dialkit-slider-label", options.label);
+    const valueText = element4("span", "dialkit-slider-value");
+    const number2 = element4("span", "dialkit-bg-slider-number");
+    const unit = element4("span", "dialkit-slider-unit", unitText);
+    valueText.append(number2, unit);
+    const input = element4("input", "dialkit-slider-input");
+    input.type = "text";
+    input.inputMode = "decimal";
+    input.setAttribute("aria-label", `${options.label} value`);
+    input.hidden = true;
+    slider.append(fill, handle, label, valueText, input);
+    root.append(slider);
+    const digits = Math.max(0, Math.ceil(-Math.log10(step) - 1e-9));
+    const set = (n) => {
+      const snapped = min + Math.round((clamp4(n, min, max) - min) / step) * step;
+      apply(Number(clamp4(snapped, min, max).toFixed(digits)));
+    };
+    const shown = (n) => (n * scale).toFixed(decimals);
+    let press;
+    const fromPointer = (clientX) => {
+      const rect = root.getBoundingClientRect();
+      return min + clamp4((clientX - rect.left) / (rect.width || 1), 0, 1) * (max - min);
+    };
+    let editing = false;
+    const finishEdit = (keep) => {
+      if (!editing) return;
+      editing = false;
+      const n = Number.parseFloat(input.value.replace(unitText, ""));
+      if (keep && Number.isFinite(n)) set(n / scale);
+      input.hidden = true;
+      valueText.hidden = false;
+      sync();
+    };
+    const edit = () => {
+      editing = true;
+      input.value = shown(read());
+      input.hidden = false;
+      valueText.hidden = true;
+      input.focus();
+      input.select();
+    };
+    slider.addEventListener("keydown", (event) => handleSliderKey(event, read(), min, max, step, set, edit));
+    slider.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0 || editing) return;
+      event.preventDefault();
+      slider.focus({ preventScroll: true });
+      press = { id: event.pointerId };
+      slider.setPointerCapture(event.pointerId);
+      slider.classList.add("dialkit-slider-active");
+      set(fromPointer(event.clientX));
+    });
+    slider.addEventListener("pointermove", (event) => {
+      if (press?.id === event.pointerId) set(fromPointer(event.clientX));
+    });
+    const end = (event) => {
+      if (press?.id !== event.pointerId) return;
+      press = void 0;
+      if (!slider.matches(":hover")) slider.classList.remove("dialkit-slider-active");
+      if (slider.hasPointerCapture(event.pointerId)) slider.releasePointerCapture(event.pointerId);
+    };
+    slider.addEventListener("pointerup", end);
+    slider.addEventListener("pointercancel", end);
+    slider.addEventListener("lostpointercapture", end);
+    slider.addEventListener("mouseenter", () => slider.classList.add("dialkit-slider-active"));
+    slider.addEventListener("mouseleave", () => {
+      if (!press) slider.classList.remove("dialkit-slider-active");
+    });
+    valueText.addEventListener("pointerdown", (event) => event.stopPropagation());
+    valueText.addEventListener("click", edit);
+    input.addEventListener("pointerdown", (event) => event.stopPropagation());
+    input.addEventListener("keydown", (event) => {
+      event.stopPropagation();
+      const stepped = stepInputKey(event, input.value, read() * scale, min * scale, max * scale, step * scale);
+      if (stepped !== void 0) {
+        set(stepped / scale);
+        input.value = shown(read());
+        return;
+      }
+      if (event.key === "Enter" || event.key === "Escape") {
+        event.preventDefault();
+        finishEdit(event.key === "Enter");
+        slider.focus({ preventScroll: true });
+      }
+    });
+    input.addEventListener("blur", () => finishEdit(true));
+    function sync() {
+      const n = read();
+      const pct = (n - min) / (max - min) * 100;
+      fill.style.width = `${pct}%`;
+      handle.style.left = `max(5px, calc(${pct}% - 9px))`;
+      if (!editing) number2.textContent = shown(n);
+      slider.setAttribute("aria-valuenow", String(n));
+      slider.setAttribute("aria-valuetext", `${shown(n)}${unitText}`);
+    }
+    sync();
+    return { root, sync };
+  }
+
   // src/shortcut-utils.ts
   function getEffectiveStep(control, shortcut) {
     const min = control.min ?? 0;
@@ -3537,7 +5257,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
   }
 
   // src/vanilla/dom.ts
-  function element4(tag, className = "", text) {
+  function element5(tag, className = "", text) {
     const node = document.createElement(tag);
     node.className = className;
     if (text !== void 0)
@@ -3559,7 +5279,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
     return node;
   }
   function button(title, paths, onClick) {
-    const node = element4("button", "dialkit-toolbar-add");
+    const node = element5("button", "dialkit-toolbar-add");
     node.title = title;
     node.setAttribute("aria-label", title);
     node.append(icon2(paths));
@@ -3567,130 +5287,15 @@ Apply these values as the new defaults in the ${hookName} call.`;
     return node;
   }
 
-  // src/transition-math.ts
-  function round2(value) {
-    return Math.round(value * 100) / 100;
-  }
-  function clamp2(value, min, max) {
-    return Math.min(max, Math.max(min, value));
-  }
-  function isTransitionConfig(value) {
-    return isSpringConfigValue(value) || isEasingConfigValue(value);
-  }
-  function isPhysicsSpring(transition) {
-    return transition.type === "spring" && (transition.stiffness !== void 0 || transition.damping !== void 0 || transition.mass !== void 0);
-  }
-  function springParams(spring) {
-    if (isPhysicsSpring(spring)) {
-      return { stiffness: spring.stiffness ?? 200, damping: spring.damping ?? 25, mass: spring.mass ?? 1 };
-    }
-    const visualDuration = Math.max(0.05, spring.visualDuration ?? 0.3);
-    const bounce = spring.bounce ?? 0.3;
-    const root = 2 * Math.PI / (visualDuration * 1.2);
-    const stiffness = root * root;
-    const damping = 2 * Math.min(1, Math.max(0.05, 1 - bounce)) * Math.sqrt(stiffness);
-    return { stiffness, damping, mass: 1 };
-  }
-  function springProgress(t, { stiffness, damping, mass }) {
-    if (t <= 0) return 0;
-    const w0 = Math.sqrt(stiffness / mass);
-    const zeta = damping / (2 * Math.sqrt(stiffness * mass));
-    if (zeta < 0.9999) {
-      const wd2 = w0 * Math.sqrt(1 - zeta * zeta);
-      return 1 - Math.exp(-zeta * w0 * t) * (Math.cos(wd2 * t) + zeta * w0 / wd2 * Math.sin(wd2 * t));
-    }
-    if (zeta < 1.0001) {
-      return 1 - Math.exp(-w0 * t) * (1 + w0 * t);
-    }
-    const wd = w0 * Math.sqrt(zeta * zeta - 1);
-    const r1 = -zeta * w0 + wd;
-    const r2 = -zeta * w0 - wd;
-    return 1 + (r2 * Math.exp(r1 * t) - r1 * Math.exp(r2 * t)) / (r1 - r2);
-  }
-  function springSettleDuration(params) {
-    const w0 = Math.sqrt(params.stiffness / params.mass);
-    const zeta = params.damping / (2 * Math.sqrt(params.stiffness * params.mass));
-    const decay = zeta >= 1 ? zeta * w0 - w0 * Math.sqrt(Math.max(0, zeta * zeta - 1)) : zeta * w0;
-    const duration = Math.log(200) / Math.max(decay, 1e-6);
-    return round2(clamp2(duration, 0.05, 10));
-  }
-  function cubicBezierProgress(p, [x1, y1, x2, y2]) {
-    if (p <= 0) return 0;
-    if (p >= 1) return 1;
-    const sampleX = (t2) => bezierAxis(t2, x1, x2);
-    const sampleY = (t2) => bezierAxis(t2, y1, y2);
-    let t = p;
-    for (let i = 0; i < 8; i++) {
-      const x = sampleX(t) - p;
-      if (Math.abs(x) < 1e-5) return sampleY(t);
-      const dx = bezierAxisDerivative(t, x1, x2);
-      if (Math.abs(dx) < 1e-6) break;
-      t -= x / dx;
-    }
-    let lo = 0;
-    let hi = 1;
-    t = p;
-    while (hi - lo > 1e-5) {
-      if (sampleX(t) < p) lo = t;
-      else hi = t;
-      t = (lo + hi) / 2;
-    }
-    return sampleY(t);
-  }
-  function bezierAxis(t, a1, a2) {
-    return (1 - 3 * a2 + 3 * a1) * t * t * t + (3 * a2 - 6 * a1) * t * t + 3 * a1 * t;
-  }
-  function bezierAxisDerivative(t, a1, a2) {
-    return 3 * (1 - 3 * a2 + 3 * a1) * t * t + 2 * (3 * a2 - 6 * a1) * t + 3 * a1;
-  }
-  function resolveClipTransition(raw, clipDuration) {
-    const safeDuration = Math.max(0.05, clipDuration);
-    if (raw.type === "easing") {
-      return {
-        transition: { ...raw, duration: safeDuration },
-        duration: safeDuration,
-        isPhysics: false
-      };
-    }
-    if (isPhysicsSpring(raw)) {
-      return {
-        transition: raw,
-        // An explicit stored duration wins — a host may deliberately reserve
-        // a bar LONGER than the spring's motion (e.g. covering a staggered
-        // wave's spread plus each particle's settle, so the bar's end means
-        // "everything at rest"). The spring's own settle time is only the
-        // default when no real duration was stored.
-        duration: clipDuration > 0 ? safeDuration : springSettleDuration(springParams(raw)),
-        isPhysics: true
-      };
-    }
-    return {
-      transition: { type: "spring", bounce: raw.bounce ?? 0.2, visualDuration: safeDuration },
-      duration: safeDuration,
-      isPhysics: false
-    };
-  }
-
-  // src/vanilla/animation.ts
-  function animateSpring(node, frame, visualDuration = 0.35, bounce = 0.1) {
-    if (typeof node.animate !== "function" || window.matchMedia("(prefers-reduced-motion: reduce)").matches)
-      return;
-    const params = springParams({ type: "spring", visualDuration, bounce });
-    const duration = springSettleDuration(params);
-    const count = Math.max(2, Math.ceil(duration * 60));
-    const frames = Array.from({ length: count + 1 }, (_, index) => frame(index === count ? 1 : springProgress(index / count * duration, params)));
-    return node.animate(frames, { duration: duration * 1e3, easing: "linear" });
-  }
-
   // src/vanilla/controls.ts
   function mountFolder(host, initial) {
     let props = initial;
     let open = props.open ?? props.defaultOpen ?? true;
-    const folder = element4("div", `dialkit-folder${props.isRoot ? " dialkit-folder-root" : ""}`);
-    const header = element4("div", `dialkit-folder-header${props.isRoot ? " dialkit-panel-header" : ""}`);
-    const top = element4("div", "dialkit-folder-header-top");
-    const titleRow = element4("div", "dialkit-folder-title-row");
-    const title = element4("span", `dialkit-folder-title${props.isRoot ? " dialkit-folder-title-root" : ""}`);
+    const folder = element5("div", `dialkit-folder${props.isRoot ? " dialkit-folder-root" : ""}`);
+    const header = element5("div", `dialkit-folder-header${props.isRoot ? " dialkit-panel-header" : ""}`);
+    const top = element5("div", "dialkit-folder-header-top");
+    const titleRow = element5("div", "dialkit-folder-title-row");
+    const title = element5("span", `dialkit-folder-title${props.isRoot ? " dialkit-folder-title-root" : ""}`);
     titleRow.append(title);
     top.append(titleRow);
     const glyph = props.isRoot ? svg("svg", { class: "dialkit-panel-icon", viewBox: "0 0 16 16", fill: "none", "aria-hidden": "true" }) : icon2(ICON_CHEVRON, "dialkit-folder-icon");
@@ -3700,16 +5305,16 @@ Apply these values as the new defaults in the ${hookName} call.`;
     }
     if (!props.inline || !props.isRoot)
       top.append(glyph);
-    const toolbar = element4("div", "dialkit-panel-toolbar");
+    const toolbar = element5("div", "dialkit-panel-toolbar");
     toolbar.addEventListener("click", (event) => event.stopPropagation());
     header.append(top);
     if (props.isRoot)
       header.append(toolbar);
-    const content = element4("div", "dialkit-folder-content");
-    const body = element4("div", "dialkit-folder-inner");
+    const content = element5("div", "dialkit-folder-content");
+    const body = element5("div", "dialkit-folder-inner");
     content.append(body);
     folder.append(header, content);
-    const node = props.isRoot ? element4("div", `dialkit-panel-inner${props.inline ? " dialkit-panel-inline" : ""}`) : folder;
+    const node = props.isRoot ? element5("div", `dialkit-panel-inner${props.inline ? " dialkit-panel-inline" : ""}`) : folder;
     if (props.isRoot) {
       node.tabIndex = -1;
       node.append(folder);
@@ -3800,10 +5405,10 @@ Apply these values as the new defaults in the ${hookName} call.`;
   }
   function mountSegmentedControl(host, initial) {
     let props = initial;
-    const group = element4("div", "dialkit-segmented");
+    const group = element5("div", "dialkit-segmented");
     group.setAttribute("role", "radiogroup");
     group.addEventListener("keydown", handleSegmentKey);
-    const pill = element4("div", "dialkit-segmented-pill");
+    const pill = element5("div", "dialkit-segmented-pill");
     pill.style.transition = "left 200ms ease, width 200ms ease";
     pill.setAttribute("aria-hidden", "true");
     group.append(pill);
@@ -3817,7 +5422,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
         signature = nextSignature;
         buttons.forEach((b) => b.remove());
         buttons = props.options.map((option) => {
-          const b = element4("button", "dialkit-segmented-button", option.label);
+          const b = element5("button", "dialkit-segmented-button", option.label);
           b.setAttribute("role", "radio");
           b.addEventListener("click", () => props.onChange(option.value));
           group.append(b);
@@ -3851,16 +5456,16 @@ Apply these values as the new defaults in the ${hookName} call.`;
   }
   function mountToggle(host, initial) {
     let props = initial;
-    const row = element4("div", "dialkit-labeled-control");
-    const label = element4("span", "dialkit-labeled-control-label");
+    const row = element5("div", "dialkit-labeled-control");
+    const label = element5("span", "dialkit-labeled-control-label");
     row.append(label);
     host.append(row);
     const segmentProps = () => ({ options: [{ value: "off", label: "Off" }, { value: "on", label: "On" }], value: props.checked ? "on" : "off", onChange: (value) => props.onChange(value === "on") });
-    const segmented = mountSegmentedControl(row, segmentProps());
+    const segmented2 = mountSegmentedControl(row, segmentProps());
     function render() {
       label.textContent = props.label;
       appendShortcut(label, props.shortcut, props.shortcutActive, true);
-      segmented.update(segmentProps());
+      segmented2.update(segmentProps());
     }
     render();
     return {
@@ -3869,7 +5474,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
         render();
       },
       destroy() {
-        segmented.destroy();
+        segmented2.destroy();
         row.remove();
       }
     };
@@ -3877,20 +5482,20 @@ Apply these values as the new defaults in the ${hookName} call.`;
   function appendShortcut(label, shortcut, active2 = false, toggle = false) {
     if (!shortcut)
       return;
-    label.append(element4("span", `dialkit-shortcut-pill${active2 ? " dialkit-shortcut-pill-active" : ""}`, toggle ? formatToggleShortcut(shortcut) : formatSliderShortcut(shortcut)));
+    label.append(element5("span", `dialkit-shortcut-pill${active2 ? " dialkit-shortcut-pill-active" : ""}`, toggle ? formatToggleShortcut(shortcut) : formatSliderShortcut(shortcut)));
   }
   function mountSlider(host, initial) {
     let props = initial;
-    const wrapper = element4("div", "dialkit-slider-wrapper");
-    const track = element4("div", "dialkit-slider");
+    const wrapper = element5("div", "dialkit-slider-wrapper");
+    const track = element5("div", "dialkit-slider");
     track.tabIndex = 0;
     track.setAttribute("role", "slider");
-    const hashes = element4("div", "dialkit-slider-hashmarks");
-    const fill = element4("div", "dialkit-slider-fill");
-    const handle = element4("div", "dialkit-slider-handle");
-    const label = element4("span", "dialkit-slider-label");
-    const display = element4("span", "dialkit-slider-value");
-    const input = element4("input", "dialkit-slider-input");
+    const hashes = element5("div", "dialkit-slider-hashmarks");
+    const fill = element5("div", "dialkit-slider-fill");
+    const handle = element5("div", "dialkit-slider-handle");
+    const label = element5("span", "dialkit-slider-label");
+    const display = element5("span", "dialkit-slider-value");
+    const input = element5("input", "dialkit-slider-input");
     input.type = "text";
     input.inputMode = "decimal";
     input.style.display = "none";
@@ -3938,7 +5543,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
         hashes.replaceChildren();
         const count = (max - min) / step;
         for (let i = 1; i < (count <= 10 ? count : 10); i++) {
-          const hash = element4("div", "dialkit-slider-hashmark");
+          const hash = element5("div", "dialkit-slider-hashmark");
           hash.style.left = `${count <= 10 ? i / count * 100 : i * 10}%`;
           hashes.append(hash);
         }
@@ -4098,9 +5703,9 @@ Apply these values as the new defaults in the ${hookName} call.`;
   }
   function mountTextControl(host, initial) {
     let props = initial;
-    const row = element4("label", "dialkit-text-control");
-    const label = element4("span", "dialkit-text-label");
-    const input = element4("textarea", "dialkit-text-input");
+    const row = element5("label", "dialkit-text-control");
+    const label = element5("span", "dialkit-text-label");
+    const input = element5("textarea", "dialkit-text-input");
     input.rows = 1;
     row.append(label, input);
     host.append(row);
@@ -4130,11 +5735,11 @@ Apply these values as the new defaults in the ${hookName} call.`;
     };
   }
   function mountButtonGroup(host, initial) {
-    const group = element4("div", "dialkit-button-group");
+    const group = element5("div", "dialkit-button-group");
     host.append(group);
     function update(props) {
       group.replaceChildren(...props.buttons.map((item) => {
-        const b = element4("button", "dialkit-button", item.label);
+        const b = element5("button", "dialkit-button", item.label);
         b.addEventListener("click", item.onClick);
         return b;
       }));
@@ -4335,7 +5940,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
       if (popup || trigger.disabled)
         return;
       const root = getDialKitPortalRoot(trigger) ?? document.body;
-      popup = element4("div", className);
+      popup = element5("div", className);
       popup.style.position = "fixed";
       root.append(popup);
       populate(popup);
@@ -4380,11 +5985,11 @@ Apply these values as the new defaults in the ${hookName} call.`;
   }
   function mountSelectControl(host, initial) {
     let props = initial;
-    const row = element4("div", "dialkit-select-row");
-    const trigger = element4("button", "dialkit-select-trigger");
-    const label = element4("span", "dialkit-select-label");
-    const right = element4("div", "dialkit-select-right");
-    const value = element4("span", "dialkit-select-value");
+    const row = element5("div", "dialkit-select-row");
+    const trigger = element5("button", "dialkit-select-trigger");
+    const label = element5("span", "dialkit-select-label");
+    const right = element5("div", "dialkit-select-right");
+    const value = element5("span", "dialkit-select-value");
     right.append(value, icon2(ICON_CHEVRON, "dialkit-select-chevron"));
     trigger.append(label, right);
     row.append(trigger);
@@ -4392,7 +5997,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
     const options = () => props.options.map((option) => typeof option === "string" ? { value: option, label: option.replace(/\b\w/g, (c) => c.toUpperCase()) } : option);
     const menu = popupMenu(trigger, "dialkit-select-dropdown", "select", (popup) => {
       popup.replaceChildren(...options().map((option) => {
-        const b = element4("button", "dialkit-select-option", option.label);
+        const b = element5("button", "dialkit-select-option", option.label);
         b.dataset.selected = String(option.value === props.value);
         b.addEventListener("click", () => {
           props.onChange(option.value);
@@ -4421,9 +6026,9 @@ Apply these values as the new defaults in the ${hookName} call.`;
   }
   function mountPresetManager(host, initial) {
     let props = initial;
-    const row = element4("div", "dialkit-preset-manager");
-    const trigger = element4("button", "dialkit-preset-trigger");
-    const label = element4("span", "dialkit-preset-label");
+    const row = element5("div", "dialkit-preset-manager");
+    const trigger = element5("button", "dialkit-preset-trigger");
+    const label = element5("span", "dialkit-preset-label");
     trigger.setAttribute("aria-label", "Versions");
     trigger.append(label, icon2(ICON_CHEVRON, "dialkit-select-chevron"));
     row.append(trigger);
@@ -4431,9 +6036,9 @@ Apply these values as the new defaults in the ${hookName} call.`;
     const menu = popupMenu(trigger, "dialkit-preset-dropdown", "presets", (popup) => {
       const versions = [{ id: null, name: "Version 1" }, ...props.presets];
       popup.replaceChildren(...versions.map((preset) => {
-        const item = element4("div", "dialkit-preset-item");
+        const item = element5("div", "dialkit-preset-item");
         item.dataset.active = String(preset.id === props.activePresetId);
-        const name = element4("button", "dialkit-preset-name", preset.name);
+        const name = element5("button", "dialkit-preset-name", preset.name);
         name.addEventListener("click", () => {
           if (preset.id)
             DialStore.loadPreset(props.panelId, preset.id);
@@ -4443,7 +6048,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
         });
         item.append(name);
         if (preset.id) {
-          const del = element4("button", "dialkit-preset-delete");
+          const del = element5("button", "dialkit-preset-delete");
           del.title = `Delete ${preset.name}`;
           del.setAttribute("aria-label", del.title);
           del.append(icon2(ICON_TRASH));
@@ -4478,22 +6083,22 @@ Apply these values as the new defaults in the ${hookName} call.`;
   }
   function mountShortcutsMenu(host, initial) {
     let props = initial;
-    const trigger = element4("button", "dialkit-shortcuts-trigger");
+    const trigger = element5("button", "dialkit-shortcuts-trigger");
     trigger.title = "Keyboard shortcuts";
     trigger.setAttribute("aria-label", trigger.title);
     trigger.append(icon2(["M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z", "M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8"]));
     host.append(trigger);
     const menu = popupMenu(trigger, "dialkit-shortcuts-dropdown", "help", (popup) => {
       const panel = DialStore.getPanel(props.panelId);
-      popup.replaceChildren(element4("div", "dialkit-shortcuts-title", "Keyboard Shortcuts"));
-      const list = element4("div", "dialkit-shortcuts-list");
+      popup.replaceChildren(element5("div", "dialkit-shortcuts-title", "Keyboard Shortcuts"));
+      const list = element5("div", "dialkit-shortcuts-list");
       for (const [path, shortcut] of Object.entries(panel?.shortcuts ?? {})) {
-        const row = element4("div", "dialkit-shortcuts-row");
+        const row = element5("div", "dialkit-shortcuts-row");
         const interaction = shortcut.interaction ?? "scroll";
-        row.append(element4("span", "dialkit-shortcuts-row-key", formatToggleShortcut(shortcut)), element4("span", "dialkit-shortcuts-row-label", findControl(panel.controls, path)?.label ?? path), element4("span", "dialkit-shortcuts-row-mode", interaction === "scroll-only" ? "scroll" : `key+${interaction}`));
+        row.append(element5("span", "dialkit-shortcuts-row-key", formatToggleShortcut(shortcut)), element5("span", "dialkit-shortcuts-row-label", findControl(panel.controls, path)?.label ?? path), element5("span", "dialkit-shortcuts-row-mode", interaction === "scroll-only" ? "scroll" : `key+${interaction}`));
         list.append(row);
       }
-      popup.append(list, element4("div", "dialkit-shortcuts-hint", "See pill badges on controls for keys"));
+      popup.append(list, element5("div", "dialkit-shortcuts-hint", "See pill badges on controls for keys"));
     });
     const render = () => {
       trigger.style.display = Object.keys(DialStore.getPanel(props.panelId)?.shortcuts ?? {}).length ? "" : "none";
@@ -4748,7 +6353,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
   function mountTransitionControl(host, initial, springOnly = false) {
     let props = initial;
     const folder = mountFolder(host, { title: props.label });
-    const body = element4("div");
+    const body = element5("div");
     Object.assign(body.style, { display: "flex", flexDirection: "column", gap: "6px" });
     folder.body.append(body);
     let mode;
@@ -4791,8 +6396,8 @@ Apply these values as the new defaults in the ${hookName} call.`;
         controls.push(viz);
         updates.push(() => viz.update(vizProps()));
       }
-      const typeRow = element4("div", "dialkit-labeled-control");
-      typeRow.append(element4("span", "dialkit-labeled-control-label", "Type"));
+      const typeRow = element5("div", "dialkit-labeled-control");
+      typeRow.append(element5("span", "dialkit-labeled-control-label", "Type"));
       body.append(typeRow);
       const segment = mountSegmentedControl(typeRow, {
         options: [...springOnly ? [] : [{ value: "easing", label: "Easing" }], { value: "simple", label: "Time" }, { value: "advanced", label: "Physics" }],
@@ -4837,9 +6442,9 @@ Apply these values as the new defaults in the ${hookName} call.`;
         updates.push(() => control.update(getProps()));
       }
       if (mode === "easing") {
-        const row = element4("div", "dialkit-labeled-control");
-        row.append(element4("span", "dialkit-labeled-control-label", "Ease"));
-        const input = element4("input", "dialkit-text-input");
+        const row = element5("div", "dialkit-labeled-control");
+        row.append(element5("span", "dialkit-labeled-control-label", "Ease"));
+        const input = element5("input", "dialkit-text-input");
         input.setAttribute("aria-label", "B\xE9zier coordinates");
         input.spellcheck = false;
         row.append(input);
@@ -5092,6 +6697,9 @@ Apply these values as the new defaults in the ${hookName} call.`;
           case "pad":
             mount2(mountDialPad, () => ({ ...control.pad, label: control.label, value: value(), onChange: change }));
             break;
+          case "background":
+            mount2(mountBackgroundControl, () => ({ label: control.label, value: value(), onChange: change }));
+            break;
           case "spring":
             mount2(mountSpringControl, () => ({ panelId: props.panelId, path: control.path, label: control.label, spring: value(), onChange: change }));
             break;
@@ -5099,7 +6707,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
             mount2(mountTransitionControl, () => ({ panelId: props.panelId, path: control.path, label: control.label, value: value(), durationControl: props.transitionDuration, onChange: change }));
             break;
           case "action": {
-            const b = element4("button", "dialkit-button", control.label);
+            const b = element5("button", "dialkit-button", control.label);
             b.addEventListener("click", () => DialStore.triggerAction(props.panelId, control.path));
             target.append(b);
             mounted.push({
@@ -5176,8 +6784,8 @@ Apply these values as the new defaults in the ${hookName} call.`;
     };
   }
   function createDialRoot(options = {}) {
-    const root = element4("div", "dialkit-root");
-    const shell = element4("div", "dialkit-panel");
+    const root = element5("div", "dialkit-root");
+    const shell = element5("div", "dialkit-panel");
     root.append(shell);
     const inline = options.mode === "inline";
     root.dataset.mode = shell.dataset.mode = inline ? "inline" : "popover";
@@ -5197,7 +6805,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
     let children = [];
     let shellFolder;
     let destroyed = false;
-    const notify = (open) => {
+    const notify2 = (open) => {
       if (lastOpen !== open) {
         lastOpen = open;
         options.onOpenChange?.(open);
@@ -5206,7 +6814,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
     function setShellOpen(open) {
       shellOpen = open;
       shellFolder?.update({ title: "DialKit", open, isRoot: true, inline, onOpenChange: setShellOpen });
-      notify(open);
+      notify2(open);
     }
     function timelineToggle(host) {
       if (!TimelineStore.getTimelines().length)
@@ -5233,11 +6841,11 @@ Apply these values as the new defaults in the ${hookName} call.`;
         onOpenChange: (open) => {
           DialStore.setPanelOpen(panel.id, open);
           if (isRoot)
-            notify(open);
+            notify2(open);
         }
       });
       const folder = mountFolder(host, folderProps());
-      const toolbar = isRoot ? folder.toolbar : element4("div", "dialkit-panel-section-toolbar");
+      const toolbar = isRoot ? folder.toolbar : element5("div", "dialkit-panel-section-toolbar");
       if (!isRoot)
         folder.body.append(toolbar);
       const toolbarView = mountPanelToolbar(toolbar, panel.id);
@@ -5275,7 +6883,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
       shellFolder = void 0;
       if (!panels.length && !timelines.length)
         return;
-      const wrapper = element4("div", "dialkit-panel-wrapper");
+      const wrapper = element5("div", "dialkit-panel-wrapper");
       shell.append(wrapper);
       shell.dataset.multiple = String(panels.length > 1);
       if (panels.length === 1)
@@ -5286,7 +6894,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
         timelineToggle(shellFolder.toolbar);
         panels.forEach((panel) => panelView(panel, shellFolder.body, false));
         if (!panels.length)
-          shellFolder.body.append(element4("div", "dialkit-timeline-toolkit-only", "Timeline"));
+          shellFolder.body.append(element5("div", "dialkit-timeline-toolkit-only", "Timeline"));
       }
     }
     const endDrag = () => {
@@ -5338,7 +6946,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
       if (panels.length > 1 && open)
         setShellOpen(true);
       else if (panels.length === 1)
-        notify(open);
+        notify2(open);
       if (!open && !inline && offset) {
         position = getPanelCorner(position, offset);
         offset = null;
@@ -5716,7 +7324,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
       return springProgress(elapsed, curve.spring);
     }
     if (curve.ease) {
-      return cubicBezierProgress(clamp2(curve.duration > 0 ? elapsed / curve.duration : 1, 0, 1), curve.ease);
+      return cubicBezierProgress(clamp3(curve.duration > 0 ? elapsed / curve.duration : 1, 0, 1), curve.ease);
     }
     return curve.duration > 0 ? Math.min(1, elapsed / curve.duration) : 1;
   }
@@ -5951,7 +7559,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
     const phaseElapsed = looping ? cycleTime - clip.at : elapsed;
     const fold = (e) => looping ? e % total : e;
     const basePos = started ? fold(Math.max(0, phaseElapsed)) : 0;
-    const progress = total > 0 ? clamp2(basePos / total, 0, 1) : started ? 1 : 0;
+    const progress = total > 0 ? clamp3(basePos / total, 0, 1) : started ? 1 : 0;
     let current;
     let stepIndex = 0;
     if (clip.tracks.length && clip.props?.length) {
@@ -6031,7 +7639,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
     const ca = parseHex(a);
     const cb = parseHex(b);
     if (!ca || !cb) return null;
-    const t = clamp2(p, 0, 1);
+    const t = clamp3(p, 0, 1);
     const mixed = ca.map((v, i) => Math.round(v + (cb[i] - v) * t));
     const hex = (n) => n.toString(16).padStart(2, "0");
     const rgb = `#${hex(mixed[0])}${hex(mixed[1])}${hex(mixed[2])}`;
@@ -6041,17 +7649,17 @@ Apply these values as the new defaults in the ${hookName} call.`;
     if (!transition) return void 0;
     if (transition.type === "easing") {
       return {
-        transitionDuration: `${round2(transition.duration)}s`,
-        transitionTimingFunction: `cubic-bezier(${transition.ease.map((v) => round2(v)).join(", ")})`
+        transitionDuration: `${round22(transition.duration)}s`,
+        transitionTimingFunction: `cubic-bezier(${transition.ease.map((v) => round22(v)).join(", ")})`
       };
     }
     const params = springParams(transition);
     const dampingRatio = params.damping / (2 * Math.sqrt(params.stiffness * params.mass));
     const duration = transition.visualDuration ?? springSettleDuration(params);
-    const bounce = transition.bounce ?? Math.max(0, round2(1 - dampingRatio));
+    const bounce = transition.bounce ?? Math.max(0, round22(1 - dampingRatio));
     return {
-      transitionDuration: `${round2(duration)}s`,
-      transitionTimingFunction: bounce > 0.05 ? `cubic-bezier(0.34, ${round2(1.2 + bounce)}, 0.64, 1)` : "cubic-bezier(0.25, 0.6, 0.35, 1)"
+      transitionDuration: `${round22(duration)}s`,
+      transitionTimingFunction: bounce > 0.05 ? `cubic-bezier(0.34, ${round22(1.2 + bounce)}, 0.64, 1)` : "cubic-bezier(0.25, 0.6, 0.35, 1)"
     };
   }
   function timelinePopoverDisplayValues(values, clipKey, stepKeys, stepKey) {
@@ -6093,21 +7701,21 @@ Apply these values as the new defaults in the ${hookName} call.`;
     );
   }
   function clampTrackDelay(delay, at, trackDuration, timelineDuration) {
-    return clamp2(round2(delay), 0, Math.max(0, round2(timelineDuration - at - trackDuration)));
+    return clamp3(round22(delay), 0, Math.max(0, round22(timelineDuration - at - trackDuration)));
   }
   function clampClipMove(at, duration, timelineDuration) {
-    return clamp2(round2(at), 0, Math.max(0, timelineDuration - duration));
+    return clamp3(round22(at), 0, Math.max(0, timelineDuration - duration));
   }
   function clampClipResizeEnd(duration, at, timelineDuration) {
-    return clamp2(round2(duration), TIMELINE_MIN_CLIP_DURATION, timelineDuration - at);
+    return clamp3(round22(duration), TIMELINE_MIN_CLIP_DURATION, timelineDuration - at);
   }
   function clampClipResizeStart(newAt, at, duration) {
-    const clampedAt = clamp2(round2(newAt), 0, at + duration - TIMELINE_MIN_CLIP_DURATION);
-    return { at: clampedAt, duration: round2(at + duration - clampedAt) };
+    const clampedAt = clamp3(round22(newAt), 0, at + duration - TIMELINE_MIN_CLIP_DURATION);
+    return { at: clampedAt, duration: round22(at + duration - clampedAt) };
   }
   function clampStepResize(duration, at, otherStepsTotal, timelineDuration) {
     const max = Math.max(TIMELINE_MIN_CLIP_DURATION, timelineDuration - at - otherStepsTotal);
-    return clamp2(round2(duration), TIMELINE_MIN_CLIP_DURATION, max);
+    return clamp3(round22(duration), TIMELINE_MIN_CLIP_DURATION, max);
   }
   function normalizeTimelineValuesForCopy(values, clips) {
     const normalized = { ...values };
@@ -6158,7 +7766,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
     return `${String(minutes).padStart(2, "0")}:${secondsText}`;
   }
   function formatSeconds(value) {
-    return `${round2(value)}s`;
+    return `${round22(value)}s`;
   }
   function formatStepLabel(stepKey) {
     const match = /^step(\d+)$/.exec(stepKey);
@@ -6200,12 +7808,12 @@ Apply these values as the new defaults in the ${hookName} call.`;
     const span = loopSpan(transport.duration, loopStart);
     const cycleTime = (span > 0 ? transport.wraps * span : 0) + transport.time;
     for (const clip of staticClips) {
-      const state = computeClipState(clip, transport.time, cycleTime);
+      const state2 = computeClipState(clip, transport.time, cycleTime);
       if (clip.group) {
         const bucket = result[_a = clip.group] ?? (result[_a] = {});
-        bucket[clip.childKey] = state;
+        bucket[clip.childKey] = state2;
       } else {
-        result[clip.key] = state;
+        result[clip.key] = state2;
       }
     }
     return result;
@@ -6242,7 +7850,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
     };
     const listeners2 = /* @__PURE__ */ new Set();
     const getValues = () => buildTimelineValues(compiled.clips, TimelineStore.getTransport(id), compiled.duration, resolveTimelineLoop(options.loop).start, actions);
-    const notify = () => {
+    const notify2 = () => {
       const values = getValues();
       listeners2.forEach((listener) => listener(values));
     };
@@ -6250,7 +7858,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
       compiled = computeStaticTimeline(parsed, DialStore.getValues(id));
       TimelineStore.update(meta());
     });
-    const stopTransport = TimelineStore.subscribe(id, notify);
+    const stopTransport = TimelineStore.subscribe(id, notify2);
     return {
       id,
       ...actions,
@@ -6292,14 +7900,14 @@ Apply these values as the new defaults in the ${hookName} call.`;
   function createDialTimelineRoot(initial = {}) {
     let options = initial;
     let destroyed = false;
-    const root = element4("div", "dialkit-root dialkit-timeline");
+    const root = element5("div", "dialkit-root dialkit-timeline");
     root.dataset.theme = options.theme ?? "system";
-    const resize = element4("div", "dialkit-timeline-resize-handle");
+    const resize = element5("div", "dialkit-timeline-resize-handle");
     resize.setAttribute("role", "separator");
     resize.setAttribute("aria-label", "Resize timeline height");
     resize.setAttribute("aria-orientation", "horizontal");
     resize.tabIndex = 0;
-    const dock = element4("div", "dialkit-timeline-dock");
+    const dock = element5("div", "dialkit-timeline-dock");
     root.append(resize, dock);
     let height = 400;
     const size = () => {
@@ -6310,14 +7918,14 @@ Apply these values as the new defaults in the ${hookName} call.`;
     resize.addEventListener("pointerdown", (event) => {
       const start = dock.getBoundingClientRect().height;
       drag.start(event, (next) => {
-        height = clamp2(start + event.clientY - next.clientY, 120, Math.max(120, window.innerHeight - 24));
+        height = clamp3(start + event.clientY - next.clientY, 120, Math.max(120, window.innerHeight - 24));
         size();
       });
     });
     resize.addEventListener("keydown", (event) => {
       if (event.key === "ArrowUp" || event.key === "ArrowDown") {
         event.preventDefault();
-        height = clamp2(height + (event.key === "ArrowUp" ? 20 : -20), 120, Math.max(120, window.innerHeight - 24));
+        height = clamp3(height + (event.key === "ArrowUp" ? 20 : -20), 120, Math.max(120, window.innerHeight - 24));
         size();
       }
     });
@@ -6424,17 +8032,17 @@ Apply these values as the new defaults in the ${hookName} call.`;
     let open = options.defaultOpen ?? true;
     let zoom = 1, viewStart = 0;
     const groups = /* @__PURE__ */ new Set(), tracks = /* @__PURE__ */ new Set();
-    const section = element4("div", "dialkit-timeline-section");
-    const header = element4("div", "dialkit-timeline-header");
-    const identity = element4("div", "dialkit-timeline-identity");
-    const title = element4("span", "dialkit-timeline-title");
+    const section = element5("div", "dialkit-timeline-section");
+    const header = element5("div", "dialkit-timeline-header");
+    const identity = element5("div", "dialkit-timeline-identity");
+    const title = element5("span", "dialkit-timeline-title");
     identity.append(title);
-    const overview = element4("div", "dialkit-timeline-overview");
-    const viewport = element4("div", "dialkit-timeline-overview-viewport");
-    const progress = element4("div", "dialkit-timeline-overview-progress");
-    const marker = element4("div", "dialkit-timeline-overview-playhead");
+    const overview = element5("div", "dialkit-timeline-overview");
+    const viewport = element5("div", "dialkit-timeline-overview-viewport");
+    const progress = element5("div", "dialkit-timeline-overview-progress");
+    const marker = element5("div", "dialkit-timeline-overview-playhead");
     overview.append(viewport, progress, marker);
-    const actions = element4("div", "dialkit-timeline-actions");
+    const actions = element5("div", "dialkit-timeline-actions");
     header.append(identity, overview, actions);
     const play = button("Play timeline", ICON_PLAY, () => {
       if (TimelineStore.getTransport(meta.id).playing)
@@ -6467,7 +8075,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
       copyTimer = setTimeout(() => copy.replaceChildren(icon2([ICON_CLIPBOARD.board, ICON_CLIPBOARD.body, ICON_CLIPBOARD.sparkle])), 1500);
     });
     actions.append(copy);
-    const collapse = element4("button", "dialkit-timeline-chevron");
+    const collapse = element5("button", "dialkit-timeline-chevron");
     collapse.append(icon2(ICON_CHEVRON));
     collapse.addEventListener("click", () => {
       open = !open;
@@ -6475,29 +8083,29 @@ Apply these values as the new defaults in the ${hookName} call.`;
       render();
     });
     actions.append(collapse);
-    const body = element4("div", "dialkit-timeline-body");
-    const grid = element4("div", "dialkit-timeline-grid");
-    const rulerRow = element4("div", "dialkit-timeline-row dialkit-timeline-ruler-row");
-    const ruler = element4("div", "dialkit-timeline-ruler");
+    const body = element5("div", "dialkit-timeline-body");
+    const grid = element5("div", "dialkit-timeline-grid");
+    const rulerRow = element5("div", "dialkit-timeline-row dialkit-timeline-ruler-row");
+    const ruler = element5("div", "dialkit-timeline-ruler");
     ruler.title = "Drag to seek \xB7 Option-drag to zoom \xB7 Shift-drag to reset zoom";
-    rulerRow.append(element4("div", "dialkit-timeline-label"), ruler);
+    rulerRow.append(element5("div", "dialkit-timeline-label"), ruler);
     grid.append(rulerRow);
-    const playhead = element4("div", "dialkit-timeline-playhead-control");
+    const playhead = element5("div", "dialkit-timeline-playhead-control");
     playhead.setAttribute("role", "slider");
     playhead.tabIndex = 0;
     playhead.setAttribute("aria-label", "Timeline current time");
-    const stem = element4("div", "dialkit-timeline-playhead-stem");
-    const anchor = element4("div", "dialkit-timeline-playhead-anchor");
-    const flag = element4("div", "dialkit-timeline-playhead-flag");
+    const stem = element5("div", "dialkit-timeline-playhead-stem");
+    const anchor = element5("div", "dialkit-timeline-playhead-anchor");
+    const flag = element5("div", "dialkit-timeline-playhead-flag");
     anchor.append(flag);
     playhead.append(stem, anchor);
     grid.append(playhead);
-    const scrollRow = element4("div", "dialkit-timeline-scroll-row");
-    const scroll = element4("div", "dialkit-timeline-horizontal-scroll");
+    const scrollRow = element5("div", "dialkit-timeline-scroll-row");
+    const scroll = element5("div", "dialkit-timeline-horizontal-scroll");
     scroll.setAttribute("aria-label", "Timeline horizontal scroll");
-    const spacer = element4("div");
+    const spacer = element5("div");
     scroll.append(spacer);
-    scrollRow.append(element4("div", "dialkit-timeline-label"), scroll);
+    scrollRow.append(element5("div", "dialkit-timeline-label"), scroll);
     body.append(grid, scrollRow);
     section.append(header, body);
     host.append(section);
@@ -6515,14 +8123,14 @@ Apply these values as the new defaults in the ${hookName} call.`;
     const visibleDuration = () => meta.duration / zoom;
     const scale = () => meta.duration > 0 ? width() / visibleDuration() : 0;
     function transport() {
-      const state = TimelineStore.getTransport(meta.id);
-      play.setAttribute("aria-label", state.playing ? "Pause timeline" : "Play timeline");
-      play.title = state.playing ? "Pause timeline" : "Play timeline";
-      if (play.dataset.playing !== String(state.playing)) {
-        play.dataset.playing = String(state.playing);
-        play.replaceChildren(icon2(state.playing ? ICON_PAUSE : ICON_PLAY));
+      const state2 = TimelineStore.getTransport(meta.id);
+      play.setAttribute("aria-label", state2.playing ? "Pause timeline" : "Play timeline");
+      play.title = state2.playing ? "Pause timeline" : "Play timeline";
+      if (play.dataset.playing !== String(state2.playing)) {
+        play.dataset.playing = String(state2.playing);
+        play.replaceChildren(icon2(state2.playing ? ICON_PAUSE : ICON_PLAY));
       }
-      const percent = meta.duration > 0 ? state.time / meta.duration * 100 : 0;
+      const percent = meta.duration > 0 ? state2.time / meta.duration * 100 : 0;
       progress.style.width = marker.style.left = `${percent}%`;
       viewport.style.left = `${meta.duration > 0 ? viewStart / meta.duration * 100 : 0}%`;
       viewport.style.width = `${100 / zoom}%`;
@@ -6530,16 +8138,16 @@ Apply these values as the new defaults in the ${hookName} call.`;
         viewport.dataset.zoomed = "";
       else
         delete viewport.dataset.zoomed;
-      const x = clamp2((state.time - viewStart) * scale(), 0, width());
-      const flagOffset = clamp2(x, 25, Math.max(25, width() - 25)) - x;
-      playhead.style.display = state.time < viewStart || state.time > viewStart + visibleDuration() || !width() ? "none" : "";
+      const x = clamp3((state2.time - viewStart) * scale(), 0, width());
+      const flagOffset = clamp3(x, 25, Math.max(25, width() - 25)) - x;
+      playhead.style.display = state2.time < viewStart || state2.time > viewStart + visibleDuration() || !width() ? "none" : "";
       playhead.style.left = `calc(var(--dial-timeline-label-w) + ${x}px)`;
       playhead.style.setProperty("--dial-timeline-playhead-flag-offset", `${flagOffset}px`);
       playhead.dataset.edge = flagOffset > 0.5 ? "start" : flagOffset < -0.5 ? "end" : "center";
-      flag.textContent = state.time.toFixed(2);
+      flag.textContent = state2.time.toFixed(2);
       playhead.setAttribute("aria-valuemin", "0");
       playhead.setAttribute("aria-valuemax", String(meta.duration));
-      playhead.setAttribute("aria-valuenow", String(state.time));
+      playhead.setAttribute("aria-valuenow", String(state2.time));
     }
     function scrub(event, full = false) {
       const rect = (full ? overview : ruler).getBoundingClientRect();
@@ -6552,9 +8160,9 @@ Apply these values as the new defaults in the ${hookName} call.`;
         render();
       }
       if (event.altKey && !full) {
-        const startZoom = zoom, ratio = clamp2((event.clientX - rect.left) / rect.width, 0, 1), time = viewStart + ratio * visibleDuration();
+        const startZoom = zoom, ratio = clamp3((event.clientX - rect.left) / rect.width, 0, 1), time = viewStart + ratio * visibleDuration();
         gesture.start(event, (next) => {
-          zoom = clamp2(startZoom * Math.exp((next.clientX - event.clientX) / 180), 1, Math.max(8, meta.duration * rect.width / 140));
+          zoom = clamp3(startZoom * Math.exp((next.clientX - event.clientX) / 180), 1, Math.max(8, meta.duration * rect.width / 140));
           viewStart = time - ratio * visibleDuration();
           render();
         });
@@ -6564,7 +8172,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
       const start = full ? 0 : viewStart, duration = full ? meta.duration : visibleDuration();
       TimelineStore.pause(meta.id);
       const seek = (next) => {
-        const time = clamp2(start + (next.clientX - rect.left) / rect.width * duration, start, start + duration);
+        const time = clamp3(start + (next.clientX - rect.left) / rect.width * duration, start, start + duration);
         TimelineStore.seek(meta.id, time);
         if (full) {
           viewStart = time - visibleDuration() / 2;
@@ -6610,17 +8218,17 @@ Apply these values as the new defaults in the ${hookName} call.`;
       }
     }, { passive: false });
     function row(label, className = "", grouped = false) {
-      const root = element4("div", `dialkit-timeline-row ${className}`);
+      const root = element5("div", `dialkit-timeline-row ${className}`);
       if (grouped)
         root.dataset.grouped = "";
-      const caption = element4("div", "dialkit-timeline-label", label), lane = element4("div", "dialkit-timeline-lane");
+      const caption = element5("div", "dialkit-timeline-label", label), lane = element5("div", "dialkit-timeline-lane");
       root.append(caption, lane);
       grid.insertBefore(root, playhead);
       rowElements.push(root);
       return { root, caption, lane };
     }
     function disclosure(host2, isOpen, label, change) {
-      const b = element4("button", "dialkit-timeline-group-toggle");
+      const b = element5("button", "dialkit-timeline-group-toggle");
       b.title = label;
       b.setAttribute("aria-label", label);
       b.setAttribute("aria-expanded", String(isOpen));
@@ -6643,7 +8251,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
       collapse.setAttribute("aria-expanded", String(open));
       collapse.title = open ? "Collapse timeline" : "Expand timeline";
       collapse.setAttribute("aria-label", collapse.title);
-      viewStart = clamp2(viewStart, 0, Math.max(0, meta.duration - visibleDuration()));
+      viewStart = clamp3(viewStart, 0, Math.max(0, meta.duration - visibleDuration()));
       const px = scale();
       ruler.replaceChildren();
       const tickSteps = [1e-3, 2e-3, 5e-3, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600];
@@ -6651,10 +8259,10 @@ Apply these values as the new defaults in the ${hookName} call.`;
       if (zoom < 1.5 && meta.duration >= 1)
         major = Math.max(1, major);
       for (let i = Math.ceil(viewStart / (major / 10)); i <= Math.floor((viewStart + visibleDuration()) / (major / 10)); i++) {
-        const tick = element4("div", `dialkit-timeline-tick${i % 10 === 0 ? "" : i % 5 === 0 ? " dialkit-timeline-tick-medium" : " dialkit-timeline-tick-fine"}`);
+        const tick = element5("div", `dialkit-timeline-tick${i % 10 === 0 ? "" : i % 5 === 0 ? " dialkit-timeline-tick-medium" : " dialkit-timeline-tick-fine"}`);
         tick.style.left = `${(i * major / 10 - viewStart) * px}px`;
         if (i % 10 === 0)
-          tick.append(element4("span", "dialkit-timeline-tick-label", `${Number((i * major / 10).toFixed(3))}s`));
+          tick.append(element5("span", "dialkit-timeline-tick-label", `${Number((i * major / 10).toFixed(3))}s`));
         ruler.append(tick);
       }
       rowElements.forEach((r) => r.remove());
@@ -6707,12 +8315,12 @@ Apply these values as the new defaults in the ${hookName} call.`;
       const px = scale();
       if (clip.loop === "repeat" && duration > 0)
         for (let index = Math.max(1, Math.floor((viewStart - at) / duration)), count = 0; at + duration * index < meta.duration && count < 256; index++, count++) {
-          const ghost = element4("div", "dialkit-timeline-clip-ghost");
+          const ghost = element5("div", "dialkit-timeline-clip-ghost");
           ghost.setAttribute("aria-hidden", "true");
           Object.assign(ghost.style, { left: `${(at + duration * index - viewStart) * px + 1}px`, width: `${Math.max(1, Math.min(duration, meta.duration - at - duration * index) * px - 2)}px`, background: clip.color });
           lane.append(ghost);
         }
-      const node = element4("div", "dialkit-timeline-clip");
+      const node = element5("div", "dialkit-timeline-clip");
       node.tabIndex = 0;
       node.setAttribute("role", "button");
       node.setAttribute("aria-label", `Edit ${clip.label}`);
@@ -6725,22 +8333,22 @@ Apply these values as the new defaults in the ${hookName} call.`;
         node.dataset.selected = "";
       node.title = `${clip.label} \u2014 ${formatSeconds(at)} for ${physics ? "~" : ""}${formatSeconds(duration)}${physics ? " (duration set by spring physics)" : ""}${delayMode ? " \xB7 drag to phase-shift" : ""}`;
       const edge = (side) => {
-        const handle = element4("div", "dialkit-timeline-clip-handle");
+        const handle = element5("div", "dialkit-timeline-clip-handle");
         handle.dataset.edge = side;
         node.append(handle);
       };
       if (steps?.length && !composite) {
         let offset = 0;
         for (const [index, step] of steps.entries()) {
-          const segment = element4("div", "dialkit-timeline-clip-segment");
+          const segment = element5("div", "dialkit-timeline-clip-segment");
           segment.dataset.step = step.key ?? "";
           segment.style.width = `${step.duration * px}px`;
           if (step.duration * px > 52)
-            segment.append(element4("span", "dialkit-timeline-clip-duration", formatSeconds(step.duration)));
+            segment.append(element5("span", "dialkit-timeline-clip-duration", formatSeconds(step.duration)));
           node.append(segment);
           offset += step.duration;
           if (!step.isPhysics) {
-            const handle = element4("div", "dialkit-timeline-clip-handle");
+            const handle = element5("div", "dialkit-timeline-clip-handle");
             handle.dataset.boundary = String(index);
             handle.style.left = `${offset * px - 4}px`;
             node.append(handle);
@@ -6752,13 +8360,13 @@ Apply these values as the new defaults in the ${hookName} call.`;
         if (!physics && !composite && duration > 0)
           edge("start");
         if (duration * px > 56)
-          node.append(element4("span", "dialkit-timeline-clip-duration", `${physics && !composite ? "~" : ""}${formatSeconds(duration)}`));
+          node.append(element5("span", "dialkit-timeline-clip-duration", `${physics && !composite ? "~" : ""}${formatSeconds(duration)}`));
         if (!physics && !composite && duration > 0)
           edge("end");
       }
       lane.append(node);
       if (clip.loop === "repeat" && duration > 0)
-        lane.append(element4("span", "dialkit-timeline-loop-infinity", "\u221E"));
+        lane.append(element5("span", "dialkit-timeline-loop-infinity", "\u221E"));
       const edit = (target) => {
         if (composite) {
           if (!tracks.delete(clip.key))
@@ -6824,20 +8432,20 @@ Apply these values as the new defaults in the ${hookName} call.`;
       }
       if (!controls.length)
         return;
-      const root = element4("div", "dialkit-root");
+      const root = element5("div", "dialkit-root");
       root.dataset.theme = theme;
-      const popup = element4("div", "dialkit-timeline-popover");
+      const popup = element5("div", "dialkit-timeline-popover");
       popup.setAttribute("role", "dialog");
       popup.setAttribute("aria-label", `Edit ${clip.label}${stepKey ? ` \xB7 ${formatStepLabel(stepKey)}` : ""}`);
-      const heading = element4("div", "dialkit-timeline-popover-header");
-      heading.append(element4("span", "dialkit-timeline-popover-title", `${clip.label}${stepKey ? ` \xB7 ${formatStepLabel(stepKey)}` : ""}`));
-      const close = element4("button", "dialkit-timeline-popover-close");
+      const heading = element5("div", "dialkit-timeline-popover-header");
+      heading.append(element5("span", "dialkit-timeline-popover-title", `${clip.label}${stepKey ? ` \xB7 ${formatStepLabel(stepKey)}` : ""}`));
+      const close = element5("button", "dialkit-timeline-popover-close");
       close.title = "Close editor";
       close.setAttribute("aria-label", close.title);
       close.append(icon2("M6 6l12 12M18 6 6 18"));
       close.addEventListener("click", closeEditor);
       heading.append(close);
-      const content = element4("div", "dialkit-timeline-popover-body");
+      const content = element5("div", "dialkit-timeline-popover-body");
       popup.append(heading, content);
       root.append(popup);
       document.body.append(root);
@@ -6851,7 +8459,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
       const rect = target.getBoundingClientRect();
       const position = () => {
         const p = getDropdownPosition({ getBoundingClientRect: () => rect }, document.body, { fixed: true, width: 280, maxHeight: window.innerHeight - 24, dropdownHeight: popup.scrollHeight + 2 });
-        Object.assign(popup.style, { left: `${clamp2(rect.left + rect.width / 2 - p.width / 2, 12, Math.max(12, window.innerWidth - p.width - 12))}px`, top: `${p.top}px`, width: `${p.width}px`, maxHeight: `${p.maxHeight}px` });
+        Object.assign(popup.style, { left: `${clamp3(rect.left + rect.width / 2 - p.width / 2, 12, Math.max(12, window.innerWidth - p.width - 12))}px`, top: `${p.top}px`, width: `${p.width}px`, maxHeight: `${p.maxHeight}px` });
         popup.dataset.placement = p.above ? "above" : "below";
       };
       const observer2 = new ResizeObserver(position);
