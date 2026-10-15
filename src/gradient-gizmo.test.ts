@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  defaultGradientHandles, gradientFrame, gradientParamAt, legacyGradientHandles, normalizeGradient, type GradientHandles,
+  defaultGradientHandles, gradientFrame, gradientParamAt, legacyGradientHandles, normalizeGradient, switchGradientShape, type BackgroundGradient, type GradientHandles,
 } from './background';
 import {
   GHOST_BAND_IN, GHOST_BAND_OUT, dragGradientCentre, ghostPositionAt, dragGradientEnd, dragGradientWidth, formatGizmoAngle, ghostBandPath, gizmoAngle, gizmoPoints,
-  rotateGradientHandles, stopPlacement, stopPositionAt,
+  rotateGradientHandles, rotateGradientQuarter, stopPlacement, stopPositionAt,
 } from './gradient-gizmo';
 
 const box = { width: 200, height: 100 };
@@ -73,7 +73,78 @@ describe('the shading rule', () => {
   });
 });
 
+describe('switching the gradient type (Figma\'s placement)', () => {
+  const stops = [{ at: 0, color: '#000000', alpha: 100 }, { at: 100, color: '#ffffff', alpha: 100 }];
+  const linear = (start: { x: number; y: number }, end: { x: number; y: number }): BackgroundGradient => ({ shape: 'linear', handles: { start, end, width: { x: 0, y: 0 } }, stops });
+
+  it('puts a centred type on the line\'s middle, as a circle in pixels', () => {
+    const aspect = 16 / 9;
+    const radial = switchGradientShape(linear({ x: 0.5, y: 0.1 }, { x: 0.5, y: 0.9 }), 'radial', aspect);
+    assert.equal(radial.shape, 'radial');
+    assert.deepEqual(radial.handles.start, { x: 0.5, y: 0.5 });
+    assert.deepEqual(radial.handles.end, { x: 0.5, y: 0.9 });
+    // In pixels (width = aspect, height = 1): the width vector is the end vector turned 90° clockwise, as long.
+    const end = { x: (radial.handles.end.x - 0.5) * aspect, y: radial.handles.end.y - 0.5 };
+    const width = { x: (radial.handles.width.x - 0.5) * aspect, y: radial.handles.width.y - 0.5 };
+    near(Math.hypot(width.x, width.y), Math.hypot(end.x, end.y), 1e-5);
+    near(width.x, -end.y, 1e-5);
+    near(width.y, end.x, 1e-5);
+    const frame = gradientFrame(radial.handles, 1600, 900);
+    near(frame.r1, frame.r2, 1e-2);
+    assert.deepEqual(radial.stops, stops);
+  });
+
+  it('keeps the points between Radial, Angular and Diamond, and gives the line back', () => {
+    const start = { x: 0.173, y: 0.405 };
+    const end = { x: 0.797, y: 0.452 };
+    const radial = switchGradientShape(linear(start, end), 'radial', 3.17);
+    const angular = switchGradientShape(radial, 'angular', 3.17);
+    const diamond = switchGradientShape(angular, 'diamond', 3.17);
+    assert.deepEqual(angular.handles, radial.handles);
+    assert.deepEqual(diamond.handles, radial.handles);
+    const back = switchGradientShape(switchGradientShape(diamond, 'radial', 3.17), 'linear', 3.17);
+    assert.equal(back.shape, 'linear');
+    assert.deepEqual(back.handles.start, start);
+    assert.deepEqual(back.handles.end, end);
+    // Linear to linear changes nothing; the value is a new object.
+    const same = linear(start, end);
+    assert.deepEqual(switchGradientShape(same, 'linear', 2), same);
+    assert.notEqual(switchGradientShape(same, 'linear', 2).handles, same.handles);
+  });
+});
+
 describe('the gizmo maths', () => {
+  it('turns a Linear in a default place over the other axis, the same distance in', () => {
+    // Top to bottom, 10% in: a quarter turn clockwise runs right to left, 10% in.
+    const once = rotateGradientQuarter('linear', defaultGradientHandles(), box);
+    nearPoint(once.start, { x: 0.9, y: 0.5 });
+    nearPoint(once.end, { x: 0.1, y: 0.5 });
+    const twice = rotateGradientQuarter('linear', once, box);
+    nearPoint(twice.start, { x: 0.5, y: 0.9 });
+    nearPoint(twice.end, { x: 0.5, y: 0.1 });
+    // Edge to edge stays edge to edge (Figma's default), on a wide canvas too.
+    const edge = rotateGradientQuarter('linear', { start: { x: 0, y: 0.5 }, end: { x: 1, y: 0.5 }, width: { x: 0, y: 1 } }, box);
+    nearPoint(edge.start, { x: 0.5, y: 0 });
+    nearPoint(edge.end, { x: 0.5, y: 1 });
+  });
+
+  it('turns any other Linear in pixels around the middle of its line', () => {
+    // 54px wide on a 200 x 100 canvas, centred: it turns to 54px tall, centred.
+    const h = rotateGradientQuarter('linear', { start: { x: 0.365, y: 0.5 }, end: { x: 0.635, y: 0.5 }, width: { x: 0.365, y: 1 } }, box);
+    nearPoint(h.start, { x: 0.5, y: 0.23 });
+    nearPoint(h.end, { x: 0.5, y: 0.77 });
+    // Off centre: the middle of the line stays where it is.
+    const off = rotateGradientQuarter('linear', { start: { x: 0.1, y: 0.2 }, end: { x: 0.3, y: 0.2 }, width: { x: 0.1, y: 0.4 } }, box);
+    nearPoint(off.start, { x: 0.2, y: 0 });
+    nearPoint(off.end, { x: 0.2, y: 0.4 });
+  });
+
+  it('turns Radial, Angular and Diamond around their centre', () => {
+    const turned = rotateGradientQuarter('radial', circle(), square);
+    nearPoint(turned.start, { x: 0.5, y: 0.5 });
+    nearPoint(turned.end, { x: 0.5, y: 0.75 });
+  });
+
   it('rotates the end and width handles around the start, keeping lengths', () => {
     const turned = rotateGradientHandles(circle(), Math.PI / 2, square);
     nearPoint(turned.start, { x: 0.5, y: 0.5 });

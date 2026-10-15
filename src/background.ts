@@ -138,10 +138,52 @@ export function legacyGradientHandles(shape: 'linear' | 'radial', angle: number)
   };
 }
 
-/** Points keep four decimals: enough for any canvas, and equal values stay equal. */
+/**
+ * Points keep six decimals: far below a pixel on any canvas, equal values
+ * stay equal, and the midpoint of two handles (a type switch) is exact, so
+ * Linear → Radial → Linear gives back the same line.
+ */
 function roundPoint(point: GradientPoint): GradientPoint {
-  const r = (n: number) => Math.round(n * 1e4) / 1e4 || 0;
+  const r = (n: number) => Math.round(n * 1e6) / 1e6 || 0;
   return { x: r(point.x), y: r(point.y) };
+}
+
+/**
+ * The gradient with its type switched, placed as Figma places it (measured
+ * from a recording):
+ * - Linear → Radial, Angular or Diamond: the centre moves to the middle of the
+ *   line, the end stays, and the width point goes at the same distance a
+ *   quarter turn clockwise on screen, in pixels of the canvas (`aspect` is its
+ *   width / height), so the shape is a circle on screen, even on a wide canvas.
+ * - Between Radial, Angular and Diamond: the three points stay.
+ * - Radial, Angular or Diamond → Linear: start = 2 × centre − end, the end stays,
+ *   so Linear → Radial → Linear gives back the same line.
+ * The stops never change.
+ */
+export function switchGradientShape(gradient: BackgroundGradient, next: GradientShape, aspect = 1): BackgroundGradient {
+  const { shape, handles } = gradient;
+  const result = cloneGradient(gradient);
+  result.shape = next;
+  if ((shape === 'linear') === (next === 'linear')) return result;
+  const a = Number.isFinite(aspect) && aspect > 0 ? aspect : 1;
+  if (shape === 'linear') {
+    const centre = { x: (handles.start.x + handles.end.x) / 2, y: (handles.start.y + handles.end.y) / 2 };
+    // The main vector in pixels (width a, height 1), turned 90° clockwise on screen: (dx, dy) → (-dy, dx).
+    const dx = (handles.end.x - centre.x) * a;
+    const dy = handles.end.y - centre.y;
+    result.handles = {
+      start: roundPoint(centre),
+      end: { ...handles.end },
+      width: roundPoint({ x: centre.x - dy / a, y: centre.y + dx }),
+    };
+  } else {
+    result.handles = {
+      start: roundPoint({ x: 2 * handles.start.x - handles.end.x, y: 2 * handles.start.y - handles.end.y }),
+      end: { ...handles.end },
+      width: { ...handles.width },
+    };
+  }
+  return result;
 }
 
 function normalizePoint(value: unknown): GradientPoint | null {

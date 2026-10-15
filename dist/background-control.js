@@ -36,8 +36,32 @@ function legacyGradientHandles(shape, angle) {
   };
 }
 function roundPoint(point) {
-  const r = (n) => Math.round(n * 1e4) / 1e4 || 0;
+  const r = (n) => Math.round(n * 1e6) / 1e6 || 0;
   return { x: r(point.x), y: r(point.y) };
+}
+function switchGradientShape(gradient, next, aspect = 1) {
+  const { shape, handles } = gradient;
+  const result = cloneGradient(gradient);
+  result.shape = next;
+  if (shape === "linear" === (next === "linear")) return result;
+  const a = Number.isFinite(aspect) && aspect > 0 ? aspect : 1;
+  if (shape === "linear") {
+    const centre = { x: (handles.start.x + handles.end.x) / 2, y: (handles.start.y + handles.end.y) / 2 };
+    const dx = (handles.end.x - centre.x) * a;
+    const dy = handles.end.y - centre.y;
+    result.handles = {
+      start: roundPoint(centre),
+      end: { ...handles.end },
+      width: roundPoint({ x: centre.x - dy / a, y: centre.y + dx })
+    };
+  } else {
+    result.handles = {
+      start: roundPoint({ x: 2 * handles.start.x - handles.end.x, y: 2 * handles.start.y - handles.end.y }),
+      end: { ...handles.end },
+      width: { ...handles.width }
+    };
+  }
+  return result;
 }
 function normalizePoint(value) {
   if (!isRecord(value)) return null;
@@ -556,6 +580,12 @@ function handleSliderKey(event, value, min, max, step, change, edit) {
   event.stopPropagation();
   if (next === void 0) edit();
   else change(next);
+}
+function activateOnKey(event, activate) {
+  if (event.target !== event.currentTarget || !["Enter", " "].includes(event.key)) return;
+  event.preventDefault();
+  event.stopPropagation();
+  activate();
 }
 function optionKeyIndex(key, index, count, wrap = false) {
   if (!count) return void 0;
@@ -1350,8 +1380,156 @@ var ICON_CHEVRON = "M6 9.5L12 15.5L18 9.5";
 var ICON_CLOSE = "M6 6L18 18M18 6L6 18";
 var ICON_CHECK = "M5 12.75L10 19L19 5";
 var ICON_PLUS = ["M5 12H19M12 5V19"];
+var ICON_PANEL = {
+  path: "M6.84766 11.75C6.78583 11.9899 6.75 12.2408 6.75 12.5C6.75 12.7592 6.78583 13.0101 6.84766 13.25H2C1.58579 13.25 1.25 12.9142 1.25 12.5C1.25 12.0858 1.58579 11.75 2 11.75H6.84766ZM14 11.75C14.4142 11.75 14.75 12.0858 14.75 12.5C14.75 12.9142 14.4142 13.25 14 13.25H12.6523C12.7142 13.0101 12.75 12.7592 12.75 12.5C12.75 12.2408 12.7142 11.9899 12.6523 11.75H14ZM3.09766 7.25C3.03583 7.48994 3 7.74075 3 8C3 8.25925 3.03583 8.51006 3.09766 8.75H2C1.58579 8.75 1.25 8.41421 1.25 8C1.25 7.58579 1.58579 7.25 2 7.25H3.09766ZM14 7.25C14.4142 7.25 14.75 7.58579 14.75 8C14.75 8.41421 14.4142 8.75 14 8.75H8.90234C8.96417 8.51006 9 8.25925 9 8C9 7.74075 8.96417 7.48994 8.90234 7.25H14ZM7.59766 2.75C7.53583 2.98994 7.5 3.24075 7.5 3.5C7.5 3.75925 7.53583 4.01006 7.59766 4.25H2C1.58579 4.25 1.25 3.91421 1.25 3.5C1.25 3.08579 1.58579 2.75 2 2.75H7.59766ZM14 2.75C14.4142 2.75 14.75 3.08579 14.75 3.5C14.75 3.91421 14.4142 4.25 14 4.25H13.4023C13.4642 4.01006 13.5 3.75925 13.5 3.5C13.5 3.24075 13.4642 2.98994 13.4023 2.75H14Z",
+  circles: [
+    { cx: "6", cy: "8", r: "0.998596" },
+    { cx: "10.4999", cy: "3.5", r: "0.998657" },
+    { cx: "9.75015", cy: "12.5", r: "0.997986" }
+  ]
+};
 var ICON_MORE = ["M5 12h.01", "M12 12h.01", "M19 12h.01"];
 var ICON_MORE_STROKE = 3;
+
+// src/vanilla/dom.ts
+function element2(tag, className = "", text) {
+  const node = document.createElement(tag);
+  node.className = className;
+  if (text !== void 0)
+    node.textContent = text;
+  if (tag === "button")
+    node.type = "button";
+  return node;
+}
+function svg(tag, attrs = {}) {
+  const node = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [key, value] of Object.entries(attrs))
+    node.setAttribute(key, String(value));
+  return node;
+}
+function icon(paths, className = "", viewBox = "0 0 24 24") {
+  const node = svg("svg", { class: className, viewBox, fill: "none", stroke: "currentColor", "stroke-width": 2, "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true" });
+  for (const d of typeof paths === "string" ? [paths] : paths)
+    node.append(svg("path", { d }));
+  return node;
+}
+
+// src/vanilla/controls.ts
+function mountFolder(host, initial) {
+  let props = initial;
+  let open = props.open ?? props.defaultOpen ?? true;
+  const folder = element2("div", `dialkit-folder${props.isRoot ? " dialkit-folder-root" : ""}`);
+  const header = element2("div", `dialkit-folder-header${props.isRoot ? " dialkit-panel-header" : ""}`);
+  const top = element2("div", "dialkit-folder-header-top");
+  const titleRow = element2("div", "dialkit-folder-title-row");
+  const title = element2("span", `dialkit-folder-title${props.isRoot ? " dialkit-folder-title-root" : ""}`);
+  titleRow.append(title);
+  top.append(titleRow);
+  const glyph = props.isRoot ? svg("svg", { class: "dialkit-panel-icon", viewBox: "0 0 16 16", fill: "none", "aria-hidden": "true" }) : icon(ICON_CHEVRON, "dialkit-folder-icon");
+  if (props.isRoot) {
+    glyph.append(svg("path", { d: ICON_PANEL.path, fill: "currentColor", opacity: 0.5 }));
+    ICON_PANEL.circles.forEach((c) => glyph.append(svg("circle", { ...c, fill: "currentColor", stroke: "currentColor", "stroke-width": 1.25 })));
+  }
+  if (!props.inline || !props.isRoot)
+    top.append(glyph);
+  const toolbar = element2("div", "dialkit-panel-toolbar");
+  toolbar.addEventListener("click", (event) => event.stopPropagation());
+  header.append(top);
+  if (props.isRoot)
+    header.append(toolbar);
+  const content = element2("div", "dialkit-folder-content");
+  const body = element2("div", "dialkit-folder-inner");
+  content.append(body);
+  folder.append(header, content);
+  const node = props.isRoot ? element2("div", `dialkit-panel-inner${props.inline ? " dialkit-panel-inline" : ""}`) : folder;
+  if (props.isRoot) {
+    node.tabIndex = -1;
+    node.append(folder);
+  }
+  host.append(node);
+  let renderedOpen = open;
+  let animation;
+  const render = () => {
+    const changed = renderedOpen !== open;
+    const before = (props.isRoot ? node : content).getBoundingClientRect();
+    if (changed)
+      animation?.cancel();
+    const wasOpen = renderedOpen;
+    renderedOpen = open;
+    folder.dataset.open = String(open);
+    title.textContent = props.title;
+    top.setAttribute("aria-label", props.title);
+    top.setAttribute("aria-expanded", String(open));
+    if (!(props.inline && props.isRoot)) {
+      top.setAttribute("role", "button");
+      top.tabIndex = 0;
+    }
+    content.style.display = open ? "" : "none";
+    content.inert = !open;
+    if (props.isRoot) {
+      toolbar.style.display = open ? "" : "none";
+      titleRow.style.display = open ? "" : "none";
+      node.dataset.collapsed = String(!open);
+      if (!props.inline)
+        Object.assign(node.style, open ? { width: "280px", height: "auto", maxHeight: "calc(100dvh - 32px)", borderRadius: "14px", boxShadow: "var(--dial-shadow)", overflowX: "hidden", overflowY: "auto", cursor: "" } : { width: "42px", height: "42px", maxHeight: "42px", borderRadius: "50%", boxShadow: "var(--dial-shadow-collapsed)", overflow: "hidden", cursor: "pointer" });
+    } else {
+      glyph.style.transform = open ? "" : "rotate(180deg)";
+      glyph.style.transition = "transform 250ms ease";
+    }
+    if (changed && before.width > 0) {
+      if (props.isRoot && !props.inline) {
+        const after = node.getBoundingClientRect();
+        node.style.maxHeight = "calc(100dvh - 32px)";
+        animation = animateSpring(node, (p) => ({ width: `${before.width + (after.width - before.width) * p}px`, height: `${before.height + (after.height - before.height) * p}px`, borderRadius: `${(wasOpen ? 14 : 21) + (open ? -7 : 7) * p}px` }));
+      } else if (!props.isRoot) {
+        content.style.display = "";
+        const targetHeight = open ? content.scrollHeight : 0;
+        animation = animateSpring(content, (p) => ({ height: `${before.height + (targetHeight - before.height) * p}px`, opacity: wasOpen ? 1 - p : p, clipPath: "inset(0 -20px)" }));
+        if (!open) {
+          if (animation)
+            animation.onfinish = () => {
+              if (!open)
+                content.style.display = "none";
+            };
+          else
+            content.style.display = "none";
+        }
+      }
+    }
+  };
+  const toggle = () => {
+    if (props.inline && props.isRoot)
+      return;
+    open = !open;
+    render();
+    props.onOpenChange?.(open);
+  };
+  header.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggle();
+  });
+  top.addEventListener("keydown", (event) => activateOnKey(event, toggle));
+  if (props.isRoot)
+    node.addEventListener("click", () => {
+      if (!open)
+        toggle();
+    });
+  render();
+  return {
+    element: node,
+    body,
+    toolbar,
+    update(next) {
+      props = next;
+      open = next.open ?? open;
+      render();
+    },
+    destroy() {
+      animation?.cancel();
+      node.remove();
+    }
+  };
+}
 
 // src/dropdown-keyboard.ts
 var dropdownId = 0;
@@ -1519,6 +1697,7 @@ function observeDropdownKeyboard(trigger, getPopup, close, kind = "select") {
 }
 
 // src/gradient-gizmo.ts
+var toPx = (p, box) => ({ x: p.x * box.width, y: p.y * box.height });
 var round4 = (n) => Math.round(n * 1e4) / 1e4 || 0;
 var toFraction = (p, box) => ({
   x: round4(p.x / Math.max(box.width, 1e-6)),
@@ -1561,6 +1740,25 @@ function rotateGradientHandles(handles, radians, box) {
     return { x: p.start.x + dx * cos - dy * sin, y: p.start.y + dx * sin + dy * cos };
   };
   return fromFrame(p.start, turn(p.end), f.r2, sideOf(handles, box), box);
+}
+function rotateGradientQuarter(shape, handles, box) {
+  if (shape !== "linear") return rotateGradientHandles(handles, Math.PI / 2, box);
+  const { start, end, width } = handles;
+  const near = (a, b) => Math.abs(a - b) < 1e-4;
+  const evenInset = (a, b) => near(a + b, 1) && (near(Math.min(a, b), 0.1) || near(Math.min(a, b), 0));
+  const atDefault = near(start.x, 0.5) && near(end.x, 0.5) && evenInset(start.y, end.y) || near(start.y, 0.5) && near(end.y, 0.5) && evenInset(start.x, end.x);
+  if (atDefault) {
+    const turn2 = (p) => ({ x: round4(1 - p.y), y: round4(p.x) });
+    return { start: turn2(start), end: turn2(end), width: turn2(width) };
+  }
+  const s = toPx(start, box);
+  const e = toPx(end, box);
+  const mid = { x: (s.x + e.x) / 2, y: (s.y + e.y) / 2 };
+  const turn = (p) => {
+    const v = toPx(p, box);
+    return toFraction({ x: mid.x - (v.y - mid.y), y: mid.y + (v.x - mid.x) }, box);
+  };
+  return { start: turn(start), end: turn(end), width: turn(width) };
 }
 function dragGradientEnd(handles, pointer, box) {
   const f = gradientFrame(handles, box.width, box.height);
@@ -1679,13 +1877,13 @@ function rotateCursor(degrees) {
   if (!cursor) {
     const arc = "M6 15a7.5 7.5 0 0 1 12 0";
     const heads = "M4 12.5 6 15l3-.5M20 12.5 18 15l-3-.5";
-    const svg = `<svg xmlns="${SVG}" width="24" height="24" viewBox="0 0 24 24"><g transform="rotate(${step + 90} 12 12)" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="${arc}" stroke="#fff" stroke-width="4"/><path d="${heads}" stroke="#fff" stroke-width="4"/><path d="${arc}" stroke="#000" stroke-width="1.5"/><path d="${heads}" stroke="#000" stroke-width="1.5"/></g></svg>`;
-    cursor = `url("data:image/svg+xml,${encodeURIComponent(svg)}") 12 12, grab`;
+    const svg2 = `<svg xmlns="${SVG}" width="24" height="24" viewBox="0 0 24 24"><g transform="rotate(${step + 90} 12 12)" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="${arc}" stroke="#fff" stroke-width="4"/><path d="${heads}" stroke="#fff" stroke-width="4"/><path d="${arc}" stroke="#000" stroke-width="1.5"/><path d="${heads}" stroke="#000" stroke-width="1.5"/></g></svg>`;
+    cursor = `url("data:image/svg+xml,${encodeURIComponent(svg2)}") 12 12, grab`;
     cursors.set(step, cursor);
   }
   return cursor;
 }
-function element2(tag, className) {
+function element3(tag, className) {
   const el = document.createElement(tag);
   el.className = className;
   return el;
@@ -1701,31 +1899,31 @@ function mountGradientGizmo(target, initial, callbacks) {
   let press;
   let hoverStop = -1;
   let destroyed = false;
-  const root = element2("div", "dialkit-bg-gizmo");
+  const root = element3("div", "dialkit-bg-gizmo");
   root.setAttribute("aria-hidden", "true");
-  const svg = svgElement("svg", { class: "dialkit-bg-gizmo-lines" });
+  const svg2 = svgElement("svg", { class: "dialkit-bg-gizmo-lines" });
   const shadowLine = svgElement("line", { class: "dialkit-bg-gizmo-shadow" });
   const line = svgElement("line", { class: "dialkit-bg-gizmo-line" });
   const shadowRim = svgElement("ellipse", { class: "dialkit-bg-gizmo-shadow" });
   const rim = svgElement("ellipse", { class: "dialkit-bg-gizmo-line" });
   const band = svgElement("path", { class: "dialkit-bg-gizmo-hit", "fill-rule": "evenodd" });
-  svg.append(shadowRim, rim, shadowLine, line, band);
+  svg2.append(shadowRim, rim, shadowLine, line, band);
   const handles = {
-    start: element2("div", "dialkit-bg-gizmo-handle"),
-    end: element2("div", "dialkit-bg-gizmo-handle"),
-    width: element2("div", "dialkit-bg-gizmo-handle")
+    start: element3("div", "dialkit-bg-gizmo-handle"),
+    end: element3("div", "dialkit-bg-gizmo-handle"),
+    width: element3("div", "dialkit-bg-gizmo-handle")
   };
   for (const [role, el] of Object.entries(handles)) {
     el.dataset.role = role;
-    el.append(element2("span", "dialkit-bg-gizmo-dot"));
+    el.append(element3("span", "dialkit-bg-gizmo-dot"));
   }
-  const swatchLayer = element2("div", "dialkit-bg-gizmo-stops");
-  const ghost = element2("div", "dialkit-bg-gizmo-stop dialkit-bg-gizmo-ghost");
+  const swatchLayer = element3("div", "dialkit-bg-gizmo-stops");
+  const ghost = element3("div", "dialkit-bg-gizmo-stop dialkit-bg-gizmo-ghost");
   ghost.hidden = true;
-  const tip = element2("div", "dialkit-bg-gizmo-tip");
+  const tip = element3("div", "dialkit-bg-gizmo-tip");
   tip.hidden = true;
   let swatches = [];
-  root.append(svg, swatchLayer, ghost, handles.width, handles.start, handles.end, tip);
+  root.append(svg2, swatchLayer, ghost, handles.width, handles.start, handles.end, tip);
   document.body.append(root);
   root.addEventListener("pointerdown", (event) => event.stopPropagation());
   const local = (event) => {
@@ -1843,7 +2041,7 @@ function mountGradientGizmo(target, initial, callbacks) {
   const buildSwatches = () => {
     swatchLayer.replaceChildren();
     swatches = props.gradient.stops.map((_, i) => {
-      const el = element2("div", "dialkit-bg-gizmo-stop");
+      const el = element3("div", "dialkit-bg-gizmo-stop");
       el.addEventListener("pointerenter", () => {
         hoverStop = i;
         if (!press) percentTip(i);
@@ -2121,7 +2319,7 @@ var ICON_REVERSE = ["M7 7h13", "M16 3l4 4-4 4", "M17 17H4", "M8 13l-4 4 4 4"];
 var ICON_UPLOAD = ["M12 16V3", "M8 7l4-4 4 4", "M4 15v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5"];
 var DRAG_THRESHOLD2 = 3;
 var isHintKey2 = (e) => e.key.toLowerCase() === HintStore.getKey() && !(e.target instanceof HTMLInputElement);
-function element3(tag, className, text) {
+function element4(tag, className, text) {
   const el = document.createElement(tag);
   el.className = className;
   if (text) el.textContent = text;
@@ -2130,23 +2328,23 @@ function element3(tag, className, text) {
 }
 function strokeIcon(paths) {
   const ns = "http://www.w3.org/2000/svg";
-  const svg = document.createElementNS(ns, "svg");
-  svg.setAttribute("viewBox", "0 0 24 24");
-  svg.setAttribute("fill", "none");
-  svg.setAttribute("stroke", "currentColor");
-  svg.setAttribute("stroke-width", "2");
-  svg.setAttribute("stroke-linecap", "round");
-  svg.setAttribute("stroke-linejoin", "round");
-  svg.setAttribute("aria-hidden", "true");
+  const svg2 = document.createElementNS(ns, "svg");
+  svg2.setAttribute("viewBox", "0 0 24 24");
+  svg2.setAttribute("fill", "none");
+  svg2.setAttribute("stroke", "currentColor");
+  svg2.setAttribute("stroke-width", "2");
+  svg2.setAttribute("stroke-linecap", "round");
+  svg2.setAttribute("stroke-linejoin", "round");
+  svg2.setAttribute("aria-hidden", "true");
   for (const d of typeof paths === "string" ? [paths] : paths) {
     const path = document.createElementNS(ns, "path");
     path.setAttribute("d", d);
-    svg.append(path);
+    svg2.append(path);
   }
-  return svg;
+  return svg2;
 }
 function iconButton(className, label, paths) {
-  const button = element3("button", `dialkit-bg-icon-button ${className}`);
+  const button = element4("button", `dialkit-bg-icon-button ${className}`);
   button.setAttribute("aria-label", label);
   button.append(strokeIcon(paths));
   return button;
@@ -2155,19 +2353,19 @@ var clamp4 = (n, min, max) => Math.min(max, Math.max(min, n));
 var formatNumber = (n) => String(Math.round(n * 10) / 10 || 0);
 var errorMessage = (error, fallback) => error instanceof Error && error.message ? error.message : fallback;
 function segmented(options, ariaLabel, onPick) {
-  const group = element3("div", "dialkit-segmented dialkit-bg-segmented");
+  const group = element4("div", "dialkit-segmented dialkit-bg-segmented");
   group.setAttribute("data-fill", "");
   group.setAttribute("role", "radiogroup");
   group.setAttribute("aria-label", ariaLabel);
   group.addEventListener("keydown", handleSegmentKey);
-  const pill = element3("div", "dialkit-segmented-pill");
+  const pill = element4("div", "dialkit-segmented-pill");
   pill.setAttribute("aria-hidden", "true");
   pill.style.width = `calc((100% - 8px) / ${options.length})`;
   group.append(pill);
   const buttons = options.map((option) => {
-    const button = element3("button", "dialkit-segmented-button");
+    const button = element4("button", "dialkit-segmented-button");
     button.setAttribute("role", "radio");
-    button.append(element3("span", "dialkit-segmented-text", option.label));
+    button.append(element4("span", "dialkit-segmented-text", option.label));
     button.addEventListener("click", () => onPick(option.value));
     group.append(button);
     return button;
@@ -2187,8 +2385,8 @@ function segmented(options, ariaLabel, onPick) {
   };
 }
 function numberField(options) {
-  const root = element3("div", `dialkit-field dialkit-bg-field ${options.className}`);
-  const input = element3("input", "dialkit-field-input dialkit-bg-field-input");
+  const root = element4("div", `dialkit-field dialkit-bg-field ${options.className}`);
+  const input = element4("input", "dialkit-field-input dialkit-bg-field-input");
   input.type = "text";
   input.inputMode = "decimal";
   input.autocomplete = "off";
@@ -2198,13 +2396,13 @@ function numberField(options) {
   input.setAttribute("aria-valuemax", String(options.max));
   const grips = [];
   if (options.grip) {
-    const grip = element3("span", "dialkit-field-axis dialkit-bg-field-grip", options.grip);
+    const grip = element4("span", "dialkit-field-axis dialkit-bg-field-grip", options.grip);
     grip.setAttribute("aria-hidden", "true");
     root.append(grip);
     grips.push(grip);
   }
   root.append(input);
-  const unit = element3("span", "dialkit-bg-field-unit", options.unit);
+  const unit = element4("span", "dialkit-bg-field-unit", options.unit);
   unit.setAttribute("aria-hidden", "true");
   root.append(unit);
   grips.push(unit);
@@ -2337,14 +2535,14 @@ function mountBackgroundControl(host, initial) {
     props.onChange(cloneBackgroundValue(value));
   };
   const setGradient = (gradient) => emit({ ...value, gradient });
-  const root = element3("div", "dialkit-bg");
-  const body = element3("div", "dialkit-bg-body");
+  const folder = props.folder === false ? void 0 : mountFolder(host, { title: props.label });
+  const root = element4("div", "dialkit-bg");
+  const body = element4("div", "dialkit-bg-body");
   root.append(body);
-  const caption = element3("div", "dialkit-bg-caption");
   const modes = segmented(MODE_OPTIONS, "Background type", (mode) => emit({ ...value, mode }));
-  body.append(caption, modes.group);
-  const solidPane = element3("div", "dialkit-bg-pane dialkit-bg-solid");
-  const solidHost = element3("div", "dialkit-color-host");
+  body.append(modes.group);
+  const solidPane = element4("div", "dialkit-bg-pane dialkit-bg-solid");
+  const solidHost = element4("div", "dialkit-color-host");
   solidPane.append(solidHost);
   let solidPicked;
   const solidValue = () => solidPicked && solidPicked.color === value.color ? solidPicked.raw : value.color;
@@ -2358,13 +2556,13 @@ function mountBackgroundControl(host, initial) {
       emit({ ...value, color: picked.color });
     }
   });
-  const gradientPane = element3("div", "dialkit-bg-pane dialkit-bg-gradient");
-  const shapeRow = element3("div", "dialkit-bg-shape-row");
-  const shapeTrigger = element3("button", "dialkit-select-trigger dialkit-bg-shape-trigger");
+  const gradientPane = element4("div", "dialkit-bg-pane dialkit-bg-gradient");
+  const shapeRow = element4("div", "dialkit-bg-shape-row");
+  const shapeTrigger = element4("button", "dialkit-select-trigger dialkit-bg-shape-trigger");
   shapeTrigger.setAttribute("aria-haspopup", "listbox");
   shapeTrigger.setAttribute("aria-expanded", "false");
   shapeTrigger.setAttribute("aria-label", "Gradient type");
-  const shapeValue = element3("span", "dialkit-select-value");
+  const shapeValue = element4("span", "dialkit-select-value");
   const shapeChevron = strokeIcon(ICON_CHEVRON);
   shapeChevron.classList.add("dialkit-select-chevron");
   shapeTrigger.append(shapeValue, shapeChevron);
@@ -2400,17 +2598,17 @@ function mountBackgroundControl(host, initial) {
       return;
     }
     const portal = getDialKitPortalRoot(host) ?? document.body;
-    const menu = element3("div", "dialkit-select-dropdown dialkit-bg-shape-menu");
+    const menu = element4("div", "dialkit-select-dropdown dialkit-bg-shape-menu");
     menu.style.position = "fixed";
     for (const shape of GRADIENT_SHAPES) {
-      const option = element3("button", "dialkit-select-option dialkit-bg-shape-option");
+      const option = element4("button", "dialkit-select-option dialkit-bg-shape-option");
       option.dataset.selected = String(shape === value.gradient.shape);
       const check = strokeIcon(ICON_CHECK);
       check.classList.add("dialkit-bg-shape-check");
-      option.append(check, element3("span", "dialkit-bg-shape-label", SHAPE_LABEL[shape]));
+      option.append(check, element4("span", "dialkit-bg-shape-label", SHAPE_LABEL[shape]));
       option.addEventListener("click", () => {
         closeShapeMenu();
-        setGradient({ ...value.gradient, shape });
+        setGradient(switchGradientShape(value.gradient, shape, canvasAspect()));
         shapeTrigger.focus({ preventScroll: true });
       });
       menu.append(option);
@@ -2429,6 +2627,10 @@ function mountBackgroundControl(host, initial) {
     stopShapeKeys = observeDropdownKeyboard(shapeTrigger, () => shapeMenu, closeShapeMenu, "select");
     document.addEventListener("pointerdown", shapeOutside, true);
   };
+  function canvasAspect() {
+    const rect = getBackgroundHost().gizmoTarget?.()?.getBoundingClientRect();
+    return rect && rect.width > 0 && rect.height > 0 ? rect.width / rect.height : 1;
+  }
   shapeTrigger.addEventListener("click", openShapeMenu);
   shapeTrigger.addEventListener("keydown", (event) => {
     if ((event.key === "ArrowDown" || event.key === "ArrowUp") && !event.altKey && !event.metaKey && !event.ctrlKey && !shapeMenu) {
@@ -2441,15 +2643,13 @@ function mountBackgroundControl(host, initial) {
     commitEntries(entries().map(({ id, stop }) => ({ id, stop: { ...stop, at: Math.round((100 - stop.at) * 100) / 100 } })));
   });
   rotateButton.addEventListener("click", () => {
-    const rect = getBackgroundHost().gizmoTarget?.()?.getBoundingClientRect();
-    const box = rect && rect.width > 0 && rect.height > 0 ? { width: rect.width, height: rect.height } : { width: 1, height: 1 };
-    setGradient({ ...value.gradient, handles: rotateGradientHandles(value.gradient.handles, Math.PI / 2, box) });
+    setGradient({ ...value.gradient, handles: rotateGradientQuarter(value.gradient.shape, value.gradient.handles, { width: canvasAspect(), height: 1 }) });
   });
-  const bar = element3("div", "dialkit-bg-bar");
-  const track = element3("div", "dialkit-bg-track");
-  const trackPaint = element3("div", "dialkit-bg-track-paint");
+  const bar = element4("div", "dialkit-bg-bar");
+  const track = element4("div", "dialkit-bg-track");
+  const trackPaint = element4("div", "dialkit-bg-track-paint");
   track.append(trackPaint);
-  const handlesLayer = element3("div", "dialkit-bg-handles");
+  const handlesLayer = element4("div", "dialkit-bg-handles");
   bar.append(track, handlesLayer);
   bar.title = "Click the bar to add a stop";
   const STRIP_HANDLES = { start: { x: 0.5, y: 0.5 }, end: { x: 1, y: 0.5 }, width: { x: 0.5, y: 0 } };
@@ -2491,18 +2691,21 @@ function mountBackgroundControl(host, initial) {
   trackResize?.observe(track);
   let handles = [];
   let stems = [];
-  const stopsHeader = element3("div", "dialkit-bg-stops-header");
-  const stopsTitle = element3("span", "dialkit-bg-stops-title", "Stops");
+  const stopsHeader = element4("div", "dialkit-bg-stops-header");
+  const stopsTitle = element4("span", "dialkit-bg-stops-title", "Stops");
   const addButton = iconButton("dialkit-bg-add", "Add stop", ICON_PLUS);
   stopsHeader.append(stopsTitle, addButton);
-  const stopsList = element3("div", "dialkit-bg-stops");
+  const stopsList = element4("div", "dialkit-bg-stops");
   const syncGripStyle = () => {
-    const raw = getComputedStyle(stopsList).getPropertyValue("--dial-bg-grip-style").trim();
+    const styles = getComputedStyle(stopsList);
+    const raw = styles.getPropertyValue("--dial-bg-grip-style").trim();
     const name = GRIP_STYLES[raw] ?? "column-hover";
     if (stopsList.dataset.gripStyle !== name) stopsList.dataset.gripStyle = name;
+    const selectedStyle = styles.getPropertyValue("--dial-bg-stop-selected-style").trim() === "1" ? "row" : "fields";
+    if (stopsList.dataset.selectedStyle !== selectedStyle) stopsList.dataset.selectedStyle = selectedStyle;
   };
   const onGripStyleTransition = (event) => {
-    if (event.target === stopsList && event.propertyName === "--dial-bg-grip-style") render();
+    if (event.target === stopsList && (event.propertyName === "--dial-bg-grip-style" || event.propertyName === "--dial-bg-stop-selected-style")) render();
   };
   stopsList.addEventListener("transitionrun", onGripStyleTransition);
   stopsList.addEventListener("transitionend", onGripStyleTransition);
@@ -2515,13 +2718,13 @@ function mountBackgroundControl(host, initial) {
     if (stopIds.length > count) stopIds = stopIds.slice(0, count);
     while (stopIds.length < count) stopIds = [...stopIds, ++nextStopId];
   };
-  const saveRow = element3("div", "dialkit-bg-save-row");
-  const saveButton = element3("button", "dialkit-preset-save dialkit-bg-save", "Save gradient");
+  const saveRow = element4("div", "dialkit-bg-save-row");
+  const saveButton = element4("button", "dialkit-preset-save dialkit-bg-save", "Save gradient");
   saveRow.append(saveButton);
-  const gradientStatusLine = element3("div", "dialkit-bg-status");
+  const gradientStatusLine = element4("div", "dialkit-bg-status");
   gradientStatusLine.setAttribute("role", "status");
   gradientStatusLine.setAttribute("aria-live", "polite");
-  const savedList = element3("div", "dialkit-bg-saved");
+  const savedList = element4("div", "dialkit-bg-saved");
   savedList.setAttribute("role", "group");
   savedList.setAttribute("aria-label", "Saved gradients");
   let savedItems = [];
@@ -2622,17 +2825,17 @@ function mountBackgroundControl(host, initial) {
   const buildHandles = () => {
     handlesLayer.replaceChildren();
     stems = value.gradient.stops.map(() => {
-      const stem = element3("span", "dialkit-bg-stem");
+      const stem = element4("span", "dialkit-bg-stem");
       stem.setAttribute("aria-hidden", "true");
       handlesLayer.append(stem);
       return stem;
     });
     handles = value.gradient.stops.map((_, i) => {
-      const handle = element3("button", "dialkit-bg-handle");
+      const handle = element4("button", "dialkit-bg-handle");
       handle.setAttribute("role", "slider");
       handle.setAttribute("aria-valuemin", "0");
       handle.setAttribute("aria-valuemax", "100");
-      const chip = element3("span", "dialkit-bg-handle-chip");
+      const chip = element4("span", "dialkit-bg-handle-chip");
       chip.setAttribute("aria-hidden", "true");
       handle.append(chip);
       handle.addEventListener("focus", () => select(handles.indexOf(handle)));
@@ -2665,10 +2868,10 @@ function mountBackgroundControl(host, initial) {
   const buildRow = (id) => {
     const index = () => stopIds.indexOf(id);
     const stop = () => value.gradient.stops[index()];
-    const rowRoot = element3("div", "dialkit-bg-stop");
+    const rowRoot = element4("div", "dialkit-bg-stop");
     rowRoot.addEventListener("pointerdown", () => select(index()));
     rowRoot.addEventListener("focusin", () => select(index()));
-    const grip = element3("button", "dialkit-bg-icon-button dialkit-bg-stop-grip");
+    const grip = element4("button", "dialkit-bg-icon-button dialkit-bg-stop-grip");
     grip.setAttribute("aria-label", "Reorder stop");
     grip.setAttribute("aria-keyshortcuts", "Alt+ArrowUp Alt+ArrowDown");
     const column = strokeIcon(ICON_MORE);
@@ -2692,7 +2895,7 @@ function mountBackgroundControl(host, initial) {
         scrubbingId = active ? id : void 0;
       }
     });
-    const colorHost = element3("div", "dialkit-color-host dialkit-bg-stop-color");
+    const colorHost = element4("div", "dialkit-color-host dialkit-bg-stop-color");
     const row = {
       id,
       root: rowRoot,
@@ -2942,7 +3145,15 @@ function mountBackgroundControl(host, initial) {
       row.flipTarget = void 0;
       if (Math.abs(delta) < 0.5) continue;
       row.flipTarget = target;
-      row.flip = animateSpring(row.root, (p) => ({ transform: `translateY(${delta * (1 - p)}px)` }), LAYOUT_SPRING.visualDuration, LAYOUT_SPRING.bounce);
+      const slide = animateSpring(row.root, (p) => ({ transform: `translateY(${delta * (1 - p)}px)` }), LAYOUT_SPRING.visualDuration, LAYOUT_SPRING.bounce);
+      row.flip = slide;
+      if (!slide) continue;
+      row.root.dataset.moving = "true";
+      const settle = () => {
+        if (row.flip === slide || !running(row.flip)) delete row.root.dataset.moving;
+      };
+      slide.addEventListener("finish", settle);
+      slide.addEventListener("cancel", settle);
     }
   };
   let gizmoRowId;
@@ -3060,8 +3271,8 @@ function mountBackgroundControl(host, initial) {
     savedSignature = signature;
     savedList.replaceChildren();
     savedItems = list.map((saved, i) => {
-      const item = element3("div", "dialkit-bg-saved-item");
-      const swatch = element3("button", "dialkit-bg-saved-swatch");
+      const item = element4("div", "dialkit-bg-saved-item");
+      const swatch = element4("button", "dialkit-bg-saved-swatch");
       swatch.setAttribute("aria-label", `Apply saved gradient ${i + 1}`);
       swatch.style.setProperty("--dial-bg-gradient", backgroundGradientCss(saved.gradient));
       swatch.addEventListener("click", () => {
@@ -3111,29 +3322,29 @@ function mountBackgroundControl(host, initial) {
       if (!destroyed) render();
     }
   });
-  const mediaPane = element3("div", "dialkit-bg-pane dialkit-bg-media");
-  const fileInput = element3("input", "dialkit-bg-file");
+  const mediaPane = element4("div", "dialkit-bg-pane dialkit-bg-media");
+  const fileInput = element4("input", "dialkit-bg-file");
   fileInput.type = "file";
   fileInput.accept = "image/*,video/*";
   fileInput.tabIndex = -1;
   fileInput.setAttribute("aria-hidden", "true");
-  const drop = element3("button", "dialkit-bg-drop");
-  const dropText = element3("span", "dialkit-bg-drop-text");
+  const drop = element4("button", "dialkit-bg-drop");
+  const dropText = element4("span", "dialkit-bg-drop-text");
   drop.append(strokeIcon(ICON_UPLOAD), dropText);
-  const preview = element3("button", "dialkit-bg-media-preview");
+  const preview = element4("button", "dialkit-bg-media-preview");
   preview.setAttribute("aria-label", "Media options");
   preview.setAttribute("aria-haspopup", "dialog");
   preview.setAttribute("aria-expanded", "false");
-  const previewFrame = element3("span", "dialkit-bg-media-frame");
-  const previewBadge = element3("span", "dialkit-bg-media-badge");
+  const previewFrame = element4("span", "dialkit-bg-media-frame");
+  const previewBadge = element4("span", "dialkit-bg-media-badge");
   previewBadge.setAttribute("aria-hidden", "true");
   preview.append(previewFrame, previewBadge);
   let previewSignature = "";
-  const actions = element3("div", "dialkit-bg-media-actions");
-  const replaceButton = element3("button", "dialkit-button dialkit-bg-media-action", "Replace");
-  const removeButton = element3("button", "dialkit-button dialkit-bg-media-action", "Remove");
+  const actions = element4("div", "dialkit-bg-media-actions");
+  const replaceButton = element4("button", "dialkit-button dialkit-bg-media-action", "Replace");
+  const removeButton = element4("button", "dialkit-button dialkit-bg-media-action", "Remove");
   actions.append(replaceButton, removeButton);
-  const mediaStatusLine = element3("div", "dialkit-bg-status");
+  const mediaStatusLine = element4("div", "dialkit-bg-status");
   mediaStatusLine.setAttribute("role", "status");
   mediaStatusLine.setAttribute("aria-live", "polite");
   mediaPane.append(drop, preview, actions, mediaStatusLine, fileInput);
@@ -3209,9 +3420,9 @@ ${url}`;
     previewSignature = signature;
     previewFrame.replaceChildren();
     if (!url) {
-      previewFrame.append(element3("span", "dialkit-bg-media-key", media.key));
+      previewFrame.append(element4("span", "dialkit-bg-media-key", media.key));
     } else if (media.kind === "video") {
-      const video = element3("video", "dialkit-bg-media-el");
+      const video = element4("video", "dialkit-bg-media-el");
       video.muted = true;
       video.defaultMuted = true;
       video.setAttribute("muted", "");
@@ -3224,7 +3435,7 @@ ${url}`;
       void video.play?.()?.catch?.(() => {
       });
     } else {
-      const img = element3("img", "dialkit-bg-media-el");
+      const img = element4("img", "dialkit-bg-media-el");
       img.alt = "";
       img.decoding = "async";
       img.draggable = false;
@@ -3262,21 +3473,21 @@ ${url}`;
       return;
     }
     const portal = getDialKitPortalRoot(host) ?? host;
-    const shell = element3("div", "dialkit-bg-popover");
+    const shell = element4("div", "dialkit-bg-popover");
     popup = shell;
     shell.tabIndex = -1;
     shell.style.position = "fixed";
     shell.setAttribute("role", "dialog");
     shell.setAttribute("aria-label", `${props.label} media options`);
     const section = (title, control) => {
-      const wrap = element3("div", "dialkit-bg-popover-section");
-      const heading = element3("div", "dialkit-bg-popover-label", title);
+      const wrap = element4("div", "dialkit-bg-popover-section");
+      const heading = element4("div", "dialkit-bg-popover-label", title);
       wrap.append(heading, control);
       shell.append(wrap);
     };
     const fits = segmented(BACKGROUND_FITS.map((fit) => ({ value: fit, label: FIT_LABEL[fit] })), "Fit", (fit) => setDisplay({ fit }));
     section("Fit", fits.group);
-    const tileWrap = element3("div", "dialkit-bg-tile-wrap");
+    const tileWrap = element4("div", "dialkit-bg-tile-wrap");
     const tileSize = shellSlider({
       label: "Tile Size",
       ...BACKGROUND_TILE_SCALE,
@@ -3289,14 +3500,14 @@ ${url}`;
     tileWrap.append(tileSize.root);
     shell.append(tileWrap);
     const tileRow = conditionalRow(tileWrap, shell);
-    const ratios = element3("div", "dialkit-bg-ratios");
+    const ratios = element4("div", "dialkit-bg-ratios");
     ratios.setAttribute("role", "radiogroup");
     ratios.setAttribute("aria-label", "Ratio");
     ratios.addEventListener("keydown", handleSegmentKey);
     const ratioButtons = BACKGROUND_RATIOS.map((ratio) => {
-      const button = element3("button", "dialkit-segmented-button dialkit-bg-ratio");
+      const button = element4("button", "dialkit-segmented-button dialkit-bg-ratio");
       button.setAttribute("role", "radio");
-      button.append(element3("span", "dialkit-segmented-text", RATIO_LABEL(ratio)));
+      button.append(element4("span", "dialkit-segmented-text", RATIO_LABEL(ratio)));
       button.addEventListener("click", () => setDisplay({ ratio }));
       ratios.append(button);
       return button;
@@ -3312,22 +3523,22 @@ ${url}`;
       apply: (n) => setDisplay({ zoom: n })
     });
     shell.append(zoom.root);
-    const anchor = element3("div", "dialkit-anchor dialkit-bg-pin");
+    const anchor = element4("div", "dialkit-anchor dialkit-bg-pin");
     anchor.setAttribute("role", "radiogroup");
     anchor.setAttribute("aria-label", "Pin");
     anchor.style.setProperty("--dial-anchor-columns", "3");
     anchor.style.setProperty("--dial-anchor-rows", "3");
-    const anchorPill = element3("span", "dialkit-anchor-pill dialkit-bg-pin-pill");
+    const anchorPill = element4("span", "dialkit-anchor-pill dialkit-bg-pin-pill");
     anchorPill.setAttribute("aria-hidden", "true");
     anchor.append(anchorPill);
     const cells = [];
     for (let r = 0; r < 3; r++) {
       for (let c = 0; c < 3; c++) {
-        const cell = element3("button", "dialkit-anchor-cell");
+        const cell = element4("button", "dialkit-anchor-cell");
         cell.setAttribute("role", "radio");
         cell.setAttribute("aria-label", `${PIN_ROWS[r]}, ${PIN_COLUMNS[c]}`);
         cell.dataset.cell = `${c}-${r}`;
-        cell.append(element3("span", "dialkit-anchor-dot"));
+        cell.append(element4("span", "dialkit-anchor-dot"));
         cell.addEventListener("click", () => setDisplay({ pinX: c - 1, pinY: r - 1 }));
         anchor.append(cell);
         cells.push(cell);
@@ -3406,7 +3617,7 @@ ${url}`;
   };
   preview.addEventListener("click", openOptions);
   body.append(solidPane, gradientPane, mediaPane);
-  host.append(root);
+  (folder?.body ?? host).append(root);
   let heightAnim;
   let heightTarget = -1;
   let built = false;
@@ -3456,7 +3667,7 @@ ${url}`;
   function renderNow(before, listTop, animate) {
     shownMode = animate ? shownMode : value.mode;
     const backgroundHost = getBackgroundHost();
-    caption.textContent = props.label;
+    folder?.update({ title: props.label });
     modes.group.setAttribute("aria-label", `${props.label} type`);
     modes.set(value.mode);
     solidPane.hidden = value.mode !== "solid";
@@ -3570,6 +3781,7 @@ ${url}`;
       rowById.forEach((row) => dropRow(row));
       rowById.clear();
       root.remove();
+      folder?.destroy();
     }
   };
 }
@@ -3607,21 +3819,21 @@ function conditionalRow(row, parent) {
 }
 function shellSlider(options) {
   const { min, max, step, scale, decimals, unit: unitText, read, apply } = options;
-  const root = element3("div", "dialkit-slider-wrapper dialkit-bg-slider");
-  const slider = element3("div", "dialkit-slider");
+  const root = element4("div", "dialkit-slider-wrapper dialkit-bg-slider");
+  const slider = element4("div", "dialkit-slider");
   slider.tabIndex = 0;
   slider.setAttribute("role", "slider");
   slider.setAttribute("aria-label", options.label);
   slider.setAttribute("aria-valuemin", String(min));
   slider.setAttribute("aria-valuemax", String(max));
-  const fill = element3("div", "dialkit-slider-fill");
-  const handle = element3("div", "dialkit-slider-handle dialkit-bg-slider-handle");
-  const label = element3("span", "dialkit-slider-label", options.label);
-  const valueText = element3("span", "dialkit-slider-value");
-  const number2 = element3("span", "dialkit-bg-slider-number");
-  const unit = element3("span", "dialkit-slider-unit", unitText);
+  const fill = element4("div", "dialkit-slider-fill");
+  const handle = element4("div", "dialkit-slider-handle dialkit-bg-slider-handle");
+  const label = element4("span", "dialkit-slider-label", options.label);
+  const valueText = element4("span", "dialkit-slider-value");
+  const number2 = element4("span", "dialkit-bg-slider-number");
+  const unit = element4("span", "dialkit-slider-unit", unitText);
   valueText.append(number2, unit);
-  const input = element3("input", "dialkit-slider-input");
+  const input = element4("input", "dialkit-slider-input");
   input.type = "text";
   input.inputMode = "decimal";
   input.setAttribute("aria-label", `${options.label} value`);

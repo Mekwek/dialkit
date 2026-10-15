@@ -123,6 +123,19 @@ declare function defaultGradientHandles(): GradientHandles;
  */
 declare function legacyGradientHandles(shape: 'linear' | 'radial', angle: number): GradientHandles;
 /**
+ * The gradient with its type switched, placed as Figma places it (measured
+ * from a recording):
+ * - Linear → Radial, Angular or Diamond: the centre moves to the middle of the
+ *   line, the end stays, and the width point goes at the same distance a
+ *   quarter turn clockwise on screen, in pixels of the canvas (`aspect` is its
+ *   width / height), so the shape is a circle on screen, even on a wide canvas.
+ * - Between Radial, Angular and Diamond: the three points stay.
+ * - Radial, Angular or Diamond → Linear: start = 2 × centre − end, the end stays,
+ *   so Linear → Radial → Linear gives back the same line.
+ * The stops never change.
+ */
+declare function switchGradientShape(gradient: BackgroundGradient, next: GradientShape, aspect?: number): BackgroundGradient;
+/**
  * The gradient's frame in pixels for a canvas of `width` x `height`.
  * Main axis: from start (the centre) to end, length r1, unit (ax, ay).
  * Cross axis: unit (nx, ny), perpendicular to the main axis on the side the
@@ -1483,6 +1496,10 @@ type BackgroundControlProps = {
     label: string;
     value: BackgroundValue;
     onChange: (value: BackgroundValue) => void;
+    /** False when the caller draws the folder named by the label itself (the
+     *  React renderer does, with its own Folder); the control then mounts
+     *  straight into the host. */
+    folder?: boolean;
 };
 
 /** The background control (solid, gradient, media), with its hint. */
@@ -1674,4 +1691,4 @@ declare function HintTip({ always }: {
     always?: boolean;
 }): react_jsx_runtime.JSX.Element | null;
 
-export { type ActionConfig, AnchorGrid, type AnchorGridConfig, type BackgroundConfig, BackgroundControl, type BackgroundControlProps, type BackgroundGradient, type BackgroundHost, type BackgroundMedia, type BackgroundMediaDisplay, type BackgroundStop, type BackgroundValue, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type CopiedTransition, type CustomSpring, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, EASING_CURVES, type EasingConfig, type EasingCurve, EasingVisualization, FieldRow, type FieldsConfig, Folder, type FolderMode, GRADIENT_SHAPES, type GizmoBox, type GradientFrame, type GradientGizmoCallbacks, type GradientGizmoProps, type GradientHandles, type GradientPoint, type GradientShape, HintStore, HintTip, type HintsConfig, type ImageConfig, ImageControl, type ImageOption, type LabelsConfig, type PadGroupConfig, type PanelConfig, type Preset, PresetManager, type RangeConfig, type ResolvedValues, SPRING_PRESETS, type SavedGradient, type SelectConfig, SelectControl, type SelectOption$1 as SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, type SpringMode, type SpringPreset, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipMeta, type TimelineClipTrackMeta, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelineMeta, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, TimelineStore, type TimelineTransport, Toggle, type TransitionConfig, TransitionControl, TransitionLibrary, type UseDialOptions, type UseDialTimelineOptions, type VisibleWhen, type VisibleWhenValue, backgroundGradientCss, defaultBackgroundValue, defaultGradientHandles, dragGradientCentre, dragGradientEnd, dragGradientWidth, formatClock, formatGizmoAngle, getBackgroundHost, getSavedGradients, gizmoAngle, gizmoPoints, gradientFrame, gradientParamAt, legacyGradientHandles, mountGradientGizmo, normalizeBackgroundValue, paintBackgroundPreview, rotateGradientHandles, setBackgroundHost, setSavedGradients, stopPlacement, stopPositionAt, subscribeBackgroundHost, unwrapVisibility, useDialKit, useDialKitController, useDialTimeline, withVisibility };
+export { type ActionConfig, AnchorGrid, type AnchorGridConfig, type BackgroundConfig, BackgroundControl, type BackgroundControlProps, type BackgroundGradient, type BackgroundHost, type BackgroundMedia, type BackgroundMediaDisplay, type BackgroundStop, type BackgroundValue, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type CopiedTransition, type CustomSpring, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, EASING_CURVES, type EasingConfig, type EasingCurve, EasingVisualization, FieldRow, type FieldsConfig, Folder, type FolderMode, GRADIENT_SHAPES, type GizmoBox, type GradientFrame, type GradientGizmoCallbacks, type GradientGizmoProps, type GradientHandles, type GradientPoint, type GradientShape, HintStore, HintTip, type HintsConfig, type ImageConfig, ImageControl, type ImageOption, type LabelsConfig, type PadGroupConfig, type PanelConfig, type Preset, PresetManager, type RangeConfig, type ResolvedValues, SPRING_PRESETS, type SavedGradient, type SelectConfig, SelectControl, type SelectOption$1 as SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, type SpringMode, type SpringPreset, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipMeta, type TimelineClipTrackMeta, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelineMeta, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, TimelineStore, type TimelineTransport, Toggle, type TransitionConfig, TransitionControl, TransitionLibrary, type UseDialOptions, type UseDialTimelineOptions, type VisibleWhen, type VisibleWhenValue, backgroundGradientCss, defaultBackgroundValue, defaultGradientHandles, dragGradientCentre, dragGradientEnd, dragGradientWidth, formatClock, formatGizmoAngle, getBackgroundHost, getSavedGradients, gizmoAngle, gizmoPoints, gradientFrame, gradientParamAt, legacyGradientHandles, mountGradientGizmo, normalizeBackgroundValue, paintBackgroundPreview, rotateGradientHandles, setBackgroundHost, setSavedGradients, stopPlacement, stopPositionAt, subscribeBackgroundHost, switchGradientShape, unwrapVisibility, useDialKit, useDialKitController, useDialTimeline, withVisibility };

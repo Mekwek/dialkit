@@ -288,14 +288,16 @@ export function ControlRenderer({
         );
 
       case 'background':
+        // A collapsible folder named by the label, as a transition is.
         return (
-          <BackgroundControl
-            key={control.path}
-            label={control.label}
-            value={value as BackgroundValue}
-            onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
-            hint={control.hint}
-          />
+          <Folder key={control.path} title={control.label} defaultOpen={true} hint={control.hint} {...valueResetProps(control.path)}>
+            <BackgroundControl
+              label={control.label}
+              value={value as BackgroundValue}
+              onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
+              folder={false}
+            />
+          </Folder>
         );
 
       case 'action':
@@ -328,11 +330,12 @@ export function ControlRenderer({
     // enter/exit when conditional visibility hides/shows it. The marker
     // classes let theme.css target folder wrappers specifically (for the
     // adjacent-divider collapse rule) without needing :has(). Spring and
-    // transition controls render as Folder internally.
+    // transition controls render as Folder internally; a background control
+    // renders inside one.
     // An X / Y / Z group or a pad group is a folder in the store, but draws
     // no Folder: it is a plain row and keeps the row gap.
     const drawsFolder = control.type === 'folder' && !control.fields && !control.padGroup;
-    const isFolder = drawsFolder || control.type === 'spring' || (control.type === 'transition' && !bare);
+    const isFolder = drawsFolder || control.type === 'spring' || control.type === 'background' || (control.type === 'transition' && !bare);
     const wrapClassName = isFolder
       ? 'dialkit-control-wrap dialkit-control-wrap-folder'
       : control.fields

@@ -105,6 +105,19 @@ declare function defaultGradientHandles(): GradientHandles;
  * The theca engine converts old values with this same rule.
  */
 declare function legacyGradientHandles(shape: 'linear' | 'radial', angle: number): GradientHandles;
+/**
+ * The gradient with its type switched, placed as Figma places it (measured
+ * from a recording):
+ * - Linear → Radial, Angular or Diamond: the centre moves to the middle of the
+ *   line, the end stays, and the width point goes at the same distance a
+ *   quarter turn clockwise on screen, in pixels of the canvas (`aspect` is its
+ *   width / height), so the shape is a circle on screen, even on a wide canvas.
+ * - Between Radial, Angular and Diamond: the three points stay.
+ * - Radial, Angular or Diamond → Linear: start = 2 × centre − end, the end stays,
+ *   so Linear → Radial → Linear gives back the same line.
+ * The stops never change.
+ */
+declare function switchGradientShape(gradient: BackgroundGradient, next: GradientShape, aspect?: number): BackgroundGradient;
 declare function normalizeGradientHandles(value: unknown, fallback?: GradientHandles): GradientHandles;
 declare function cloneHandles(handles: GradientHandles): GradientHandles;
 /**
@@ -189,4 +202,4 @@ declare function stopCssColor(stop: Pick<BackgroundStop, 'color' | 'alpha'>): st
  */
 declare function backgroundGradientCss(gradient: BackgroundGradient, direction?: string): string;
 
-export { BACKGROUND_FITS, BACKGROUND_MAX_STOPS, BACKGROUND_MIN_STOPS, BACKGROUND_MODES, BACKGROUND_RATIOS, BACKGROUND_TILE_SCALE, BACKGROUND_ZOOM, type BackgroundConfig, type BackgroundGradient, type BackgroundMedia, type BackgroundMediaDisplay, type BackgroundStop, type BackgroundValue, GRADIENT_SHAPES, type GradientFrame, type GradientHandles, type GradientPoint, type GradientShape, type SavedGradient, backgroundConfigDefault, backgroundGradientCss, cloneBackgroundValue, cloneGradient, cloneHandles, defaultBackgroundValue, defaultGradientHandles, defaultMediaDisplay, gradientColorAt, gradientFrame, gradientParamAt, legacyGradientHandles, moveItem, moveStopPayload, normalizeBackgroundValue, normalizeGradient, normalizeGradientHandles, normalizeHex, normalizeMediaDisplay, sameBackgroundValue, sameGradient, sameHandles, sortStops, stopCssColor, widestGapMiddle };
+export { BACKGROUND_FITS, BACKGROUND_MAX_STOPS, BACKGROUND_MIN_STOPS, BACKGROUND_MODES, BACKGROUND_RATIOS, BACKGROUND_TILE_SCALE, BACKGROUND_ZOOM, type BackgroundConfig, type BackgroundGradient, type BackgroundMedia, type BackgroundMediaDisplay, type BackgroundStop, type BackgroundValue, GRADIENT_SHAPES, type GradientFrame, type GradientHandles, type GradientPoint, type GradientShape, type SavedGradient, backgroundConfigDefault, backgroundGradientCss, cloneBackgroundValue, cloneGradient, cloneHandles, defaultBackgroundValue, defaultGradientHandles, defaultMediaDisplay, gradientColorAt, gradientFrame, gradientParamAt, legacyGradientHandles, moveItem, moveStopPayload, normalizeBackgroundValue, normalizeGradient, normalizeGradientHandles, normalizeHex, normalizeMediaDisplay, sameBackgroundValue, sameGradient, sameHandles, sortStops, stopCssColor, switchGradientShape, widestGapMiddle };

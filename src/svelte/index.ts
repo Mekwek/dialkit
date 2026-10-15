@@ -60,6 +60,7 @@ export {
   subscribeBackgroundHost,
   defaultGradientHandles,
   legacyGradientHandles,
+  switchGradientShape,
   gradientFrame,
   gradientParamAt,
   GRADIENT_SHAPES,

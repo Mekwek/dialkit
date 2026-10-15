@@ -119,6 +119,19 @@ declare function defaultGradientHandles(): GradientHandles;
  */
 declare function legacyGradientHandles(shape: 'linear' | 'radial', angle: number): GradientHandles;
 /**
+ * The gradient with its type switched, placed as Figma places it (measured
+ * from a recording):
+ * - Linear → Radial, Angular or Diamond: the centre moves to the middle of the
+ *   line, the end stays, and the width point goes at the same distance a
+ *   quarter turn clockwise on screen, in pixels of the canvas (`aspect` is its
+ *   width / height), so the shape is a circle on screen, even on a wide canvas.
+ * - Between Radial, Angular and Diamond: the three points stay.
+ * - Radial, Angular or Diamond → Linear: start = 2 × centre − end, the end stays,
+ *   so Linear → Radial → Linear gives back the same line.
+ * The stops never change.
+ */
+declare function switchGradientShape(gradient: BackgroundGradient, next: GradientShape, aspect?: number): BackgroundGradient;
+/**
  * The gradient's frame in pixels for a canvas of `width` x `height`.
  * Main axis: from start (the centre) to end, length r1, unit (ax, ay).
  * Cross axis: unit (nx, ny), perpendicular to the main axis on the side the
@@ -794,4 +807,4 @@ declare class DialStoreClass {
 }
 declare const DialStore: DialStoreClass;
 
-export { type ActionConfig, type AnchorGridConfig, type BackgroundConfig, type BackgroundGradient, type BackgroundHost, type BackgroundMedia, type BackgroundMediaDisplay, type BackgroundStop, type BackgroundValue, type ColorConfig, type ControlMeta, type ControlWithVisibility, type DialConfig, type DialKitPersistOptions, type DialKitValueUpdates, type DialPadAxis, type DialPadConfig, type DialPadValue, DialStore, type DialStorePanelOptions, type DialValue, type EasingConfig, type FieldsConfig, GRADIENT_SHAPES, type GizmoBox, type GradientFrame, type GradientGizmoCallbacks, type GradientGizmoProps, type GradientHandles, type GradientPoint, type GradientShape, type HintsConfig, type ImageConfig, type ImageOption, type LabelsConfig, type PadGroupConfig, type PanelConfig, type Preset, type RangeConfig, type ResolvedValues, type SavedGradient, type SelectConfig, type SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, type SpringConfig, type TextConfig, type TransitionConfig, type VisibleWhen, type VisibleWhenValue, backgroundGradientCss, defaultBackgroundValue, defaultGradientHandles, dragGradientCentre, dragGradientEnd, dragGradientWidth, flattenDialValueUpdates, formatGizmoAngle, formatLabel, getBackgroundHost, getSavedGradients, gizmoAngle, gizmoPoints, gradientFrame, gradientParamAt, inferStep, isEasingConfigValue, isFolderMetaKey, isHexColor, isLeafConfigValue, isSpringConfigValue, legacyGradientHandles, mountGradientGizmo, normalizeBackgroundValue, paintBackgroundPreview, resolveDialValues, rotateGradientHandles, setBackgroundHost, setSavedGradients, stopPlacement, stopPositionAt, subscribeBackgroundHost, unwrapVisibility, withVisibility };
+export { type ActionConfig, type AnchorGridConfig, type BackgroundConfig, type BackgroundGradient, type BackgroundHost, type BackgroundMedia, type BackgroundMediaDisplay, type BackgroundStop, type BackgroundValue, type ColorConfig, type ControlMeta, type ControlWithVisibility, type DialConfig, type DialKitPersistOptions, type DialKitValueUpdates, type DialPadAxis, type DialPadConfig, type DialPadValue, DialStore, type DialStorePanelOptions, type DialValue, type EasingConfig, type FieldsConfig, GRADIENT_SHAPES, type GizmoBox, type GradientFrame, type GradientGizmoCallbacks, type GradientGizmoProps, type GradientHandles, type GradientPoint, type GradientShape, type HintsConfig, type ImageConfig, type ImageOption, type LabelsConfig, type PadGroupConfig, type PanelConfig, type Preset, type RangeConfig, type ResolvedValues, type SavedGradient, type SelectConfig, type SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, type SpringConfig, type TextConfig, type TransitionConfig, type VisibleWhen, type VisibleWhenValue, backgroundGradientCss, defaultBackgroundValue, defaultGradientHandles, dragGradientCentre, dragGradientEnd, dragGradientWidth, flattenDialValueUpdates, formatGizmoAngle, formatLabel, getBackgroundHost, getSavedGradients, gizmoAngle, gizmoPoints, gradientFrame, gradientParamAt, inferStep, isEasingConfigValue, isFolderMetaKey, isHexColor, isLeafConfigValue, isSpringConfigValue, legacyGradientHandles, mountGradientGizmo, normalizeBackgroundValue, paintBackgroundPreview, resolveDialValues, rotateGradientHandles, setBackgroundHost, setSavedGradients, stopPlacement, stopPositionAt, subscribeBackgroundHost, switchGradientShape, unwrapVisibility, withVisibility };

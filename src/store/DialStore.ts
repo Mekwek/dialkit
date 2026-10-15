@@ -8,7 +8,7 @@ export type {
 } from '../background';
 export {
   backgroundGradientCss, defaultBackgroundValue, normalizeBackgroundValue,
-  GRADIENT_SHAPES, defaultGradientHandles, legacyGradientHandles, gradientFrame, gradientParamAt,
+  GRADIENT_SHAPES, defaultGradientHandles, legacyGradientHandles, switchGradientShape, gradientFrame, gradientParamAt,
 } from '../background';
 export type { GradientShape, GradientPoint, GradientHandles, GradientFrame } from '../background';
 export { paintBackgroundPreview } from '../background-paint';

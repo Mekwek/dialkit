@@ -65,6 +65,39 @@ export function rotateGradientHandles(handles: GradientHandles, radians: number,
 }
 
 /**
+ * The rotate button: a quarter turn clockwise on screen, as in Figma.
+ *  - A Linear gradient still in a default place turns in canvas fractions
+ *    around the canvas's centre, so it spreads over the other axis. A
+ *    default place is a line through the centre, along one axis, the same
+ *    distance in from both edges: 10% (the default handles) or 0% (edge to
+ *    edge, as Figma's default and a converted legacy angle are).
+ *  - Any other Linear turns in pixels around the middle of its line, so its
+ *    length stays.
+ *  - Radial, Angular and Diamond turn in pixels around their centre
+ *    (`rotateGradientHandles`).
+ */
+export function rotateGradientQuarter(shape: GradientShape, handles: GradientHandles, box: GizmoBox): GradientHandles {
+  if (shape !== 'linear') return rotateGradientHandles(handles, Math.PI / 2, box);
+  const { start, end, width } = handles;
+  const near = (a: number, b: number) => Math.abs(a - b) < 1e-4;
+  const evenInset = (a: number, b: number) => near(a + b, 1) && (near(Math.min(a, b), 0.1) || near(Math.min(a, b), 0));
+  const atDefault = (near(start.x, 0.5) && near(end.x, 0.5) && evenInset(start.y, end.y))
+    || (near(start.y, 0.5) && near(end.y, 0.5) && evenInset(start.x, end.x));
+  if (atDefault) {
+    const turn = (p: GradientPoint): GradientPoint => ({ x: round4(1 - p.y), y: round4(p.x) });
+    return { start: turn(start), end: turn(end), width: turn(width) };
+  }
+  const s = toPx(start, box);
+  const e = toPx(end, box);
+  const mid = { x: (s.x + e.x) / 2, y: (s.y + e.y) / 2 };
+  const turn = (p: GradientPoint): GradientPoint => {
+    const v = toPx(p, box);
+    return toFraction({ x: mid.x - (v.y - mid.y), y: mid.y + (v.x - mid.x) }, box);
+  };
+  return { start: turn(start), end: turn(end), width: turn(width) };
+}
+
+/**
  * The end handle follows the pointer; the centre stays. The main radius and
  * the direction change together, and the cross radius scales with the main
  * one, so the ellipse keeps its shape.

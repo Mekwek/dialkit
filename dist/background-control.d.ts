@@ -4,6 +4,10 @@ type BackgroundControlProps = {
     label: string;
     value: BackgroundValue;
     onChange: (value: BackgroundValue) => void;
+    /** False when the caller draws the folder named by the label itself (the
+     *  React renderer does, with its own Folder); the control then mounts
+     *  straight into the host. */
+    folder?: boolean;
 };
 /**
  * The background control: a solid color, a gradient with a stop editor, or a

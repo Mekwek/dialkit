@@ -36,8 +36,32 @@ function legacyGradientHandles(shape, angle) {
   };
 }
 function roundPoint(point) {
-  const r = (n) => Math.round(n * 1e4) / 1e4 || 0;
+  const r = (n) => Math.round(n * 1e6) / 1e6 || 0;
   return { x: r(point.x), y: r(point.y) };
+}
+function switchGradientShape(gradient, next, aspect = 1) {
+  const { shape, handles } = gradient;
+  const result = cloneGradient(gradient);
+  result.shape = next;
+  if (shape === "linear" === (next === "linear")) return result;
+  const a = Number.isFinite(aspect) && aspect > 0 ? aspect : 1;
+  if (shape === "linear") {
+    const centre = { x: (handles.start.x + handles.end.x) / 2, y: (handles.start.y + handles.end.y) / 2 };
+    const dx = (handles.end.x - centre.x) * a;
+    const dy = handles.end.y - centre.y;
+    result.handles = {
+      start: roundPoint(centre),
+      end: { ...handles.end },
+      width: roundPoint({ x: centre.x - dy / a, y: centre.y + dx })
+    };
+  } else {
+    result.handles = {
+      start: roundPoint({ x: 2 * handles.start.x - handles.end.x, y: 2 * handles.start.y - handles.end.y }),
+      end: { ...handles.end },
+      width: { ...handles.width }
+    };
+  }
+  return result;
 }
 function normalizePoint(value) {
   if (!isRecord(value)) return null;
@@ -306,6 +330,7 @@ export {
   sameHandles,
   sortStops,
   stopCssColor,
+  switchGradientShape,
   widestGapMiddle
 };
 //# sourceMappingURL=background.js.map

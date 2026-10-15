@@ -1,6 +1,6 @@
 import {
   BACKGROUND_FITS, BACKGROUND_MAX_STOPS, BACKGROUND_MIN_STOPS, BACKGROUND_RATIOS, BACKGROUND_TILE_SCALE, BACKGROUND_ZOOM,
-  GRADIENT_SHAPES, backgroundGradientCss, cloneBackgroundValue, cloneGradient, gradientColorAt, normalizeBackgroundValue,
+  GRADIENT_SHAPES, backgroundGradientCss, switchGradientShape, cloneBackgroundValue, cloneGradient, gradientColorAt, normalizeBackgroundValue,
   moveItem, moveStopPayload, sameBackgroundValue, sameGradient, stopCssColor, widestGapMiddle,
   type BackgroundGradient, type BackgroundMedia, type BackgroundMediaDisplay, type BackgroundStop, type BackgroundValue, type GradientShape,
 } from './background';
@@ -8,11 +8,12 @@ import { colorToRgb255, parseColor } from './color';
 import { mountColorControl } from './color-control';
 import { CONTROL_ANIM } from './components/control-motion';
 import { animateSpring } from './vanilla/animation';
+import { mountFolder } from './vanilla/controls';
 import { handleSegmentKey, handleSliderKey, stepInputKey } from './control-keyboard';
 import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition } from './dropdown-position';
 import { ICON_CHECK, ICON_CHEVRON, ICON_CLOSE, ICON_MORE, ICON_MORE_STROKE, ICON_PLUS } from './icons';
 import { observeDropdownKeyboard } from './dropdown-keyboard';
-import { mountGradientGizmo, rotateGradientHandles } from './gradient-gizmo';
+import { mountGradientGizmo, rotateGradientQuarter } from './gradient-gizmo';
 import { paintBackgroundPreview } from './background-paint';
 import { getBackgroundHost, getSavedGradients, setSavedGradients, subscribeBackgroundHost } from './store/BackgroundHost';
 import { HintStore } from './store/HintStore';
@@ -21,6 +22,10 @@ export type BackgroundControlProps = {
   label: string;
   value: BackgroundValue;
   onChange: (value: BackgroundValue) => void;
+  /** False when the caller draws the folder named by the label itself (the
+   *  React renderer does, with its own Folder); the control then mounts
+   *  straight into the host. */
+  folder?: boolean;
 };
 
 const MODE_OPTIONS = [
@@ -339,14 +344,16 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
   };
   const setGradient = (gradient: BackgroundGradient) => emit({ ...value, gradient });
 
-  // The root's height animates between layouts; the body holds the layout
-  // itself, so its height is always the height the root is heading to.
+  // A collapsible folder named by the label, as the transition control is;
+  // the control sits inside it. The root's height animates between layouts;
+  // the body holds the layout itself, so its height is always the height the
+  // root is heading to.
+  const folder = props.folder === false ? undefined : mountFolder(host, { title: props.label });
   const root = element('div', 'dialkit-bg');
   const body = element('div', 'dialkit-bg-body');
   root.append(body);
-  const caption = element('div', 'dialkit-bg-caption');
   const modes = segmented(MODE_OPTIONS, 'Background type', mode => emit({ ...value, mode }));
-  body.append(caption, modes.group);
+  body.append(modes.group);
 
   // ── Solid ────────────────────────────────────────────────────────────
   const solidPane = element('div', 'dialkit-bg-pane dialkit-bg-solid');
@@ -418,7 +425,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
       option.addEventListener('click', () => {
         closeShapeMenu();
         // Switching keeps all three handles and the stops.
-        setGradient({ ...value.gradient, shape });
+        setGradient(switchGradientShape(value.gradient, shape, canvasAspect()));
         shapeTrigger.focus({ preventScroll: true });
       });
       menu.append(option);
@@ -434,6 +441,11 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
     stopShapeKeys = observeDropdownKeyboard(shapeTrigger, () => shapeMenu, closeShapeMenu, 'select');
     document.addEventListener('pointerdown', shapeOutside, true);
   };
+  /** The canvas's width / height: the gizmo target's box when the host gives one, else a square. */
+  function canvasAspect(): number {
+    const rect = getBackgroundHost().gizmoTarget?.()?.getBoundingClientRect();
+    return rect && rect.width > 0 && rect.height > 0 ? rect.width / rect.height : 1;
+  }
   shapeTrigger.addEventListener('click', openShapeMenu);
   shapeTrigger.addEventListener('keydown', event => {
     if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && !event.altKey && !event.metaKey && !event.ctrlKey && !shapeMenu) {
@@ -448,9 +460,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
   // Turns the three handles 90° clockwise around the start (the centre), in
   // the canvas's own shape when the host gives one.
   rotateButton.addEventListener('click', () => {
-    const rect = getBackgroundHost().gizmoTarget?.()?.getBoundingClientRect();
-    const box = rect && rect.width > 0 && rect.height > 0 ? { width: rect.width, height: rect.height } : { width: 1, height: 1 };
-    setGradient({ ...value.gradient, handles: rotateGradientHandles(value.gradient.handles, Math.PI / 2, box) });
+    setGradient({ ...value.gradient, handles: rotateGradientQuarter(value.gradient.shape, value.gradient.handles, { width: canvasAspect(), height: 1 }) });
   });
 
   // The bar paints the gradient left to right over a checkerboard; one handle per stop.
@@ -510,18 +520,25 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
   const addButton = iconButton('dialkit-bg-add', 'Add stop', ICON_PLUS);
   stopsHeader.append(stopsTitle, addButton);
   const stopsList = element('div', 'dialkit-bg-stops');
-  /** Reads `--dial-bg-grip-style` and puts its name on the list. */
+  /**
+   * Reads `--dial-bg-grip-style` and `--dial-bg-stop-selected-style` and puts
+   * their names on the list: the grip, and how the selected row shows
+   * (1 a row highlight, 2 its fields only).
+   */
   const syncGripStyle = () => {
-    const raw = getComputedStyle(stopsList).getPropertyValue('--dial-bg-grip-style').trim();
+    const styles = getComputedStyle(stopsList);
+    const raw = styles.getPropertyValue('--dial-bg-grip-style').trim();
     const name = GRIP_STYLES[raw] ?? 'column-hover';
     if (stopsList.dataset.gripStyle !== name) stopsList.dataset.gripStyle = name;
+    const selectedStyle = styles.getPropertyValue('--dial-bg-stop-selected-style').trim() === '1' ? 'row' : 'fields';
+    if (stopsList.dataset.selectedStyle !== selectedStyle) stopsList.dataset.selectedStyle = selectedStyle;
   };
   // The theme registers --dial-bg-grip-style as an integer and transitions it
   // on the list for 1ms, so a change to it (a host's Look panel, a theme
   // switch) fires a transition here and the control re-renders. Without
   // @property support, the next render picks the change up.
   const onGripStyleTransition = (event: TransitionEvent) => {
-    if (event.target === stopsList && event.propertyName === '--dial-bg-grip-style') render();
+    if (event.target === stopsList && (event.propertyName === '--dial-bg-grip-style' || event.propertyName === '--dial-bg-stop-selected-style')) render();
   };
   stopsList.addEventListener('transitionrun', onGripStyleTransition);
   stopsList.addEventListener('transitionend', onGripStyleTransition);
@@ -995,7 +1012,15 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
       row.flipTarget = undefined;
       if (Math.abs(delta) < 0.5) continue;
       row.flipTarget = target;
-      row.flip = animateSpring(row.root, p => ({ transform: `translateY(${delta * (1 - p)}px)` }), LAYOUT_SPRING.visualDuration, LAYOUT_SPRING.bounce);
+      const slide = animateSpring(row.root, p => ({ transform: `translateY(${delta * (1 - p)}px)` }), LAYOUT_SPRING.visualDuration, LAYOUT_SPRING.bounce);
+      row.flip = slide;
+      if (!slide) continue;
+      // A sliding row is solid (the panel's colour) and above the still rows,
+      // so two rows that pass each other never show through one another.
+      row.root.dataset.moving = 'true';
+      const settle = () => { if (row.flip === slide || !running(row.flip)) delete row.root.dataset.moving; };
+      slide.addEventListener('finish', settle);
+      slide.addEventListener('cancel', settle);
     }
   };
 
@@ -1471,7 +1496,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
 
   // ── Render ───────────────────────────────────────────────────────────
   body.append(solidPane, gradientPane, mediaPane);
-  host.append(root);
+  (folder?.body ?? host).append(root);
 
   // The control's height never jumps: each render measures the height before
   // and after, and the root animates between them with the conditional rows'
@@ -1520,7 +1545,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
   function renderNow(before: Map<number, number>, listTop: number, animate: boolean) {
     shownMode = animate ? shownMode : value.mode;
     const backgroundHost = getBackgroundHost();
-    caption.textContent = props.label;
+    folder?.update({ title: props.label });
     modes.group.setAttribute('aria-label', `${props.label} type`);
     modes.set(value.mode);
     solidPane.hidden = value.mode !== 'solid';
@@ -1644,6 +1669,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
       rowById.forEach(row => dropRow(row));
       rowById.clear();
       root.remove();
+      folder?.destroy();
     },
   };
 }

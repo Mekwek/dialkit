@@ -67,6 +67,23 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
      light theme's values on the same element apply to them too. */
   --dial-bg-stop-selected-fill: var(--dial-surface-subtle);
   --dial-bg-stop-selected-border: var(--dial-border);
+  /* How the selected stop shows: 1 a row highlight, 2 only its fields, a
+     step lighter (--dial-bg-stop-selected-field-fill, the hover surface). */
+  --dial-bg-stop-selected-style: 2;
+  --dial-bg-stop-selected-field-fill: var(--dial-surface-hover);
+  /* The stop rows' grip (1 Row, 2 Margin, 3 Column, 4 Column hover) and the
+     strip (1 left to right, 2 follows the gradient type). */
+  --dial-bg-grip-style: 4;
+  --dial-bg-track-style: 2;
+  /* The space between the Margin and Column hover grips and the row's
+     first field. */
+  --dial-bg-grip-gap: 0px;
+  /* The thickness of the ring around the selected and the hovered stop
+     swatch on the gradient strip. The keyboard focus ring keeps its own. */
+  --dial-bg-swatch-ring: 1px;
+  /* The hovered swatch's ring: the selected ring's colour at this opacity,
+     in percent. */
+  --dial-bg-swatch-hover-opacity: 50;
   /* The space under the gradient type row, above the strip. Declared here,
      not only as a fallback, so a host can read it from the root. */
   --dial-bg-type-gap: 12px;
@@ -1837,7 +1854,6 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 /* The layout; the root around it animates its height between layouts. */
 .dialkit-bg-body { display: grid; gap: var(--dial-row-gap); min-width: 0; }
 .dialkit-bg [hidden], .dialkit-bg-popover [hidden] { display: none !important; }
-.dialkit-bg-caption { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dial-text-label); font-size: 13px; font-weight: 500; }
 .dialkit-bg-pane { display: grid; gap: var(--dial-row-gap); min-width: 0; }
 .dialkit-bg-segmented { min-width: 0; }
 .dialkit-bg-segmented .dialkit-segmented-pill { left: 4px; transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1); }
@@ -1853,6 +1869,8 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
    height follows it. */
 .dialkit-bg-shape-row { display: flex; align-items: center; gap: var(--dial-field-gap); min-width: 0; margin-bottom: calc(var(--dial-bg-type-gap, 12px) - var(--dial-row-gap)); transition: margin-bottom 0.25s cubic-bezier(0.25, 1, 0.5, 1); }
 @media (prefers-reduced-motion: reduce) { .dialkit-bg-shape-row { transition: none; } }
+/* Flip and rotate are as tall as the type dropdown, their corners those of a field. */
+.dialkit-bg-shape-row .dialkit-bg-icon-button { height: var(--dial-row-height); padding: calc((var(--dial-row-height) - 16px) / 2) 6px; border-radius: var(--dial-radius); }
 .dialkit-bg-shape-trigger.dialkit-select-trigger { flex: 1 1 auto; width: auto; min-width: 0; }
 .dialkit-bg-shape-option { display: flex; align-items: center; gap: 6px; }
 .dialkit-bg-shape-check { flex: none; width: 14px; height: 14px; visibility: hidden; }
@@ -1899,13 +1917,27 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 .dialkit-bg-handle-chip { position: relative; display: block; width: 20px; height: 20px; box-sizing: border-box; border: 2px solid var(--dial-glass-bg); border-radius: 6px; background: linear-gradient(var(--dial-bg-stop), var(--dial-bg-stop)), var(--dial-checker); background-clip: padding-box; box-shadow: 0 0 0 1px var(--dial-border-hover), 0 2px 4px rgb(0 0 0 / 25%); transition: box-shadow 0.15s; }
 /* The stem: from 2px under the swatch into the strip, at the stop's true place. */
 .dialkit-bg-stem { position: absolute; top: 22px; left: clamp(1px, var(--dial-bg-at, 0%), calc(100% - 1px)); width: 2px; height: 6px; border-radius: 1px; background: var(--dial-border-hover); transform: translateX(-50%); pointer-events: none; }
-.dialkit-bg-handle[data-selected] .dialkit-bg-handle-chip { box-shadow: 0 0 0 2px var(--dial-text-primary), 0 2px 6px rgb(0 0 0 / 30%); }
+/* Under the pointer, an unselected swatch shows the selected ring's
+   thickness in a dimmer colour (--dial-bg-swatch-hover-opacity). */
+.dialkit-bg-bar:not([data-dragging]) .dialkit-bg-handle:not([data-selected]):hover .dialkit-bg-handle-chip { box-shadow: 0 0 0 var(--dial-bg-swatch-ring, 1px) color-mix(in srgb, var(--dial-text-primary) calc(var(--dial-bg-swatch-hover-opacity, 50) * 1%), transparent), 0 2px 6px rgb(0 0 0 / 30%); }
+.dialkit-bg-handle[data-selected] .dialkit-bg-handle-chip { box-shadow: 0 0 0 var(--dial-bg-swatch-ring, 1px) var(--dial-text-primary), 0 2px 6px rgb(0 0 0 / 30%); }
 .dialkit-bg-stem[data-selected] { background: var(--dial-text-primary); }
 /* The focus ring only when the strip is used from the keyboard: a chip
    picked with the pointer (a click, a new stop, a drag, the gizmo, a row)
    shows its selected ring alone. The control marks the strip
    data-input="pointer" on any press in the document, until any key. */
 .dialkit-bg-bar:not([data-input="pointer"]) .dialkit-bg-handle:focus-visible .dialkit-bg-handle-chip { box-shadow: 0 0 0 2px var(--dial-text-primary), 0 0 0 5px var(--dial-focus-ring); }
+
+/* The stop rows' drag handle (and the selected row's box) stand left of the
+   rows, in the panel's padding. A folder clips its contents
+   (overflow-y: clip), and that cuts off what sits past its left edge too,
+   so a folder that holds a stops list reaches 12px into the panel's padding,
+   with the same padding inside it: nothing moves, and the handle shows and
+   takes the pointer. */
+.dialkit-folder:has(.dialkit-bg-stops),
+.dialkit-folder-content:has(.dialkit-bg-stops) { margin-left: -12px; padding-left: 12px; }
+/* A nested folder's content is indented (--dial-nested-indent): keep it. */
+.dialkit-folder:not(.dialkit-folder-root) .dialkit-folder > .dialkit-folder-content:has(.dialkit-bg-stops) { padding-left: calc(var(--dial-nested-indent) + 12px); }
 
 /* The stops list. */
 .dialkit-bg-stops-header { display: flex; align-items: center; gap: 2px; min-width: 0; color: var(--dial-text-label); font-size: 13px; font-weight: 500; }
@@ -1928,7 +1960,7 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   initial-value: 4;
 }
 .dialkit-bg-stops {
-  transition: --dial-bg-grip-style 1ms step-start;
+  transition: --dial-bg-grip-style 1ms step-start, --dial-bg-stop-selected-style 1ms step-start;
   /* The Margin grip's mark: the timeline clip's resize grip colours. */
   --dial-bg-grip: rgba(255, 255, 255, 0.11);
   --dial-bg-grip-hover: rgba(255, 255, 255, 0.22);
@@ -1953,11 +1985,11 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
    row, so the row keeps its full width and no field moves, and shows while
    the row is hovered, holds the focus, or is dragged. It stands in the
    panel's padding, which nothing clips (see CONTROL_ANIM in control-motion.ts),
-   clear of the selected row's box (3px out). */
+   --dial-bg-grip-gap left of the row's first field. */
 .dialkit-bg-stops[data-grip-style="margin"] .dialkit-bg-stop,
 .dialkit-bg-stops[data-grip-style="column-hover"] .dialkit-bg-stop { position: relative; }
 .dialkit-bg-stops[data-grip-style="margin"] .dialkit-bg-stop-grip.dialkit-bg-icon-button,
-.dialkit-bg-stops[data-grip-style="column-hover"] .dialkit-bg-stop-grip.dialkit-bg-icon-button { position: absolute; top: 0; bottom: 0; left: -12px; width: 8px; height: auto; margin: 0; padding: 0; border-radius: 2px; background: none; opacity: 0; }
+.dialkit-bg-stops[data-grip-style="column-hover"] .dialkit-bg-stop-grip.dialkit-bg-icon-button { position: absolute; top: 0; bottom: 0; left: calc(-8px - var(--dial-bg-grip-gap, 0px)); width: 8px; height: auto; margin: 0; padding: 0; border-radius: 2px; background: none; opacity: 0; }
 .dialkit-bg-stops[data-grip-style="margin"] .dialkit-bg-stop:is(:hover, :focus-within, [data-dragging]) .dialkit-bg-stop-grip,
 .dialkit-bg-stops[data-grip-style="column-hover"] .dialkit-bg-stop:is(:hover, :focus-within, [data-dragging]) .dialkit-bg-stop-grip { opacity: 1; }
 /* Margin: the timeline clip's resize grip. An 8px hit zone with a 2px mark,
@@ -1995,6 +2027,17 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 .dialkit-bg-stop { position: relative; isolation: isolate; display: flex; align-items: center; gap: var(--dial-field-gap); min-width: 0; margin: 0; padding: 0; border-radius: var(--dial-radius); }
 .dialkit-bg-stop::before { content: ''; position: absolute; inset: -3px; z-index: -1; border-radius: calc(var(--dial-radius) + 3px); pointer-events: none; transition: background 0.15s, box-shadow 0.15s; }
 .dialkit-bg-stop[data-selected]::before { background: var(--dial-bg-stop-selected-fill); box-shadow: inset 0 0 0 1px var(--dial-bg-stop-selected-border); }
+/* --dial-bg-stop-selected-style: 2. No row highlight; the selected row's
+   fields (position, colour, opacity) take a step lighter fill instead. */
+@property --dial-bg-stop-selected-style {
+  syntax: '<integer>';
+  inherits: true;
+  initial-value: 2;
+}
+.dialkit-bg-stops[data-selected-style="fields"] .dialkit-bg-stop[data-selected]:not([data-dragging], [data-moving])::before { background: none; box-shadow: none; }
+.dialkit-bg-stops[data-selected-style="fields"] .dialkit-bg-stop[data-selected] :is(.dialkit-bg-field, .dialkit-color-control) { background: var(--dial-bg-stop-selected-field-fill); }
+/* The − is as tall as the row's fields, its corners those of a field. */
+.dialkit-bg-stop-remove.dialkit-bg-icon-button { height: var(--dial-row-height); padding: calc((var(--dial-row-height) - 16px) / 2) 6px; border-radius: var(--dial-radius); }
 /* The dragged row, drawn as the version list draws its dragged row: solid,
    so the rows it passes never show through (the hover fill over the panel's
    own colour, as two inner layers), with the same lift shadow, above every
@@ -2002,6 +2045,8 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
    specific, so a selected row that is dragged is solid too. */
 .dialkit-bg-stops .dialkit-bg-stop[data-dragging] { position: relative; z-index: 3; }
 .dialkit-bg-stops .dialkit-bg-stop[data-dragging]::before {
+  /* Solid from the first frame of the drag: no fade in. */
+  transition: none;
   background: var(--dial-glass-bg);
   box-shadow:
     inset 0 0 0 1px var(--dial-bg-stop-selected-border),
@@ -2009,6 +2054,17 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
     inset 0 0 0 100vmax var(--dial-glass-bg),
     0 6px 16px rgba(0, 0, 0, 0.28);
 }
+/* In the Fields style the dragged row has no box to see: the panel's own
+   colour, solid, so only its fields stand out over the rows it passes. */
+.dialkit-bg-stops[data-selected-style="fields"] .dialkit-bg-stop[data-dragging]::before { background: var(--dial-glass-bg); box-shadow: none; }
+/* A row that slides to a new place (another row passed it, or its stop
+   passed another stop on the strip) is solid and above the still rows, at
+   once (no fade in), so rows that cross never show through each other. The
+   selected row goes over the rest; in the Row style it keeps its box. */
+.dialkit-bg-stops .dialkit-bg-stop[data-moving] { z-index: 1; }
+.dialkit-bg-stops .dialkit-bg-stop[data-moving][data-selected] { z-index: 2; }
+.dialkit-bg-stops .dialkit-bg-stop[data-moving]::before { background: var(--dial-glass-bg); transition: none; }
+.dialkit-bg-stops:not([data-selected-style="fields"]) .dialkit-bg-stop[data-moving][data-selected]::before { box-shadow: inset 0 0 0 1px var(--dial-bg-stop-selected-border), inset 0 0 0 100vmax var(--dial-bg-stop-selected-fill); }
 .dialkit-bg-stop-at, .dialkit-bg-stop-alpha { flex: 0 0 46px; padding: 0 6px; }
 .dialkit-bg-stop .dialkit-bg-field-input, .dialkit-bg-stop .dialkit-bg-field-unit { font-size: 12px; }
 .dialkit-bg-stop-color { flex: 1 1 auto; min-width: 0; }
