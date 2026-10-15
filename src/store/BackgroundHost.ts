@@ -1,4 +1,4 @@
-import type { BackgroundGradient, BackgroundMedia, SavedGradient } from '../background';
+import { normalizeGradient, type BackgroundGradient, type BackgroundMedia, type SavedGradient } from '../background';
 
 /**
  * What the host gives the background control. The control never uploads or
@@ -13,6 +13,12 @@ export interface BackgroundHost {
   saveGradient?: (gradient: BackgroundGradient) => Promise<SavedGradient>;
   /** Deletes a saved gradient. Without it, saved gradients show no delete button. */
   deleteGradient?: (id: string) => Promise<void>;
+  /**
+   * The element the gradient gizmo draws over (the host's canvas). The gizmo
+   * is a fixed overlay sized to its box, in document.body, above it and under
+   * the DialKit panel. Without it there is no gizmo.
+   */
+  gizmoTarget?: () => HTMLElement | null;
 }
 
 type Listener = () => void;
@@ -45,11 +51,9 @@ function notify(): void {
   state().listeners.forEach(listener => listener());
 }
 
+/** A fresh, valid copy; a gradient saved before handles existed (with `angle`) is converted. */
 function cloneSaved(list: SavedGradient[]): SavedGradient[] {
-  return list.map(saved => ({
-    id: saved.id,
-    gradient: { shape: saved.gradient.shape, angle: saved.gradient.angle, stops: saved.gradient.stops.map(stop => ({ ...stop })) },
-  }));
+  return list.map(saved => ({ id: saved.id, gradient: normalizeGradient(saved.gradient) }));
 }
 
 /** Sets the host's upload, media URL and saved-gradient hooks. Replaces the previous host. */

@@ -1,8 +1,8 @@
 import {
   BACKGROUND_FITS, BACKGROUND_MAX_STOPS, BACKGROUND_MIN_STOPS, BACKGROUND_RATIOS, BACKGROUND_TILE_SCALE, BACKGROUND_ZOOM,
-  backgroundGradientCss, cloneBackgroundValue, cloneGradient, gradientColorAt, normalizeAngle, normalizeBackgroundValue,
+  GRADIENT_SHAPES, backgroundGradientCss, cloneBackgroundValue, cloneGradient, gradientColorAt, normalizeBackgroundValue,
   moveItem, moveStopPayload, sameBackgroundValue, sameGradient, stopCssColor, widestGapMiddle,
-  type BackgroundGradient, type BackgroundMedia, type BackgroundMediaDisplay, type BackgroundStop, type BackgroundValue,
+  type BackgroundGradient, type BackgroundMedia, type BackgroundMediaDisplay, type BackgroundStop, type BackgroundValue, type GradientShape,
 } from './background';
 import { colorToRgb255, parseColor } from './color';
 import { mountColorControl } from './color-control';
@@ -10,7 +10,10 @@ import { CONTROL_ANIM } from './components/control-motion';
 import { animateSpring } from './vanilla/animation';
 import { handleSegmentKey, handleSliderKey, stepInputKey } from './control-keyboard';
 import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition } from './dropdown-position';
-import { ICON_CLOSE, ICON_PLUS } from './icons';
+import { ICON_CHECK, ICON_CHEVRON, ICON_CLOSE, ICON_MORE, ICON_MORE_STROKE, ICON_PLUS } from './icons';
+import { observeDropdownKeyboard } from './dropdown-keyboard';
+import { mountGradientGizmo, rotateGradientHandles } from './gradient-gizmo';
+import { paintBackgroundPreview } from './background-paint';
 import { getBackgroundHost, getSavedGradients, setSavedGradients, subscribeBackgroundHost } from './store/BackgroundHost';
 import { HintStore } from './store/HintStore';
 
@@ -25,34 +28,37 @@ const MODE_OPTIONS = [
   { value: 'gradient', label: 'Gradient' },
   { value: 'media', label: 'Media' },
 ] as const;
-const SHAPE_OPTIONS = [
-  { value: 'linear', label: 'Linear' },
-  { value: 'radial', label: 'Radial' },
-] as const;
+const SHAPE_LABEL: Record<GradientShape, string> = { linear: 'Linear', radial: 'Radial', angular: 'Angular', diamond: 'Diamond' };
+/** Turn clockwise: DialKit's reset arrow (ICON_RESET), mirrored. */
+const ICON_ROTATE = ['M19.5 12a7.5 7.5 0 1 1-2.2-5.3', 'M19.5 4.5v3.75h-3.75'];
 const FIT_LABEL: Record<BackgroundMediaDisplay['fit'], string> = { fill: 'Fill', fit: 'Fit', stretch: 'Stretch', tile: 'Tile' };
 const RATIO_LABEL = (ratio: BackgroundMediaDisplay['ratio']) => ratio === 'source' ? 'Source' : ratio;
 const PIN_COLUMNS = ['Left', 'Center', 'Right'];
 const PIN_ROWS = ['Top', 'Middle', 'Bottom'];
 const ICON_MINUS = 'M5 12H19';
-const ICON_GRIP = ['M9 6h.01', 'M15 6h.01', 'M9 12h.01', 'M15 12h.01', 'M9 18h.01', 'M15 18h.01'];
+/**
+ * The row grip styles, chosen by `--dial-bg-grip-style` (1 to 4) on the
+ * control or any ancestor; the list's `data-grip-style` carries the name the
+ * theme keys off. 1 Row (no visible grip: the row itself drags, as in the
+ * version list), 2 Margin (a timeline clip's resize grip, in the margin left
+ * of the row, on hover), 3 Column (one column of three dots), 4 Column hover
+ * (that column, in the margin, on hover).
+ */
+const GRIP_STYLES: Record<string, 'row' | 'margin' | 'column' | 'column-hover'> = { 1: 'row', 2: 'margin', 3: 'column', 4: 'column-hover' };
+/** Parts of a row that keep their own press: typing, buttons, the swatch and the value scrubbers. */
+const ROW_DRAG_EXCLUDE = 'input, textarea, button:not(.dialkit-bg-stop-grip), .dialkit-color-swatch, .dialkit-bg-field-unit, .dialkit-bg-field-grip';
 /** The conditional rows' spring (CONTROL_ANIM): every height change in the control uses it. */
 const LAYOUT_SPRING = CONTROL_ANIM.transition as { visualDuration: number; bounce: number };
 /** Pointer travel before a press on a row's grip becomes a reorder drag, as in the version list. */
 const DRAG_LIFT_PX = 4;
 /**
- * How far the handles' range sits inside each end of the painted strip, in px
- * (`.dialkit-bg-handles` is inset 16px, `.dialkit-bg-track` 10px). A chip
- * centred on 0% or 100% then keeps its selection and focus rings inside the
- * control, whose wrapper clips (overflow: clip). The strip keeps its width;
- * its gradient is laid out over the handles' range, so each stop's color sits
- * under its chip, and the strip's ends show the end colors.
+ * The strip's paint: the gradient left to right over the strip's full width,
+ * so each stop's colour sits under its stem. Like the timeline's playhead,
+ * a stop's stem stands at its true place, edge to edge, and only the swatch
+ * above it stops at the strip's ends so it draws whole (see the theme).
  */
-const HANDLE_OVERHANG = 6;
-/** The strip's paint: the gradient left to right, over the handles' range. */
 function stripCss(gradient: BackgroundGradient): string {
-  const stops = gradient.stops.map(stop =>
-    `${stopCssColor(stop)} calc(${HANDLE_OVERHANG}px + (100% - ${2 * HANDLE_OVERHANG}px) * ${stop.at / 100})`);
-  return `linear-gradient(to right, ${stops.join(', ')})`;
+  return backgroundGradientCss(gradient, 'to right');
 }
 const reducedMotion = () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 const ICON_REVERSE = ['M7 7h13', 'M16 3l4 4-4 4', 'M17 17H4', 'M8 13l-4 4 4 4'];
@@ -150,6 +156,8 @@ type NumberFieldOptions = {
   wrap?: boolean;
   read: () => number;
   apply: (value: number) => void;
+  /** Called when a drag on the grip or the unit starts (true) and ends (false). */
+  onScrub?: (active: boolean) => void;
 };
 
 /**
@@ -246,7 +254,10 @@ function numberField(options: NumberFieldOptions) {
       if (event.button !== 0) return;
       event.preventDefault();
       press = { id: event.pointerId, x: event.clientX, start: options.read(), moved: false };
-      grip.setPointerCapture(event.pointerId);
+      try { grip.setPointerCapture(event.pointerId); } catch { press = undefined; return; }
+      // The field takes the focus, so it keeps it after the drag.
+      if (document.activeElement !== input) input.focus({ preventScroll: true });
+      options.onScrub?.(true);
     });
     grip.addEventListener('pointermove', event => {
       if (!press || event.pointerId !== press.id) return;
@@ -255,14 +266,18 @@ function numberField(options: NumberFieldOptions) {
       press.moved = true;
       const next = fit(press.start + dx * options.step * (event.shiftKey ? 10 : 1));
       run(Math.round(next / options.step) * options.step);
+      // The field holds the focus, so a render leaves its text alone: show the value here.
+      input.value = formatNumber(options.read());
     });
     const end = (event: PointerEvent) => {
       if (!press || event.pointerId !== press.id) return;
       press = undefined;
       if (grip.hasPointerCapture(event.pointerId)) grip.releasePointerCapture(event.pointerId);
+      options.onScrub?.(false);
     };
     grip.addEventListener('pointerup', end);
     grip.addEventListener('pointercancel', end);
+    grip.addEventListener('lostpointercapture', end);
   }
   return { root, input, sync };
 }
@@ -352,22 +367,91 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
 
   // ── Gradient ─────────────────────────────────────────────────────────
   const gradientPane = element('div', 'dialkit-bg-pane dialkit-bg-gradient');
+  // The gradient type, as Figma has it: a dropdown, then flip and rotate.
   const shapeRow = element('div', 'dialkit-bg-shape-row');
-  const shapes = segmented(SHAPE_OPTIONS, 'Gradient shape', shape => setGradient({ ...value.gradient, shape }));
-  const angle = numberField({
-    className: 'dialkit-bg-angle',
-    label: () => 'Gradient angle',
-    grip: 'Angle',
-    unit: '°',
-    min: 0,
-    max: 360,
-    step: 1,
-    wrap: true,
-    read: () => value.gradient.angle,
-    apply: n => setGradient({ ...value.gradient, angle: normalizeAngle(n) }),
+  const shapeTrigger = element('button', 'dialkit-select-trigger dialkit-bg-shape-trigger');
+  shapeTrigger.setAttribute('aria-haspopup', 'listbox');
+  shapeTrigger.setAttribute('aria-expanded', 'false');
+  shapeTrigger.setAttribute('aria-label', 'Gradient type');
+  const shapeValue = element('span', 'dialkit-select-value');
+  const shapeChevron = strokeIcon(ICON_CHEVRON);
+  shapeChevron.classList.add('dialkit-select-chevron');
+  shapeTrigger.append(shapeValue, shapeChevron);
+  const flipButton = iconButton('dialkit-bg-flip', 'Flip stops', ICON_REVERSE);
+  const rotateButton = iconButton('dialkit-bg-rotate', 'Rotate 90° clockwise', ICON_ROTATE);
+  shapeRow.append(shapeTrigger, flipButton, rotateButton);
+  let shapeMenu: HTMLDivElement | undefined;
+  let stopShapeKeys: (() => void) | undefined;
+  const shapeOutside = (event: Event) => {
+    if (!shapeMenu?.contains(event.target as Node) && !shapeTrigger.contains(event.target as Node)) closeShapeMenu();
+  };
+  function closeShapeMenu() {
+    stopShapeKeys?.();
+    stopShapeKeys = undefined;
+    shapeMenu?.remove();
+    shapeMenu = undefined;
+    shapeTrigger.dataset.open = 'false';
+    shapeTrigger.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('pointerdown', shapeOutside, true);
+  }
+  /** The menu opens over the field, the current type on top of it, as in Figma. */
+  const placeShapeMenu = () => {
+    if (!shapeMenu) return;
+    const rect = shapeTrigger.getBoundingClientRect();
+    const current = shapeMenu.querySelector<HTMLElement>('[data-selected="true"]');
+    const offset = current ? current.offsetTop + current.offsetHeight / 2 : 0;
+    const height = shapeMenu.offsetHeight;
+    const top = Math.max(8, Math.min(rect.top + rect.height / 2 - offset, window.innerHeight - height - 8));
+    Object.assign(shapeMenu.style, { left: `${rect.left}px`, top: `${top}px`, width: `${rect.width}px` });
+  };
+  const openShapeMenu = () => {
+    if (shapeMenu) { closeShapeMenu(); return; }
+    const portal = getDialKitPortalRoot(host) ?? document.body;
+    const menu = element('div', 'dialkit-select-dropdown dialkit-bg-shape-menu');
+    menu.style.position = 'fixed';
+    for (const shape of GRADIENT_SHAPES) {
+      const option = element('button', 'dialkit-select-option dialkit-bg-shape-option');
+      option.dataset.selected = String(shape === value.gradient.shape);
+      const check = strokeIcon(ICON_CHECK);
+      check.classList.add('dialkit-bg-shape-check');
+      option.append(check, element('span', 'dialkit-bg-shape-label', SHAPE_LABEL[shape]));
+      option.addEventListener('click', () => {
+        closeShapeMenu();
+        // Switching keeps all three handles and the stops.
+        setGradient({ ...value.gradient, shape });
+        shapeTrigger.focus({ preventScroll: true });
+      });
+      menu.append(option);
+    }
+    // While the gizmo is on, a press or the focus in the menu is part of the gradient's editing.
+    menu.addEventListener('pointerdown', event => { if (gizmoRowId !== undefined) event.stopPropagation(); });
+    menu.addEventListener('focusin', event => { if (gizmoRowId !== undefined) event.stopPropagation(); });
+    shapeMenu = menu;
+    portal.append(menu);
+    placeShapeMenu();
+    shapeTrigger.dataset.open = 'true';
+    shapeTrigger.setAttribute('aria-expanded', 'true');
+    stopShapeKeys = observeDropdownKeyboard(shapeTrigger, () => shapeMenu, closeShapeMenu, 'select');
+    document.addEventListener('pointerdown', shapeOutside, true);
+  };
+  shapeTrigger.addEventListener('click', openShapeMenu);
+  shapeTrigger.addEventListener('keydown', event => {
+    if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && !event.altKey && !event.metaKey && !event.ctrlKey && !shapeMenu) {
+      event.preventDefault();
+      event.stopPropagation();
+      openShapeMenu();
+    }
   });
-  shapeRow.append(shapes.group, angle.root);
-  const angleRow = conditionalRow(angle.root, shapeRow, 'width');
+  flipButton.addEventListener('click', () => {
+    commitEntries(entries().map(({ id, stop }) => ({ id, stop: { ...stop, at: Math.round((100 - stop.at) * 100) / 100 } })));
+  });
+  // Turns the three handles 90° clockwise around the start (the centre), in
+  // the canvas's own shape when the host gives one.
+  rotateButton.addEventListener('click', () => {
+    const rect = getBackgroundHost().gizmoTarget?.()?.getBoundingClientRect();
+    const box = rect && rect.width > 0 && rect.height > 0 ? { width: rect.width, height: rect.height } : { width: 1, height: 1 };
+    setGradient({ ...value.gradient, handles: rotateGradientHandles(value.gradient.handles, Math.PI / 2, box) });
+  });
 
   // The bar paints the gradient left to right over a checkerboard; one handle per stop.
   const bar = element('div', 'dialkit-bg-bar');
@@ -377,14 +461,70 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
   const handlesLayer = element('div', 'dialkit-bg-handles');
   bar.append(track, handlesLayer);
   bar.title = 'Click the bar to add a stop';
+  // The strip painted as the gradient's own type (--dial-bg-track-style: 2),
+  // laid out in the strip's box: Radial, Diamond and Angular centred, their
+  // main radius to the strip's ends, their cross radius its half height.
+  const STRIP_HANDLES = { start: { x: 0.5, y: 0.5 }, end: { x: 1, y: 0.5 }, width: { x: 0.5, y: 0 } };
+  let trackCanvas: HTMLCanvasElement | undefined;
+  const followsType = () => bar.dataset.trackStyle === 'type' && value.gradient.shape !== 'linear';
+  const paintTrack = () => {
+    if (!followsType()) {
+      trackCanvas?.remove();
+      trackCanvas = undefined;
+      trackPaint.style.backgroundImage = stripCss(value.gradient);
+      return;
+    }
+    trackPaint.style.backgroundImage = '';
+    if (!trackCanvas) {
+      trackCanvas = document.createElement('canvas');
+      trackCanvas.className = 'dialkit-bg-track-canvas';
+      trackPaint.append(trackCanvas);
+    }
+    const scale = Math.min(globalThis.devicePixelRatio || 1, 3);
+    const width = Math.max(1, Math.round(track.clientWidth * scale));
+    const height = Math.max(1, Math.round(track.clientHeight * scale));
+    if (trackCanvas.width !== width) trackCanvas.width = width;
+    if (trackCanvas.height !== height) trackCanvas.height = height;
+    paintBackgroundPreview(trackCanvas, { ...value, mode: 'gradient', gradient: { ...value.gradient, handles: STRIP_HANDLES } });
+  };
+  /** Reads `--dial-bg-track-style` and puts its name on the bar. */
+  const syncTrackStyle = () => {
+    const raw = getComputedStyle(bar).getPropertyValue('--dial-bg-track-style').trim();
+    const name = raw === '1' ? 'linear' : 'type';
+    if (bar.dataset.trackStyle !== name) bar.dataset.trackStyle = name;
+  };
+  const onTrackStyleTransition = (event: TransitionEvent) => {
+    if (event.target === bar && event.propertyName === '--dial-bg-track-style') render();
+  };
+  bar.addEventListener('transitionrun', onTrackStyleTransition);
+  bar.addEventListener('transitionend', onTrackStyleTransition);
+  // A strip that changes size repaints its canvas at the new size.
+  const trackResize = typeof ResizeObserver === 'function' ? new ResizeObserver(() => { if (trackCanvas) paintTrack(); }) : undefined;
+  trackResize?.observe(track);
   let handles: HTMLButtonElement[] = [];
+  /** One stem per stop, at the stop's true place; the swatch above it may stop short of an end. */
+  let stems: HTMLSpanElement[] = [];
 
   const stopsHeader = element('div', 'dialkit-bg-stops-header');
   const stopsTitle = element('span', 'dialkit-bg-stops-title', 'Stops');
-  const reverseButton = iconButton('dialkit-bg-reverse', 'Reverse stops', ICON_REVERSE);
   const addButton = iconButton('dialkit-bg-add', 'Add stop', ICON_PLUS);
-  stopsHeader.append(stopsTitle, reverseButton, addButton);
+  stopsHeader.append(stopsTitle, addButton);
   const stopsList = element('div', 'dialkit-bg-stops');
+  /** Reads `--dial-bg-grip-style` and puts its name on the list. */
+  const syncGripStyle = () => {
+    const raw = getComputedStyle(stopsList).getPropertyValue('--dial-bg-grip-style').trim();
+    const name = GRIP_STYLES[raw] ?? 'column-hover';
+    if (stopsList.dataset.gripStyle !== name) stopsList.dataset.gripStyle = name;
+  };
+  // The theme registers --dial-bg-grip-style as an integer and transitions it
+  // on the list for 1ms, so a change to it (a host's Look panel, a theme
+  // switch) fires a transition here and the control re-renders. Without
+  // @property support, the next render picks the change up.
+  const onGripStyleTransition = (event: TransitionEvent) => {
+    if (event.target === stopsList && event.propertyName === '--dial-bg-grip-style') render();
+  };
+  stopsList.addEventListener('transitionrun', onGripStyleTransition);
+  stopsList.addEventListener('transitionend', onGripStyleTransition);
   // Rows are keyed by an id that travels with each stop, so a stop that
   // moves keeps its row (and its focus) and the row slides to its place.
   let nextStopId = 0;
@@ -457,9 +597,6 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
     renderSelection();
   };
 
-  reverseButton.addEventListener('click', () => {
-    commitEntries(entries().map(({ id, stop }) => ({ id, stop: { ...stop, at: Math.round((100 - stop.at) * 100) / 100 } })));
-  });
   addButton.addEventListener('click', () => addStopAt(widestGapMiddle(value.gradient.stops)));
 
   // Dragging a handle moves its stop; a press on the empty bar adds a stop there and drags it.
@@ -481,6 +618,14 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
     delete bar.dataset.dragging;
     if (bar.hasPointerCapture(id)) bar.releasePointerCapture(id);
   };
+  // How the user last acted, for the strip's focus ring (see the theme): any
+  // press marks the pointer, any key clears it. Kept for the whole document,
+  // and in the capture phase, so it holds whatever the press did next: a chip
+  // rebuilt by a new stop, a gizmo or a row press that moved the selection.
+  const markPointer = () => { bar.dataset.input = 'pointer'; };
+  const markKeyboard = () => { delete bar.dataset.input; };
+  document.addEventListener('pointerdown', markPointer, true);
+  document.addEventListener('keydown', markKeyboard, true);
   bar.addEventListener('pointerdown', event => {
     if (event.button !== 0 || drag) return;
     const handle = (event.target as HTMLElement).closest<HTMLButtonElement>('.dialkit-bg-handle');
@@ -512,6 +657,12 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
 
   const buildHandles = () => {
     handlesLayer.replaceChildren();
+    stems = value.gradient.stops.map(() => {
+      const stem = element('span', 'dialkit-bg-stem');
+      stem.setAttribute('aria-hidden', 'true');
+      handlesLayer.append(stem);
+      return stem;
+    });
     handles = value.gradient.stops.map((_, i) => {
       const handle = element('button', 'dialkit-bg-handle');
       handle.setAttribute('role', 'slider');
@@ -554,8 +705,19 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
     const rowRoot = element('div', 'dialkit-bg-stop');
     rowRoot.addEventListener('pointerdown', () => select(index()));
     rowRoot.addEventListener('focusin', () => select(index()));
-    const grip = iconButton('dialkit-bg-stop-grip', 'Reorder stop', ICON_GRIP);
+    const grip = element('button', 'dialkit-bg-icon-button dialkit-bg-stop-grip');
+    grip.setAttribute('aria-label', 'Reorder stop');
     grip.setAttribute('aria-keyshortcuts', 'Alt+ArrowUp Alt+ArrowDown');
+    // The Column grip: the "···" of the Ease copy menu (ICON_MORE, the same
+    // stroke), turned upright, its box cropped to the dots' width.
+    const column = strokeIcon(ICON_MORE);
+    column.setAttribute('viewBox', '9 0 6 24');
+    column.setAttribute('stroke-width', String(ICON_MORE_STROKE));
+    const upright = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    upright.setAttribute('transform', 'rotate(90 12 12)');
+    upright.append(...Array.from(column.childNodes));
+    column.append(upright);
+    grip.append(column);
     const at = numberField({
       className: 'dialkit-bg-stop-at',
       label: () => `Stop ${index() + 1} position`,
@@ -565,6 +727,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
       step: 1,
       read: () => stop()?.at ?? 0,
       apply: n => updateStop(index(), { at: Math.round(n * 100) / 100 }),
+      onScrub: active => { scrubbingId = active ? id : undefined; },
     });
     const colorHost = element('div', 'dialkit-color-host dialkit-bg-stop-color');
     const row: StopRow = {
@@ -581,6 +744,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
         step: 1,
         read: () => stop()?.alpha ?? 100,
         apply: n => updateStop(index(), { alpha: Math.round(n * 100) / 100 }),
+        onScrub: active => { scrubbingId = active ? id : undefined; },
       }),
       color: mountColorControl(colorHost, {
         label: `Stop ${index() + 1}`,
@@ -590,6 +754,8 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
       remove: iconButton('dialkit-bg-stop-remove', 'Remove stop', ICON_MINUS),
     };
     row.remove.addEventListener('click', () => removeStop(index()));
+    const pickerRow = colorHost.querySelector('.dialkit-color-control');
+    if (pickerRow) pickerWatch.observe(pickerRow, { attributes: true, attributeFilter: ['data-open'] });
     bindRowDrag(row, index);
     rowRoot.append(grip, at.root, colorHost, row.alpha.root, row.remove);
     return row;
@@ -611,6 +777,8 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
   // follows the pointer, the rows it passes slide one row aside, and the
   // value (and the bar) follow live. On release the row glides into its
   // slot, and only then does the DOM take the new order, so nothing jumps.
+  /** The row whose position or opacity field is being dragged; it keeps its place in the DOM. */
+  let scrubbingId: number | undefined;
   let rowDrag: {
     id: number; pointerId: number; startY: number; lifted: boolean;
     from: number; to: number; offset: number; step: number; settling: boolean;
@@ -645,19 +813,28 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
     render();
   };
   const bindRowDrag = (row: StopRow, index: () => number) => {
-    const { grip } = row;
-    grip.addEventListener('pointerdown', event => {
-      if (event.button !== 0 || rowDrag) return;
-      // No focus from a press, as in the version list: the grip shows no ring after a drag.
+    const { grip, root: rowRoot } = row;
+    // The press starts on the grip, or, in the Row style, on any part of the
+    // row that has no press of its own (its padding, the gaps, the fields'
+    // edges), as a version row drags from anywhere. The row holds the
+    // pointer, so every later event reaches the handlers below once.
+    rowRoot.addEventListener('pointerdown', event => {
+      if (event.button !== 0 || rowDrag || row.leaving) return;
+      const target = event.target as Element;
+      const onGrip = !!target.closest('.dialkit-bg-stop-grip');
+      if (!onGrip && (stopsList.dataset.gripStyle !== 'row' || target.closest(ROW_DRAG_EXCLUDE))) return;
+      // No focus from a press, as in the version list: no ring after a drag.
       event.preventDefault();
       const from = index();
       rowDrag = {
         id: row.id, pointerId: event.pointerId, startY: event.clientY, lifted: false,
         from, to: from, offset: 0, step: 0, settling: false, base: entries(), selectId: stopIds[selected],
       };
-      grip.setPointerCapture(event.pointerId);
+      // A pointer that is no longer active cannot be held: no drag then,
+      // rather than a drag that never ends and blocks the next one.
+      try { rowRoot.setPointerCapture(event.pointerId); } catch { rowDrag = undefined; }
     });
-    grip.addEventListener('pointermove', event => {
+    rowRoot.addEventListener('pointermove', event => {
       const drag = rowDrag;
       if (!drag || drag.id !== row.id || drag.pointerId !== event.pointerId || drag.settling) return;
       const dy = event.clientY - drag.startY;
@@ -686,7 +863,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
     const release = (event: PointerEvent) => {
       const drag = rowDrag;
       if (!drag || drag.id !== row.id || drag.pointerId !== event.pointerId || drag.settling) return;
-      if (grip.hasPointerCapture(event.pointerId)) grip.releasePointerCapture(event.pointerId);
+      if (rowRoot.hasPointerCapture(event.pointerId)) rowRoot.releasePointerCapture(event.pointerId);
       if (!drag.lifted) { rowDrag = undefined; return; }
       drag.settling = true;
       stopsList.dataset.settling = 'true';
@@ -704,9 +881,9 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
       // A safety net, in case no transitionend comes (the row was hidden).
       timer = window.setTimeout(done, 400);
     };
-    grip.addEventListener('pointerup', release);
-    grip.addEventListener('pointercancel', release);
-    grip.addEventListener('lostpointercapture', release);
+    rowRoot.addEventListener('pointerup', release);
+    rowRoot.addEventListener('pointercancel', release);
+    rowRoot.addEventListener('lostpointercapture', release);
     grip.addEventListener('keydown', event => {
       if (!event.altKey || event.metaKey || event.ctrlKey || rowDrag) return;
       if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
@@ -720,14 +897,32 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
     });
   };
 
-  /** Puts the live rows in the stops' order, moving as few as possible, and keeps the focus. */
+  /**
+   * Puts the live rows in the stops' order by moving the other rows around
+   * one row that stays in the DOM: the row being scrubbed, else the row
+   * holding the focus. Moving a node drops its pointer capture and its
+   * focus, so a scrub that carries its stop past a neighbour would lose the
+   * drag. The rows still slide to their places (syncRows).
+   */
   const placeRows = () => {
     const active = document.activeElement;
     const rows = liveRows();
-    rows.forEach((row, i) => {
-      const at = stopsList.children[i];
-      if (at !== row.root) stopsList.insertBefore(row.root, at ?? null);
-    });
+    if (rows.length === 0) return;
+    const held = rows.find(row => row.id === scrubbingId)
+      ?? rows.find(row => active instanceof Node && row.root.contains(active))
+      ?? rows[0];
+    const at = rows.indexOf(held);
+    if (!held.root.parentNode) stopsList.append(held.root);
+    for (let i = at - 1, next: Element = held.root; i >= 0; i--) {
+      const el = rows[i].root;
+      if (el.nextElementSibling !== next || el.parentNode !== stopsList) stopsList.insertBefore(el, next);
+      next = el;
+    }
+    for (let i = at + 1, previous: Element = held.root; i < rows.length; i++) {
+      const el = rows[i].root;
+      if (previous.nextElementSibling !== el) previous.after(el);
+      previous = el;
+    }
     if (active instanceof HTMLElement && active !== document.activeElement && active.isConnected && stopsList.contains(active)) {
       active.focus({ preventScroll: true });
     }
@@ -804,8 +999,118 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
     }
   };
 
+  // ── Gizmo mode ──
+  // Opening a stop row's colour picker turns on the gizmo over the host's
+  // canvas (BackgroundHost.gizmoTarget), with that stop selected, as in Figma.
+  // The picker and the gizmo stay while the user works on the gradient: the
+  // gizmo, the picker, and the gradient's own controls in the panel. A press
+  // anywhere else closes the picker (its own rule), or Escape does, and the
+  // gizmo goes with it. The picker follows the selected stop.
+  /** The row whose colour picker is open; undefined when the gizmo is off. */
+  let gizmoRowId: number | undefined;
+  let gizmo: ReturnType<typeof mountGradientGizmo> | undefined;
+  /** A press on a row's swatch, whose own click is about to open its picker. */
+  let pressedSwatchRowId: number | undefined;
+  const pickerOpen = (row: StopRow) => row.root.querySelector('.dialkit-color-control')?.hasAttribute('data-open') ?? false;
+  const toggleRowPicker = (row: StopRow) => row.root.querySelector<HTMLButtonElement>('.dialkit-color-swatch')?.click();
+  /** Under the panel: one less than the highest stacking order around the control. */
+  const gizmoZIndex = () => {
+    let highest = Number.NaN;
+    for (let el: HTMLElement | null = host; el; el = el.parentElement) {
+      const z = Number.parseInt(getComputedStyle(el).zIndex, 10);
+      if (Number.isFinite(z)) highest = Number.isFinite(highest) ? Math.max(highest, z) : z;
+    }
+    return Number.isFinite(highest) ? highest - 1 : 9998;
+  };
+  const gizmoProps = () => ({ gradient: value.gradient, selected, themeSource: getDialKitPortalRoot(host), zIndex: gizmoZIndex() });
+  const ensureGizmo = () => {
+    if (gizmo || gizmoRowId === undefined || value.mode !== 'gradient') return;
+    const target = getBackgroundHost().gizmoTarget?.();
+    if (!target) return;
+    gizmo = mountGradientGizmo(target, gizmoProps(), {
+      onHandles: handles => setGradient({ ...value.gradient, handles }),
+      onSelect: index => { select(index); render(); followSelection(); },
+      onStopMove: (index, at) => updateStop(index, { at }),
+      onStopAdd: at => { addStopAt(at); followSelection(); },
+    });
+  };
+  const enterGizmo = (rowId: number) => {
+    gizmoRowId = rowId;
+    const index = stopIds.indexOf(rowId);
+    if (index >= 0 && index !== selected) { selected = index; renderSelection(); }
+    root.dataset.gizmo = 'true';
+    document.addEventListener('keydown', gizmoEscape);
+    document.addEventListener('pointerdown', gizmoPressElsewhere, true);
+    ensureGizmo();
+    gizmo?.update(gizmoProps());
+  };
+  const exitGizmo = () => {
+    gizmoRowId = undefined;
+    delete root.dataset.gizmo;
+    document.removeEventListener('keydown', gizmoEscape);
+    document.removeEventListener('pointerdown', gizmoPressElsewhere, true);
+    gizmo?.destroy();
+    gizmo = undefined;
+  };
+  /** Escape with the focus outside the picker: close the picker, and the gizmo with it. */
+  function gizmoEscape(event: KeyboardEvent) {
+    if (event.key !== 'Escape' || event.defaultPrevented || gizmoRowId === undefined || shapeMenu) return;
+    const row = rowById.get(gizmoRowId);
+    if (row && pickerOpen(row)) toggleRowPicker(row);
+    else exitGizmo();
+  }
+  /**
+   * A press anywhere but the gizmo, the picker, or the gradient's own
+   * controls closes the picker, and the gizmo with it. It listens before
+   * anything else can stop the press (the capture phase), so a host button
+   * that keeps its press to itself still ends the mode.
+   */
+  function gizmoPressElsewhere(event: PointerEvent) {
+    if (gizmoRowId === undefined) return;
+    const target = event.target as Node;
+    const inside = gradientPane.contains(target)
+      || !!gizmo?.element.contains(target)
+      || !!shapeMenu?.contains(target)
+      || [...document.querySelectorAll('.dialkit-color-popover')].some(popover => popover.contains(target));
+    if (inside) return;
+    const row = rowById.get(gizmoRowId);
+    if (row && pickerOpen(row)) toggleRowPicker(row);
+    else exitGizmo();
+  }
+  /** When the selection moves to another stop, its row's picker opens in place of the old one. */
+  function followSelection() {
+    if (gizmoRowId === undefined) return;
+    const next = liveRows()[selected];
+    if (!next || next.id === gizmoRowId) return;
+    const previous = rowById.get(gizmoRowId);
+    gizmoRowId = next.id;
+    if (previous && pickerOpen(previous)) toggleRowPicker(previous);
+    // A press on the new row's swatch opens it with its own click.
+    if (pressedSwatchRowId !== next.id && !pickerOpen(next)) toggleRowPicker(next);
+  }
+  // A row's picker opening or closing turns the gizmo on or off.
+  const pickerWatch = new MutationObserver(records => {
+    for (const record of records) {
+      const control = record.target as HTMLElement;
+      const row = [...rowById.values()].find(r => r.root.contains(control));
+      if (!row) continue;
+      if (control.hasAttribute('data-open')) enterGizmo(row.id);
+      else if (row.id === gizmoRowId) exitGizmo();
+    }
+  });
+  // While the gizmo is on, presses and focus in the gradient's controls belong
+  // to its editing: they stop here, so the picker's "elsewhere" never sees them.
+  gradientPane.addEventListener('pointerdown', event => {
+    const swatchRow = (event.target as Element).closest('.dialkit-color-swatch') ? (event.target as Element).closest('.dialkit-bg-stop') : null;
+    pressedSwatchRowId = swatchRow ? [...rowById.values()].find(r => r.root === swatchRow)?.id : undefined;
+    queueMicrotask(() => { if (pressedSwatchRowId !== undefined) setTimeout(() => { pressedSwatchRowId = undefined; }, 0); });
+    if (gizmoRowId !== undefined) { event.stopPropagation(); followSelection(); }
+  });
+  gradientPane.addEventListener('focusin', event => { if (gizmoRowId !== undefined) event.stopPropagation(); });
+
   const renderSelection = () => {
     handles.forEach((handle, i) => handle.toggleAttribute('data-selected', i === selected));
+    stems.forEach((stem, i) => stem.toggleAttribute('data-selected', i === selected));
     liveRows().forEach((row, i) => row.root.toggleAttribute('data-selected', i === selected));
   };
 
@@ -1196,16 +1501,17 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
     if (heightAnim && Math.abs(after - heightTarget) < 0.5) return;
     if (Math.abs(after - beforeHeight) < 0.5) { heightAnim?.cancel(); return; }
     heightAnim?.cancel();
-    root.style.overflow = 'clip';
+    // Only vertically: the end swatches' rings and the margin grip stand past the sides.
+    root.style.overflowY = 'clip';
     heightTarget = after;
     const anim = animateSpring(root, p => ({ height: `${beforeHeight + (after - beforeHeight) * p}px` }), LAYOUT_SPRING.visualDuration, LAYOUT_SPRING.bounce);
     heightAnim = anim;
-    if (!anim) { root.style.overflow = ''; heightTarget = -1; return; }
+    if (!anim) { root.style.overflowY = ''; heightTarget = -1; return; }
     const done = () => {
       if (heightAnim !== anim) return;
       heightAnim = undefined;
       heightTarget = -1;
-      root.style.overflow = '';
+      root.style.overflowY = '';
     };
     anim.onfinish = done;
     anim.oncancel = done;
@@ -1234,14 +1540,21 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
     const gradient = value.gradient;
     const stops = gradient.stops;
     selected = clamp(selected, 0, stops.length - 1);
-    shapes.set(gradient.shape);
-    angleRow.set(gradient.shape !== 'radial');
-    angle.sync();
-    trackPaint.style.backgroundImage = stripCss(gradient);
+    shapeValue.textContent = SHAPE_LABEL[gradient.shape];
+    placeShapeMenu();
+    if (gizmoRowId !== undefined && !rowById.has(gizmoRowId)) exitGizmo();
+    if (gizmoRowId !== undefined) {
+      ensureGizmo();
+      gizmo?.update(gizmoProps());
+    }
+    syncTrackStyle();
+    paintTrack();
     if (handles.length !== stops.length) buildHandles();
     handles.forEach((handle, i) => {
       const stop = stops[i];
-      handle.style.left = `${stop.at}%`;
+      // The swatch's centre: its true place, stopped half a swatch from each end.
+      handle.style.setProperty('--dial-bg-at', `${stop.at}%`);
+      stems[i]?.style.setProperty('--dial-bg-at', `${stop.at}%`);
       handle.style.setProperty('--dial-bg-stop', stopCssColor(stop));
       handle.setAttribute('aria-label', `Stop ${i + 1} position`);
       handle.setAttribute('aria-valuenow', String(stop.at));
@@ -1249,6 +1562,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
       // The selected handle draws on top of a neighbour at the same place.
       handle.style.zIndex = i === selected ? '2' : '1';
     });
+    syncGripStyle();
     reconcileIds();
     syncRows(before, listTop, animate);
     liveRows().forEach((row, i) => {
@@ -1320,6 +1634,12 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
       closeOptions();
       solid.destroy();
       heightAnim?.cancel();
+      closeShapeMenu();
+      document.removeEventListener('pointerdown', markPointer, true);
+      document.removeEventListener('keydown', markKeyboard, true);
+      trackResize?.disconnect();
+      pickerWatch.disconnect();
+      exitGizmo();
       rowDrag = undefined;
       rowById.forEach(row => dropRow(row));
       rowById.clear();
@@ -1334,7 +1654,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
  * grow from zero, and a negative bottom margin cancels the parent's gap
  * while it is closed. The first `set` only places it, with no animation.
  */
-function conditionalRow(row: HTMLElement, parent: HTMLElement, axis: 'height' | 'width' = 'height') {
+function conditionalRow(row: HTMLElement, parent: HTMLElement) {
   const { visualDuration, bounce } = LAYOUT_SPRING;
   let shown: boolean | undefined;
   let animation: Animation | undefined;
@@ -1347,23 +1667,12 @@ function conditionalRow(row: HTMLElement, parent: HTMLElement, axis: 'height' | 
       animation?.cancel();
       animation = undefined;
       if (first || !row.isConnected) { row.hidden = !show; return; }
-      const style = getComputedStyle(parent);
-      const gap = Number.parseFloat(axis === 'height' ? style.rowGap : style.columnGap) || 0;
+      const gap = Number.parseFloat(getComputedStyle(parent).rowGap) || 0;
       row.hidden = false;
-      const size = axis === 'height' ? (show ? row.scrollHeight : row.offsetHeight) : row.offsetWidth;
-      // Sideways, the padding shrinks too, or the row could not get narrower than it.
-      const own = getComputedStyle(row);
-      const padLeft = Number.parseFloat(own.paddingLeft) || 0;
-      const padRight = Number.parseFloat(own.paddingRight) || 0;
+      const size = show ? row.scrollHeight : row.offsetHeight;
       animation = animateSpring(row, p => {
         const t = show ? p : 1 - p;
-        const shut = 1 - clamp(t, 0, 1);
-        return axis === 'height'
-          ? { height: `${Math.max(0, size * t)}px`, opacity: String(clamp(t, 0, 1)), marginBottom: `${-gap * shut}px` }
-          : {
-            flexBasis: `${Math.max(0, size * t)}px`, minWidth: '0px', opacity: String(clamp(t, 0, 1)), marginLeft: `${-gap * shut}px`,
-            paddingLeft: `${padLeft * clamp(t, 0, 1)}px`, paddingRight: `${padRight * clamp(t, 0, 1)}px`,
-          };
+        return { height: `${Math.max(0, size * t)}px`, opacity: String(clamp(t, 0, 1)), marginBottom: `${-gap * (1 - clamp(t, 0, 1))}px` };
       }, visualDuration, bounce);
       if (!show) {
         if (!animation) row.hidden = true;

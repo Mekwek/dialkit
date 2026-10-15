@@ -41,10 +41,27 @@ interface BackgroundStop {
     /** Opacity, 0..100 (%). */
     alpha: number;
 }
+type GradientShape = 'linear' | 'radial' | 'angular' | 'diamond';
+/** A point as a fraction of the canvas box: x 0 = left, 1 = right; y 0 = top, 1 = bottom. May go outside 0..1. */
+interface GradientPoint {
+    x: number;
+    y: number;
+}
+/**
+ * Figma's three gradient handles. Linear runs from `start` to `end` (`width`
+ * is unused but kept). Radial, Diamond and Angular: `start` is the centre,
+ * `end` sets the main radius and its direction, and `width` sets the radius
+ * across it (an ellipse). Switching shape keeps all three. See
+ * gradientFrame and gradientParamAt for the exact shading rule.
+ */
+interface GradientHandles {
+    start: GradientPoint;
+    end: GradientPoint;
+    width: GradientPoint;
+}
 interface BackgroundGradient {
-    shape: 'linear' | 'radial';
-    /** Degrees 0..360, CSS convention: 0 points up, 90 right, 180 down. Unused for radial. */
-    angle: number;
+    shape: GradientShape;
+    handles: GradientHandles;
     /** 2..8 stops, kept sorted by `at`. */
     stops: BackgroundStop[];
 }
@@ -85,15 +102,183 @@ interface BackgroundConfig {
     type: 'background';
     default?: BackgroundValue;
 }
+declare const GRADIENT_SHAPES: GradientShape[];
 declare function defaultBackgroundValue(): BackgroundValue;
+/** The default handles: a top to bottom linear gradient, each handle 10% in from the canvas's edges. */
+declare function defaultGradientHandles(): GradientHandles;
+/**
+ * The handles for a value saved before handles existed (it had `angle`).
+ *
+ * Linear, CSS angle θ (0 points up, 90 right, 180 down): the line passes
+ * through the centre (0.5, 0.5) along d = (sin θ, -cos θ), with half length
+ * h = (|sin θ| + |cos θ|) / 2 in canvas fractions, which is CSS's own
+ * gradient line, exact on a square canvas and close otherwise:
+ *   start = centre - d * h, end = centre + d * h,
+ *   width = centre + (-d.y, d.x) * h  (where Figma puts it: θ = 180 gives
+ *   start (0.5, 0), end (0.5, 1), width (0, 0.5), edge to edge).
+ * Radial (centred, as CSS's `radial-gradient(circle at center)`):
+ *   start = (0.5, 0.5), end = (1, 0.5), width = (0.5, 0).
+ * The theca engine converts old values with this same rule.
+ */
+declare function legacyGradientHandles(shape: 'linear' | 'radial', angle: number): GradientHandles;
+/**
+ * The gradient's frame in pixels for a canvas of `width` x `height`.
+ * Main axis: from start (the centre) to end, length r1, unit (ax, ay).
+ * Cross axis: unit (nx, ny), perpendicular to the main axis on the side the
+ * width point lies; r2 is the width point's distance from the main axis line
+ * (so any width point gives an ellipse, Figma's default included).
+ */
+interface GradientFrame {
+    cx: number;
+    cy: number;
+    ax: number;
+    ay: number;
+    nx: number;
+    ny: number;
+    r1: number;
+    r2: number;
+}
+declare function gradientFrame(handles: GradientHandles, width: number, height: number): GradientFrame;
+/**
+ * Where a pixel falls on the gradient, as t: 0 at the first colour position
+ * (0 %), 1 at the last (100 %). With d = pixel - centre, u = (d · a) / r1 and
+ * v = (d · n) / r2 (see gradientFrame):
+ *   linear: t = u            (beyond 0..1 the end colours continue)
+ *   radial: t = sqrt(u² + v²)
+ *   diamond: t = |u| + |v|
+ *   angular: t = atan2(v, u) / 2π, wrapped into 0..1 (0 % on the end handle's
+ *     direction, growing towards the width side, 360° = 100 %)
+ */
+declare function gradientParamAt(shape: GradientShape, frame: GradientFrame, px: number, py: number): number;
 /**
  * A fresh, valid value. Each field that is missing or invalid falls back to
  * the same field of `fallback` (the control's default), so one bad field
  * never resets the rest.
  */
 declare function normalizeBackgroundValue(value: unknown, fallback?: BackgroundValue): BackgroundValue;
-/** The gradient as a CSS image, for previews and for hosts that paint with CSS. */
+/**
+ * The gradient as a CSS image, for small previews (saved swatches) and the
+ * panel's strip (`direction`, the stops left to right). CSS cannot draw every
+ * Figma gradient, so this is close, not exact; it assumes a square box:
+ *   linear: exact on a square box (the stops are placed along CSS's own line);
+ *   radial and diamond: an ellipse at the centre, its radii on the nearest
+ *     box axes (CSS ellipses cannot turn);
+ *   angular: a conic gradient from the end handle's direction (round, not
+ *     elliptical).
+ * Hosts that draw the real thing use gradientFrame and gradientParamAt, or
+ * paintBackgroundPreview.
+ */
 declare function backgroundGradientCss(gradient: BackgroundGradient, direction?: string): string;
+
+/**
+ * Draws a background value into a 2D canvas, at the canvas's own pixel size:
+ * the solid colour, or the gradient with the exact shading rule
+ * (gradientFrame and gradientParamAt), all four shapes. For hosts without a
+ * WebGL canvas, such as a workbench preview. Media is not drawn: the canvas
+ * is cleared (the host shows its own media).
+ */
+declare function paintBackgroundPreview(canvas: HTMLCanvasElement, value: BackgroundValue): void;
+
+/**
+ * The on-canvas gradient gizmo, as in Figma: handle dots that move, scale and
+ * rotate the gradient, the stops as swatches on its line (or around its rim
+ * for Angular) that slide along it, and a click on the line that adds a stop.
+ * The maths below is pure (no DOM) so it is tested on its own; the gizmo
+ * itself is plain DOM, mounted over the host's canvas.
+ */
+/** The canvas box in CSS pixels. */
+interface GizmoBox {
+    width: number;
+    height: number;
+}
+interface Vec {
+    x: number;
+    y: number;
+}
+/** The three handles as drawn, in pixels. The width handle is shown on the cross axis, at its radius. */
+declare function gizmoPoints(handles: GradientHandles, box: GizmoBox): {
+    start: Vec;
+    end: Vec;
+    width: Vec;
+};
+/**
+ * Turns the end and width handles around `start` by `radians` (positive is
+ * clockwise on screen). Lengths and the ellipse's shape do not change.
+ */
+declare function rotateGradientHandles(handles: GradientHandles, radians: number, box: GizmoBox): GradientHandles;
+/**
+ * The end handle follows the pointer; the centre stays. The main radius and
+ * the direction change together, and the cross radius scales with the main
+ * one, so the ellipse keeps its shape.
+ */
+declare function dragGradientEnd(handles: GradientHandles, pointer: Vec, box: GizmoBox): GradientHandles;
+/** The centre (start) follows the pointer; the end handle stays, and the ellipse keeps its shape. */
+declare function dragGradientCentre(handles: GradientHandles, pointer: Vec, box: GizmoBox): GradientHandles;
+/**
+ * The width handle sets the cross radius only: the pointer's distance from
+ * the main axis. Crossing the axis moves the handle to the other side.
+ */
+declare function dragGradientWidth(handles: GradientHandles, pointer: Vec, box: GizmoBox): GradientHandles;
+/**
+ * The stop position (0..100) under a pointer: its projection on the line from
+ * the centre to the end handle, or for Angular its angle around the centre
+ * from the end handle's direction.
+ */
+declare function stopPositionAt(shape: GradientShape, handles: GradientHandles, pointer: Vec, box: GizmoBox): number;
+/**
+ * Where a stop's swatch goes. `x, y` is the stop's point on the line (or on
+ * the ellipse's rim for Angular); `ox, oy` the unit direction the swatch
+ * stands off in (one side of the line, or outward from the rim); `rotation`
+ * turns the swatch so its pointer points back at the line.
+ */
+declare function stopPlacement(shape: GradientShape, handles: GradientHandles, at: number, box: GizmoBox): {
+    x: number;
+    y: number;
+    ox: number;
+    oy: number;
+    rotation: number;
+};
+/**
+ * The angle the tooltip shows: the main axis's direction (centre to end
+ * handle), in whole degrees, 0 when it points down, -90 right, 90 left,
+ * 180 up, as Figma shows it. Any handle's rotate ring shows this same value.
+ */
+declare function gizmoAngle(handles: GradientHandles, box: GizmoBox): number;
+declare const formatGizmoAngle: (degrees: number) => string;
+interface GradientGizmoProps {
+    gradient: BackgroundGradient;
+    /** The selected stop's index. */
+    selected: number;
+    /**
+     * The panel's DialKit root: the gizmo copies its `--dial-*` tokens, so it
+     * draws with the panel's theme. The gizmo is not a `.dialkit-root` itself:
+     * hosts style those as panels (theca makes every `.dialkit-root` a fixed,
+     * full-screen layer whose children take the pointer), and the gizmo must
+     * take presses only on its own parts.
+     */
+    themeSource?: HTMLElement | null;
+    /** Its stacking order: under the DialKit panel, above the host's canvas. */
+    zIndex?: number;
+}
+interface GradientGizmoCallbacks {
+    onHandles: (handles: GradientHandles) => void;
+    onSelect: (index: number) => void;
+    /** Moves the selected stop (it is selected while it is dragged). */
+    onStopMove: (index: number, at: number) => void;
+    /** Adds a stop at `at`; the new stop becomes the selected one. */
+    onStopAdd: (at: number) => void;
+}
+/**
+ * Mounts the gizmo over `target`: a fixed overlay sized to the target's box,
+ * in document.body, above the host's canvas and under the DialKit panel.
+ * Presses on the gizmo stop there, so a colour picker open in the panel stays
+ * open; everything else passes through to the canvas.
+ */
+declare function mountGradientGizmo(target: HTMLElement, initial: GradientGizmoProps, callbacks: GradientGizmoCallbacks): {
+    element: HTMLDivElement;
+    update(next: GradientGizmoProps): void;
+    destroy(): void;
+};
 
 /**
  * What the host gives the background control. The control never uploads or
@@ -108,6 +293,12 @@ interface BackgroundHost {
     saveGradient?: (gradient: BackgroundGradient) => Promise<SavedGradient>;
     /** Deletes a saved gradient. Without it, saved gradients show no delete button. */
     deleteGradient?: (id: string) => Promise<void>;
+    /**
+     * The element the gradient gizmo draws over (the host's canvas). The gizmo
+     * is a fixed overlay sized to its box, in document.body, above it and under
+     * the DialKit panel. Without it there is no gizmo.
+     */
+    gizmoTarget?: () => HTMLElement | null;
 }
 type Listener$1 = () => void;
 /** Sets the host's upload, media URL and saved-gradient hooks. Replaces the previous host. */
@@ -1043,4 +1234,4 @@ interface ControlRendererProps {
 }
 declare function ControlRenderer(props: ControlRendererProps): solid_js.JSX.Element;
 
-export { type ActionConfig, type BackgroundConfig, BackgroundControl, type BackgroundControlProps, type BackgroundGradient, type BackgroundHost, type BackgroundMedia, type BackgroundMediaDisplay, type BackgroundStop, type BackgroundValue, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type CreateDialOptions, type CreateDialTimelineOptions, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, type EasingConfig, EasingVisualization, Folder, type ImageConfig, ImageControl, type ImageOption, type PanelConfig, type Preset, PresetManager, type ResolvedValues, RootPanel, type SavedGradient, type SelectConfig, SelectControl, type ShortcutConfig, ShortcutsMenu, Slider, type SpringConfig, SpringControl, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, Toggle, type TransitionConfig, TransitionControl, type VisibleWhen, type VisibleWhenValue, backgroundGradientCss, createDialKit, createDialKitController, createDialTimeline, defaultBackgroundValue, getBackgroundHost, getSavedGradients, normalizeBackgroundValue, setBackgroundHost, setSavedGradients, subscribeBackgroundHost, unwrapVisibility, withVisibility };
+export { type ActionConfig, type BackgroundConfig, BackgroundControl, type BackgroundControlProps, type BackgroundGradient, type BackgroundHost, type BackgroundMedia, type BackgroundMediaDisplay, type BackgroundStop, type BackgroundValue, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type CreateDialOptions, type CreateDialTimelineOptions, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, type EasingConfig, EasingVisualization, Folder, GRADIENT_SHAPES, type GizmoBox, type GradientFrame, type GradientGizmoCallbacks, type GradientGizmoProps, type GradientHandles, type GradientPoint, type GradientShape, type ImageConfig, ImageControl, type ImageOption, type PanelConfig, type Preset, PresetManager, type ResolvedValues, RootPanel, type SavedGradient, type SelectConfig, SelectControl, type ShortcutConfig, ShortcutsMenu, Slider, type SpringConfig, SpringControl, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, Toggle, type TransitionConfig, TransitionControl, type VisibleWhen, type VisibleWhenValue, backgroundGradientCss, createDialKit, createDialKitController, createDialTimeline, defaultBackgroundValue, defaultGradientHandles, dragGradientCentre, dragGradientEnd, dragGradientWidth, formatGizmoAngle, getBackgroundHost, getSavedGradients, gizmoAngle, gizmoPoints, gradientFrame, gradientParamAt, legacyGradientHandles, mountGradientGizmo, normalizeBackgroundValue, paintBackgroundPreview, rotateGradientHandles, setBackgroundHost, setSavedGradients, stopPlacement, stopPositionAt, subscribeBackgroundHost, unwrapVisibility, withVisibility };

@@ -38,10 +38,27 @@ interface BackgroundStop {
     /** Opacity, 0..100 (%). */
     alpha: number;
 }
+type GradientShape = 'linear' | 'radial' | 'angular' | 'diamond';
+/** A point as a fraction of the canvas box: x 0 = left, 1 = right; y 0 = top, 1 = bottom. May go outside 0..1. */
+interface GradientPoint {
+    x: number;
+    y: number;
+}
+/**
+ * Figma's three gradient handles. Linear runs from `start` to `end` (`width`
+ * is unused but kept). Radial, Diamond and Angular: `start` is the centre,
+ * `end` sets the main radius and its direction, and `width` sets the radius
+ * across it (an ellipse). Switching shape keeps all three. See
+ * gradientFrame and gradientParamAt for the exact shading rule.
+ */
+interface GradientHandles {
+    start: GradientPoint;
+    end: GradientPoint;
+    width: GradientPoint;
+}
 interface BackgroundGradient {
-    shape: 'linear' | 'radial';
-    /** Degrees 0..360, CSS convention: 0 points up, 90 right, 180 down. Unused for radial. */
-    angle: number;
+    shape: GradientShape;
+    handles: GradientHandles;
     /** 2..8 stops, kept sorted by `at`. */
     stops: BackgroundStop[];
 }

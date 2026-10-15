@@ -89,6 +89,12 @@ export const ICON_LINK = [
 ];
 
 export const ICON_MORE = ['M5 12h.01', 'M12 12h.01', 'M19 12h.01'];
+/**
+ * The stroke the "···" dots are drawn with: the Ease section's copy menu, the
+ * version menu's row dots and the gradient row's Column grip (turned upright)
+ * all draw ICON_MORE with it, in its 24-unit box shown 14px tall.
+ */
+export const ICON_MORE_STROKE = 3;
 
 /** Two overlapping sheets: copy. */
 export const ICON_COPY = [

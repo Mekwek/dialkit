@@ -10,7 +10,7 @@ import { DialStore, resolveDialValues, type DialConfig, type ResolvedValues } fr
 const custom = (): BackgroundValue => ({
   mode: 'gradient',
   color: '#123456',
-  gradient: { shape: 'radial', angle: 90, stops: [{ at: 0, color: '#ff0000', alpha: 50 }, { at: 40, color: '#00ff00', alpha: 100 }, { at: 100, color: '#0000ff', alpha: 100 }] },
+  gradient: { shape: 'radial', handles: { start: { x: 0.5, y: 0.5 }, end: { x: 1, y: 0.5 }, width: { x: 0.5, y: 0 } }, stops: [{ at: 0, color: '#ff0000', alpha: 50 }, { at: 40, color: '#00ff00', alpha: 100 }, { at: 100, color: '#0000ff', alpha: 100 }] },
   media: { key: 'boards/1/bg.mp4', kind: 'video' },
   mediaDisplay: { fit: 'tile', ratio: '4:5', zoom: 1.5, tileScale: 0.4, pinX: -1, pinY: 1 },
 });
@@ -20,7 +20,7 @@ describe('background value', () => {
     assert.deepEqual(defaultBackgroundValue(), {
       mode: 'solid',
       color: '#000000',
-      gradient: { shape: 'linear', angle: 180, stops: [{ at: 0, color: '#000000', alpha: 100 }, { at: 100, color: '#ffffff', alpha: 100 }] },
+      gradient: { shape: 'linear', handles: { start: { x: 0.5, y: 0.1 }, end: { x: 0.5, y: 0.9 }, width: { x: 0.1, y: 0.5 } }, stops: [{ at: 0, color: '#000000', alpha: 100 }, { at: 100, color: '#ffffff', alpha: 100 }] },
       media: null,
       mediaDisplay: { fit: 'fill', ratio: 'source', zoom: 1, tileScale: 0.25, pinX: 0, pinY: 0 },
     });
@@ -39,7 +39,8 @@ describe('background value', () => {
     assert.deepEqual(broken, {
       mode: 'solid',
       color: '#000000',
-      gradient: { shape: 'linear', angle: 90, stops: [{ at: 10, color: '#ffffff', alpha: 100 }, { at: 100, color: '#aabbcc', alpha: 0 }] },
+      // An old value's `angle` (450, so 90: left to right) becomes handles.
+      gradient: { shape: 'linear', handles: { start: { x: 0, y: 0.5 }, end: { x: 1, y: 0.5 }, width: { x: 0.5, y: 1 } }, stops: [{ at: 10, color: '#ffffff', alpha: 100 }, { at: 100, color: '#aabbcc', alpha: 0 }] },
       media: null,
       mediaDisplay: { fit: 'fill', ratio: 'source', zoom: 3, tileScale: 0.05, pinX: 0, pinY: -1 },
     });
@@ -66,9 +67,12 @@ describe('background value', () => {
     assert.deepEqual(gradientColorAt(stops, 20), { color: '#808000', alpha: 75 });
     assert.deepEqual(gradientColorAt(stops, -5), { color: '#ff0000', alpha: 50 });
     assert.equal(widestGapMiddle(stops), 70);
+    // Linear from the centre to the right edge: on CSS's left-to-right line, 0 % sits at 50 %.
     assert.equal(backgroundGradientCss({ ...custom().gradient, shape: 'linear' }),
-      'linear-gradient(90deg, rgb(255 0 0 / 0.5) 0%, rgb(0 255 0 / 1) 40%, rgb(0 0 255 / 1) 100%)');
-    assert.match(backgroundGradientCss(custom().gradient), /^radial-gradient\(circle at center, /);
+      'linear-gradient(90deg, rgb(255 0 0 / 0.5) 50%, rgb(0 255 0 / 1) 70%, rgb(0 0 255 / 1) 100%)');
+    assert.equal(backgroundGradientCss(custom().gradient),
+      'radial-gradient(50% 50% at 50% 50%, rgb(255 0 0 / 0.5) 0%, rgb(0 255 0 / 1) 40%, rgb(0 0 255 / 1) 100%)');
+    assert.match(backgroundGradientCss({ ...custom().gradient, shape: 'angular' }), /^conic-gradient\(from 90deg at 50% 50%, /);
   });
 });
 

@@ -68,6 +68,7 @@ var ICON_LINK = [
   "M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"
 ];
 var ICON_MORE = ["M5 12h.01", "M12 12h.01", "M19 12h.01"];
+var ICON_MORE_STROKE = 3;
 var ICON_COPY = [
   "M9 11a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-7a2 2 0 0 1-2-2z",
   "M5 15a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2"
@@ -91,6 +92,7 @@ export {
   ICON_LOCK_OPEN,
   ICON_LOOP,
   ICON_MORE,
+  ICON_MORE_STROKE,
   ICON_PANEL,
   ICON_PASTE,
   ICON_PAUSE,

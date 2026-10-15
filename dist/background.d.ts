@@ -10,10 +10,27 @@ interface BackgroundStop {
     /** Opacity, 0..100 (%). */
     alpha: number;
 }
+type GradientShape = 'linear' | 'radial' | 'angular' | 'diamond';
+/** A point as a fraction of the canvas box: x 0 = left, 1 = right; y 0 = top, 1 = bottom. May go outside 0..1. */
+interface GradientPoint {
+    x: number;
+    y: number;
+}
+/**
+ * Figma's three gradient handles. Linear runs from `start` to `end` (`width`
+ * is unused but kept). Radial, Diamond and Angular: `start` is the centre,
+ * `end` sets the main radius and its direction, and `width` sets the radius
+ * across it (an ellipse). Switching shape keeps all three. See
+ * gradientFrame and gradientParamAt for the exact shading rule.
+ */
+interface GradientHandles {
+    start: GradientPoint;
+    end: GradientPoint;
+    width: GradientPoint;
+}
 interface BackgroundGradient {
-    shape: 'linear' | 'radial';
-    /** Degrees 0..360, CSS convention: 0 points up, 90 right, 180 down. Unused for radial. */
-    angle: number;
+    shape: GradientShape;
+    handles: GradientHandles;
     /** 2..8 stops, kept sorted by `at`. */
     stops: BackgroundStop[];
 }
@@ -55,6 +72,7 @@ interface BackgroundConfig {
     default?: BackgroundValue;
 }
 declare const BACKGROUND_MODES: BackgroundValue['mode'][];
+declare const GRADIENT_SHAPES: GradientShape[];
 declare const BACKGROUND_FITS: BackgroundMediaDisplay['fit'][];
 declare const BACKGROUND_RATIOS: BackgroundMediaDisplay['ratio'][];
 declare const BACKGROUND_MIN_STOPS = 2;
@@ -70,11 +88,57 @@ declare const BACKGROUND_TILE_SCALE: {
     readonly step: 0.01;
 };
 declare function defaultBackgroundValue(): BackgroundValue;
+/** The default handles: a top to bottom linear gradient, each handle 10% in from the canvas's edges. */
+declare function defaultGradientHandles(): GradientHandles;
+/**
+ * The handles for a value saved before handles existed (it had `angle`).
+ *
+ * Linear, CSS angle θ (0 points up, 90 right, 180 down): the line passes
+ * through the centre (0.5, 0.5) along d = (sin θ, -cos θ), with half length
+ * h = (|sin θ| + |cos θ|) / 2 in canvas fractions, which is CSS's own
+ * gradient line, exact on a square canvas and close otherwise:
+ *   start = centre - d * h, end = centre + d * h,
+ *   width = centre + (-d.y, d.x) * h  (where Figma puts it: θ = 180 gives
+ *   start (0.5, 0), end (0.5, 1), width (0, 0.5), edge to edge).
+ * Radial (centred, as CSS's `radial-gradient(circle at center)`):
+ *   start = (0.5, 0.5), end = (1, 0.5), width = (0.5, 0).
+ * The theca engine converts old values with this same rule.
+ */
+declare function legacyGradientHandles(shape: 'linear' | 'radial', angle: number): GradientHandles;
+declare function normalizeGradientHandles(value: unknown, fallback?: GradientHandles): GradientHandles;
+declare function cloneHandles(handles: GradientHandles): GradientHandles;
+/**
+ * The gradient's frame in pixels for a canvas of `width` x `height`.
+ * Main axis: from start (the centre) to end, length r1, unit (ax, ay).
+ * Cross axis: unit (nx, ny), perpendicular to the main axis on the side the
+ * width point lies; r2 is the width point's distance from the main axis line
+ * (so any width point gives an ellipse, Figma's default included).
+ */
+interface GradientFrame {
+    cx: number;
+    cy: number;
+    ax: number;
+    ay: number;
+    nx: number;
+    ny: number;
+    r1: number;
+    r2: number;
+}
+declare function gradientFrame(handles: GradientHandles, width: number, height: number): GradientFrame;
+/**
+ * Where a pixel falls on the gradient, as t: 0 at the first colour position
+ * (0 %), 1 at the last (100 %). With d = pixel - centre, u = (d · a) / r1 and
+ * v = (d · n) / r2 (see gradientFrame):
+ *   linear: t = u            (beyond 0..1 the end colours continue)
+ *   radial: t = sqrt(u² + v²)
+ *   diamond: t = |u| + |v|
+ *   angular: t = atan2(v, u) / 2π, wrapped into 0..1 (0 % on the end handle's
+ *     direction, growing towards the width side, 360° = 100 %)
+ */
+declare function gradientParamAt(shape: GradientShape, frame: GradientFrame, px: number, py: number): number;
 declare function defaultMediaDisplay(): BackgroundMediaDisplay;
 /** '#rrggbb' lowercase for '#rgb' or '#rrggbb' input, or null. */
 declare function normalizeHex(value: unknown): string | null;
-/** Wraps any finite angle into 0..360 (360 itself stays 360). */
-declare function normalizeAngle(value: number): number;
 /** Stable sort by `at`: stops at the same place keep their order. */
 declare function sortStops(stops: BackgroundStop[]): BackgroundStop[];
 declare function normalizeGradient(value: unknown, fallback?: BackgroundGradient): BackgroundGradient;
@@ -90,6 +154,7 @@ declare function backgroundConfigDefault(config?: Pick<BackgroundConfig, 'defaul
 declare function cloneGradient(gradient: BackgroundGradient): BackgroundGradient;
 declare function cloneBackgroundValue(value: BackgroundValue): BackgroundValue;
 declare function sameGradient(a: BackgroundGradient, b: BackgroundGradient): boolean;
+declare function sameHandles(a: GradientHandles, b: GradientHandles): boolean;
 declare function sameBackgroundValue(a: unknown, b: unknown): boolean;
 /** The color and opacity a sorted gradient shows at `at` (0..100), interpolated in sRGB. */
 declare function gradientColorAt(stops: BackgroundStop[], at: number): {
@@ -110,7 +175,18 @@ declare function moveStopPayload(stops: readonly BackgroundStop[], from: number,
 declare function widestGapMiddle(stops: BackgroundStop[]): number;
 /** A stop as a CSS color, with its opacity. */
 declare function stopCssColor(stop: Pick<BackgroundStop, 'color' | 'alpha'>): string;
-/** The gradient as a CSS image, for previews and for hosts that paint with CSS. */
+/**
+ * The gradient as a CSS image, for small previews (saved swatches) and the
+ * panel's strip (`direction`, the stops left to right). CSS cannot draw every
+ * Figma gradient, so this is close, not exact; it assumes a square box:
+ *   linear: exact on a square box (the stops are placed along CSS's own line);
+ *   radial and diamond: an ellipse at the centre, its radii on the nearest
+ *     box axes (CSS ellipses cannot turn);
+ *   angular: a conic gradient from the end handle's direction (round, not
+ *     elliptical).
+ * Hosts that draw the real thing use gradientFrame and gradientParamAt, or
+ * paintBackgroundPreview.
+ */
 declare function backgroundGradientCss(gradient: BackgroundGradient, direction?: string): string;
 
-export { BACKGROUND_FITS, BACKGROUND_MAX_STOPS, BACKGROUND_MIN_STOPS, BACKGROUND_MODES, BACKGROUND_RATIOS, BACKGROUND_TILE_SCALE, BACKGROUND_ZOOM, type BackgroundConfig, type BackgroundGradient, type BackgroundMedia, type BackgroundMediaDisplay, type BackgroundStop, type BackgroundValue, type SavedGradient, backgroundConfigDefault, backgroundGradientCss, cloneBackgroundValue, cloneGradient, defaultBackgroundValue, defaultMediaDisplay, gradientColorAt, moveItem, moveStopPayload, normalizeAngle, normalizeBackgroundValue, normalizeGradient, normalizeHex, normalizeMediaDisplay, sameBackgroundValue, sameGradient, sortStops, stopCssColor, widestGapMiddle };
+export { BACKGROUND_FITS, BACKGROUND_MAX_STOPS, BACKGROUND_MIN_STOPS, BACKGROUND_MODES, BACKGROUND_RATIOS, BACKGROUND_TILE_SCALE, BACKGROUND_ZOOM, type BackgroundConfig, type BackgroundGradient, type BackgroundMedia, type BackgroundMediaDisplay, type BackgroundStop, type BackgroundValue, GRADIENT_SHAPES, type GradientFrame, type GradientHandles, type GradientPoint, type GradientShape, type SavedGradient, backgroundConfigDefault, backgroundGradientCss, cloneBackgroundValue, cloneGradient, cloneHandles, defaultBackgroundValue, defaultGradientHandles, defaultMediaDisplay, gradientColorAt, gradientFrame, gradientParamAt, legacyGradientHandles, moveItem, moveStopPayload, normalizeBackgroundValue, normalizeGradient, normalizeGradientHandles, normalizeHex, normalizeMediaDisplay, sameBackgroundValue, sameGradient, sameHandles, sortStops, stopCssColor, widestGapMiddle };

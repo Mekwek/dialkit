@@ -6,7 +6,17 @@ export type { DialPadAxis, DialPadConfig, DialPadValue } from '../dial-pad';
 export type {
   BackgroundConfig, BackgroundGradient, BackgroundMedia, BackgroundMediaDisplay, BackgroundStop, BackgroundValue, SavedGradient,
 } from '../background';
-export { backgroundGradientCss, defaultBackgroundValue, normalizeBackgroundValue } from '../background';
+export {
+  backgroundGradientCss, defaultBackgroundValue, normalizeBackgroundValue,
+  GRADIENT_SHAPES, defaultGradientHandles, legacyGradientHandles, gradientFrame, gradientParamAt,
+} from '../background';
+export type { GradientShape, GradientPoint, GradientHandles, GradientFrame } from '../background';
+export { paintBackgroundPreview } from '../background-paint';
+export {
+  mountGradientGizmo, rotateGradientHandles, dragGradientEnd, dragGradientCentre, dragGradientWidth,
+  stopPositionAt, stopPlacement, gizmoAngle, formatGizmoAngle, gizmoPoints,
+} from '../gradient-gizmo';
+export type { GradientGizmoProps, GradientGizmoCallbacks, GizmoBox } from '../gradient-gizmo';
 export {
   getBackgroundHost, getSavedGradients, setBackgroundHost, setSavedGradients, subscribeBackgroundHost,
 } from './BackgroundHost';

@@ -15,19 +15,22 @@ import type { Transition } from 'motion/react';
  * The -6 value must match `.dialkit-folder-inner { gap: 6px }` in
  * theme.css — if the gap changes, update this value to match.
  *
- * `overflow: clip` clips the child while the wrapper's height is less
+ * `overflowY: clip` clips the child while the wrapper's height is less
  * than auto, giving the collapse-reveal effect. Unlike `hidden`, it makes
  * no scroll box, so a pinned folder header inside still sticks to the
- * panel's scroll.
+ * panel's scroll. It is on only while the wrapper grows in or shrinks out,
+ * and only vertically: at rest the wrapper clips nothing, as upstream DialKit
+ * has no wrapper at all, so what a control draws past its own box (a
+ * slider's rubber-band stretch past its end, a focus ring, an end swatch's
+ * ring) shows whole, in every nesting depth.
  */
 export const CONTROL_ANIM = {
-  initial: { opacity: 0, height: 0, marginBottom: -6 },
-  animate: { opacity: 1, height: 'auto' as const, marginBottom: 0 },
-  exit: { opacity: 0, height: 0, marginBottom: -6 },
+  initial: { opacity: 0, height: 0, marginBottom: -6, overflowY: 'clip' as const },
+  animate: { opacity: 1, height: 'auto' as const, marginBottom: 0, transitionEnd: { overflowY: 'visible' as const } },
+  exit: { opacity: 0, height: 0, marginBottom: -6, overflowY: 'clip' as const },
   transition: {
     type: 'spring',
     visualDuration: 0.25,
     bounce: 0.1,
   } as Transition,
-  style: { overflow: 'clip' as const },
 } as const;

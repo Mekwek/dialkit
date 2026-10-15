@@ -67,6 +67,9 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
      light theme's values on the same element apply to them too. */
   --dial-bg-stop-selected-fill: var(--dial-surface-subtle);
   --dial-bg-stop-selected-border: var(--dial-border);
+  /* The space under the gradient type row, above the strip. Declared here,
+     not only as a fallback, so a host can read it from the root. */
+  --dial-bg-type-gap: 12px;
 
   /* Timeline clips are light by default; light themes add a dark tint so
      their shape stays distinct from the lane without replacing custom hues. */
@@ -1843,33 +1846,66 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 .dialkit-bg-ratio:focus-visible { outline: 2px solid var(--dial-focus-ring); outline-offset: -2px; border-radius: max(0px, calc(var(--dial-radius) - 4px)); }
 
 /* Short number fields: the angle, a stop's position and its opacity. */
-.dialkit-bg-shape-row { display: flex; gap: var(--dial-field-gap); min-width: 0; }
-.dialkit-bg-shape-row .dialkit-bg-segmented { flex: 1 1 auto; }
-.dialkit-bg-angle { flex: 0 0 120px; }
+/* The gradient type: DialKit's select field and menu (Linear, Radial,
+   Angular, Diamond, a check on the current one), then flip and rotate.
+   --dial-bg-type-gap sets the space under it, above the strip (12px by
+   default, declared on .dialkit-root). A change eases in, and the control's
+   height follows it. */
+.dialkit-bg-shape-row { display: flex; align-items: center; gap: var(--dial-field-gap); min-width: 0; margin-bottom: calc(var(--dial-bg-type-gap, 12px) - var(--dial-row-gap)); transition: margin-bottom 0.25s cubic-bezier(0.25, 1, 0.5, 1); }
+@media (prefers-reduced-motion: reduce) { .dialkit-bg-shape-row { transition: none; } }
+.dialkit-bg-shape-trigger.dialkit-select-trigger { flex: 1 1 auto; width: auto; min-width: 0; }
+.dialkit-bg-shape-option { display: flex; align-items: center; gap: 6px; }
+.dialkit-bg-shape-check { flex: none; width: 14px; height: 14px; visibility: hidden; }
+.dialkit-bg-shape-option[data-selected="true"] .dialkit-bg-shape-check { visibility: visible; }
 .dialkit-bg-field { gap: 2px; box-sizing: border-box; }
 .dialkit-bg-field-grip { margin-right: auto; }
 .dialkit-bg-field-input { color: var(--dial-text-label); }
 .dialkit-bg-field-input:focus { color: var(--dial-text-focus); }
 .dialkit-bg-field-unit { flex-shrink: 0; color: var(--dial-text-unit); font: 500 13px 'Geist Mono', monospace; cursor: ew-resize; touch-action: none; user-select: none; -webkit-user-select: none; }
 
-/* The gradient bar: the gradient over the checkerboard, one handle per stop. */
+/* The gradient bar: the gradient over the checkerboard, one handle per stop.
+   The strip spans the control's full width, so its ends line up with the
+   slider rows, and its gradient runs edge to edge. Like the timeline's
+   playhead, each stop's stem stands at the stop's true place (kept inside
+   by half its width), and only the swatch above it stops half a swatch
+   from each end, so it draws whole; at an end the stem still meets it from
+   below. Clicks and drags map over the full width. The swatch's rings reach
+   past the control's edge, into the panel's padding (nothing clips them
+   there: see CONTROL_ANIM in control-motion.ts). */
 .dialkit-bg-bar { position: relative; height: 40px; touch-action: none; user-select: none; -webkit-user-select: none; cursor: copy; }
 .dialkit-bg-bar[data-full] { cursor: default; }
 .dialkit-bg-bar[data-dragging] { cursor: grabbing; }
-.dialkit-bg-track { position: absolute; left: 10px; right: 10px; top: 18px; height: 20px; overflow: hidden; border-radius: 6px; background: var(--dial-checker); box-shadow: inset 0 0 0 1px var(--dial-border); }
+.dialkit-bg-track { position: absolute; left: 0; right: 0; top: 18px; height: 20px; overflow: hidden; border-radius: 6px; background: var(--dial-checker); box-shadow: inset 0 0 0 1px var(--dial-border); }
 .dialkit-bg-track-paint { position: absolute; inset: 0; }
-/* Inset 6px more than the strip, so a chip at 0% or 100% keeps its rings
-   inside the control (its wrapper clips). HANDLE_OVERHANG in
-   background-control.ts lays the strip's gradient over this range. */
-.dialkit-bg-handles { position: absolute; left: 16px; right: 16px; top: 0; bottom: 0; pointer-events: none; }
-.dialkit-bg-handle { position: absolute; top: 0; width: 20px; height: 24px; padding: 0; border: 0; background: none; transform: translateX(-50%); pointer-events: auto; cursor: grab; outline: none; }
+/* --dial-bg-track-style: 1 paints the strip left to right whatever the type;
+   2 (the default) paints it as the gradient's own type, laid out in the
+   strip's box (Radial and Diamond from its centre to its ends, Angular
+   around its centre), on a canvas with the canvas's own maths. Registered
+   and transitioned like --dial-bg-grip-style, so a change re-renders. */
+@property --dial-bg-track-style {
+  syntax: '<integer>';
+  inherits: true;
+  initial-value: 2;
+}
+.dialkit-bg-bar { transition: --dial-bg-track-style 1ms step-start; }
+.dialkit-bg-track-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.dialkit-bg-handles { position: absolute; left: 0; right: 0; top: 0; bottom: 0; pointer-events: none; }
+.dialkit-bg-handle { position: absolute; top: 0; left: clamp(10px, var(--dial-bg-at, 0%), calc(100% - 10px)); width: 20px; height: 24px; padding: 0; border: 0; background: none; transform: translateX(-50%); pointer-events: auto; cursor: grab; outline: none; }
+/* The chip draws its own focus ring, so the panel's square button outline
+   (.dialkit-root :where(button, [role="slider"]):focus-visible) stays off. */
+.dialkit-bg-bar .dialkit-bg-handle:focus-visible { outline: none; }
 /* A bigger hit area than the chip it draws. */
 .dialkit-bg-handle::before { content: ''; position: absolute; inset: -4px -6px -14px; }
 .dialkit-bg-handle-chip { position: relative; display: block; width: 20px; height: 20px; box-sizing: border-box; border: 2px solid var(--dial-glass-bg); border-radius: 6px; background: linear-gradient(var(--dial-bg-stop), var(--dial-bg-stop)), var(--dial-checker); background-clip: padding-box; box-shadow: 0 0 0 1px var(--dial-border-hover), 0 2px 4px rgb(0 0 0 / 25%); transition: box-shadow 0.15s; }
-.dialkit-bg-handle-chip::after { content: ''; position: absolute; left: 50%; top: 100%; width: 2px; height: 6px; margin: 2px 0 0 -1px; border-radius: 1px; background: var(--dial-border-hover); }
+/* The stem: from 2px under the swatch into the strip, at the stop's true place. */
+.dialkit-bg-stem { position: absolute; top: 22px; left: clamp(1px, var(--dial-bg-at, 0%), calc(100% - 1px)); width: 2px; height: 6px; border-radius: 1px; background: var(--dial-border-hover); transform: translateX(-50%); pointer-events: none; }
 .dialkit-bg-handle[data-selected] .dialkit-bg-handle-chip { box-shadow: 0 0 0 2px var(--dial-text-primary), 0 2px 6px rgb(0 0 0 / 30%); }
-.dialkit-bg-handle[data-selected] .dialkit-bg-handle-chip::after { background: var(--dial-text-primary); }
-.dialkit-bg-handle:focus-visible .dialkit-bg-handle-chip { box-shadow: 0 0 0 2px var(--dial-text-primary), 0 0 0 5px var(--dial-focus-ring); }
+.dialkit-bg-stem[data-selected] { background: var(--dial-text-primary); }
+/* The focus ring only when the strip is used from the keyboard: a chip
+   picked with the pointer (a click, a new stop, a drag, the gizmo, a row)
+   shows its selected ring alone. The control marks the strip
+   data-input="pointer" on any press in the document, until any key. */
+.dialkit-bg-bar:not([data-input="pointer"]) .dialkit-bg-handle:focus-visible .dialkit-bg-handle-chip { box-shadow: 0 0 0 2px var(--dial-text-primary), 0 0 0 5px var(--dial-focus-ring); }
 
 /* The stops list. */
 .dialkit-bg-stops-header { display: flex; align-items: center; gap: 2px; min-width: 0; color: var(--dial-text-label); font-size: 13px; font-weight: 500; }
@@ -1880,21 +1916,100 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 .dialkit-bg-icon-button:focus-visible { outline: 2px solid var(--dial-focus-ring); outline-offset: -2px; }
 .dialkit-bg-icon-button:disabled { opacity: 0.35; cursor: default; }
 .dialkit-bg-stops { position: relative; display: grid; gap: 4px; min-width: 0; }
-/* A removed row fades out over the list, out of the layout. */
-.dialkit-bg-stop[data-leaving] { position: absolute; left: 0; right: 0; margin: 0 -3px; pointer-events: none; }
-/* The grip that drags a row to a new place (Alt+Up / Alt+Down with the keyboard). */
-.dialkit-bg-stop-grip.dialkit-bg-icon-button { width: 16px; padding: 6px 0; margin-right: -2px; cursor: grab; touch-action: none; }
+/* The grip that drags a row to a new place (Alt+Up / Alt+Down with the
+   keyboard). --dial-bg-grip-style picks how it shows: 1 Row, 2 Margin,
+   3 Column, 4 Column hover (the default); the control reads it into the list's
+   data-grip-style. Registered as an integer and transitioned on the list for
+   1ms with step-start, so a change to it fires a transition the control
+   listens for, and the new value holds from its first moment. */
+@property --dial-bg-grip-style {
+  syntax: '<integer>';
+  inherits: true;
+  initial-value: 4;
+}
+.dialkit-bg-stops {
+  transition: --dial-bg-grip-style 1ms step-start;
+  /* The Margin grip's mark: the timeline clip's resize grip colours. */
+  --dial-bg-grip: rgba(255, 255, 255, 0.11);
+  --dial-bg-grip-hover: rgba(255, 255, 255, 0.22);
+}
+.dialkit-root[data-theme="light"] .dialkit-bg-stops { --dial-bg-grip: rgba(0, 0, 0, 0.13); --dial-bg-grip-hover: rgba(0, 0, 0, 0.26); }
+@media (prefers-color-scheme: light) {
+  .dialkit-root[data-theme="system"] .dialkit-bg-stops { --dial-bg-grip: rgba(0, 0, 0, 0.13); --dial-bg-grip-hover: rgba(0, 0, 0, 0.26); }
+}
+.dialkit-bg-stop-grip.dialkit-bg-icon-button { cursor: grab; touch-action: none; }
+
+/* 1 · Row: no grip to see. The row drags from anywhere that has no press of
+   its own, as a version row does, with the grab cursor. The grip stays for
+   the keyboard and screen readers: it covers the row, and its focus ring
+   (the panel's own button ring) draws around the whole row. */
+.dialkit-bg-stops[data-grip-style="row"] .dialkit-bg-stop { position: relative; cursor: grab; }
+.dialkit-bg-stops[data-grip-style="row"][data-dragging] .dialkit-bg-stop { cursor: grabbing; }
+.dialkit-bg-stops[data-grip-style="row"] .dialkit-bg-stop-grip.dialkit-bg-icon-button { position: absolute; inset: 0; width: auto; height: auto; margin: 0; padding: 0; border-radius: inherit; background: none; opacity: 0; pointer-events: none; }
+.dialkit-bg-stops[data-grip-style="row"] .dialkit-bg-stop-grip svg { display: none; }
+.dialkit-bg-stops[data-grip-style="row"] .dialkit-bg-stop-grip:focus-visible { opacity: 1; outline: 2px solid var(--dial-focus-ring); outline-offset: -2px; }
+
+/* 2 · Margin and 4 · Column hover: the grip stands in the margin left of the
+   row, so the row keeps its full width and no field moves, and shows while
+   the row is hovered, holds the focus, or is dragged. It stands in the
+   panel's padding, which nothing clips (see CONTROL_ANIM in control-motion.ts),
+   clear of the selected row's box (3px out). */
+.dialkit-bg-stops[data-grip-style="margin"] .dialkit-bg-stop,
+.dialkit-bg-stops[data-grip-style="column-hover"] .dialkit-bg-stop { position: relative; }
+.dialkit-bg-stops[data-grip-style="margin"] .dialkit-bg-stop-grip.dialkit-bg-icon-button,
+.dialkit-bg-stops[data-grip-style="column-hover"] .dialkit-bg-stop-grip.dialkit-bg-icon-button { position: absolute; top: 0; bottom: 0; left: -12px; width: 8px; height: auto; margin: 0; padding: 0; border-radius: 2px; background: none; opacity: 0; }
+.dialkit-bg-stops[data-grip-style="margin"] .dialkit-bg-stop:is(:hover, :focus-within, [data-dragging]) .dialkit-bg-stop-grip,
+.dialkit-bg-stops[data-grip-style="column-hover"] .dialkit-bg-stop:is(:hover, :focus-within, [data-dragging]) .dialkit-bg-stop-grip { opacity: 1; }
+/* Margin: the timeline clip's resize grip. An 8px hit zone with a 2px mark,
+   8px in from the top and bottom, 2px corners; under the pointer it
+   brightens and grows a little taller. */
+.dialkit-bg-stops[data-grip-style="margin"] .dialkit-bg-stop-grip svg { display: none; }
+.dialkit-bg-stops[data-grip-style="margin"] .dialkit-bg-stop-grip::after { content: ''; position: absolute; top: 8px; bottom: 8px; left: 3px; width: 2px; border-radius: 2px; background: var(--dial-bg-grip); transition: background 0.15s, transform 0.15s; }
+.dialkit-bg-stops[data-grip-style="margin"] .dialkit-bg-stop-grip:hover::after,
+.dialkit-bg-stops[data-grip-style="margin"] .dialkit-bg-stop[data-dragging] .dialkit-bg-stop-grip::after { background: var(--dial-bg-grip-hover); transform: scaleY(1.25); }
+@media (prefers-reduced-motion: reduce) {
+  .dialkit-bg-stops[data-grip-style="margin"] .dialkit-bg-stop-grip::after { transition: background 0.15s; transform: none !important; }
+}
+
+/* 3 · Column and 4 · Column hover: the Ease section's copy menu "···"
+   (ICON_MORE with ICON_MORE_STROKE, 14px tall), turned upright, with its
+   colours: tertiary text, focus text over the hover fill. Column sits in the
+   row and takes 8px; Column hover sits in the margin. */
+.dialkit-bg-stops[data-grip-style="column"] .dialkit-bg-stop-grip.dialkit-bg-icon-button { width: 8px; height: 20px; padding: 3px 0; margin-right: -2px; border-radius: 4px; }
+.dialkit-bg-stops[data-grip-style="column-hover"] .dialkit-bg-stop-grip svg { width: 100%; height: 14px; }
+/* A removed row fades out over the list, out of the layout. After the grip
+   styles and as specific as their rules, so their \`position: relative\`
+   never puts it back in the flow. */
+.dialkit-bg-stops .dialkit-bg-stop[data-leaving] { position: absolute; left: 0; right: 0; margin: 0; pointer-events: none; }
 /* Reordering, as in the version list: the rows a dragged row passes slide
    aside, and the dragged row glides into its slot on release. */
 .dialkit-bg-stops[data-dragging] { cursor: grabbing; user-select: none; -webkit-user-select: none; }
 .dialkit-bg-stops[data-dragging] .dialkit-bg-stop { transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1); }
 .dialkit-bg-stops[data-dragging]:not([data-settling]) .dialkit-bg-stop[data-dragging] { transition: none; }
 .dialkit-bg-stops[data-dragging] .dialkit-bg-stop-grip { cursor: grabbing; }
-/* Solid, so the rows it passes never show through. */
-.dialkit-bg-stop[data-dragging] { z-index: 2; box-shadow: inset 0 0 0 100vmax var(--dial-surface-hover), inset 0 0 0 100vmax var(--dial-glass-bg), 0 6px 16px rgba(0, 0, 0, 0.28); }
-.dialkit-bg-stop { display: flex; align-items: center; gap: var(--dial-field-gap); min-width: 0; margin: 0 -3px; padding: 3px; border-radius: calc(var(--dial-radius) + 3px); transition: background 0.15s, box-shadow 0.15s; }
-.dialkit-bg-stop[data-selected] { background: var(--dial-bg-stop-selected-fill); box-shadow: inset 0 0 0 1px var(--dial-bg-stop-selected-border); }
-.dialkit-bg-stop-at, .dialkit-bg-stop-alpha { flex: 0 0 50px; padding: 0 6px; }
+/* A stop row has no padding of its own: its fields line up with the Stops
+   header and the strip, and its − with the header's +. The selected (and the
+   dragged) row's box is drawn outside the row, 3px around its fields, in the
+   margin (::before), so selecting a row moves nothing. Nothing clips it
+   there: see CONTROL_ANIM in control-motion.ts. */
+.dialkit-bg-stop { position: relative; isolation: isolate; display: flex; align-items: center; gap: var(--dial-field-gap); min-width: 0; margin: 0; padding: 0; border-radius: var(--dial-radius); }
+.dialkit-bg-stop::before { content: ''; position: absolute; inset: -3px; z-index: -1; border-radius: calc(var(--dial-radius) + 3px); pointer-events: none; transition: background 0.15s, box-shadow 0.15s; }
+.dialkit-bg-stop[data-selected]::before { background: var(--dial-bg-stop-selected-fill); box-shadow: inset 0 0 0 1px var(--dial-bg-stop-selected-border); }
+/* The dragged row, drawn as the version list draws its dragged row: solid,
+   so the rows it passes never show through (the hover fill over the panel's
+   own colour, as two inner layers), with the same lift shadow, above every
+   other row for the whole drag. After the selected row's rule, and more
+   specific, so a selected row that is dragged is solid too. */
+.dialkit-bg-stops .dialkit-bg-stop[data-dragging] { position: relative; z-index: 3; }
+.dialkit-bg-stops .dialkit-bg-stop[data-dragging]::before {
+  background: var(--dial-glass-bg);
+  box-shadow:
+    inset 0 0 0 1px var(--dial-bg-stop-selected-border),
+    inset 0 0 0 100vmax var(--dial-surface-hover),
+    inset 0 0 0 100vmax var(--dial-glass-bg),
+    0 6px 16px rgba(0, 0, 0, 0.28);
+}
+.dialkit-bg-stop-at, .dialkit-bg-stop-alpha { flex: 0 0 46px; padding: 0 6px; }
 .dialkit-bg-stop .dialkit-bg-field-input, .dialkit-bg-stop .dialkit-bg-field-unit { font-size: 12px; }
 .dialkit-bg-stop-color { flex: 1 1 auto; min-width: 0; }
 .dialkit-bg-stop-color .dialkit-color-control { gap: 6px; padding: 0 6px; }
@@ -1982,6 +2097,53 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   .dialkit-bg-pin-pill, .dialkit-bg-segmented .dialkit-segmented-pill, .dialkit-bg-handle-chip, .dialkit-bg-saved-swatch,
   .dialkit-bg-stops[data-dragging] .dialkit-bg-stop { transition: none; }
 }
+
+/* The gradient gizmo over the host's canvas (gradient-gizmo.ts): a white line
+   with a soft dark edge, white handle dots, the stops as swatches with a
+   pointer at the line. It copies the panel's --dial-* tokens; it is not a
+   .dialkit-root, so a host's rules for panels never reach it. Only its parts
+   take the pointer (the dots and their rings, the swatches, the line's hover
+   band); every full-size layer lets presses through to the canvas. */
+.dialkit-bg-gizmo {
+  position: fixed;
+  overflow: visible;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  font-family: system-ui, -apple-system, 'SF Pro Display', sans-serif;
+}
+.dialkit-bg-gizmo[hidden], .dialkit-bg-gizmo [hidden] { display: none !important; }
+.dialkit-bg-gizmo-lines { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.dialkit-bg-gizmo-shadow { fill: none; stroke: rgba(0, 0, 0, 0.28); stroke-width: 3; pointer-events: none; }
+.dialkit-bg-gizmo-line { fill: none; stroke: #ffffff; stroke-width: 1.5; pointer-events: none; }
+/* The ghost's hover band (ghostBandPath in gradient-gizmo.ts): along the line
+   (or around the Angular rim), from 8px on the far side to the real
+   swatches' outer edge on their side. A thin crosshair while the ghost shows. */
+.dialkit-bg-gizmo-hit { fill: transparent; stroke: none; pointer-events: fill; cursor: crosshair; }
+/* A handle: the dot moves it, the ring around it (to 21px from its centre,
+   where Figma's rotate ring takes over from the ghost) rotates the gradient.
+   Where a swatch stands next to a handle, the swatch is on top: what is seen
+   is what is pressed. */
+.dialkit-bg-gizmo-handle { position: absolute; left: -21px; top: -21px; z-index: 1; width: 42px; height: 42px; border-radius: 50%; pointer-events: auto; touch-action: none; }
+.dialkit-bg-gizmo-dot { position: absolute; left: 50%; top: 50%; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: #ffffff; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25), 0 1px 3px rgba(0, 0, 0, 0.35); pointer-events: none; }
+.dialkit-bg-gizmo-stops { position: absolute; inset: 0; pointer-events: none; }
+.dialkit-bg-gizmo-stop { position: absolute; left: -10px; top: -10px; width: 20px; height: 20px; box-sizing: border-box; border: 2px solid #ffffff; border-radius: 5px; background: linear-gradient(var(--dial-bg-stop), var(--dial-bg-stop)), var(--dial-checker); background-clip: padding-box; box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.25), 0 1px 3px rgba(0, 0, 0, 0.3); pointer-events: auto; cursor: move; touch-action: none; }
+/* The pointer under the swatch, at the line. */
+.dialkit-bg-gizmo-stop::after { content: ''; position: absolute; left: 50%; top: calc(100% + 1px); margin-left: -4px; border: 4px solid transparent; border-top-color: #ffffff; border-bottom: 0; }
+/* Selected: the panel strip's selected chip, its panel-coloured edge and its ring. */
+.dialkit-bg-gizmo-stop[data-selected] { border-color: var(--dial-glass-bg); box-shadow: 0 0 0 2px var(--dial-text-primary), 0 2px 6px rgba(0, 0, 0, 0.3); }
+.dialkit-bg-gizmo-stop[data-selected]::after { top: calc(100% + 3px); border-top-color: var(--dial-text-primary); }
+/* The ghost: where a press adds a stop. A swatch of the colour at that
+   place, the same size and offset, with a lighter border and no pointer,
+   dimmed until the press makes it real. Over the swatches when it meets one. */
+.dialkit-bg-gizmo-ghost { z-index: 4; border-color: rgba(255, 255, 255, 0.75); box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.15), 0 1px 2px rgba(0, 0, 0, 0.15); opacity: 0.5; pointer-events: none; }
+.dialkit-bg-gizmo-ghost::after { display: none; }
+/* Tooltips: the look of theca's undo / redo toast (a solid #262626 chip,
+   the dark theme's primary text, 8px corners), in both themes, since it
+   floats over the canvas. */
+.dialkit-bg-gizmo-tip { position: absolute; left: 0; top: 0; z-index: 4; padding: 6px 10px; border-radius: 8px; background: #262626; color: rgba(255, 255, 255, 0.95); font-size: 12px; line-height: 1.3; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); pointer-events: none; }
+.dialkit-bg-gizmo-tip[data-place="right"] { translate: 12px -50%; }
+.dialkit-bg-gizmo-tip[data-place="center"] { translate: -50% -50%; }
 
 /* Color Control */
 .dialkit-color-control {

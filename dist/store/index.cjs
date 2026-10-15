@@ -21,22 +21,38 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var DialStore_exports = {};
 __export(DialStore_exports, {
   DialStore: () => DialStore,
+  GRADIENT_SHAPES: () => GRADIENT_SHAPES,
   backgroundGradientCss: () => backgroundGradientCss,
   defaultBackgroundValue: () => defaultBackgroundValue,
+  defaultGradientHandles: () => defaultGradientHandles,
+  dragGradientCentre: () => dragGradientCentre,
+  dragGradientEnd: () => dragGradientEnd,
+  dragGradientWidth: () => dragGradientWidth,
   flattenDialValueUpdates: () => flattenDialValueUpdates,
+  formatGizmoAngle: () => formatGizmoAngle,
   formatLabel: () => formatLabel,
   getBackgroundHost: () => getBackgroundHost,
   getSavedGradients: () => getSavedGradients,
+  gizmoAngle: () => gizmoAngle,
+  gizmoPoints: () => gizmoPoints,
+  gradientFrame: () => gradientFrame,
+  gradientParamAt: () => gradientParamAt,
   inferStep: () => inferStep,
   isEasingConfigValue: () => isEasingConfigValue,
   isFolderMetaKey: () => isFolderMetaKey,
   isHexColor: () => isHexColor,
   isLeafConfigValue: () => isLeafConfigValue,
   isSpringConfigValue: () => isSpringConfigValue,
+  legacyGradientHandles: () => legacyGradientHandles,
+  mountGradientGizmo: () => mountGradientGizmo,
   normalizeBackgroundValue: () => normalizeBackgroundValue,
+  paintBackgroundPreview: () => paintBackgroundPreview,
   resolveDialValues: () => resolveDialValues,
+  rotateGradientHandles: () => rotateGradientHandles,
   setBackgroundHost: () => setBackgroundHost,
   setSavedGradients: () => setSavedGradients,
+  stopPlacement: () => stopPlacement,
+  stopPositionAt: () => stopPositionAt,
   subscribeBackgroundHost: () => subscribeBackgroundHost,
   unwrapVisibility: () => unwrapVisibility,
   withVisibility: () => withVisibility
@@ -161,6 +177,7 @@ function normalizePadValue(value, config = {}) {
 
 // src/background.ts
 var BACKGROUND_MODES = ["solid", "gradient", "media"];
+var GRADIENT_SHAPES = ["linear", "radial", "angular", "diamond"];
 var BACKGROUND_FITS = ["fill", "fit", "stretch", "tile"];
 var BACKGROUND_RATIOS = ["16:9", "4:3", "1:1", "4:5", "3:4", "9:16", "source"];
 var BACKGROUND_MIN_STOPS = 2;
@@ -174,12 +191,77 @@ function defaultBackgroundValue() {
     color: "#000000",
     gradient: {
       shape: "linear",
-      angle: 180,
+      handles: defaultGradientHandles(),
       stops: [{ at: 0, color: "#000000", alpha: 100 }, { at: 100, color: "#ffffff", alpha: 100 }]
     },
     media: null,
     mediaDisplay: defaultMediaDisplay()
   };
+}
+function defaultGradientHandles() {
+  return { start: { x: 0.5, y: 0.1 }, end: { x: 0.5, y: 0.9 }, width: { x: 0.1, y: 0.5 } };
+}
+function legacyGradientHandles(shape, angle) {
+  if (shape === "radial") return { start: { x: 0.5, y: 0.5 }, end: { x: 1, y: 0.5 }, width: { x: 0.5, y: 0 } };
+  const theta = (Number.isFinite(angle) ? angle : 180) * Math.PI / 180;
+  const d = { x: Math.sin(theta), y: -Math.cos(theta) };
+  const h = (Math.abs(d.x) + Math.abs(d.y)) / 2;
+  return {
+    start: roundPoint({ x: 0.5 - d.x * h, y: 0.5 - d.y * h }),
+    end: roundPoint({ x: 0.5 + d.x * h, y: 0.5 + d.y * h }),
+    width: roundPoint({ x: 0.5 - d.y * h, y: 0.5 + d.x * h })
+  };
+}
+function roundPoint(point) {
+  const r = (n) => Math.round(n * 1e4) / 1e4 || 0;
+  return { x: r(point.x), y: r(point.y) };
+}
+function normalizePoint(value) {
+  if (!isRecord(value)) return null;
+  const { x, y } = value;
+  if (typeof x !== "number" || typeof y !== "number" || !Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return roundPoint({ x: clamp2(x, -10, 11), y: clamp2(y, -10, 11) });
+}
+function normalizeGradientHandles(value, fallback = defaultGradientHandles()) {
+  const input = isRecord(value) ? value : {};
+  const start = normalizePoint(input.start);
+  const end = normalizePoint(input.end);
+  const width = normalizePoint(input.width);
+  if (!start || !end) return cloneHandles(fallback);
+  return { start, end, width: width ?? cloneHandles(fallback).width };
+}
+function cloneHandles(handles) {
+  return { start: { ...handles.start }, end: { ...handles.end }, width: { ...handles.width } };
+}
+function gradientFrame(handles, width, height) {
+  const cx = handles.start.x * width;
+  const cy = handles.start.y * height;
+  let ex = handles.end.x * width - cx;
+  let ey = handles.end.y * height - cy;
+  let r1 = Math.hypot(ex, ey);
+  if (r1 < 1e-6) {
+    ex = 0;
+    ey = 1;
+    r1 = 1e-6;
+  }
+  const ax = ex / Math.hypot(ex, ey);
+  const ay = ey / Math.hypot(ex, ey);
+  const wx = handles.width.x * width - cx;
+  const wy = handles.width.y * height - cy;
+  const cross = ax * wy - ay * wx;
+  const side = cross < 0 ? -1 : 1;
+  return { cx, cy, ax, ay, nx: -ay * side, ny: ax * side, r1, r2: Math.max(Math.abs(cross), 1e-6) };
+}
+function gradientParamAt(shape, frame, px, py) {
+  const dx = px - frame.cx;
+  const dy = py - frame.cy;
+  const u = (dx * frame.ax + dy * frame.ay) / frame.r1;
+  if (shape === "linear") return u;
+  const v = (dx * frame.nx + dy * frame.ny) / frame.r2;
+  if (shape === "radial") return Math.hypot(u, v);
+  if (shape === "diamond") return Math.abs(u) + Math.abs(v);
+  const turn = Math.atan2(v, u) / (2 * Math.PI);
+  return turn < 0 ? turn + 1 : turn;
 }
 function defaultMediaDisplay() {
   return { fit: "fill", ratio: "source", zoom: 1, tileScale: 0.25, pinX: 0, pinY: 0 };
@@ -196,10 +278,6 @@ function normalizeHex(value) {
   const hex = match[1].length === 3 ? [...match[1]].map((c) => c + c).join("") : match[1];
   return `#${hex.toLowerCase()}`;
 }
-function normalizeAngle(value) {
-  if (value === 360) return 360;
-  return round2((value % 360 + 360) % 360);
-}
 function sortStops(stops) {
   return stops.map((stop, i) => ({ stop, i })).sort((a, b) => a.stop.at - b.stop.at || a.i - b.i).map(({ stop }) => stop);
 }
@@ -212,12 +290,12 @@ function normalizeStop(value) {
 }
 function normalizeGradient(value, fallback = defaultBackgroundValue().gradient) {
   if (!isRecord(value)) return cloneGradient(fallback);
-  const shape = value.shape === "linear" || value.shape === "radial" ? value.shape : fallback.shape;
-  const angle = typeof value.angle === "number" && Number.isFinite(value.angle) ? normalizeAngle(value.angle) : fallback.angle;
+  const shape = GRADIENT_SHAPES.includes(value.shape) ? value.shape : fallback.shape;
+  const handles = isRecord(value.handles) ? normalizeGradientHandles(value.handles, fallback.handles) : typeof value.angle === "number" && Number.isFinite(value.angle) || value.shape === "radial" ? legacyGradientHandles(value.shape === "radial" ? "radial" : "linear", typeof value.angle === "number" ? value.angle : 180) : cloneHandles(fallback.handles);
   const stops = Array.isArray(value.stops) ? value.stops.map(normalizeStop).filter((stop) => stop !== null) : [];
   return {
     shape,
-    angle,
+    handles,
     stops: stops.length >= BACKGROUND_MIN_STOPS ? sortStops(stops).slice(0, BACKGROUND_MAX_STOPS) : fallback.stops.map((stop) => ({ ...stop }))
   };
 }
@@ -255,7 +333,7 @@ function backgroundConfigDefault(config) {
   return normalizeBackgroundValue(config?.default, defaultBackgroundValue());
 }
 function cloneGradient(gradient) {
-  return { shape: gradient.shape, angle: gradient.angle, stops: gradient.stops.map((stop) => ({ ...stop })) };
+  return { shape: gradient.shape, handles: cloneHandles(gradient.handles), stops: gradient.stops.map((stop) => ({ ...stop })) };
 }
 function cloneBackgroundValue(value) {
   return {
@@ -270,7 +348,13 @@ function sameStops(a, b) {
   return a.length === b.length && a.every((stop, i) => stop.at === b[i].at && stop.color === b[i].color && stop.alpha === b[i].alpha);
 }
 function sameGradient(a, b) {
-  return a.shape === b.shape && a.angle === b.angle && sameStops(a.stops, b.stops);
+  return a.shape === b.shape && sameHandles(a.handles, b.handles) && sameStops(a.stops, b.stops);
+}
+function samePoint(a, b) {
+  return !!a && !!b && a.x === b.x && a.y === b.y;
+}
+function sameHandles(a, b) {
+  return isRecord(a) && isRecord(b) && samePoint(a.start, b.start) && samePoint(a.end, b.end) && samePoint(a.width, b.width);
 }
 function sameBackgroundValue(a, b) {
   if (!isRecord(a) || !isRecord(b)) return false;
@@ -278,6 +362,7 @@ function sameBackgroundValue(a, b) {
   const y = b;
   if (x.mode !== y.mode || x.color !== y.color) return false;
   if (!isRecord(x.gradient) || !isRecord(y.gradient) || !Array.isArray(x.gradient.stops) || !Array.isArray(y.gradient.stops)) return false;
+  if (!isRecord(x.gradient.handles) || !isRecord(y.gradient.handles)) return false;
   if (!sameGradient(x.gradient, y.gradient)) return false;
   if (x.media === null !== (y.media === null)) return false;
   if (x.media && y.media && (x.media.key !== y.media.key || x.media.kind !== y.media.kind)) return false;
@@ -290,14 +375,600 @@ function hexToRgb(hex) {
   const n = parseInt(hex.slice(1), 16);
   return [n >> 16 & 255, n >> 8 & 255, n & 255];
 }
+function rgbToHex(rgb) {
+  return `#${rgb.map((n) => Math.round(clamp2(n, 0, 255)).toString(16).padStart(2, "0")).join("")}`;
+}
+function gradientColorAt(stops, at) {
+  if (stops.length === 0) return { color: "#000000", alpha: 100 };
+  if (at <= stops[0].at) return { color: stops[0].color, alpha: stops[0].alpha };
+  const last = stops[stops.length - 1];
+  if (at >= last.at) return { color: last.color, alpha: last.alpha };
+  for (let i = 0; i < stops.length - 1; i++) {
+    const a = stops[i];
+    const b = stops[i + 1];
+    if (at < a.at || at > b.at) continue;
+    const t = b.at === a.at ? 0 : (at - a.at) / (b.at - a.at);
+    const ca = hexToRgb(a.color);
+    const cb = hexToRgb(b.color);
+    return {
+      color: rgbToHex(ca.map((n, k) => n + (cb[k] - n) * t)),
+      alpha: Math.round(a.alpha + (b.alpha - a.alpha) * t)
+    };
+  }
+  return { color: last.color, alpha: last.alpha };
+}
 function stopCssColor(stop) {
   const [r, g, b] = hexToRgb(stop.color);
   return `rgb(${r} ${g} ${b} / ${round2(stop.alpha / 100)})`;
 }
 function backgroundGradientCss(gradient, direction) {
-  const stops = gradient.stops.map((stop) => `${stopCssColor(stop)} ${stop.at}%`).join(", ");
-  if (direction) return `linear-gradient(${direction}, ${stops})`;
-  return gradient.shape === "radial" ? `radial-gradient(circle at center, ${stops})` : `linear-gradient(${gradient.angle}deg, ${stops})`;
+  const list = (stops) => stops.map((stop) => `${stopCssColor(stop)} ${round2(stop.at)}%`).join(", ");
+  if (direction) return `linear-gradient(${direction}, ${list(gradient.stops)})`;
+  const frame = gradientFrame(gradient.handles, 100, 100);
+  const at = `${round2(frame.cx)}% ${round2(frame.cy)}%`;
+  if (gradient.shape === "linear") {
+    const deg = Math.atan2(frame.ax, -frame.ay) * 180 / Math.PI;
+    const length = Math.abs(frame.ax) + Math.abs(frame.ay);
+    const onCss = (t) => {
+      const x = frame.cx / 100 + frame.ax * frame.r1 / 100 * t - 0.5;
+      const y = frame.cy / 100 + frame.ay * frame.r1 / 100 * t - 0.5;
+      return ((x * frame.ax + y * frame.ay) / length + 0.5) * 100;
+    };
+    return `linear-gradient(${round2(deg)}deg, ${list(gradient.stops.map((stop) => ({ ...stop, at: onCss(stop.at / 100) })))})`;
+  }
+  if (gradient.shape === "angular") {
+    const from = Math.atan2(frame.ax, -frame.ay) * 180 / Math.PI;
+    const clockwise = frame.ax * frame.ny - frame.ay * frame.nx > 0;
+    const stops = clockwise ? gradient.stops : [...gradient.stops].reverse().map((stop) => ({ ...stop, at: 100 - stop.at }));
+    return `conic-gradient(from ${round2(from)}deg at ${at}, ${list(stops)})`;
+  }
+  const along = Math.abs(frame.ax) >= Math.abs(frame.ay);
+  const rx = round2(along ? frame.r1 : frame.r2);
+  const ry = round2(along ? frame.r2 : frame.r1);
+  return `radial-gradient(${rx}% ${ry}% at ${at}, ${list(gradient.stops)})`;
+}
+
+// src/background-paint.ts
+function sample(stops, t) {
+  const { color, alpha } = gradientColorAt(stops, Math.min(100, Math.max(0, t * 100)));
+  const n = parseInt(color.slice(1), 16);
+  return [n >> 16 & 255, n >> 8 & 255, n & 255, alpha / 100];
+}
+function paintBackgroundPreview(canvas, value) {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  const { width, height } = canvas;
+  ctx.clearRect(0, 0, width, height);
+  if (value.mode === "solid") {
+    ctx.fillStyle = value.color;
+    ctx.fillRect(0, 0, width, height);
+    return;
+  }
+  if (value.mode !== "gradient" || width === 0 || height === 0) return;
+  const { shape, handles, stops } = value.gradient;
+  const size = 1024;
+  const table = new Uint8ClampedArray(size * 4);
+  for (let i = 0; i < size; i++) {
+    const [r, g, b, a] = sample(stops, i / (size - 1));
+    table.set([r, g, b, Math.round(a * 255)], i * 4);
+  }
+  const frame = gradientFrame(handles, width, height);
+  const image = ctx.createImageData(width, height);
+  const data = image.data;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const t = gradientParamAt(shape, frame, x + 0.5, y + 0.5);
+      const index = Math.round(Math.min(1, Math.max(0, t)) * (size - 1)) * 4;
+      const o = (y * width + x) * 4;
+      data[o] = table[index];
+      data[o + 1] = table[index + 1];
+      data[o + 2] = table[index + 2];
+      data[o + 3] = table[index + 3];
+    }
+  }
+  ctx.putImageData(image, 0, 0);
+}
+
+// src/gradient-gizmo.ts
+var round4 = (n) => Math.round(n * 1e4) / 1e4 || 0;
+var toFraction = (p, box) => ({
+  x: round4(p.x / Math.max(box.width, 1e-6)),
+  y: round4(p.y / Math.max(box.height, 1e-6))
+});
+function gizmoPoints(handles, box) {
+  const f = gradientFrame(handles, box.width, box.height);
+  return {
+    start: { x: f.cx, y: f.cy },
+    end: { x: f.cx + f.ax * f.r1, y: f.cy + f.ay * f.r1 },
+    width: { x: f.cx + f.nx * f.r2, y: f.cy + f.ny * f.r2 }
+  };
+}
+function sideOf(handles, box) {
+  const f = gradientFrame(handles, box.width, box.height);
+  return f.nx === -f.ay && f.ny === f.ax ? 1 : -1;
+}
+function fromFrame(start, end, r2, side, box) {
+  let ax = end.x - start.x;
+  let ay = end.y - start.y;
+  const length = Math.hypot(ax, ay);
+  if (length < 1e-6) {
+    ax = 0;
+    ay = 1;
+  } else {
+    ax /= length;
+    ay /= length;
+  }
+  const width = { x: start.x - ay * side * r2, y: start.y + ax * side * r2 };
+  return { start: toFraction(start, box), end: toFraction(end, box), width: toFraction(width, box) };
+}
+function rotateGradientHandles(handles, radians, box) {
+  const p = gizmoPoints(handles, box);
+  const f = gradientFrame(handles, box.width, box.height);
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  const turn = (v) => {
+    const dx = v.x - p.start.x;
+    const dy = v.y - p.start.y;
+    return { x: p.start.x + dx * cos - dy * sin, y: p.start.y + dx * sin + dy * cos };
+  };
+  return fromFrame(p.start, turn(p.end), f.r2, sideOf(handles, box), box);
+}
+function dragGradientEnd(handles, pointer, box) {
+  const f = gradientFrame(handles, box.width, box.height);
+  const start = { x: f.cx, y: f.cy };
+  const r1 = Math.hypot(pointer.x - start.x, pointer.y - start.y);
+  return fromFrame(start, pointer, f.r2 * (r1 / f.r1), sideOf(handles, box), box);
+}
+function dragGradientCentre(handles, pointer, box) {
+  const f = gradientFrame(handles, box.width, box.height);
+  const end = { x: f.cx + f.ax * f.r1, y: f.cy + f.ay * f.r1 };
+  const r1 = Math.hypot(end.x - pointer.x, end.y - pointer.y);
+  return fromFrame(pointer, end, f.r2 * (r1 / f.r1), sideOf(handles, box), box);
+}
+function dragGradientWidth(handles, pointer, box) {
+  const f = gradientFrame(handles, box.width, box.height);
+  const start = { x: f.cx, y: f.cy };
+  const end = { x: f.cx + f.ax * f.r1, y: f.cy + f.ay * f.r1 };
+  const signed = (pointer.x - start.x) * -f.ay + (pointer.y - start.y) * f.ax;
+  const r2 = Math.max(Math.abs(signed), 1);
+  return fromFrame(start, end, r2, signed < 0 ? -1 : 1, box);
+}
+function stopPositionAt(shape, handles, pointer, box) {
+  const f = gradientFrame(handles, box.width, box.height);
+  const dx = pointer.x - f.cx;
+  const dy = pointer.y - f.cy;
+  const u = (dx * f.ax + dy * f.ay) / f.r1;
+  if (shape !== "angular") return Math.min(100, Math.max(0, u * 100));
+  const v = (dx * f.nx + dy * f.ny) / f.r2;
+  const turn = Math.atan2(v, u) / (2 * Math.PI);
+  return (turn < 0 ? turn + 1 : turn) * 100;
+}
+function ghostPositionAt(shape, handles, pointer, box) {
+  if (shape !== "angular") return stopPositionAt(shape, handles, pointer, box);
+  const f = gradientFrame(handles, box.width, box.height);
+  const dx = pointer.x - f.cx;
+  const dy = pointer.y - f.cy;
+  const u = dx * f.ax + dy * f.ay;
+  const v = dx * f.nx + dy * f.ny;
+  let theta = Math.atan2(v / f.r2, u / f.r1);
+  for (let i = 0; i < 8; i++) {
+    const sin = Math.sin(theta);
+    const cos = Math.cos(theta);
+    const g = (f.r2 * f.r2 - f.r1 * f.r1) * sin * cos + u * f.r1 * sin - v * f.r2 * cos;
+    const dg = (f.r2 * f.r2 - f.r1 * f.r1) * (cos * cos - sin * sin) + u * f.r1 * cos + v * f.r2 * sin;
+    if (Math.abs(dg) < 1e-9) break;
+    const step = g / dg;
+    theta -= step;
+    if (Math.abs(step) < 1e-7) break;
+  }
+  const turn = theta / (2 * Math.PI);
+  return (turn - Math.floor(turn)) * 100;
+}
+function stopPlacement(shape, handles, at, box) {
+  const f = gradientFrame(handles, box.width, box.height);
+  const t = at / 100;
+  let x;
+  let y;
+  let ox;
+  let oy;
+  if (shape === "angular") {
+    const theta = t * 2 * Math.PI;
+    const cos = Math.cos(theta);
+    const sin = Math.sin(theta);
+    x = f.cx + f.ax * f.r1 * cos + f.nx * f.r2 * sin;
+    y = f.cy + f.ay * f.r1 * cos + f.ny * f.r2 * sin;
+    const nx = f.ax * cos / f.r1 + f.nx * sin / f.r2;
+    const ny = f.ay * cos / f.r1 + f.ny * sin / f.r2;
+    const length = Math.hypot(nx, ny) || 1;
+    ox = nx / length;
+    oy = ny / length;
+  } else {
+    x = f.cx + f.ax * f.r1 * t;
+    y = f.cy + f.ay * f.r1 * t;
+    ox = f.ay;
+    oy = -f.ax;
+  }
+  return { x, y, ox, oy, rotation: Math.atan2(ox, -oy) };
+}
+function gizmoAngle(handles, box) {
+  const f = gradientFrame(handles, box.width, box.height);
+  let degrees = Math.atan2(f.ay, f.ax) * 180 / Math.PI - 90;
+  if (degrees <= -180) degrees += 360;
+  if (degrees > 180) degrees -= 360;
+  return Math.round(degrees) || 0;
+}
+var formatGizmoAngle = (degrees) => `${degrees}\xB0`;
+var GIZMO_SWATCH_OFFSET = 18;
+var GHOST_BAND_OUT = GIZMO_SWATCH_OFFSET + 10;
+var GHOST_BAND_IN = 8;
+function ghostBandPath(shape, handles, box) {
+  const edge = (at, offset) => {
+    const p = stopPlacement(shape, handles, at, box);
+    return `${(p.x + p.ox * offset).toFixed(2)} ${(p.y + p.oy * offset).toFixed(2)}`;
+  };
+  if (shape !== "angular") return `M${edge(0, GHOST_BAND_OUT)}L${edge(100, GHOST_BAND_OUT)}L${edge(100, -GHOST_BAND_IN)}L${edge(0, -GHOST_BAND_IN)}Z`;
+  const steps = 120;
+  const outer = [];
+  const inner = [];
+  for (let i = 0; i < steps; i++) {
+    outer.push(edge(i / steps * 100, GHOST_BAND_OUT));
+    inner.push(edge((steps - i) / steps * 100, -GHOST_BAND_IN));
+  }
+  return `M${outer.join("L")}ZM${inner.join("L")}Z`;
+}
+var formatGizmoPercent = (at) => `${Math.round(at)}%`;
+var SVG = "http://www.w3.org/2000/svg";
+var MOVE_RADIUS = 7;
+var SWATCH_OFFSET = GIZMO_SWATCH_OFFSET;
+var STOP_STRIP = 2.5;
+var TIP_REACH = SWATCH_OFFSET + 10 + 6 + 14;
+var DRAG_THRESHOLD = 3;
+var cursors = /* @__PURE__ */ new Map();
+function rotateCursor(degrees) {
+  const step = Math.round(degrees / 15) * 15;
+  let cursor = cursors.get(step);
+  if (!cursor) {
+    const arc = "M6 15a7.5 7.5 0 0 1 12 0";
+    const heads = "M4 12.5 6 15l3-.5M20 12.5 18 15l-3-.5";
+    const svg = `<svg xmlns="${SVG}" width="24" height="24" viewBox="0 0 24 24"><g transform="rotate(${step + 90} 12 12)" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="${arc}" stroke="#fff" stroke-width="4"/><path d="${heads}" stroke="#fff" stroke-width="4"/><path d="${arc}" stroke="#000" stroke-width="1.5"/><path d="${heads}" stroke="#000" stroke-width="1.5"/></g></svg>`;
+    cursor = `url("data:image/svg+xml,${encodeURIComponent(svg)}") 12 12, grab`;
+    cursors.set(step, cursor);
+  }
+  return cursor;
+}
+function element(tag, className) {
+  const el = document.createElement(tag);
+  el.className = className;
+  return el;
+}
+function svgElement(tag, attrs) {
+  const el = document.createElementNS(SVG, tag);
+  for (const [key, value] of Object.entries(attrs)) el.setAttribute(key, value);
+  return el;
+}
+function mountGradientGizmo(target, initial, callbacks) {
+  let props = initial;
+  let box = { width: 1, height: 1 };
+  let press;
+  let hoverStop = -1;
+  let destroyed = false;
+  const root = element("div", "dialkit-bg-gizmo");
+  root.setAttribute("aria-hidden", "true");
+  const svg = svgElement("svg", { class: "dialkit-bg-gizmo-lines" });
+  const shadowLine = svgElement("line", { class: "dialkit-bg-gizmo-shadow" });
+  const line = svgElement("line", { class: "dialkit-bg-gizmo-line" });
+  const shadowRim = svgElement("ellipse", { class: "dialkit-bg-gizmo-shadow" });
+  const rim = svgElement("ellipse", { class: "dialkit-bg-gizmo-line" });
+  const band = svgElement("path", { class: "dialkit-bg-gizmo-hit", "fill-rule": "evenodd" });
+  svg.append(shadowRim, rim, shadowLine, line, band);
+  const handles = {
+    start: element("div", "dialkit-bg-gizmo-handle"),
+    end: element("div", "dialkit-bg-gizmo-handle"),
+    width: element("div", "dialkit-bg-gizmo-handle")
+  };
+  for (const [role, el] of Object.entries(handles)) {
+    el.dataset.role = role;
+    el.append(element("span", "dialkit-bg-gizmo-dot"));
+  }
+  const swatchLayer = element("div", "dialkit-bg-gizmo-stops");
+  const ghost = element("div", "dialkit-bg-gizmo-stop dialkit-bg-gizmo-ghost");
+  ghost.hidden = true;
+  const tip = element("div", "dialkit-bg-gizmo-tip");
+  tip.hidden = true;
+  let swatches = [];
+  root.append(svg, swatchLayer, ghost, handles.width, handles.start, handles.end, tip);
+  document.body.append(root);
+  root.addEventListener("pointerdown", (event) => event.stopPropagation());
+  const local = (event) => {
+    const rect = root.getBoundingClientRect();
+    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+  };
+  const showTip = (text, x, y, place) => {
+    tip.textContent = text;
+    tip.hidden = false;
+    tip.dataset.place = place;
+    tip.style.transform = `translate(${x}px, ${y}px)`;
+  };
+  const hideTip = () => {
+    tip.hidden = true;
+  };
+  const zone = (role, p) => {
+    const point = gizmoPoints(props.gradient.handles, box)[role];
+    return Math.hypot(p.x - point.x, p.y - point.y) <= MOVE_RADIUS ? "move" : "rotate";
+  };
+  const angleText = () => formatGizmoAngle(gizmoAngle(props.gradient.handles, box));
+  for (const [key, el] of Object.entries(handles)) {
+    const role = key;
+    el.addEventListener("pointermove", (event) => {
+      const p = local(event);
+      if (press) {
+        if (press.id !== event.pointerId) return;
+        if (press.kind === "move") {
+          const h = props.gradient.handles;
+          callbacks.onHandles(role === "end" ? dragGradientEnd(h, p, box) : role === "start" ? dragGradientCentre(h, p, box) : dragGradientWidth(h, p, box));
+        } else if (press.kind === "rotate") {
+          const centre = gizmoPoints(press.base, box).start;
+          const angle = Math.atan2(p.y - centre.y, p.x - centre.x);
+          callbacks.onHandles(rotateGradientHandles(press.base, angle - press.from, box));
+          el.style.cursor = rotateCursor(angle * 180 / Math.PI);
+          showTip(angleText(), p.x, p.y, "right");
+        }
+        return;
+      }
+      if (zone(role, p) === "move") {
+        el.style.cursor = "move";
+        hideTip();
+      } else {
+        const point = gizmoPoints(props.gradient.handles, box)[role];
+        el.style.cursor = rotateCursor(Math.atan2(p.y - point.y, p.x - point.x) * 180 / Math.PI);
+        showTip(angleText(), p.x, p.y, "right");
+      }
+    });
+    el.addEventListener("pointerleave", () => {
+      if (!press) hideTip();
+    });
+    el.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0 || press) return;
+      event.preventDefault();
+      const p = local(event);
+      if (zone(role, p) === "move") {
+        press = { kind: "move", role, id: event.pointerId };
+        hideTip();
+      } else {
+        const centre = gizmoPoints(props.gradient.handles, box).start;
+        press = { kind: "rotate", id: event.pointerId, from: Math.atan2(p.y - centre.y, p.x - centre.x), base: props.gradient.handles };
+        showTip(angleText(), p.x, p.y, "right");
+      }
+      root.dataset.active = "true";
+      try {
+        el.setPointerCapture(event.pointerId);
+      } catch {
+        press = void 0;
+      }
+    });
+    const end = (event) => {
+      if (!press || press.id !== event.pointerId || press.kind === "stop") return;
+      press = void 0;
+      delete root.dataset.active;
+      if (el.hasPointerCapture(event.pointerId)) el.releasePointerCapture(event.pointerId);
+      hideTip();
+    };
+    el.addEventListener("pointerup", end);
+    el.addEventListener("pointercancel", end);
+    el.addEventListener("lostpointercapture", end);
+  }
+  const percentTip = (index) => {
+    const stop = props.gradient.stops[index];
+    if (!stop) return;
+    const place = stopPlacement(props.gradient.shape, props.gradient.handles, stop.at, box);
+    const reach = TIP_REACH;
+    showTip(formatGizmoPercent(stop.at), place.x + place.ox * reach, place.y + place.oy * reach, "center");
+  };
+  const startStopDrag = (event, el, moved) => {
+    const p = local(event);
+    press = { kind: "stop", id: event.pointerId, x: p.x, y: p.y, moved };
+    root.dataset.active = "true";
+    try {
+      el.setPointerCapture(event.pointerId);
+    } catch {
+      press = void 0;
+    }
+  };
+  const stopMove = (event) => {
+    if (!press || press.kind !== "stop" || press.id !== event.pointerId) return false;
+    const p = local(event);
+    if (!press.moved && Math.hypot(p.x - press.x, p.y - press.y) < DRAG_THRESHOLD) return true;
+    press.moved = true;
+    const at = Math.round(stopPositionAt(props.gradient.shape, props.gradient.handles, p, box));
+    callbacks.onStopMove(props.selected, at);
+    percentTip(props.selected);
+    return true;
+  };
+  const stopEnd = (event, el) => {
+    if (!press || press.kind !== "stop" || press.id !== event.pointerId) return;
+    press = void 0;
+    delete root.dataset.active;
+    if (el.hasPointerCapture(event.pointerId)) el.releasePointerCapture(event.pointerId);
+    if (hoverStop < 0) hideTip();
+  };
+  const buildSwatches = () => {
+    swatchLayer.replaceChildren();
+    swatches = props.gradient.stops.map((_, i) => {
+      const el = element("div", "dialkit-bg-gizmo-stop");
+      el.addEventListener("pointerenter", () => {
+        hoverStop = i;
+        if (!press) percentTip(i);
+      });
+      el.addEventListener("pointerleave", () => {
+        hoverStop = -1;
+        if (!press) hideTip();
+      });
+      el.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0 || press) return;
+        event.preventDefault();
+        callbacks.onSelect(i);
+        startStopDrag(event, el, false);
+        percentTip(props.selected);
+      });
+      el.addEventListener("pointermove", (event) => {
+        stopMove(event);
+      });
+      el.addEventListener("pointerup", (event) => stopEnd(event, el));
+      el.addEventListener("pointercancel", (event) => stopEnd(event, el));
+      el.addEventListener("lostpointercapture", (event) => stopEnd(event, el));
+      swatchLayer.append(el);
+      return el;
+    });
+  };
+  const stopUnder = (at) => {
+    const { shape, handles: h, stops } = props.gradient;
+    const point = stopPlacement(shape, h, at, box);
+    let found = -1;
+    let best = STOP_STRIP;
+    stops.forEach((stop, i) => {
+      const p = stopPlacement(shape, h, stop.at, box);
+      const d = Math.hypot(p.x - point.x, p.y - point.y);
+      if (d <= best) {
+        best = d;
+        found = i;
+      }
+    });
+    return found;
+  };
+  const hideGhost = () => {
+    ghost.hidden = true;
+    delete root.dataset.ghost;
+  };
+  band.addEventListener("pointermove", (event) => {
+    if (stopMove(event)) {
+      hideGhost();
+      return;
+    }
+    if (press) return;
+    const { shape, handles: h, stops } = props.gradient;
+    const at = ghostPositionAt(shape, h, local(event), box);
+    const under = stopUnder(at);
+    if (under >= 0) {
+      hideGhost();
+      band.style.cursor = "move";
+      percentTip(under);
+      return;
+    }
+    band.style.cursor = "";
+    const place = stopPlacement(shape, h, at, box);
+    ghost.hidden = false;
+    root.dataset.ghost = "true";
+    ghost.style.setProperty("--dial-bg-stop", stopCssColor(gradientColorAt(stops, at)));
+    placeSwatch(ghost, place);
+    showTip(formatGizmoPercent(at), place.x + place.ox * TIP_REACH, place.y + place.oy * TIP_REACH, "center");
+  });
+  band.addEventListener("pointerleave", () => {
+    if (!press) {
+      hideGhost();
+      hideTip();
+    }
+  });
+  band.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0 || press) return;
+    event.preventDefault();
+    hideGhost();
+    const { shape, handles: h } = props.gradient;
+    const at = ghostPositionAt(shape, h, local(event), box);
+    const under = stopUnder(at);
+    if (under >= 0) callbacks.onSelect(under);
+    else callbacks.onStopAdd(Math.round(at * 10) / 10);
+    startStopDrag(event, band, false);
+    percentTip(props.selected);
+  });
+  band.addEventListener("pointerup", (event) => stopEnd(event, band));
+  band.addEventListener("pointercancel", (event) => stopEnd(event, band));
+  band.addEventListener("lostpointercapture", (event) => stopEnd(event, band));
+  let tokensFrom = "";
+  function copyTokens() {
+    const source = props.themeSource;
+    const key = source ? `${source.dataset.theme ?? ""}` : "";
+    if (!source || key === tokensFrom) return;
+    tokensFrom = key;
+    const styles = getComputedStyle(source);
+    for (const property of Array.from(styles)) {
+      if (property.startsWith("--dial-")) root.style.setProperty(property, styles.getPropertyValue(property));
+    }
+  }
+  function placeSwatch(el, place) {
+    const x = place.x + place.ox * SWATCH_OFFSET;
+    const y = place.y + place.oy * SWATCH_OFFSET;
+    el.style.transform = `translate(${x}px, ${y}px) rotate(${place.rotation}rad)`;
+  }
+  const fit = () => {
+    if (destroyed) return;
+    const rect = target.getBoundingClientRect();
+    Object.assign(root.style, { left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px` });
+    const changed = rect.width !== box.width || rect.height !== box.height;
+    box = { width: Math.max(rect.width, 1), height: Math.max(rect.height, 1) };
+    if (changed) draw();
+  };
+  const resize = typeof ResizeObserver === "function" ? new ResizeObserver(fit) : void 0;
+  resize?.observe(target);
+  window.addEventListener("scroll", fit, true);
+  window.addEventListener("resize", fit);
+  function draw() {
+    const { shape, handles: h, stops } = props.gradient;
+    copyTokens();
+    if (props.zIndex !== void 0) root.style.zIndex = String(props.zIndex);
+    root.dataset.shape = shape;
+    const p = gizmoPoints(h, box);
+    const f = gradientFrame(h, box.width, box.height);
+    for (const l of [shadowLine, line]) {
+      l.setAttribute("x1", String(p.start.x));
+      l.setAttribute("y1", String(p.start.y));
+      l.setAttribute("x2", String(p.end.x));
+      l.setAttribute("y2", String(p.end.y));
+    }
+    const turn = Math.atan2(f.ay, f.ax) * 180 / Math.PI;
+    for (const e of [shadowRim, rim]) {
+      e.setAttribute("cx", String(p.start.x));
+      e.setAttribute("cy", String(p.start.y));
+      e.setAttribute("rx", String(f.r1));
+      e.setAttribute("ry", String(f.r2));
+      e.setAttribute("transform", `rotate(${turn} ${p.start.x} ${p.start.y})`);
+    }
+    const angular = shape === "angular";
+    shadowRim.style.display = rim.style.display = angular ? "" : "none";
+    band.setAttribute("d", ghostBandPath(shape, h, box));
+    for (const [key, el] of Object.entries(handles)) {
+      const point = p[key];
+      el.style.transform = `translate(${point.x}px, ${point.y}px)`;
+    }
+    handles.width.hidden = shape === "linear";
+    if (swatches.length !== stops.length) buildSwatches();
+    stops.forEach((stop, i) => {
+      const el = swatches[i];
+      el.style.setProperty("--dial-bg-stop", stopCssColor(stop));
+      el.toggleAttribute("data-selected", i === props.selected);
+      el.style.zIndex = i === props.selected ? "3" : "2";
+      placeSwatch(el, stopPlacement(shape, h, stop.at, box));
+    });
+  }
+  fit();
+  draw();
+  return {
+    element: root,
+    update(next) {
+      props = next;
+      fit();
+      draw();
+      if (press?.kind === "stop" && press.moved) percentTip(props.selected);
+      else if (press?.kind === "rotate") {
+      } else if (hoverStop >= 0 && !press) percentTip(hoverStop);
+    },
+    destroy() {
+      destroyed = true;
+      resize?.disconnect();
+      window.removeEventListener("scroll", fit, true);
+      window.removeEventListener("resize", fit);
+      root.remove();
+    }
+  };
 }
 
 // src/store/BackgroundHost.ts
@@ -315,10 +986,7 @@ function notify() {
   state().listeners.forEach((listener) => listener());
 }
 function cloneSaved(list) {
-  return list.map((saved) => ({
-    id: saved.id,
-    gradient: { shape: saved.gradient.shape, angle: saved.gradient.angle, stops: saved.gradient.stops.map((stop) => ({ ...stop })) }
-  }));
+  return list.map((saved) => ({ id: saved.id, gradient: normalizeGradient(saved.gradient) }));
 }
 function setBackgroundHost(host) {
   state().host = { ...host };
@@ -1430,22 +2098,38 @@ var DialStore = /* @__PURE__ */ new DialStoreClass();
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   DialStore,
+  GRADIENT_SHAPES,
   backgroundGradientCss,
   defaultBackgroundValue,
+  defaultGradientHandles,
+  dragGradientCentre,
+  dragGradientEnd,
+  dragGradientWidth,
   flattenDialValueUpdates,
+  formatGizmoAngle,
   formatLabel,
   getBackgroundHost,
   getSavedGradients,
+  gizmoAngle,
+  gizmoPoints,
+  gradientFrame,
+  gradientParamAt,
   inferStep,
   isEasingConfigValue,
   isFolderMetaKey,
   isHexColor,
   isLeafConfigValue,
   isSpringConfigValue,
+  legacyGradientHandles,
+  mountGradientGizmo,
   normalizeBackgroundValue,
+  paintBackgroundPreview,
   resolveDialValues,
+  rotateGradientHandles,
   setBackgroundHost,
   setSavedGradients,
+  stopPlacement,
+  stopPositionAt,
   subscribeBackgroundHost,
   unwrapVisibility,
   withVisibility

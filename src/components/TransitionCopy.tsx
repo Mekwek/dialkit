@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { ICON_CHECK, ICON_COPY, ICON_MORE, ICON_PASTE } from '../icons';
+import { ICON_CHECK, ICON_COPY, ICON_MORE, ICON_MORE_STROKE, ICON_PASTE } from '../icons';
 import { DialStore } from '../store/DialStore';
 import type { TransitionConfig } from '../store/DialStore';
 import { TransitionLibrary } from '../store/TransitionLibrary';
@@ -120,7 +120,7 @@ export function TransitionCopyMenu({ panelId, path, value }: TransitionCopyProps
         onFocus={() => setOpen(true)}
         onClick={() => setOpen(true)}
       >
-        <Icon paths={done ? [ICON_CHECK] : ICON_MORE} width={done ? 2 : 3} />
+        <Icon paths={done ? [ICON_CHECK] : ICON_MORE} width={done ? 2 : ICON_MORE_STROKE} />
       </button>
     </div>
   );

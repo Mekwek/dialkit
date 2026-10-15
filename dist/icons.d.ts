@@ -30,9 +30,15 @@ declare const ICON_RESET: string[];
 /** Stroke icons, 24 × 24: a chain that locks values together. */
 declare const ICON_LINK: string[];
 declare const ICON_MORE: string[];
+/**
+ * The stroke the "···" dots are drawn with: the Ease section's copy menu, the
+ * version menu's row dots and the gradient row's Column grip (turned upright)
+ * all draw ICON_MORE with it, in its 24-unit box shown 14px tall.
+ */
+declare const ICON_MORE_STROKE = 3;
 /** Two overlapping sheets: copy. */
 declare const ICON_COPY: string[];
 /** A clipboard with an arrow in: paste. */
 declare const ICON_PASTE: string[];
 
-export { ICON_ADD_PRESET, ICON_CHECK, ICON_CHEVRON, ICON_CLIPBOARD, ICON_CLOSE, ICON_COPY, ICON_LINK, ICON_LOCK, ICON_LOCK_OPEN, ICON_LOOP, ICON_MORE, ICON_PANEL, ICON_PASTE, ICON_PAUSE, ICON_PENCIL, ICON_PLAY, ICON_PLUS, ICON_REPLAY, ICON_RESET, ICON_TIMELINE, ICON_TRASH };
+export { ICON_ADD_PRESET, ICON_CHECK, ICON_CHEVRON, ICON_CLIPBOARD, ICON_CLOSE, ICON_COPY, ICON_LINK, ICON_LOCK, ICON_LOCK_OPEN, ICON_LOOP, ICON_MORE, ICON_MORE_STROKE, ICON_PANEL, ICON_PASTE, ICON_PAUSE, ICON_PENCIL, ICON_PLAY, ICON_PLUS, ICON_REPLAY, ICON_RESET, ICON_TIMELINE, ICON_TRASH };

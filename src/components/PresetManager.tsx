@@ -7,7 +7,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { GROUP_MOTION, GROUP_SPRING, ICON_MOTION } from './action-motion';
 import { DialStore, Preset } from '../store/DialStore';
-import { ICON_CHECK, ICON_CHEVRON, ICON_MORE, ICON_PENCIL, ICON_PLUS, ICON_TRASH, ICON_LOCK, ICON_LOCK_OPEN } from '../icons';
+import { ICON_CHECK, ICON_CHEVRON, ICON_MORE, ICON_MORE_STROKE, ICON_PENCIL, ICON_PLUS, ICON_TRASH, ICON_LOCK, ICON_LOCK_OPEN } from '../icons';
 import { useHint } from './Hint';
 
 interface PresetManagerProps {
@@ -405,9 +405,9 @@ const keepPress = {
   onPointerDown: (e: ReactPointerEvent) => e.stopPropagation(),
 };
 
-function Icon({ paths }: { paths: string[] }) {
+function Icon({ paths, width = 2 }: { paths: string[]; width?: number }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={width} strokeLinecap="round" strokeLinejoin="round">
       {paths.map((d, i) => (
         <path key={i} d={d} />
       ))}
@@ -511,7 +511,7 @@ function PresetActions({ id, noun, locked, editable, lockable, onRename, onToggl
       onClick={() => setOpen(true)}
       {...keepPress}
     >
-      <Icon paths={ICON_MORE} />
+      <Icon paths={ICON_MORE} width={ICON_MORE_STROKE} />
     </button>
   );
 
