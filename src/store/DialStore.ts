@@ -565,6 +565,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/**
+ * What a background write's missing or invalid fields fall back to: the
+ * value stored now, when it is valid, so a partial write such as
+ * `{ mode: 'gradient' }` keeps the colour, stops, handles and media; else the
+ * config's default. A full value replaces every field either way.
+ */
+function backgroundWriteBase(current: unknown, configDefault?: BackgroundValue): BackgroundValue | undefined {
+  if (!isRecord(current)) return configDefault;
+  return sameBackgroundValue(current, normalizeBackgroundValue(current, configDefault)) ? current as unknown as BackgroundValue : configDefault;
+}
+
 function sameControlValue(previous: unknown, next: unknown, control?: ControlMeta): boolean {
   return Object.is(previous, next) || (control?.type === 'pad' &&
     isRecord(previous) && isRecord(next) && previous.x === next.x && previous.y === next.y) ||
@@ -927,7 +938,7 @@ class DialStoreClass {
       }
 
       const next = control?.type === 'pad' ? normalizePadValue(value, control.pad)
-        : control?.type === 'background' ? normalizeBackgroundValue(value, control.background?.default)
+        : control?.type === 'background' ? normalizeBackgroundValue(value, backgroundWriteBase(panel.values[path], control.background?.default))
         : value;
       if (sameControlValue(panel.values[path], next, control) &&
         (!target || sameControlValue(target[path], next, control))) continue;

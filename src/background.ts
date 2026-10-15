@@ -306,9 +306,20 @@ export function normalizeGradient(value: unknown, fallback: BackgroundGradient =
     shape,
     handles,
     stops: stops.length >= BACKGROUND_MIN_STOPS
-      ? sortStops(stops).slice(0, BACKGROUND_MAX_STOPS)
+      ? capStops(sortStops(stops))
       : fallback.stops.map(stop => ({ ...stop })),
   };
+}
+
+/**
+ * At most BACKGROUND_MAX_STOPS of a sorted list. Too many keep the first and
+ * the last stop and an even spread between them, so the gradient still runs
+ * end to end; keeping only the first ones would drop its far end.
+ */
+function capStops(sorted: BackgroundStop[]): BackgroundStop[] {
+  const n = sorted.length;
+  if (n <= BACKGROUND_MAX_STOPS) return sorted;
+  return Array.from({ length: BACKGROUND_MAX_STOPS }, (_, i) => sorted[Math.round(i * (n - 1) / (BACKGROUND_MAX_STOPS - 1))]);
 }
 
 function normalizeMedia(value: unknown): BackgroundMedia | null {
@@ -338,8 +349,8 @@ export function normalizeMediaDisplay(value: unknown, fallback: BackgroundMediaD
 
 /**
  * A fresh, valid value. Each field that is missing or invalid falls back to
- * the same field of `fallback` (the control's default), so one bad field
- * never resets the rest.
+ * the same field of `fallback` (the current value, or the control's default),
+ * so one bad or missing field never resets the rest.
  */
 export function normalizeBackgroundValue(value: unknown, fallback: BackgroundValue = defaultBackgroundValue()): BackgroundValue {
   const base = fallback;

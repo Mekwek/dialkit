@@ -162,8 +162,8 @@ declare function gradientFrame(handles: GradientHandles, width: number, height: 
 declare function gradientParamAt(shape: GradientShape, frame: GradientFrame, px: number, py: number): number;
 /**
  * A fresh, valid value. Each field that is missing or invalid falls back to
- * the same field of `fallback` (the control's default), so one bad field
- * never resets the rest.
+ * the same field of `fallback` (the current value, or the control's default),
+ * so one bad or missing field never resets the rest.
  */
 declare function normalizeBackgroundValue(value: unknown, fallback?: BackgroundValue): BackgroundValue;
 /**
@@ -219,7 +219,9 @@ declare function rotateGradientHandles(handles: GradientHandles, radians: number
 /**
  * The end handle follows the pointer; the centre stays. The main radius and
  * the direction change together, and the cross radius scales with the main
- * one, so the ellipse keeps its shape.
+ * one, so the ellipse keeps its shape. The end stays at least 1px from the
+ * centre: on the centre both radii would be 0, the shape's ratio would be
+ * lost, and the next move would rebuild it as a circle.
  */
 declare function dragGradientEnd(handles: GradientHandles, pointer: Vec, box: GizmoBox): GradientHandles;
 /** The centre (start) follows the pointer; the end handle stays, and the ellipse keeps its shape. */

@@ -100,13 +100,18 @@ export function rotateGradientQuarter(shape: GradientShape, handles: GradientHan
 /**
  * The end handle follows the pointer; the centre stays. The main radius and
  * the direction change together, and the cross radius scales with the main
- * one, so the ellipse keeps its shape.
+ * one, so the ellipse keeps its shape. The end stays at least 1px from the
+ * centre: on the centre both radii would be 0, the shape's ratio would be
+ * lost, and the next move would rebuild it as a circle.
  */
 export function dragGradientEnd(handles: GradientHandles, pointer: Vec, box: GizmoBox): GradientHandles {
   const f = gradientFrame(handles, box.width, box.height);
   const start = { x: f.cx, y: f.cy };
-  const r1 = Math.hypot(pointer.x - start.x, pointer.y - start.y);
-  return fromFrame(start, pointer, f.r2 * (r1 / f.r1), sideOf(handles, box), box);
+  const reach = Math.hypot(pointer.x - start.x, pointer.y - start.y);
+  // Closer than 1px: 1px out along the current main axis.
+  const end = reach >= 1 ? pointer : { x: start.x + f.ax, y: start.y + f.ay };
+  const r1 = Math.max(reach, 1);
+  return fromFrame(start, end, f.r2 * (r1 / f.r1), sideOf(handles, box), box);
 }
 
 /** The centre (start) follows the pointer; the end handle stays, and the ellipse keeps its shape. */
@@ -294,6 +299,8 @@ const STOP_STRIP = 2.5;
 const TIP_REACH = SWATCH_OFFSET + 10 + 6 + 14;
 /** Pointer travel before a press on the line or a swatch counts as a drag. */
 const DRAG_THRESHOLD = 3;
+/** A handle's arrow keys: the direction each one moves it, on screen. */
+const ARROW_STEPS: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
 
 const cursors = new Map<number, string>();
 /** A curved double arrow, turned to face away from the handle, like Figma's rotate cursor. */
@@ -342,9 +349,10 @@ export function mountGradientGizmo(target: HTMLElement, initial: GradientGizmoPr
   let hoverStop = -1;
   let destroyed = false;
 
+  // Only the handle dots are reachable from the keyboard; the lines, the
+  // swatches, the ghost and the tooltip stay hidden from assistive tech.
   const root = element('div', 'dialkit-bg-gizmo');
-  root.setAttribute('aria-hidden', 'true');
-  const svg = svgElement('svg', { class: 'dialkit-bg-gizmo-lines' });
+  const svg = svgElement('svg', { class: 'dialkit-bg-gizmo-lines', 'aria-hidden': 'true' });
   const shadowLine = svgElement('line', { class: 'dialkit-bg-gizmo-shadow' });
   const line = svgElement('line', { class: 'dialkit-bg-gizmo-line' });
   const shadowRim = svgElement('ellipse', { class: 'dialkit-bg-gizmo-shadow' });
@@ -359,12 +367,18 @@ export function mountGradientGizmo(target: HTMLElement, initial: GradientGizmoPr
   };
   for (const [role, el] of Object.entries(handles)) {
     el.dataset.role = role;
+    el.tabIndex = 0;
+    el.setAttribute('role', 'button');
+    el.setAttribute('aria-keyshortcuts', 'ArrowUp ArrowDown ArrowLeft ArrowRight');
     el.append(element('span', 'dialkit-bg-gizmo-dot'));
   }
   const swatchLayer = element('div', 'dialkit-bg-gizmo-stops');
+  swatchLayer.setAttribute('aria-hidden', 'true');
   const ghost = element('div', 'dialkit-bg-gizmo-stop dialkit-bg-gizmo-ghost');
+  ghost.setAttribute('aria-hidden', 'true');
   ghost.hidden = true;
   const tip = element('div', 'dialkit-bg-gizmo-tip');
+  tip.setAttribute('aria-hidden', 'true');
   tip.hidden = true;
   let swatches: HTMLDivElement[] = [];
   root.append(svg, swatchLayer, ghost, handles.width, handles.start, handles.end, tip);
@@ -373,6 +387,9 @@ export function mountGradientGizmo(target: HTMLElement, initial: GradientGizmoPr
   // Presses on the gizmo end here: the panel's colour picker closes on a
   // press anywhere else in the document, and this one is not "elsewhere".
   root.addEventListener('pointerdown', event => event.stopPropagation());
+  // The same for the focus: tabbing to a handle must not close the picker,
+  // which would close the gizmo with it.
+  root.addEventListener('focusin', event => event.stopPropagation());
 
   const local = (event: PointerEvent): Vec => {
     const rect = root.getBoundingClientRect();
@@ -434,6 +451,20 @@ export function mountGradientGizmo(target: HTMLElement, initial: GradientGizmoPr
       }
       root.dataset.active = 'true';
       try { el.setPointerCapture(event.pointerId); } catch { press = undefined; }
+    });
+    // The arrow keys move the focused handle by 1% of the canvas (Shift: 10%),
+    // as if the pointer had dragged its dot there. Other keys pass on, so
+    // Escape still reaches the control and closes the gizmo.
+    el.addEventListener('keydown', event => {
+      const step = ARROW_STEPS[event.key];
+      if (!step || press || event.altKey || event.metaKey || event.ctrlKey) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const share = event.shiftKey ? 0.1 : 0.01;
+      const point = gizmoPoints(props.gradient.handles, box)[role];
+      const p = { x: point.x + step[0] * share * box.width, y: point.y + step[1] * share * box.height };
+      const h = props.gradient.handles;
+      callbacks.onHandles(role === 'end' ? dragGradientEnd(h, p, box) : role === 'start' ? dragGradientCentre(h, p, box) : dragGradientWidth(h, p, box));
     });
     const end = (event: PointerEvent) => {
       if (!press || press.id !== event.pointerId || press.kind === 'stop') return;
@@ -555,17 +586,34 @@ export function mountGradientGizmo(target: HTMLElement, initial: GradientGizmoPr
   band.addEventListener('pointercancel', event => stopEnd(event, band));
   band.addEventListener('lostpointercapture', event => stopEnd(event, band));
 
-  /** The panel's theme tokens, copied when its theme changes. */
+  /** The panel's theme tokens, copied at once when its theme changes. */
   let tokensFrom = '';
   function copyTokens() {
     const source = props.themeSource;
     const key = source ? `${source.dataset.theme ?? ''}` : '';
     if (!source || key === tokensFrom) return;
     tokensFrom = key;
+    writeTokens(source);
+  }
+  function writeTokens(source: HTMLElement) {
     const styles = getComputedStyle(source);
     for (const property of Array.from(styles)) {
       if (property.startsWith('--dial-')) root.style.setProperty(property, styles.getPropertyValue(property));
     }
+  }
+  /**
+   * A Look panel can change --dial-* variables in place, with no theme
+   * change, so every update copies them again, at most once a frame: a
+   * drag updates on every pointer move, and reading every computed style
+   * that often would cost more than the drawing.
+   */
+  let tokenFrame = 0;
+  function refreshTokens() {
+    if (tokenFrame || typeof requestAnimationFrame !== 'function') return;
+    tokenFrame = requestAnimationFrame(() => {
+      tokenFrame = 0;
+      if (!destroyed && props.themeSource) writeTokens(props.themeSource);
+    });
   }
 
   function placeSwatch(el: HTMLElement, place: ReturnType<typeof stopPlacement>) {
@@ -616,6 +664,8 @@ export function mountGradientGizmo(target: HTMLElement, initial: GradientGizmoPr
     for (const [key, el] of Object.entries(handles)) {
       const point = p[key as Role];
       el.style.transform = `translate(${point.x}px, ${point.y}px)`;
+      const name = key === 'start' ? (shape === 'linear' ? 'start' : 'centre') : key;
+      el.setAttribute('aria-label', `Gradient ${name}, ${Math.round(point.x / box.width * 100)}% across, ${Math.round(point.y / box.height * 100)}% down`);
     }
     // Linear has two handles; the others a third, for the cross radius.
     handles.width.hidden = shape === 'linear';
@@ -638,12 +688,14 @@ export function mountGradientGizmo(target: HTMLElement, initial: GradientGizmoPr
       props = next;
       fit();
       draw();
+      refreshTokens();
       if (press?.kind === 'stop' && press.moved) percentTip(props.selected);
       else if (press?.kind === 'rotate') { /* the tooltip follows the pointer */ }
       else if (hoverStop >= 0 && !press) percentTip(hoverStop);
     },
     destroy() {
       destroyed = true;
+      if (tokenFrame) cancelAnimationFrame(tokenFrame);
       resize?.disconnect();
       window.removeEventListener('scroll', fit, true);
       window.removeEventListener('resize', fit);

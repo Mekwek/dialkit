@@ -143,8 +143,13 @@ function normalizeGradient(value, fallback = defaultBackgroundValue().gradient) 
   return {
     shape,
     handles,
-    stops: stops.length >= BACKGROUND_MIN_STOPS ? sortStops(stops).slice(0, BACKGROUND_MAX_STOPS) : fallback.stops.map((stop) => ({ ...stop }))
+    stops: stops.length >= BACKGROUND_MIN_STOPS ? capStops(sortStops(stops)) : fallback.stops.map((stop) => ({ ...stop }))
   };
+}
+function capStops(sorted) {
+  const n = sorted.length;
+  if (n <= BACKGROUND_MAX_STOPS) return sorted;
+  return Array.from({ length: BACKGROUND_MAX_STOPS }, (_, i) => sorted[Math.round(i * (n - 1) / (BACKGROUND_MAX_STOPS - 1))]);
 }
 function normalizeMedia(value) {
   if (!isRecord(value)) return null;

@@ -44,15 +44,27 @@ describe('background value', () => {
       media: null,
       mediaDisplay: { fit: 'fill', ratio: 'source', zoom: 3, tileScale: 0.05, pinX: 0, pinY: -1 },
     });
-    // Fewer than two valid stops fall back to the default's; more than eight are cut.
+    // Fewer than two valid stops fall back to the default's; more than eight
+    // keep the first, the last, and an even spread between them.
     assert.equal(normalizeBackgroundValue({ gradient: { stops: [{ at: 0, color: '#fff' }] } }).gradient.stops.length, 2);
     const many = Array.from({ length: 12 }, (_, i) => ({ at: 100 - i, color: '#000000', alpha: 100 }));
     const cut = normalizeBackgroundValue({ gradient: { shape: 'linear', angle: 0, stops: many } }).gradient.stops;
     assert.equal(cut.length, 8);
-    assert.deepEqual(cut.map(stop => stop.at), [89, 90, 91, 92, 93, 94, 95, 96]);
+    assert.deepEqual(cut.map(stop => stop.at), [89, 91, 92, 94, 95, 97, 98, 100]);
     // A value from before mediaDisplay existed gets the default display.
     const { mediaDisplay: _, ...old } = custom();
     assert.deepEqual(normalizeBackgroundValue(old).mediaDisplay, defaultBackgroundValue().mediaDisplay);
+  });
+
+  it('keeps the first and last stop and an even spread when there are too many', () => {
+    const stops = Array.from({ length: 11 }, (_, i) => ({ at: i * 10, color: '#ff0000', alpha: 100 })).filter(stop => stop.at !== 50);
+    assert.equal(stops.length, 10);
+    const value = normalizeBackgroundValue({ ...custom(), gradient: { ...custom().gradient, stops: [...stops].reverse() } });
+    const ats = value.gradient.stops.map(stop => stop.at);
+    assert.equal(ats.length, 8);
+    assert.equal(ats[0], 0);
+    assert.equal(ats[7], 100);
+    assert.deepEqual(ats, [...new Set(ats)].sort((a, b) => a - b), 'distinct and sorted');
   });
 
   it('compares by content, including the media display', () => {
@@ -134,6 +146,27 @@ describe('background in the store', () => {
       assert.equal((DialStore.getValue(id, 'scene.background') as BackgroundValue).mediaDisplay.zoom, 2.2);
       DialStore.resetValues(id);
       assert.deepEqual(DialStore.getValue(id, 'scene.background'), custom());
+    } finally { DialStore.unregisterPanel(id); }
+  });
+
+  it('fills a partial write from the current value, and lets a full write replace it', () => {
+    const id = 'background-partial-write';
+    const config = { bg: { type: 'background', default: defaultBackgroundValue() } } satisfies DialConfig;
+    try {
+      DialStore.registerPanel(id, 'Background', config);
+      DialStore.updateValue(id, 'bg', custom());
+      // Only the tab: the colour, stops, handles, media and display stay the user's.
+      DialStore.updateValue(id, 'bg', { mode: 'solid' } as unknown as BackgroundValue);
+      assert.deepEqual(DialStore.getValue(id, 'bg'), { ...custom(), mode: 'solid' });
+      // A partial gradient keeps the current gradient's other fields.
+      DialStore.updateValue(id, 'bg', { gradient: { shape: 'diamond' } } as unknown as BackgroundValue);
+      assert.deepEqual(DialStore.getValue(id, 'bg'), { ...custom(), mode: 'solid', gradient: { ...custom().gradient, shape: 'diamond' } });
+      // A full value, the default here, as a reset writes it, replaces every field.
+      DialStore.updateValue(id, 'bg', defaultBackgroundValue());
+      assert.deepEqual(DialStore.getValue(id, 'bg'), defaultBackgroundValue());
+      DialStore.updateValue(id, 'bg', custom());
+      DialStore.resetPaths(id, ['bg']);
+      assert.deepEqual(DialStore.getValue(id, 'bg'), defaultBackgroundValue());
     } finally { DialStore.unregisterPanel(id); }
   });
 

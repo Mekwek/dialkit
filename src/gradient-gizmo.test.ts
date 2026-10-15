@@ -162,6 +162,19 @@ describe('the gizmo maths', () => {
     nearPoint(gizmoPoints(h, square).width, { x: 100, y: 50 });
   });
 
+  it('keeps the end handle 1px off the centre, so the ellipse keeps its ratio', () => {
+    // r1 25px to the right, r2 12.5px above: a ratio of 0.5.
+    const ellipse: GradientHandles = { start: { x: 0.5, y: 0.5 }, end: { x: 0.75, y: 0.5 }, width: { x: 0.5, y: 0.375 } };
+    const onCentre = dragGradientEnd(ellipse, { x: 50, y: 50 }, square);
+    nearPoint(onCentre.end, { x: 0.51, y: 0.5 });
+    const squeezed = gradientFrame(onCentre, square.width, square.height);
+    near(squeezed.r1, 1);
+    near(squeezed.r2 / squeezed.r1, 0.5);
+    const out = gradientFrame(dragGradientEnd(onCentre, { x: 50, y: 90 }, square), square.width, square.height);
+    near(out.r1, 40);
+    near(out.r2 / out.r1, 0.5);
+  });
+
   it('moves the centre with the end handle fixed and the shape kept', () => {
     const h = dragGradientCentre(circle(), { x: 25, y: 50 }, square);
     nearPoint(h.start, { x: 0.25, y: 0.5 });

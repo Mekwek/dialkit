@@ -158,8 +158,8 @@ declare function normalizeGradient(value: unknown, fallback?: BackgroundGradient
 declare function normalizeMediaDisplay(value: unknown, fallback?: BackgroundMediaDisplay): BackgroundMediaDisplay;
 /**
  * A fresh, valid value. Each field that is missing or invalid falls back to
- * the same field of `fallback` (the control's default), so one bad field
- * never resets the rest.
+ * the same field of `fallback` (the current value, or the control's default),
+ * so one bad or missing field never resets the rest.
  */
 declare function normalizeBackgroundValue(value: unknown, fallback?: BackgroundValue): BackgroundValue;
 /** The config's default, made valid. */

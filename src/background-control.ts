@@ -623,10 +623,14 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
     const rect = handlesLayer.getBoundingClientRect();
     return rect.width ? clamp((clientX - rect.left) / rect.width, 0, 1) : 0;
   };
-  const startDrag = (event: PointerEvent, index: number, moved: boolean) => {
+  /** Starts a handle drag; false when the bar cannot hold the pointer, so no drag started. */
+  const startDrag = (event: PointerEvent, index: number, moved: boolean): boolean => {
+    // A pointer that is no longer active cannot be held: no drag then,
+    // rather than a drag that never ends and ignores every later press.
+    try { bar.setPointerCapture(event.pointerId); } catch { return false; }
     drag = { id: event.pointerId, index, x: event.clientX, moved };
-    bar.setPointerCapture(event.pointerId);
     bar.dataset.dragging = 'true';
+    return true;
   };
   const endDrag = (event?: PointerEvent) => {
     if (!drag || (event && event.pointerId !== drag.id)) return;
@@ -656,6 +660,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
       return;
     }
     if (value.gradient.stops.length >= BACKGROUND_MAX_STOPS) return;
+    // The press adds the stop either way; only a held pointer drags it on.
     addStopAt(Math.round(fractionAt(event.clientX) * 100));
     handles[selected]?.focus({ preventScroll: true });
     startDrag(event, selected, true);
@@ -829,6 +834,22 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
     placeRows();
     render();
   };
+  /**
+   * Drops a row drag at once, without emitting: the rows lose their shifts
+   * and the drag marks, and the dragged row lets the pointer go. For a value
+   * that came from outside under the drag, which the drag's `base` no longer
+   * describes.
+   */
+  const cancelRowDrag = () => {
+    if (!rowDrag) return;
+    const { id, pointerId } = rowDrag;
+    rowDrag = undefined;
+    delete stopsList.dataset.dragging;
+    delete stopsList.dataset.settling;
+    stopsList.querySelectorAll<HTMLElement>('.dialkit-bg-stop').forEach(el => { el.style.transform = ''; delete el.dataset.dragging; });
+    const held = rowById.get(id)?.root;
+    if (held?.hasPointerCapture(pointerId)) held.releasePointerCapture(pointerId);
+  };
   const bindRowDrag = (row: StopRow, index: () => number) => {
     const { grip, root: rowRoot } = row;
     // The press starts on the grip, or, in the Row style, on any part of the
@@ -892,7 +913,8 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
         if (e && (e.target !== row.root || e.propertyName !== 'transform')) return;
         row.root.removeEventListener('transitionend', done);
         clearTimeout(timer);
-        finishRowDrag();
+        // Only this drag: one cancelled while it settled may have a new one after it.
+        if (rowDrag === drag) finishRowDrag();
       };
       row.root.addEventListener('transitionend', done);
       // A safety net, in case no transitionend comes (the row was hidden).
@@ -967,12 +989,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
       leaving.push(row);
     }
     // A value from outside changed the stops under a drag: drop the drag.
-    if (rowDrag && (entering.length || leaving.length)) {
-      rowDrag = undefined;
-      delete stopsList.dataset.dragging;
-      delete stopsList.dataset.settling;
-      stopsList.querySelectorAll<HTMLElement>('.dialkit-bg-stop').forEach(el => { el.style.transform = ''; delete el.dataset.dragging; });
-    }
+    if (entering.length || leaving.length) cancelRowDrag();
     if (!rowDrag) placeRows();
     for (const row of leaving) {
       row.leaving = true;
@@ -1047,7 +1064,12 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
     }
     return Number.isFinite(highest) ? highest - 1 : 9998;
   };
-  const gizmoProps = () => ({ gradient: value.gradient, selected, themeSource: getDialKitPortalRoot(host), zIndex: gizmoZIndex() });
+  /**
+   * gizmoZIndex, read once when the gizmo opens and kept until it closes:
+   * it reads the computed style of every ancestor, too much for each render.
+   */
+  let gizmoZ: number | undefined;
+  const gizmoProps = () => ({ gradient: value.gradient, selected, themeSource: getDialKitPortalRoot(host), zIndex: gizmoZ ??= gizmoZIndex() });
   const ensureGizmo = () => {
     if (gizmo || gizmoRowId === undefined || value.mode !== 'gradient') return;
     const target = getBackgroundHost().gizmoTarget?.();
@@ -1060,6 +1082,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
     });
   };
   const enterGizmo = (rowId: number) => {
+    if (gizmoRowId === undefined) gizmoZ = gizmoZIndex();
     gizmoRowId = rowId;
     const index = stopIds.indexOf(rowId);
     if (index >= 0 && index !== selected) { selected = index; renderSelection(); }
@@ -1071,6 +1094,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
   };
   const exitGizmo = () => {
     gizmoRowId = undefined;
+    gizmoZ = undefined;
     delete root.dataset.gizmo;
     document.removeEventListener('keydown', gizmoEscape);
     document.removeEventListener('pointerdown', gizmoPressElsewhere, true);
@@ -1256,7 +1280,9 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
       }
       mediaStatus = '';
       uploading = false;
-      emit({ ...value, mode: 'media', media: { key: media.key, kind: media.kind } });
+      // The file lands in the Media tab, but the tab that is on stays: the
+      // user may have moved to Solid or Gradient while it uploaded.
+      emit({ ...value, media: { key: media.key, kind: media.kind } });
     } catch (error) {
       if (destroyed || request !== uploadRequest) return;
       mediaStatus = errorMessage(error, 'The upload failed.');
@@ -1646,6 +1672,11 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
       props = next;
       const incoming = normalizeBackgroundValue(next.value);
       if (!sameBackgroundValue(incoming, value)) {
+        // A value from outside (a preset, an undo, a host write) under a
+        // drag: drop the drag without emitting. Its next move would write
+        // the stops it started from over the new value.
+        cancelRowDrag();
+        endDrag();
         value = incoming;
         reconcileIds();
       }
@@ -1780,8 +1811,10 @@ function shellSlider(options: ShellSliderOptions) {
     if (event.button !== 0 || editing) return;
     event.preventDefault();
     slider.focus({ preventScroll: true });
+    // A pointer that is no longer active cannot be held: no press then,
+    // rather than one that never ends.
+    try { slider.setPointerCapture(event.pointerId); } catch { return; }
     press = { id: event.pointerId };
-    slider.setPointerCapture(event.pointerId);
     slider.classList.add('dialkit-slider-active');
     set(fromPointer(event.clientX));
   });

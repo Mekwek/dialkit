@@ -401,8 +401,13 @@ function normalizeGradient(value, fallback = defaultBackgroundValue().gradient) 
   return {
     shape,
     handles,
-    stops: stops.length >= BACKGROUND_MIN_STOPS ? sortStops(stops).slice(0, BACKGROUND_MAX_STOPS) : fallback.stops.map((stop) => ({ ...stop }))
+    stops: stops.length >= BACKGROUND_MIN_STOPS ? capStops(sortStops(stops)) : fallback.stops.map((stop) => ({ ...stop }))
   };
+}
+function capStops(sorted) {
+  const n = sorted.length;
+  if (n <= BACKGROUND_MAX_STOPS) return sorted;
+  return Array.from({ length: BACKGROUND_MAX_STOPS }, (_, i) => sorted[Math.round(i * (n - 1) / (BACKGROUND_MAX_STOPS - 1))]);
 }
 function normalizeMedia(value) {
   if (!isRecord(value)) return null;
@@ -664,8 +669,10 @@ function rotateGradientQuarter(shape, handles, box) {
 function dragGradientEnd(handles, pointer, box) {
   const f = gradientFrame(handles, box.width, box.height);
   const start = { x: f.cx, y: f.cy };
-  const r1 = Math.hypot(pointer.x - start.x, pointer.y - start.y);
-  return fromFrame(start, pointer, f.r2 * (r1 / f.r1), sideOf(handles, box), box);
+  const reach = Math.hypot(pointer.x - start.x, pointer.y - start.y);
+  const end = reach >= 1 ? pointer : { x: start.x + f.ax, y: start.y + f.ay };
+  const r1 = Math.max(reach, 1);
+  return fromFrame(start, end, f.r2 * (r1 / f.r1), sideOf(handles, box), box);
 }
 function dragGradientCentre(handles, pointer, box) {
   const f = gradientFrame(handles, box.width, box.height);
@@ -771,6 +778,7 @@ var SWATCH_OFFSET = GIZMO_SWATCH_OFFSET;
 var STOP_STRIP = 2.5;
 var TIP_REACH = SWATCH_OFFSET + 10 + 6 + 14;
 var DRAG_THRESHOLD = 3;
+var ARROW_STEPS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
 var cursors = /* @__PURE__ */ new Map();
 function rotateCursor(degrees) {
   const step = Math.round(degrees / 15) * 15;
@@ -801,8 +809,7 @@ function mountGradientGizmo(target, initial, callbacks) {
   let hoverStop = -1;
   let destroyed = false;
   const root = element("div", "dialkit-bg-gizmo");
-  root.setAttribute("aria-hidden", "true");
-  const svg2 = svgElement("svg", { class: "dialkit-bg-gizmo-lines" });
+  const svg2 = svgElement("svg", { class: "dialkit-bg-gizmo-lines", "aria-hidden": "true" });
   const shadowLine = svgElement("line", { class: "dialkit-bg-gizmo-shadow" });
   const line = svgElement("line", { class: "dialkit-bg-gizmo-line" });
   const shadowRim = svgElement("ellipse", { class: "dialkit-bg-gizmo-shadow" });
@@ -816,17 +823,24 @@ function mountGradientGizmo(target, initial, callbacks) {
   };
   for (const [role, el] of Object.entries(handles)) {
     el.dataset.role = role;
+    el.tabIndex = 0;
+    el.setAttribute("role", "button");
+    el.setAttribute("aria-keyshortcuts", "ArrowUp ArrowDown ArrowLeft ArrowRight");
     el.append(element("span", "dialkit-bg-gizmo-dot"));
   }
   const swatchLayer = element("div", "dialkit-bg-gizmo-stops");
+  swatchLayer.setAttribute("aria-hidden", "true");
   const ghost = element("div", "dialkit-bg-gizmo-stop dialkit-bg-gizmo-ghost");
+  ghost.setAttribute("aria-hidden", "true");
   ghost.hidden = true;
   const tip = element("div", "dialkit-bg-gizmo-tip");
+  tip.setAttribute("aria-hidden", "true");
   tip.hidden = true;
   let swatches = [];
   root.append(svg2, swatchLayer, ghost, handles.width, handles.start, handles.end, tip);
   document.body.append(root);
   root.addEventListener("pointerdown", (event) => event.stopPropagation());
+  root.addEventListener("focusin", (event) => event.stopPropagation());
   const local = (event) => {
     const rect = root.getBoundingClientRect();
     return { x: event.clientX - rect.left, y: event.clientY - rect.top };
@@ -893,6 +907,17 @@ function mountGradientGizmo(target, initial, callbacks) {
       } catch {
         press = void 0;
       }
+    });
+    el.addEventListener("keydown", (event) => {
+      const step = ARROW_STEPS[event.key];
+      if (!step || press || event.altKey || event.metaKey || event.ctrlKey) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const share = event.shiftKey ? 0.1 : 0.01;
+      const point = gizmoPoints(props.gradient.handles, box)[role];
+      const p = { x: point.x + step[0] * share * box.width, y: point.y + step[1] * share * box.height };
+      const h25 = props.gradient.handles;
+      callbacks.onHandles(role === "end" ? dragGradientEnd(h25, p, box) : role === "start" ? dragGradientCentre(h25, p, box) : dragGradientWidth(h25, p, box));
     });
     const end = (event) => {
       if (!press || press.id !== event.pointerId || press.kind === "stop") return;
@@ -1037,10 +1062,21 @@ function mountGradientGizmo(target, initial, callbacks) {
     const key = source ? `${source.dataset.theme ?? ""}` : "";
     if (!source || key === tokensFrom) return;
     tokensFrom = key;
+    writeTokens(source);
+  }
+  function writeTokens(source) {
     const styles = getComputedStyle(source);
     for (const property of Array.from(styles)) {
       if (property.startsWith("--dial-")) root.style.setProperty(property, styles.getPropertyValue(property));
     }
+  }
+  let tokenFrame = 0;
+  function refreshTokens() {
+    if (tokenFrame || typeof requestAnimationFrame !== "function") return;
+    tokenFrame = requestAnimationFrame(() => {
+      tokenFrame = 0;
+      if (!destroyed && props.themeSource) writeTokens(props.themeSource);
+    });
   }
   function placeSwatch(el, place) {
     const x = place.x + place.ox * SWATCH_OFFSET;
@@ -1086,6 +1122,8 @@ function mountGradientGizmo(target, initial, callbacks) {
     for (const [key, el] of Object.entries(handles)) {
       const point = p[key];
       el.style.transform = `translate(${point.x}px, ${point.y}px)`;
+      const name = key === "start" ? shape === "linear" ? "start" : "centre" : key;
+      el.setAttribute("aria-label", `Gradient ${name}, ${Math.round(point.x / box.width * 100)}% across, ${Math.round(point.y / box.height * 100)}% down`);
     }
     handles.width.hidden = shape === "linear";
     if (swatches.length !== stops.length) buildSwatches();
@@ -1105,12 +1143,14 @@ function mountGradientGizmo(target, initial, callbacks) {
       props = next;
       fit();
       draw();
+      refreshTokens();
       if (press?.kind === "stop" && press.moved) percentTip(props.selected);
       else if (press?.kind === "rotate") {
       } else if (hoverStop >= 0 && !press) percentTip(hoverStop);
     },
     destroy() {
       destroyed = true;
+      if (tokenFrame) cancelAnimationFrame(tokenFrame);
       resize?.disconnect();
       window.removeEventListener("scroll", fit, true);
       window.removeEventListener("resize", fit);
@@ -1253,6 +1293,10 @@ function configDefaultValue(value) {
 }
 function isRecord2(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function backgroundWriteBase(current, configDefault) {
+  if (!isRecord2(current)) return configDefault;
+  return sameBackgroundValue(current, normalizeBackgroundValue(current, configDefault)) ? current : configDefault;
 }
 function sameControlValue(previous, next, control) {
   return Object.is(previous, next) || control?.type === "pad" && isRecord2(previous) && isRecord2(next) && previous.x === next.x && previous.y === next.y || control?.type === "background" && sameBackgroundValue(previous, next);
@@ -1531,7 +1575,7 @@ var DialStoreClass = class {
       if (control?.type === "action") {
         continue;
       }
-      const next = control?.type === "pad" ? normalizePadValue(value, control.pad) : control?.type === "background" ? normalizeBackgroundValue(value, control.background?.default) : value;
+      const next = control?.type === "pad" ? normalizePadValue(value, control.pad) : control?.type === "background" ? normalizeBackgroundValue(value, backgroundWriteBase(panel.values[path], control.background?.default)) : value;
       if (sameControlValue(panel.values[path], next, control) && (!target || sameControlValue(target[path], next, control))) continue;
       panel.values[path] = next;
       validUpdates[path] = next;
@@ -6421,9 +6465,14 @@ function mountBackgroundControl(host, initial) {
     return rect.width ? clamp4((clientX - rect.left) / rect.width, 0, 1) : 0;
   };
   const startDrag = (event, index, moved) => {
+    try {
+      bar.setPointerCapture(event.pointerId);
+    } catch {
+      return false;
+    }
     drag = { id: event.pointerId, index, x: event.clientX, moved };
-    bar.setPointerCapture(event.pointerId);
     bar.dataset.dragging = "true";
+    return true;
   };
   const endDrag = (event) => {
     if (!drag || event && event.pointerId !== drag.id) return;
@@ -6612,6 +6661,19 @@ function mountBackgroundControl(host, initial) {
     placeRows();
     render();
   };
+  const cancelRowDrag = () => {
+    if (!rowDrag) return;
+    const { id, pointerId } = rowDrag;
+    rowDrag = void 0;
+    delete stopsList.dataset.dragging;
+    delete stopsList.dataset.settling;
+    stopsList.querySelectorAll(".dialkit-bg-stop").forEach((el) => {
+      el.style.transform = "";
+      delete el.dataset.dragging;
+    });
+    const held = rowById.get(id)?.root;
+    if (held?.hasPointerCapture(pointerId)) held.releasePointerCapture(pointerId);
+  };
   const bindRowDrag = (row, index) => {
     const { grip, root: rowRoot } = row;
     rowRoot.addEventListener("pointerdown", (event) => {
@@ -6687,7 +6749,7 @@ function mountBackgroundControl(host, initial) {
         if (e && (e.target !== row.root || e.propertyName !== "transform")) return;
         row.root.removeEventListener("transitionend", done);
         clearTimeout(timer);
-        finishRowDrag();
+        if (rowDrag === drag2) finishRowDrag();
       };
       row.root.addEventListener("transitionend", done);
       timer = window.setTimeout(done, 400);
@@ -6743,15 +6805,7 @@ function mountBackgroundControl(host, initial) {
       rowById.delete(id);
       leaving.push(row);
     }
-    if (rowDrag && (entering.length || leaving.length)) {
-      rowDrag = void 0;
-      delete stopsList.dataset.dragging;
-      delete stopsList.dataset.settling;
-      stopsList.querySelectorAll(".dialkit-bg-stop").forEach((el) => {
-        el.style.transform = "";
-        delete el.dataset.dragging;
-      });
-    }
+    if (entering.length || leaving.length) cancelRowDrag();
     if (!rowDrag) placeRows();
     for (const row of leaving) {
       row.leaving = true;
@@ -6815,7 +6869,8 @@ function mountBackgroundControl(host, initial) {
     }
     return Number.isFinite(highest) ? highest - 1 : 9998;
   };
-  const gizmoProps = () => ({ gradient: value.gradient, selected, themeSource: getDialKitPortalRoot(host), zIndex: gizmoZIndex() });
+  let gizmoZ;
+  const gizmoProps = () => ({ gradient: value.gradient, selected, themeSource: getDialKitPortalRoot(host), zIndex: gizmoZ ?? (gizmoZ = gizmoZIndex()) });
   const ensureGizmo = () => {
     if (gizmo || gizmoRowId === void 0 || value.mode !== "gradient") return;
     const target = getBackgroundHost().gizmoTarget?.();
@@ -6835,6 +6890,7 @@ function mountBackgroundControl(host, initial) {
     });
   };
   const enterGizmo = (rowId) => {
+    if (gizmoRowId === void 0) gizmoZ = gizmoZIndex();
     gizmoRowId = rowId;
     const index = stopIds.indexOf(rowId);
     if (index >= 0 && index !== selected) {
@@ -6849,6 +6905,7 @@ function mountBackgroundControl(host, initial) {
   };
   const exitGizmo = () => {
     gizmoRowId = void 0;
+    gizmoZ = void 0;
     delete root.dataset.gizmo;
     document.removeEventListener("keydown", gizmoEscape);
     document.removeEventListener("pointerdown", gizmoPressElsewhere, true);
@@ -7021,7 +7078,7 @@ function mountBackgroundControl(host, initial) {
       }
       mediaStatus = "";
       uploading = false;
-      emit({ ...value, mode: "media", media: { key: media.key, kind: media.kind } });
+      emit({ ...value, media: { key: media.key, kind: media.kind } });
     } catch (error) {
       if (destroyed || request !== uploadRequest) return;
       mediaStatus = errorMessage(error, "The upload failed.");
@@ -7404,6 +7461,8 @@ ${url}`;
       props = next;
       const incoming = normalizeBackgroundValue(next.value);
       if (!sameBackgroundValue(incoming, value)) {
+        cancelRowDrag();
+        endDrag();
         value = incoming;
         reconcileIds();
       }
@@ -7520,8 +7579,12 @@ function shellSlider(options) {
     if (event.button !== 0 || editing) return;
     event.preventDefault();
     slider.focus({ preventScroll: true });
+    try {
+      slider.setPointerCapture(event.pointerId);
+    } catch {
+      return;
+    }
     press = { id: event.pointerId };
-    slider.setPointerCapture(event.pointerId);
     slider.classList.add("dialkit-slider-active");
     set(fromPointer(event.clientX));
   });
