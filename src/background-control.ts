@@ -521,9 +521,11 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
   stopsHeader.append(stopsTitle, addButton);
   const stopsList = element('div', 'dialkit-bg-stops');
   /**
-   * Reads `--dial-bg-grip-style` and `--dial-bg-stop-selected-style` and puts
-   * their names on the list: the grip, and how the selected row shows
-   * (1 a row highlight, 2 its fields only).
+   * Reads `--dial-bg-grip-style`, `--dial-bg-stop-selected-style` and
+   * `--dial-bg-stop-hover-style` and puts their names on the list: the grip,
+   * how the selected row shows (1 a row highlight, 2 its fields only), and
+   * what a hover lights (1 the field under the pointer, 2 every field of the
+   * row).
    */
   const syncGripStyle = () => {
     const styles = getComputedStyle(stopsList);
@@ -532,13 +534,15 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
     if (stopsList.dataset.gripStyle !== name) stopsList.dataset.gripStyle = name;
     const selectedStyle = styles.getPropertyValue('--dial-bg-stop-selected-style').trim() === '1' ? 'row' : 'fields';
     if (stopsList.dataset.selectedStyle !== selectedStyle) stopsList.dataset.selectedStyle = selectedStyle;
+    const hoverStyle = styles.getPropertyValue('--dial-bg-stop-hover-style').trim() === '1' ? 'field' : 'row';
+    if (stopsList.dataset.hoverStyle !== hoverStyle) stopsList.dataset.hoverStyle = hoverStyle;
   };
   // The theme registers --dial-bg-grip-style as an integer and transitions it
   // on the list for 1ms, so a change to it (a host's Look panel, a theme
   // switch) fires a transition here and the control re-renders. Without
   // @property support, the next render picks the change up.
   const onGripStyleTransition = (event: TransitionEvent) => {
-    if (event.target === stopsList && (event.propertyName === '--dial-bg-grip-style' || event.propertyName === '--dial-bg-stop-selected-style')) render();
+    if (event.target === stopsList && (event.propertyName === '--dial-bg-grip-style' || event.propertyName === '--dial-bg-stop-selected-style' || event.propertyName === '--dial-bg-stop-hover-style')) render();
   };
   stopsList.addEventListener('transitionrun', onGripStyleTransition);
   stopsList.addEventListener('transitionend', onGripStyleTransition);

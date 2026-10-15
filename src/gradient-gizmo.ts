@@ -295,8 +295,8 @@ const MOVE_RADIUS = 7;
 const SWATCH_OFFSET = GIZMO_SWATCH_OFFSET;
 /** On the line, this close to a real stop's point the stop wins over the ghost (Figma: about 2.5pt either side). */
 const STOP_STRIP = 2.5;
-/** How far a % tooltip's centre stands off the line: past the swatch, a 6px gap, half the tooltip. */
-const TIP_REACH = SWATCH_OFFSET + 10 + 6 + 14;
+/** How far a % tooltip's near edge stands off the line: past the swatch (its centre plus half its 20px), then a 6px gap. */
+const TIP_EDGE = SWATCH_OFFSET + 10 + 6;
 /** Pointer travel before a press on the line or a swatch counts as a drag. */
 const DRAG_THRESHOLD = 3;
 /** A handle's arrow keys: the direction each one moves it, on screen. */
@@ -402,6 +402,19 @@ export function mountGradientGizmo(target: HTMLElement, initial: GradientGizmoPr
     tip.style.transform = `translate(${x}px, ${y}px)`;
   };
   const hideTip = () => { tip.hidden = true; };
+  /**
+   * A % tooltip beside a stop's swatch, on the side the swatch stands, the
+   * same gap from the swatch whatever the line's direction. The tooltip is
+   * wider than tall, so how far it reaches towards the swatch depends on
+   * that direction: half its width times the sideways part plus half its
+   * height times the upright part (on a slanted line its corner comes
+   * closest). Measured once the text is in.
+   */
+  const percentTipAt = (text: string, place: { x: number; y: number; ox: number; oy: number }) => {
+    showTip(text, place.x, place.y, 'center');
+    const reach = TIP_EDGE + (tip.offsetWidth / 2) * Math.abs(place.ox) + (tip.offsetHeight / 2) * Math.abs(place.oy);
+    tip.style.transform = `translate(${place.x + place.ox * reach}px, ${place.y + place.oy * reach}px)`;
+  };
 
   // ── Handles: the dot moves, the ring around it rotates ──
   const zone = (role: Role, p: Vec) => {
@@ -482,9 +495,7 @@ export function mountGradientGizmo(target: HTMLElement, initial: GradientGizmoPr
   const percentTip = (index: number) => {
     const stop = props.gradient.stops[index];
     if (!stop) return;
-    const place = stopPlacement(props.gradient.shape, props.gradient.handles, stop.at, box);
-    const reach = TIP_REACH;
-    showTip(formatGizmoPercent(stop.at), place.x + place.ox * reach, place.y + place.oy * reach, 'center');
+    percentTipAt(formatGizmoPercent(stop.at), stopPlacement(props.gradient.shape, props.gradient.handles, stop.at, box));
   };
   const startStopDrag = (event: PointerEvent, el: Element, moved: boolean) => {
     const p = local(event);
@@ -567,7 +578,7 @@ export function mountGradientGizmo(target: HTMLElement, initial: GradientGizmoPr
     root.dataset.ghost = 'true';
     ghost.style.setProperty('--dial-bg-stop', stopCssColor(gradientColorAt(stops, at)));
     placeSwatch(ghost, place);
-    showTip(formatGizmoPercent(at), place.x + place.ox * TIP_REACH, place.y + place.oy * TIP_REACH, 'center');
+    percentTipAt(formatGizmoPercent(at), place);
   });
   band.addEventListener('pointerleave', () => { if (!press) { hideGhost(); hideTip(); } });
   band.addEventListener('pointerdown', event => {

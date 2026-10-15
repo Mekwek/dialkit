@@ -870,7 +870,7 @@ var SVG = "http://www.w3.org/2000/svg";
 var MOVE_RADIUS = 7;
 var SWATCH_OFFSET = GIZMO_SWATCH_OFFSET;
 var STOP_STRIP = 2.5;
-var TIP_REACH = SWATCH_OFFSET + 10 + 6 + 14;
+var TIP_EDGE = SWATCH_OFFSET + 10 + 6;
 var DRAG_THRESHOLD = 3;
 var ARROW_STEPS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
 var cursors = /* @__PURE__ */ new Map();
@@ -947,6 +947,11 @@ function mountGradientGizmo(target, initial, callbacks) {
   };
   const hideTip = () => {
     tip.hidden = true;
+  };
+  const percentTipAt = (text, place) => {
+    showTip(text, place.x, place.y, "center");
+    const reach = TIP_EDGE + tip.offsetWidth / 2 * Math.abs(place.ox) + tip.offsetHeight / 2 * Math.abs(place.oy);
+    tip.style.transform = `translate(${place.x + place.ox * reach}px, ${place.y + place.oy * reach}px)`;
   };
   const zone = (role, p) => {
     const point = gizmoPoints(props.gradient.handles, box)[role];
@@ -1027,9 +1032,7 @@ function mountGradientGizmo(target, initial, callbacks) {
   const percentTip = (index) => {
     const stop2 = props.gradient.stops[index];
     if (!stop2) return;
-    const place = stopPlacement(props.gradient.shape, props.gradient.handles, stop2.at, box);
-    const reach = TIP_REACH;
-    showTip(formatGizmoPercent(stop2.at), place.x + place.ox * reach, place.y + place.oy * reach, "center");
+    percentTipAt(formatGizmoPercent(stop2.at), stopPlacement(props.gradient.shape, props.gradient.handles, stop2.at, box));
   };
   const startStopDrag = (event, el, moved) => {
     const p = local(event);
@@ -1127,7 +1130,7 @@ function mountGradientGizmo(target, initial, callbacks) {
     root.dataset.ghost = "true";
     ghost.style.setProperty("--dial-bg-stop", stopCssColor(gradientColorAt(stops, at)));
     placeSwatch(ghost, place);
-    showTip(formatGizmoPercent(at), place.x + place.ox * TIP_REACH, place.y + place.oy * TIP_REACH, "center");
+    percentTipAt(formatGizmoPercent(at), place);
   });
   band.addEventListener("pointerleave", () => {
     if (!press) {
@@ -5719,9 +5722,11 @@ function mountBackgroundControl(host, initial) {
     if (stopsList.dataset.gripStyle !== name) stopsList.dataset.gripStyle = name;
     const selectedStyle = styles.getPropertyValue("--dial-bg-stop-selected-style").trim() === "1" ? "row" : "fields";
     if (stopsList.dataset.selectedStyle !== selectedStyle) stopsList.dataset.selectedStyle = selectedStyle;
+    const hoverStyle = styles.getPropertyValue("--dial-bg-stop-hover-style").trim() === "1" ? "field" : "row";
+    if (stopsList.dataset.hoverStyle !== hoverStyle) stopsList.dataset.hoverStyle = hoverStyle;
   };
   const onGripStyleTransition = (event) => {
-    if (event.target === stopsList && (event.propertyName === "--dial-bg-grip-style" || event.propertyName === "--dial-bg-stop-selected-style")) render();
+    if (event.target === stopsList && (event.propertyName === "--dial-bg-grip-style" || event.propertyName === "--dial-bg-stop-selected-style" || event.propertyName === "--dial-bg-stop-hover-style")) render();
   };
   stopsList.addEventListener("transitionrun", onGripStyleTransition);
   stopsList.addEventListener("transitionend", onGripStyleTransition);

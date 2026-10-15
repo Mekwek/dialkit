@@ -77,6 +77,9 @@
   /* The space between the Margin and Column hover grips and the row's
      first field. */
   --dial-bg-grip-gap: 0px;
+  /* What a hover over a stop row lights: 1 the field under the pointer, 2
+     every field of the row (not the − button), as one row highlight. */
+  --dial-bg-stop-hover-style: 2;
   /* The thickness of the ring around the selected and the hovered stop
      swatch on the gradient strip. The keyboard focus ring keeps its own. */
   --dial-bg-swatch-ring: 1px;
@@ -1959,7 +1962,7 @@
   initial-value: 4;
 }
 .dialkit-bg-stops {
-  transition: --dial-bg-grip-style 1ms step-start, --dial-bg-stop-selected-style 1ms step-start;
+  transition: --dial-bg-grip-style 1ms step-start, --dial-bg-stop-selected-style 1ms step-start, --dial-bg-stop-hover-style 1ms step-start;
   /* The Margin grip's mark: the timeline clip's resize grip colours. */
   --dial-bg-grip: rgba(255, 255, 255, 0.11);
   --dial-bg-grip-hover: rgba(255, 255, 255, 0.22);
@@ -2067,7 +2070,18 @@
 .dialkit-bg-stop-at, .dialkit-bg-stop-alpha { flex: 0 0 46px; padding: 0 6px; }
 .dialkit-bg-stop .dialkit-bg-field-input, .dialkit-bg-stop .dialkit-bg-field-unit { font-size: 12px; }
 .dialkit-bg-stop-color { flex: 1 1 auto; min-width: 0; }
-.dialkit-bg-stop-color .dialkit-color-control { gap: 6px; padding: 0 6px; }
+.dialkit-bg-stop-color .dialkit-color-control { gap: 6px; padding: 0 6px; transition: background 0.15s; }
+/* The hex field highlights under the pointer, as the position and opacity fields do. */
+.dialkit-bg-stop-color .dialkit-color-control:is(:hover, :focus-within) { background: var(--dial-surface-hover); }
+/* --dial-bg-stop-hover-style: 2. A hover anywhere on the row lights all its
+   fields together, except over the − button, and never during a row drag.
+   Registered and transitioned like --dial-bg-grip-style. */
+@property --dial-bg-stop-hover-style {
+  syntax: '<integer>';
+  inherits: true;
+  initial-value: 2;
+}
+.dialkit-bg-stops[data-hover-style="row"]:not([data-dragging]) .dialkit-bg-stop:hover:not(:has(.dialkit-bg-stop-remove:hover)) :is(.dialkit-bg-field, .dialkit-color-control) { background: var(--dial-surface-hover); }
 /* The stop's name stays for screen readers; the row shows the swatch, then the hex. */
 .dialkit-bg-stop-color .dialkit-color-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .dialkit-bg-stop-color .dialkit-color-inputs { flex-direction: row-reverse; justify-content: flex-end; }
