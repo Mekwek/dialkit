@@ -5,6 +5,7 @@
   import { Spring } from 'svelte/motion';
   import type { ShortcutConfig } from 'dialkit/store';
   import { decimalsForStep, roundValue, snapToDecile, formatSliderShortcut } from '../../shortcut-utils';
+  import { sliderEditDelay } from '../../slider-edit-delay';
 
   let {
     label,
@@ -98,7 +99,7 @@
     if (isValueHovered && !showInput && !isValueEditable) {
       hoverTimeout = setTimeout(() => {
         isValueEditable = true;
-      }, 800);
+      }, sliderEditDelay(valueSpanRef));
     } else if (!isValueHovered && !showInput) {
       isValueEditable = false;
     }

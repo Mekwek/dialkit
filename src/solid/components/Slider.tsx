@@ -9,6 +9,7 @@ import {
   snapToDecile,
   formatSliderShortcut,
 } from '../../shortcut-utils';
+import { sliderEditDelay } from '../../slider-edit-delay';
 
 interface SliderProps {
   label: string;
@@ -220,7 +221,7 @@ export function Slider(props: SliderProps) {
     });
 
     if (hovered && !editing && !editable) {
-      hoverTimeout = setTimeout(() => setIsValueEditable(true), 800);
+      hoverTimeout = setTimeout(() => setIsValueEditable(true), sliderEditDelay(valueSpanRef));
     } else if (!hovered && !editing) {
       setIsValueEditable(false);
     }

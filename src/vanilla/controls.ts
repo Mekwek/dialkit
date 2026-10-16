@@ -5,6 +5,7 @@ import { ICON_CHEVRON, ICON_PANEL } from '../icons';
 import type { ShortcutConfig } from '../store/DialStore';
 import { element, icon, svg, type Mounted } from './dom';
 import { animateSpring } from './animation';
+import { sliderEditDelay } from '../slider-edit-delay';
 export interface FolderProps {
   title: string;
   defaultOpen?: boolean;
@@ -408,7 +409,7 @@ export function mountSlider(host: HTMLElement, initial: SliderProps): Mounted<Sl
     timer = setTimeout(() => {
       editable = true;
       display.classList.add('dialkit-slider-value-editable');
-    }, 800);
+    }, sliderEditDelay(display));
   });
   display.addEventListener('mouseleave', () => {
     clearTimeout(timer);

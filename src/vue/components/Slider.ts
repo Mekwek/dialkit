@@ -3,6 +3,7 @@ import { defineComponent, h, computed, nextTick, onMounted, onUnmounted, ref, wa
 import { animate, motionValue } from 'motion-v';
 import type { ShortcutConfig } from '../../store/DialStore';
 import { decimalsForStep, roundValue, snapToDecile, formatSliderShortcut } from '../../shortcut-utils';
+import { sliderEditDelay } from '../../slider-edit-delay';
 
 const CLICK_THRESHOLD = 3;
 const DEAD_ZONE = 32;
@@ -305,7 +306,7 @@ export const Slider = defineComponent({
         hoverTimeout = setTimeout(() => {
           isValueEditable.value = true;
           animateHandleState();
-        }, 800);
+        }, sliderEditDelay(valueSpanRef.value));
       } else if (!isValueHovered.value && !showInput.value) {
         isValueEditable.value = false;
       }

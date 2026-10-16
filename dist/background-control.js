@@ -857,6 +857,9 @@ function mountColorControl(host, initial, presentation = "popover") {
     commit(parsed);
     return true;
   };
+  valueInput.addEventListener("focus", () => {
+    if (getComputedStyle(valueInput).getPropertyValue("--dial-hex-click").trim() !== "1") valueInput.select();
+  });
   valueInput.addEventListener("change", () => acceptText(valueInput));
   valueInput.addEventListener("blur", () => {
     valueInput.value = colorToHexSix(color);

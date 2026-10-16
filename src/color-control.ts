@@ -151,6 +151,12 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
     commit(parsed);
     return true;
   };
+  // A click selects the whole value, as in a number field: a hex value is
+  // replaced, rarely edited in the middle. --dial-hex-click: 1 leaves the
+  // cursor where the click put it instead.
+  valueInput.addEventListener('focus', () => {
+    if (getComputedStyle(valueInput).getPropertyValue('--dial-hex-click').trim() !== '1') valueInput.select();
+  });
   valueInput.addEventListener('change', () => acceptText(valueInput));
   valueInput.addEventListener('blur', () => {
     valueInput.value = colorToHexSix(color);

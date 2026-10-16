@@ -4,6 +4,7 @@ import { motion, useMotionValue, useTransform, animate } from 'motion/react';
 import { DialStore, type ShortcutConfig } from '../store/DialStore';
 import { decimalsForStep, roundValue, snapToDecile, formatSliderShortcut } from '../shortcut-utils';
 import { useHint } from './Hint';
+import { sliderEditDelay } from '../slider-edit-delay';
 
 interface SliderProps {
   label: string;
@@ -283,7 +284,7 @@ export function Slider({
     if (isValueHovered && !showInput && !isValueEditable) {
       hoverTimeoutRef.current = setTimeout(() => {
         setIsValueEditable(true);
-      }, 800);
+      }, sliderEditDelay(valueSpanRef.current));
     } else if (!isValueHovered && !showInput) {
       if (hoverTimeoutRef.current) {
         clearTimeout(hoverTimeoutRef.current);

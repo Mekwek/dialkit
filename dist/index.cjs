@@ -654,6 +654,42 @@ function backgroundGradientCss(gradient, direction) {
   return `radial-gradient(${rx}% ${ry}% at ${at}, ${list(gradient.stops)})`;
 }
 
+// src/input-modality.ts
+var installed = false;
+function trackInputModality() {
+  if (installed || typeof document === "undefined" || typeof document.addEventListener !== "function") return;
+  installed = true;
+  let fromPointer = false;
+  let handBack = false;
+  document.addEventListener("pointerdown", () => {
+    fromPointer = true;
+    handBack = false;
+  }, true);
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Shift" || event.key === "Meta" || event.key === "Control" || event.key === "Alt") return;
+    const target = event.target;
+    handBack = (event.key === "Enter" || event.key === "Escape") && target instanceof HTMLElement && target.dataset.dialFocus === "pointer";
+    fromPointer = false;
+  }, true);
+  document.addEventListener("focusin", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement) || !target.closest(".dialkit-root, .dialkit-bg-gizmo")) return;
+    target.dataset.dialFocus = fromPointer || handBack ? "pointer" : "keyboard";
+    handBack = false;
+  }, true);
+  const sizeSliderInput = (target) => {
+    if (target instanceof HTMLInputElement && target.classList.contains("dialkit-slider-input")) {
+      target.style.width = `${Math.max(target.value.length, 1)}ch`;
+    }
+  };
+  document.addEventListener("focusin", (event) => sizeSliderInput(event.target), true);
+  document.addEventListener("input", (event) => sizeSliderInput(event.target), true);
+  document.addEventListener("focusout", (event) => {
+    const target = event.target;
+    if (target instanceof HTMLElement) delete target.dataset.dialFocus;
+  }, true);
+}
+
 // src/background-paint.ts
 function sample(stops, t) {
   const { color, alpha } = gradientColorAt(stops, Math.min(100, Math.max(0, t * 100)));
@@ -1295,6 +1331,7 @@ function subscribeBackgroundHost(listener) {
 }
 
 // src/store/DialStore.ts
+trackInputModality();
 function anchorConfigOf(value) {
   return value === true || typeof value === "object" && value !== null && !Array.isArray(value) ? {} : void 0;
 }
@@ -3990,6 +4027,15 @@ function ShortcutListener({ children }) {
 // src/components/Slider.tsx
 var import_react7 = require("react");
 var import_react8 = require("motion/react");
+
+// src/slider-edit-delay.ts
+function sliderEditDelay(el) {
+  if (!el || typeof getComputedStyle !== "function") return 800;
+  const ms = Number.parseFloat(getComputedStyle(el).getPropertyValue("--dial-slider-edit-delay"));
+  return Number.isFinite(ms) && ms >= 0 ? ms : 800;
+}
+
+// src/components/Slider.tsx
 var import_jsx_runtime4 = require("react/jsx-runtime");
 var CLICK_THRESHOLD = 3;
 var DEAD_ZONE = 32;
@@ -4212,7 +4258,7 @@ function Slider({
     if (isValueHovered && !showInput && !isValueEditable) {
       hoverTimeoutRef.current = setTimeout(() => {
         setIsValueEditable(true);
-      }, 800);
+      }, sliderEditDelay(valueSpanRef.current));
     } else if (!isValueHovered && !showInput) {
       if (hoverTimeoutRef.current) {
         clearTimeout(hoverTimeoutRef.current);
@@ -6460,6 +6506,9 @@ function mountColorControl(host, initial, presentation = "popover") {
     commit(parsed);
     return true;
   };
+  valueInput.addEventListener("focus", () => {
+    if (getComputedStyle(valueInput).getPropertyValue("--dial-hex-click").trim() !== "1") valueInput.select();
+  });
   valueInput.addEventListener("change", () => acceptText(valueInput));
   valueInput.addEventListener("blur", () => {
     valueInput.value = colorToHexSix(color);

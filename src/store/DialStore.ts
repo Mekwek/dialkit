@@ -2,6 +2,10 @@ import { roundValue } from '../numeric';
 import { parseColor } from '../color';
 import { normalizePadValue, type DialPadConfig, type DialPadValue } from '../dial-pad';
 import { backgroundConfigDefault, normalizeBackgroundValue, sameBackgroundValue, type BackgroundConfig, type BackgroundValue } from '../background';
+import { trackInputModality } from '../input-modality';
+
+// Every DialKit build loads the store, so the focus marks start with it.
+trackInputModality();
 export type { DialPadAxis, DialPadConfig, DialPadValue } from '../dial-pad';
 export type {
   BackgroundConfig, BackgroundGradient, BackgroundMedia, BackgroundMediaDisplay, BackgroundStop, BackgroundValue, SavedGradient,

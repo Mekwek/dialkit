@@ -81,6 +81,36 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   /* What a hover over a stop row lights: 1 the field under the pointer, 2
      every field of the row (not the − button), as one row highlight. */
   --dial-bg-stop-hover-style: 2;
+  /* One rule for every input. The defaults (2, 2, 2) are plain CSS; the
+     other values are read with style queries (no Firefox support), for
+     comparing in a Look panel.
+     --dial-input-focus-style: 2 every input lights up when focused (the
+     default), 1 the old mix (the older inputs draw a white underline, the
+     newer fields light up), 3 every input draws the underline.
+     --dial-hex-click: 2 a click selects the whole hex value, as in a number
+     field (the default); 1 the cursor goes where you click.
+     --dial-value-hover: 2 every value turns white under the pointer:
+     fields, a dropdown's shown value, segmented control options (the
+     default); 1 only a hovered slider's value does. */
+  --dial-input-focus-style: 2;
+  --dial-hex-click: 2;
+  --dial-value-hover: 2;
+  /* --dial-folder-hover: 2 (the default) turns a folder's title and chevron
+     fully white under the pointer, as values do; 1 leaves them as they are. */
+  --dial-folder-hover: 2;
+  /* How long, in milliseconds, the pointer rests on a slider's value before
+     the value takes typing (slider-edit-delay.ts). */
+  --dial-slider-edit-delay: 800;
+  /* Two separate tests, read with style queries:
+     --dial-slider-value-style: 3 no pill after a hover or a click (the
+     default; a focus from the keyboard still draws its ring), 1 the pill is
+     filled, 2 the pill is a 1px outline with no fill.
+     --dial-text-focus-outline: 2 adds a 1px outline around the text of a
+     focused text control, on top of its row fill; 1 (the default) is the
+     fill alone. Both outlines use --dial-input-outline-color. */
+  --dial-slider-value-style: 3;
+  --dial-text-focus-outline: 1;
+  --dial-input-outline-color: var(--dial-surface-active);
   /* The thickness of the ring around the selected and the hovered stop
      swatch on the gradient strip. The keyboard focus ring keeps its own. */
   --dial-bg-swatch-ring: 1px;
@@ -4419,4 +4449,136 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   opacity: 1;
 }
 
+
+/* ── Inputs: one focus look and one hover for every input ──
+   (--dial-input-focus-style, --dial-value-hover; defaults here, the other
+   values in the style queries below). */
+/* Focus: every input lights up, no underline anywhere. */
+.dialkit-root :where(.dialkit-slider-input, .dialkit-color-value, .dialkit-preset-input, .dialkit-pad-value):focus-visible { box-shadow: none; }
+/* A slider's value as a pill, when it is ready for typing (hovered 800ms)
+   and while it is typed in: placed like a segmented control's selected
+   option, 4px inside the row with its text 8px from the pill's edge (so the
+   text stays where the value sits), corners concentric with the row. The
+   input grows with what is typed (input-modality.ts sets its width). */
+.dialkit-slider-value-editable,
+.dialkit-slider-input {
+  top: 4px;
+  right: 4px;
+  bottom: auto;
+  height: calc(100% - 8px);
+  transform: none;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  padding: 0 8px;
+  border-bottom: 0;
+  border-radius: max(0px, calc(var(--dial-radius) - 4px));
+  /* By default the pill shows nothing after a hover or a click: no fill and
+     no outline. The keyboard ring is an outline, so it still shows. */
+  background: transparent;
+  box-shadow: none;
+}
+.dialkit-slider-input { box-sizing: content-box; height: calc(100% - 8px); min-width: 1ch; max-width: none; }
+/* --dial-slider-value-style: 2 · the pill is a 1px outline, no fill. An
+   inset shadow, so the pill keeps its size and the text does not move. The
+   focus-visible selector keeps it while the value is typed in: the focus
+   rule above removes every input's shadow and is more specific. */
+@container style(--dial-slider-value-style: 2) {
+  .dialkit-slider-value-editable,
+  .dialkit-slider-input,
+  .dialkit-root .dialkit-slider-input:focus-visible { box-shadow: inset 0 0 0 1px var(--dial-input-outline-color); }
+}
+/* --dial-slider-value-style: 1 · the pill is filled, no outline. */
+@container style(--dial-slider-value-style: 1) {
+  .dialkit-slider-value-editable,
+  .dialkit-slider-input,
+  .dialkit-root .dialkit-slider-input:focus-visible { background: var(--dial-surface-active); box-shadow: none; }
+}
+/* --dial-text-focus-outline: 2 · the text of a focused text control gets an
+   outline shaped like the slider value's pill: 4px inside the row, its text
+   8px from the outline's side. The text box grows 3px on each side with a
+   matching negative margin, so the text does not move, and the outline
+   stands 5px off it. Specific enough to win over the rule that hides the
+   ring after a click: this outline is the focus look, not the keyboard ring
+   (that one stays on the row). */
+@container style(--dial-text-focus-outline: 2) {
+  .dialkit-text-control .dialkit-text-input { padding-inline: 3px; margin-left: -3px; margin-right: calc(-1 * var(--dial-text-gutter, 0px) - 3px); border-radius: max(0px, calc(var(--dial-radius) - 9px)); }
+  .dialkit-root .dialkit-text-control .dialkit-text-input:focus { outline: 1px solid var(--dial-input-outline-color); outline-offset: 5px; }
+}
+.dialkit-color-control:focus-within { background: var(--dial-surface-hover); }
+.dialkit-text-input:focus-visible { background-image: none; }
+.dialkit-text-control:focus-within { background: var(--dial-surface-hover); }
+.dialkit-preset-input:focus { border-color: var(--dial-border); background: var(--dial-surface-hover); }
+.dialkit-pad-value:focus { background: var(--dial-surface-hover); border-radius: 4px; }
+/* Hover: a value turns white under the pointer, in every input, as a
+   slider's value does while the slider is hovered; a segmented control's
+   option takes the selected option's colour. */
+.dialkit-field:hover :is(.dialkit-field-value, .dialkit-field-input),
+.dialkit-color-control:hover .dialkit-color-value,
+.dialkit-text-control:hover .dialkit-text-input,
+.dialkit-pad-value:hover,
+.dialkit-select-trigger:hover .dialkit-select-value { color: var(--dial-text-focus); }
+.dialkit-segmented-button:hover { color: var(--dial-text-primary); }
+
+/* The keyboard ring on inputs. A focus that came from the keyboard
+   (data-dial-focus, set by input-modality.ts) draws the panel's ring around
+   the field, whatever the focus style; a click shows the fill alone. */
+.dialkit-field:has(input[data-dial-focus="keyboard"]),
+.dialkit-color-control:has(.dialkit-color-value[data-dial-focus="keyboard"]),
+.dialkit-text-control:has(.dialkit-text-input[data-dial-focus="keyboard"]) { outline: 2px solid var(--dial-focus-ring); outline-offset: -2px; }
+:is(.dialkit-slider-input, .dialkit-preset-input, .dialkit-pad-value)[data-dial-focus="keyboard"] { outline: 2px solid var(--dial-focus-ring); outline-offset: 0; }
+
+/* A folder's title and chevron turn fully white under the pointer. Not the
+   panel's own header, which is white already. --dial-folder-hover: 1 keeps
+   them as they are. */
+.dialkit-folder:not(.dialkit-folder-root) > .dialkit-folder-header:hover :is(.dialkit-folder-title, .dialkit-folder-icon) { color: var(--dial-text-focus); }
+@container style(--dial-folder-hover: 1) {
+  .dialkit-folder:not(.dialkit-folder-root) > .dialkit-folder-header:hover .dialkit-folder-title { color: var(--dial-text-section); }
+  .dialkit-folder:not(.dialkit-folder-root) > .dialkit-folder-header:hover .dialkit-folder-icon { color: var(--dial-text-label); }
+}
+
+/* --dial-input-focus-style: 1 · the old mix: an underline on the older
+   inputs (slider value, hex, text, preset name, pad value), no fill. */
+@container style(--dial-input-focus-style: 1) {
+  .dialkit-root :where(.dialkit-slider-input, .dialkit-color-value, .dialkit-preset-input, .dialkit-pad-value):focus-visible { box-shadow: inset 0 -1px var(--dial-focus-ring); }
+  .dialkit-slider-value-editable, .dialkit-slider-input { top: 50%; right: 12px; height: auto; display: block; padding: 0 0 1px; border-bottom: 1px solid var(--dial-text-label); border-radius: 0; background: transparent; }
+  .dialkit-slider-value-editable { transform: translateY(calc(-50% + 0.5px)); }
+  .dialkit-slider-input { transform: translateY(-50%); }
+  .dialkit-color-control:focus-within { background: var(--dial-surface); }
+  .dialkit-text-input:focus-visible { background-image: linear-gradient(var(--dial-focus-ring), var(--dial-focus-ring)); }
+  .dialkit-text-control:focus-within { background: var(--dial-surface); }
+  .dialkit-preset-input:focus { border-color: var(--dial-text-label); background: var(--dial-surface); }
+  .dialkit-pad-value:focus { background: transparent; }
+}
+/* 3 · every input draws the white underline while focused, no fill. */
+@container style(--dial-input-focus-style: 3) {
+  .dialkit-root :where(.dialkit-slider-input, .dialkit-color-value, .dialkit-preset-input, .dialkit-pad-value):focus-visible { box-shadow: inset 0 -1px var(--dial-focus-ring); }
+  .dialkit-slider-value-editable, .dialkit-slider-input { top: 50%; right: 12px; height: auto; display: block; padding: 0 0 1px; border-bottom: 1px solid var(--dial-text-label); border-radius: 0; background: transparent; }
+  .dialkit-slider-value-editable { transform: translateY(calc(-50% + 0.5px)); }
+  .dialkit-slider-input { transform: translateY(-50%); }
+  .dialkit-color-control:focus-within { background: var(--dial-surface); }
+  .dialkit-text-input:focus-visible { background-image: linear-gradient(var(--dial-focus-ring), var(--dial-focus-ring)); }
+  .dialkit-text-control:focus-within { background: var(--dial-surface); }
+  .dialkit-preset-input:focus { border-color: var(--dial-border); background: var(--dial-surface); box-shadow: inset 0 -1px var(--dial-focus-ring); }
+  .dialkit-pad-value:focus { background: transparent; }
+  .dialkit-field:focus-within:not(:hover), .dialkit-field[data-editing]:not(:hover) { background: var(--dial-surface); }
+  .dialkit-field:focus-within .dialkit-field-input { box-shadow: inset 0 -1px var(--dial-focus-ring); }
+  .dialkit-bg-stops[data-selected-style="fields"] .dialkit-bg-stop[data-selected] .dialkit-bg-field:focus-within { box-shadow: inset 0 -1px var(--dial-focus-ring); }
+}
+/* --dial-value-hover: 1 · only a hovered slider's value turns white. The
+   background's own Solid / Gradient / Media control keeps its hover. */
+@container style(--dial-value-hover: 1) {
+  .dialkit-field:hover .dialkit-field-value,
+  .dialkit-color-control:hover .dialkit-color-value,
+  .dialkit-text-control:hover .dialkit-text-input,
+  .dialkit-pad-value:hover,
+  .dialkit-select-trigger:hover .dialkit-select-value { color: var(--dial-text-label); }
+  .dialkit-segmented-button[data-active="false"]:not(.dialkit-bg-segmented .dialkit-segmented-button):hover { color: var(--dial-text-label); }
+}
+
+/* A control whose focus came from the pointer draws no keyboard ring, even
+   where the browser counts it as a keyboard focus: a slider that gets the
+   focus back after Enter in its value input, for one (input-modality.ts).
+   Last in the file, so it wins over every ring rule above. */
+.dialkit-root [data-dial-focus="pointer"]:focus-visible { outline: none; }
 `;
