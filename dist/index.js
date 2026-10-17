@@ -3274,7 +3274,7 @@ var isEditable = (target) => target instanceof HTMLElement && (target.isContentE
 var tooltips = [];
 var radiusOf = (element7) => Number.parseFloat(getComputedStyle(element7).borderTopLeftRadius) || 0;
 function dimAreaOf(row) {
-  return row.closest(".dialkit-color-popover") ?? row.closest(".dialkit-image-popover") ?? row.closest(".dialkit-timeline-popover") ?? row.closest(".dialkit-panel-inner") ?? row.closest(".dialkit-folder-root") ?? row.closest(".dialkit-timeline-dock");
+  return row.closest(".dialkit-color-popover") ?? row.closest(".dialkit-image-popover") ?? row.closest(".dialkit-timeline-popover") ?? row.closest(".dialkit-bg-popover") ?? row.closest(".dialkit-bg-shape-menu") ?? row.closest(".dialkit-panel-inner") ?? row.closest(".dialkit-folder-root") ?? row.closest(".dialkit-timeline-dock");
 }
 var hasTopLayer = () => typeof HTMLElement !== "undefined" && typeof HTMLElement.prototype.showPopover === "function";
 function raise(layer) {
@@ -6070,7 +6070,7 @@ function observeDropdownKeyboard(trigger, getPopup, close2, kind = "select") {
         options[index].click();
         return;
       }
-      if (event.key.length === 1 && event.key !== " ") {
+      if (event.key.length === 1 && event.key !== " " && event.key.toLowerCase() !== HintStore.getKey()) {
         const now = Date.now();
         query = now - typedAt < 700 ? query + event.key.toLocaleLowerCase() : event.key.toLocaleLowerCase();
         typedAt = now;
@@ -7717,6 +7717,101 @@ function mountFolder(host, initial) {
   };
 }
 
+// src/vanilla/menus.ts
+var MENU_SPRING = { visualDuration: 0.15, bounce: 0 };
+var CHEVRON_SPRING = { visualDuration: 0.2, bounce: 0.15 };
+var menuFrame = (above, shown) => ({
+  opacity: shown,
+  transform: `translateY(${(1 - shown) * (above ? 8 : -8)}px) scale(${0.95 + 0.05 * shown})`
+});
+function popupMenu(trigger, className, kind, populate) {
+  let popup;
+  let stopKeyboard, stopPosition;
+  let above = false;
+  let chevronTurn = 0;
+  const turnChevron = (to) => {
+    const chevron = trigger.querySelector(".dialkit-select-chevron");
+    if (!chevron || to === chevronTurn) return;
+    const from = chevronTurn;
+    chevronTurn = to;
+    chevron.style.transform = `rotate(${to}deg)`;
+    animateSpring(chevron, (p) => ({ transform: `rotate(${from + (to - from) * p}deg)` }), CHEVRON_SPRING.visualDuration, CHEVRON_SPRING.bounce);
+  };
+  const outside = (event) => {
+    if (!trigger.contains(event.target) && !popup?.contains(event.target))
+      close2();
+  };
+  function close2() {
+    stopKeyboard?.();
+    stopPosition?.();
+    stopKeyboard = stopPosition = void 0;
+    const leaving = popup;
+    popup = void 0;
+    turnChevron(0);
+    if (leaving) {
+      leaving.inert = true;
+      leaving.style.pointerEvents = "none";
+      const from = above;
+      const out = animateSpring(leaving, (p) => menuFrame(from, 1 - p), MENU_SPRING.visualDuration, MENU_SPRING.bounce);
+      if (out) out.finished.then(() => leaving.remove(), () => leaving.remove());
+      else leaving.remove();
+    }
+    trigger.dataset.open = "false";
+    trigger.setAttribute("aria-expanded", "false");
+    document.removeEventListener("pointerdown", outside);
+  }
+  function open() {
+    if (popup || trigger.disabled)
+      return;
+    const root = getDialKitPortalRoot(trigger) ?? document.body;
+    popup = element5("div", className);
+    popup.style.position = "fixed";
+    root.append(popup);
+    populate(popup);
+    trigger.dataset.open = "true";
+    trigger.setAttribute("aria-expanded", "true");
+    stopPosition = observeDropdownPosition(trigger, () => {
+      if (!popup)
+        return;
+      if (!trigger.isConnected || !trigger.getClientRects().length) {
+        close2();
+        return;
+      }
+      const p = getDropdownPosition(trigger, root, { fixed: true, dropdownHeight: popup.scrollHeight + 2, ...kind === "help" ? { width: 280 } : {} });
+      above = p.above;
+      Object.assign(popup.style, { top: `${p.top}px`, left: `${p.left}px`, width: `${p.width}px`, maxHeight: `${p.maxHeight}px`, transformOrigin: p.above ? "bottom" : "top" });
+    }, () => popup);
+    const entering = popup;
+    animateSpring(entering, (p) => menuFrame(above, p), MENU_SPRING.visualDuration, MENU_SPRING.bounce);
+    turnChevron(180);
+    stopKeyboard = observeDropdownKeyboard(trigger, () => popup, close2, kind);
+    document.addEventListener("pointerdown", outside);
+  }
+  const click = () => {
+    if (popup)
+      close2();
+    else
+      open();
+  };
+  const key = (e) => openDropdownOnKey(e, open);
+  trigger.setAttribute("aria-haspopup", kind === "select" ? "listbox" : kind === "presets" ? "menu" : "dialog");
+  trigger.setAttribute("aria-expanded", "false");
+  trigger.addEventListener("click", click);
+  trigger.addEventListener("keydown", key);
+  return {
+    close: close2,
+    refresh() {
+      if (popup)
+        populate(popup);
+    },
+    destroy() {
+      close2();
+      trigger.removeEventListener("click", click);
+      trigger.removeEventListener("keydown", key);
+    }
+  };
+}
+
 // src/background-control.ts
 var MODE_OPTIONS = [
   { value: "solid", label: "Solid" },
@@ -7727,6 +7822,47 @@ var SHAPE_LABEL = { linear: "Linear", radial: "Radial", angular: "Angular", diam
 var ICON_ROTATE = ["M19.5 12a7.5 7.5 0 1 1-2.2-5.3", "M19.5 4.5v3.75h-3.75"];
 var FIT_LABEL = { fill: "Fill", fit: "Fit", stretch: "Stretch", tile: "Tile" };
 var RATIO_LABEL = (ratio) => ratio === "source" ? "Source" : ratio;
+var ICON_IMAGE = ["M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z", "M4 16l4.5-4.5 4 4 2.5-2.5L20 18", "M15 9.5h.01"];
+var BG_HINTS = {
+  mode: {
+    solid: "Fills the background with one color.",
+    gradient: "Fills the background with a gradient.",
+    media: "Fills the background with an image or a video."
+  },
+  shapeTrigger: "Changes how the colors spread.",
+  shape: {
+    linear: "The colors run along a straight line.",
+    radial: "The colors grow out from a point, in circles.",
+    angular: "The colors turn around a point.",
+    diamond: "The colors grow out from a point, as a diamond."
+  },
+  flip: "Reverses the order of the stops.",
+  rotate: "Turns the gradient a quarter turn clockwise.",
+  bar: "Click to add a stop here.",
+  handle: "Drag to move this stop. Drag it off the bar to remove it. Double-click to change its color.",
+  add: "Adds a stop in the middle of the widest gap.",
+  grip: "Drag to change the order of the stops.",
+  swatch: "Opens the color picker and shows the gradient's handles on the canvas.",
+  position: "Where the stop sits along the gradient, from 0 to 100%.",
+  save: "Keeps this gradient in your list, for any board.",
+  saved: "Click to use this gradient.",
+  savedDelete: "Deletes this saved gradient.",
+  drop: "Drop an image or a video here, or click to pick one.",
+  preview: "Opens the options for how the media fills the canvas.",
+  sizing: "How the media fills the canvas.",
+  fit: {
+    fill: "Covers the whole canvas. The media's edges may be cut off.",
+    fit: "Shows all of the media inside the canvas.",
+    stretch: "Fills the canvas and does not keep the media's shape.",
+    tile: "Repeats the media across the canvas."
+  },
+  ratioSection: "The shape the media is cropped to.",
+  ratio: (ratio) => ratio === "source" ? "Keeps the media's own shape." : `Crops the media to ${ratio}.`,
+  tileSize: "How large each repeated tile is.",
+  zoom: "Scales the media inside the canvas.",
+  pin: "Which part of the media stays in view when it is cut off."
+};
+var REMOVE_DISTANCE = 24;
 var PIN_COLUMNS = ["Left", "Center", "Right"];
 var PIN_ROWS = ["Top", "Middle", "Bottom"];
 var ICON_MINUS = "M5 12H19";
@@ -7948,6 +8084,19 @@ function mountBackgroundControl(host, initial) {
   let gradientStatus = "";
   let mediaStatus = "";
   let mediaError = false;
+  let hinted = [];
+  const hint = (part, text) => {
+    hinted.push(part);
+    part.addEventListener("pointerenter", () => HintStore.enter(part, text));
+    part.addEventListener("pointerleave", () => HintStore.leave(part));
+  };
+  const unhint = (parts) => {
+    parts.forEach((part) => {
+      HintStore.leave(part);
+      HintStore.hide(part);
+    });
+    hinted = hinted.filter((part) => !parts.includes(part));
+  };
   const emit = (next) => {
     if (sameBackgroundValue(next, value)) {
       render();
@@ -7963,6 +8112,7 @@ function mountBackgroundControl(host, initial) {
   const body = element6("div", "dialkit-bg-body");
   root.append(body);
   const modes = segmented(MODE_OPTIONS, "Background type", (mode) => emit({ ...value, mode }));
+  modes.buttons.forEach((button, i) => hint(button, BG_HINTS.mode[MODE_OPTIONS[i].value]));
   body.append(modes.group);
   const solidPane = element6("div", "dialkit-bg-pane dialkit-bg-solid");
   const solidHost = element6("div", "dialkit-color-host");
@@ -7992,76 +8142,47 @@ function mountBackgroundControl(host, initial) {
   const flipButton = iconButton("dialkit-bg-flip", "Flip stops", ICON_REVERSE);
   const rotateButton = iconButton("dialkit-bg-rotate", "Rotate 90\xB0 clockwise", ICON_ROTATE);
   shapeRow.append(shapeTrigger, flipButton, rotateButton);
-  let shapeMenu;
-  let stopShapeKeys;
-  const shapeOutside = (event) => {
-    if (!shapeMenu?.contains(event.target) && !shapeTrigger.contains(event.target)) closeShapeMenu();
-  };
-  function closeShapeMenu() {
-    stopShapeKeys?.();
-    stopShapeKeys = void 0;
-    shapeMenu?.remove();
-    shapeMenu = void 0;
-    shapeTrigger.dataset.open = "false";
-    shapeTrigger.setAttribute("aria-expanded", "false");
-    document.removeEventListener("pointerdown", shapeOutside, true);
-  }
-  const placeShapeMenu = () => {
-    if (!shapeMenu) return;
-    const rect = shapeTrigger.getBoundingClientRect();
-    const current = shapeMenu.querySelector('[data-selected="true"]');
-    const offset = current ? current.offsetTop + current.offsetHeight / 2 : 0;
-    const height = shapeMenu.offsetHeight;
-    const top = Math.max(8, Math.min(rect.top + rect.height / 2 - offset, window.innerHeight - height - 8));
-    Object.assign(shapeMenu.style, { left: `${rect.left}px`, top: `${top}px`, width: `${rect.width}px` });
-  };
-  const openShapeMenu = () => {
-    if (shapeMenu) {
-      closeShapeMenu();
-      return;
-    }
-    const portal = getDialKitPortalRoot(host) ?? document.body;
-    const menu = element6("div", "dialkit-select-dropdown dialkit-bg-shape-menu");
-    menu.style.position = "fixed";
-    for (const shape of GRADIENT_SHAPES) {
-      const option = element6("button", "dialkit-select-option dialkit-bg-shape-option");
+  hint(shapeTrigger, BG_HINTS.shapeTrigger);
+  hint(flipButton, BG_HINTS.flip);
+  hint(rotateButton, BG_HINTS.rotate);
+  let shapeOptions = [];
+  const shapeMenu = popupMenu(shapeTrigger, "dialkit-select-dropdown dialkit-bg-shape-menu", "select", (popup2) => {
+    unhint(shapeOptions);
+    shapeOptions = GRADIENT_SHAPES.map((shape) => {
+      const option = element6("button", "dialkit-select-option", SHAPE_LABEL[shape]);
       option.dataset.selected = String(shape === value.gradient.shape);
-      const check = strokeIcon(ICON_CHECK);
-      check.classList.add("dialkit-bg-shape-check");
-      option.append(check, element6("span", "dialkit-bg-shape-label", SHAPE_LABEL[shape]));
       option.addEventListener("click", () => {
-        closeShapeMenu();
+        shapeMenu.close();
         setGradient(switchGradientShape(value.gradient, shape, canvasAspect()));
         shapeTrigger.focus({ preventScroll: true });
       });
-      menu.append(option);
+      hint(option, BG_HINTS.shape[shape]);
+      return option;
+    });
+    popup2.replaceChildren(...shapeOptions);
+    if (!popup2.dataset.gizmoAware) {
+      popup2.dataset.gizmoAware = "true";
+      popup2.addEventListener("pointerdown", (event) => {
+        if (gizmoRowId !== void 0) event.stopPropagation();
+      });
+      popup2.addEventListener("focusin", (event) => {
+        if (gizmoRowId !== void 0) event.stopPropagation();
+      });
     }
-    menu.addEventListener("pointerdown", (event) => {
-      if (gizmoRowId !== void 0) event.stopPropagation();
-    });
-    menu.addEventListener("focusin", (event) => {
-      if (gizmoRowId !== void 0) event.stopPropagation();
-    });
-    shapeMenu = menu;
-    portal.append(menu);
-    placeShapeMenu();
-    shapeTrigger.dataset.open = "true";
-    shapeTrigger.setAttribute("aria-expanded", "true");
-    stopShapeKeys = observeDropdownKeyboard(shapeTrigger, () => shapeMenu, closeShapeMenu, "select");
-    document.addEventListener("pointerdown", shapeOutside, true);
-  };
+  });
+  const shapeMenuOpen = () => shapeTrigger.getAttribute("aria-expanded") === "true";
+  const shapeMenuElement = () => shapeMenuOpen() ? getDialKitPortalRoot(host)?.querySelector(".dialkit-bg-shape-menu") ?? document.querySelector(".dialkit-bg-shape-menu") : null;
+  const shapeMenuWatch = new MutationObserver(() => {
+    if (!shapeMenuOpen()) {
+      unhint(shapeOptions);
+      shapeOptions = [];
+    }
+  });
+  shapeMenuWatch.observe(shapeTrigger, { attributes: true, attributeFilter: ["aria-expanded"] });
   function canvasAspect() {
     const rect = getBackgroundHost().gizmoTarget?.()?.getBoundingClientRect();
     return rect && rect.width > 0 && rect.height > 0 ? rect.width / rect.height : 1;
   }
-  shapeTrigger.addEventListener("click", openShapeMenu);
-  shapeTrigger.addEventListener("keydown", (event) => {
-    if ((event.key === "ArrowDown" || event.key === "ArrowUp") && !event.altKey && !event.metaKey && !event.ctrlKey && !shapeMenu) {
-      event.preventDefault();
-      event.stopPropagation();
-      openShapeMenu();
-    }
-  });
   flipButton.addEventListener("click", () => {
     commitEntries(entries().map(({ id, stop }) => ({ id, stop: { ...stop, at: Math.round((100 - stop.at) * 100) / 100 } })));
   });
@@ -8074,7 +8195,7 @@ function mountBackgroundControl(host, initial) {
   track.append(trackPaint);
   const handlesLayer = element6("div", "dialkit-bg-handles");
   bar.append(track, handlesLayer);
-  bar.title = "Click the bar to add a stop";
+  hint(bar, BG_HINTS.bar);
   const STRIP_HANDLES = { start: { x: 0.5, y: 0.5 }, end: { x: 1, y: 0.5 }, width: { x: 0.5, y: 0 } };
   let trackCanvas;
   const followsType = () => bar.dataset.trackStyle === "type" && value.gradient.shape !== "linear";
@@ -8118,6 +8239,7 @@ function mountBackgroundControl(host, initial) {
   const stopsTitle = element6("span", "dialkit-bg-stops-title", "Stops");
   const addButton = iconButton("dialkit-bg-add", "Add stop", ICON_PLUS);
   stopsHeader.append(stopsTitle, addButton);
+  hint(addButton, BG_HINTS.add);
   const stopsList = element6("div", "dialkit-bg-stops");
   const syncGripStyle = () => {
     const styles = getComputedStyle(stopsList);
@@ -8146,6 +8268,7 @@ function mountBackgroundControl(host, initial) {
   const saveRow = element6("div", "dialkit-bg-save-row");
   const saveButton = element6("button", "dialkit-preset-save dialkit-bg-save", "Save gradient");
   saveRow.append(saveButton);
+  hint(saveButton, BG_HINTS.save);
   const gradientStatusLine = element6("div", "dialkit-bg-status");
   gradientStatusLine.setAttribute("role", "status");
   gradientStatusLine.setAttribute("aria-live", "polite");
@@ -8205,16 +8328,18 @@ function mountBackgroundControl(host, initial) {
     } catch {
       return false;
     }
-    drag = { id: event.pointerId, index, x: event.clientX, moved };
+    drag = { id: event.pointerId, index, x: event.clientX, y: event.clientY, moved, off: false };
     bar.dataset.dragging = "true";
     return true;
   };
-  const endDrag = (event) => {
+  const endDrag = (event, drop2 = false) => {
     if (!drag || event && event.pointerId !== drag.id) return;
-    const id = drag.id;
+    const { id, index, off } = drag;
     drag = void 0;
     delete bar.dataset.dragging;
+    handles.forEach((handle) => delete handle.dataset.off);
     if (bar.hasPointerCapture(id)) bar.releasePointerCapture(id);
+    if (drop2 && off) removeStop(index);
   };
   const markPointer = () => {
     bar.dataset.input = "pointer";
@@ -8243,16 +8368,30 @@ function mountBackgroundControl(host, initial) {
   });
   bar.addEventListener("pointermove", (event) => {
     if (!drag || event.pointerId !== drag.id) return;
-    if (!drag.moved && Math.abs(event.clientX - drag.x) < DRAG_THRESHOLD4) return;
+    if (!drag.moved && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < DRAG_THRESHOLD4) return;
     drag.moved = true;
+    const rect = bar.getBoundingClientRect();
+    const away = Math.max(rect.top - event.clientY, event.clientY - rect.bottom);
+    drag.off = away > REMOVE_DISTANCE && value.gradient.stops.length > BACKGROUND_MIN_STOPS;
     updateStop(drag.index, { at: Math.round(fractionAt(event.clientX) * 100) });
     drag.index = selected;
+    handles.forEach((handle, i) => handle.toggleAttribute("data-off", drag?.off === true && i === selected));
     handles[selected]?.focus({ preventScroll: true });
   });
-  bar.addEventListener("pointerup", (event) => endDrag(event));
+  bar.addEventListener("pointerup", (event) => endDrag(event, true));
   bar.addEventListener("pointercancel", (event) => endDrag(event));
+  bar.addEventListener("dblclick", (event) => {
+    const handle = document.elementsFromPoint(event.clientX, event.clientY).find((el) => el.classList.contains("dialkit-bg-handle"));
+    const index = handle ? handles.indexOf(handle) : -1;
+    const row = index >= 0 ? rowById.get(stopIds[index]) : void 0;
+    const picker = row?.root.querySelector(".dialkit-color-control");
+    if (!picker || picker.dataset.open) return;
+    select(index);
+    picker.querySelector(".dialkit-color-swatch")?.click();
+  });
   bar.addEventListener("lostpointercapture", (event) => endDrag(event));
   const buildHandles = () => {
+    unhint(handles);
     handlesLayer.replaceChildren();
     stems = value.gradient.stops.map(() => {
       const stem = element6("span", "dialkit-bg-stem");
@@ -8268,6 +8407,7 @@ function mountBackgroundControl(host, initial) {
       const chip = element6("span", "dialkit-bg-handle-chip");
       chip.setAttribute("aria-hidden", "true");
       handle.append(chip);
+      hint(handle, BG_HINTS.handle);
       handle.addEventListener("focus", () => select(handles.indexOf(handle)));
       handle.addEventListener("keydown", (event) => {
         if (event.altKey || event.metaKey || event.ctrlKey) return;
@@ -8356,6 +8496,10 @@ function mountBackgroundControl(host, initial) {
     if (pickerRow) pickerWatch.observe(pickerRow, { attributes: true, attributeFilter: ["data-open"] });
     bindRowDrag(row, index);
     rowRoot.append(grip, at.root, colorHost, row.alpha.root, row.remove);
+    hint(grip, BG_HINTS.grip);
+    hint(at.root, BG_HINTS.position);
+    const rowSwatch = colorHost.querySelector(".dialkit-color-swatch");
+    if (rowSwatch) hint(rowSwatch, BG_HINTS.swatch);
     return row;
   };
   const pickStopColor = (row, raw) => {
@@ -8365,6 +8509,7 @@ function mountBackgroundControl(host, initial) {
     updateStop(stopIds.indexOf(row.id), picked);
   };
   const dropRow = (row) => {
+    unhint(hinted.filter((part) => row.root.contains(part)));
     row.flip?.cancel();
     row.color.destroy();
     row.root.remove();
@@ -8648,7 +8793,7 @@ function mountBackgroundControl(host, initial) {
     gizmo = void 0;
   };
   function gizmoEscape(event) {
-    if (event.key !== "Escape" || event.defaultPrevented || gizmoRowId === void 0 || shapeMenu) return;
+    if (event.key !== "Escape" || event.defaultPrevented || gizmoRowId === void 0 || shapeMenuOpen()) return;
     const row = rowById.get(gizmoRowId);
     if (row && pickerOpen(row)) toggleRowPicker(row);
     else exitGizmo();
@@ -8656,7 +8801,7 @@ function mountBackgroundControl(host, initial) {
   function gizmoPressElsewhere(event) {
     if (gizmoRowId === void 0) return;
     const target = event.target;
-    const inside = gradientPane.contains(target) || !!gizmo?.element.contains(target) || !!shapeMenu?.contains(target) || [...document.querySelectorAll(".dialkit-color-popover")].some((popover) => popover.contains(target));
+    const inside = gradientPane.contains(target) || !!gizmo?.element.contains(target) || !!shapeMenuElement()?.contains(target) || [...document.querySelectorAll(".dialkit-color-popover")].some((popover) => popover.contains(target));
     if (inside) return;
     const row = rowById.get(gizmoRowId);
     if (row && pickerOpen(row)) toggleRowPicker(row);
@@ -8707,6 +8852,7 @@ function mountBackgroundControl(host, initial) {
     const signature = JSON.stringify([list, canDelete]);
     if (signature === savedSignature) return;
     savedSignature = signature;
+    unhint(hinted.filter((part) => savedList.contains(part)));
     savedList.replaceChildren();
     savedItems = list.map((saved, i) => {
       const item = element6("div", "dialkit-bg-saved-item");
@@ -8718,6 +8864,7 @@ function mountBackgroundControl(host, initial) {
         emit({ ...value, mode: "gradient", gradient: cloneGradient(saved.gradient) });
       });
       item.append(swatch);
+      hint(swatch, BG_HINTS.saved);
       if (canDelete) {
         const remove = iconButton("dialkit-bg-saved-delete", `Delete saved gradient ${i + 1}`, ICON_CLOSE);
         remove.addEventListener("click", async () => {
@@ -8737,6 +8884,7 @@ function mountBackgroundControl(host, initial) {
           if (!destroyed) render();
         });
         item.append(remove);
+        hint(remove, BG_HINTS.savedDelete);
       }
       savedList.append(item);
       return { id: saved.id, gradient: saved.gradient, swatch };
@@ -8786,6 +8934,8 @@ function mountBackgroundControl(host, initial) {
   mediaStatusLine.setAttribute("role", "status");
   mediaStatusLine.setAttribute("aria-live", "polite");
   mediaPane.append(drop, preview2, actions, mediaStatusLine, fileInput);
+  hint(drop, BG_HINTS.drop);
+  hint(preview2, BG_HINTS.preview);
   const chooseFile = () => {
     if (!getBackgroundHost().upload || uploading) return;
     fileInput.value = "";
@@ -8887,6 +9037,7 @@ ${url}`;
   let syncOptions = () => {
   };
   const closeOptions = (restoreFocus = false) => {
+    if (popup) unhint(hinted.filter((part) => popup?.contains(part)));
     stopPosition?.();
     stopPosition = void 0;
     popup?.remove();
@@ -8917,14 +9068,16 @@ ${url}`;
     shell.style.position = "fixed";
     shell.setAttribute("role", "dialog");
     shell.setAttribute("aria-label", `${props.label} media options`);
-    const section = (title, control) => {
+    const section = (title, control, hintText) => {
       const wrap = element6("div", "dialkit-bg-popover-section");
       const heading = element6("div", "dialkit-bg-popover-label", title);
       wrap.append(heading, control);
       shell.append(wrap);
+      hint(wrap, hintText);
     };
-    const fits = segmented(BACKGROUND_FITS.map((fit) => ({ value: fit, label: FIT_LABEL[fit] })), "Fit", (fit) => setDisplay({ fit }));
-    section("Fit", fits.group);
+    const fits = segmented(BACKGROUND_FITS.map((fit) => ({ value: fit, label: FIT_LABEL[fit] })), "Sizing", (fit) => setDisplay({ fit }));
+    fits.buttons.forEach((button, i) => hint(button, BG_HINTS.fit[BACKGROUND_FITS[i]]));
+    section("Sizing", fits.group, BG_HINTS.sizing);
     const tileWrap = element6("div", "dialkit-bg-tile-wrap");
     const tileSize = shellSlider({
       label: "Tile Size",
@@ -8936,6 +9089,7 @@ ${url}`;
       apply: (n) => setDisplay({ tileScale: n })
     });
     tileWrap.append(tileSize.root);
+    hint(tileSize.root, BG_HINTS.tileSize);
     shell.append(tileWrap);
     const tileRow = conditionalRow(tileWrap, shell);
     const ratios = element6("div", "dialkit-bg-ratios");
@@ -8945,12 +9099,18 @@ ${url}`;
     const ratioButtons = BACKGROUND_RATIOS.map((ratio) => {
       const button = element6("button", "dialkit-segmented-button dialkit-bg-ratio");
       button.setAttribute("role", "radio");
-      button.append(element6("span", "dialkit-segmented-text", RATIO_LABEL(ratio)));
+      if (ratio === "source") {
+        button.setAttribute("aria-label", RATIO_LABEL(ratio));
+        button.append(strokeIcon(ICON_IMAGE));
+      } else {
+        button.append(element6("span", "dialkit-segmented-text", RATIO_LABEL(ratio)));
+      }
       button.addEventListener("click", () => setDisplay({ ratio }));
+      hint(button, BG_HINTS.ratio(ratio));
       ratios.append(button);
       return button;
     });
-    section("Ratio", ratios);
+    section("Ratio", ratios, BG_HINTS.ratioSection);
     const zoom = shellSlider({
       label: "Zoom",
       ...BACKGROUND_ZOOM,
@@ -8961,6 +9121,7 @@ ${url}`;
       apply: (n) => setDisplay({ zoom: n })
     });
     shell.append(zoom.root);
+    hint(zoom.root, BG_HINTS.zoom);
     const anchor = element6("div", "dialkit-anchor dialkit-bg-pin");
     anchor.setAttribute("role", "radiogroup");
     anchor.setAttribute("aria-label", "Pin");
@@ -8993,7 +9154,7 @@ ${url}`;
       setDisplay({ pinX: c - 1, pinY: r - 1 });
       cells[r * 3 + c].focus({ preventScroll: true });
     });
-    section("Pin", anchor);
+    section("Pin", anchor, BG_HINTS.pin);
     syncOptions = () => {
       const display = value.mediaDisplay;
       fits.set(display.fit);
@@ -9122,7 +9283,7 @@ ${url}`;
     const stops = gradient.stops;
     selected = clamp4(selected, 0, stops.length - 1);
     shapeValue.textContent = SHAPE_LABEL[gradient.shape];
-    placeShapeMenu();
+    shapeMenu.refresh();
     if (gizmoRowId !== void 0 && !rowById.has(gizmoRowId)) exitGizmo();
     if (gizmoRowId !== void 0) {
       ensureGizmo();
@@ -9205,13 +9366,15 @@ ${url}`;
     },
     destroy() {
       destroyed = true;
+      unhint([...hinted]);
       uploadRequest++;
       unsubscribe();
       endDrag();
       closeOptions();
       solid.destroy();
       heightAnim?.cancel();
-      closeShapeMenu();
+      shapeMenu.destroy();
+      shapeMenuWatch.disconnect();
       document.removeEventListener("pointerdown", markPointer, true);
       document.removeEventListener("keydown", markKeyboard, true);
       trackResize?.disconnect();

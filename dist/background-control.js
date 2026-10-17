@@ -611,6 +611,12 @@ function handleSegmentKey(event) {
   buttons[next].focus({ preventScroll: true });
   buttons[next].click();
 }
+function openDropdownOnKey(event, open) {
+  if (!["ArrowDown", "ArrowUp"].includes(event.key) || event.altKey || event.metaKey || event.ctrlKey) return;
+  event.preventDefault();
+  event.stopPropagation();
+  open();
+}
 function adjacentTabStop(trigger, backwards = false) {
   const candidates = Array.from(trigger.ownerDocument.querySelectorAll('a[href], button, input, select, textarea, [tabindex], [contenteditable="true"]'));
   const stops = candidates.filter((el) => el === trigger || el.tabIndex >= 0 && !el.matches(":disabled") && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== "hidden" && !el.closest('[inert], [aria-hidden="true"], .dialkit-select-dropdown, .dialkit-preset-dropdown, .dialkit-shortcuts-dropdown, .dialkit-color-popover'));
@@ -1386,7 +1392,6 @@ function animateSpring(node, frame, visualDuration = 0.35, bounce = 0.1) {
 // src/icons.ts
 var ICON_CHEVRON = "M6 9.5L12 15.5L18 9.5";
 var ICON_CLOSE = "M6 6L18 18M18 6L6 18";
-var ICON_CHECK = "M5 12.75L10 19L19 5";
 var ICON_PLUS = ["M5 12H19M12 5V19"];
 var ICON_PANEL = {
   path: "M6.84766 11.75C6.78583 11.9899 6.75 12.2408 6.75 12.5C6.75 12.7592 6.78583 13.0101 6.84766 13.25H2C1.58579 13.25 1.25 12.9142 1.25 12.5C1.25 12.0858 1.58579 11.75 2 11.75H6.84766ZM14 11.75C14.4142 11.75 14.75 12.0858 14.75 12.5C14.75 12.9142 14.4142 13.25 14 13.25H12.6523C12.7142 13.0101 12.75 12.7592 12.75 12.5C12.75 12.2408 12.7142 11.9899 12.6523 11.75H14ZM3.09766 7.25C3.03583 7.48994 3 7.74075 3 8C3 8.25925 3.03583 8.51006 3.09766 8.75H2C1.58579 8.75 1.25 8.41421 1.25 8C1.25 7.58579 1.58579 7.25 2 7.25H3.09766ZM14 7.25C14.4142 7.25 14.75 7.58579 14.75 8C14.75 8.41421 14.4142 8.75 14 8.75H8.90234C8.96417 8.51006 9 8.25925 9 8C9 7.74075 8.96417 7.48994 8.90234 7.25H14ZM7.59766 2.75C7.53583 2.98994 7.5 3.24075 7.5 3.5C7.5 3.75925 7.53583 4.01006 7.59766 4.25H2C1.58579 4.25 1.25 3.91421 1.25 3.5C1.25 3.08579 1.58579 2.75 2 2.75H7.59766ZM14 2.75C14.4142 2.75 14.75 3.08579 14.75 3.5C14.75 3.91421 14.4142 4.25 14 4.25H13.4023C13.4642 4.01006 13.5 3.75925 13.5 3.5C13.5 3.24075 13.4642 2.98994 13.4023 2.75H14Z",
@@ -1539,169 +1544,45 @@ function mountFolder(host, initial) {
   };
 }
 
-// src/dropdown-keyboard.ts
-var dropdownId = 0;
-function observeDropdownKeyboard(trigger, getPopup, close, kind = "select") {
-  let frame = 0;
-  let dispose;
-  let stopped = false;
-  const connect = () => {
-    if (stopped || dispose) return;
-    const popup = getPopup();
-    if (!popup?.isConnected) {
-      frame = requestAnimationFrame(() => connect());
-      return;
+// src/background-paint.ts
+function sample(stops, t) {
+  const { color, alpha } = gradientColorAt(stops, Math.min(100, Math.max(0, t * 100)));
+  const n = parseInt(color.slice(1), 16);
+  return [n >> 16 & 255, n >> 8 & 255, n & 255, alpha / 100];
+}
+function paintBackgroundPreview(canvas, value) {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  const { width, height } = canvas;
+  ctx.clearRect(0, 0, width, height);
+  if (value.mode === "solid") {
+    ctx.fillStyle = value.color;
+    ctx.fillRect(0, 0, width, height);
+    return;
+  }
+  if (value.mode !== "gradient" || width === 0 || height === 0) return;
+  const { shape, handles, stops } = value.gradient;
+  const size = 1024;
+  const table = new Uint8ClampedArray(size * 4);
+  for (let i = 0; i < size; i++) {
+    const [r, g, b, a] = sample(stops, i / (size - 1));
+    table.set([r, g, b, Math.round(a * 255)], i * 4);
+  }
+  const frame = gradientFrame(handles, width, height);
+  const image = ctx.createImageData(width, height);
+  const data = image.data;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const t = gradientParamAt(shape, frame, x + 0.5, y + 0.5);
+      const index = Math.round(Math.min(1, Math.max(0, t)) * (size - 1)) * 4;
+      const o = (y * width + x) * 4;
+      data[o] = table[index];
+      data[o + 1] = table[index + 1];
+      data[o + 2] = table[index + 2];
+      data[o + 3] = table[index + 3];
     }
-    popup.inert = false;
-    popup.removeAttribute("aria-hidden");
-    popup.id || (popup.id = `dialkit-dropdown-${++dropdownId}`);
-    popup.setAttribute("role", kind === "select" ? "listbox" : kind === "presets" ? "menu" : "dialog");
-    popup.setAttribute("aria-label", trigger.getAttribute("aria-label") || trigger.querySelector(".dialkit-select-label")?.textContent?.trim() || trigger.getAttribute("title") || trigger.textContent?.trim() || "Options");
-    popup.tabIndex = -1;
-    trigger.setAttribute("aria-controls", popup.id);
-    const selector = kind === "select" ? ".dialkit-select-option" : ".dialkit-preset-name, .dialkit-preset-more, .dialkit-preset-actions > .dialkit-preset-lock, .dialkit-preset-actions-group > button, .dialkit-preset-direct, .dialkit-preset-create";
-    let active;
-    let activeIndex = 0;
-    let query = "";
-    let typedAt = 0;
-    let leaving = false;
-    const items = () => Array.from(popup.querySelectorAll(selector)).filter((el) => !el.hasAttribute("disabled"));
-    const focusItem = (index) => {
-      const options = items();
-      activeIndex = Math.max(0, Math.min(options.length - 1, index));
-      active = options[activeIndex];
-      (active ?? popup).focus({ preventScroll: true });
-      active?.scrollIntoView({ block: "nearest", inline: "nearest" });
-    };
-    const refresh = () => {
-      if (trigger.matches(":disabled")) {
-        leaving = true;
-        const previous = adjacentTabStop(trigger, true);
-        close();
-        queueMicrotask(() => previous?.focus());
-        return;
-      }
-      const options = items();
-      options.forEach((el) => {
-        el.tabIndex = -1;
-        el.setAttribute("role", kind === "select" ? "option" : !el.classList.contains("dialkit-preset-name") ? "menuitem" : "menuitemradio");
-        if (kind === "select") el.setAttribute("aria-selected", el.dataset.selected ?? "false");
-        else if (el.classList.contains("dialkit-preset-name")) el.setAttribute("aria-checked", el.parentElement?.dataset.active ?? "false");
-      });
-      if (active && !active.isConnected && !leaving && !popup.contains(document.activeElement)) focusItem(activeIndex);
-    };
-    refresh();
-    const observer = new MutationObserver(refresh);
-    observer.observe(popup, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-active", "data-selected"] });
-    const restore = () => {
-      leaving = true;
-      trigger.focus({ preventScroll: true });
-    };
-    const keydown = (event) => {
-      if (event.altKey || event.metaKey || event.ctrlKey || event.isComposing) return;
-      if (event.target.matches("input, textarea")) return;
-      if (event.key === "Tab") {
-        const next2 = adjacentTabStop(trigger, event.shiftKey);
-        restore();
-        close();
-        if (next2) {
-          event.preventDefault();
-          event.stopPropagation();
-          queueMicrotask(() => next2.focus());
-        }
-        return;
-      }
-      if (event.key === "Escape") {
-        event.preventDefault();
-        event.stopPropagation();
-        restore();
-        close();
-        return;
-      }
-      const options = items();
-      const index = options.indexOf(document.activeElement);
-      const next = optionKeyIndex(event.key, Math.max(0, index), options.length);
-      if (next !== void 0) {
-        event.preventDefault();
-        event.stopPropagation();
-        focusItem(next);
-        return;
-      }
-      if (["Enter", " "].includes(event.key) && index >= 0) {
-        event.preventDefault();
-        event.stopPropagation();
-        options[index].click();
-        return;
-      }
-      if (event.key.length === 1 && event.key !== " ") {
-        const now = Date.now();
-        query = now - typedAt < 700 ? query + event.key.toLocaleLowerCase() : event.key.toLocaleLowerCase();
-        typedAt = now;
-        const search = [...query].every((c) => c === query[0]) ? query[0] : query;
-        for (let offset = search.length > 1 ? 0 : 1; offset <= options.length; offset++) {
-          const candidate = (Math.max(0, index) + offset) % options.length;
-          if (options[candidate]?.textContent?.trim().toLocaleLowerCase().startsWith(search)) {
-            focusItem(candidate);
-            break;
-          }
-        }
-        event.preventDefault();
-        event.stopPropagation();
-      }
-    };
-    const click = (event) => {
-      const target = event.target.closest(selector);
-      if (target && !target.classList.contains("dialkit-preset-delete")) restore();
-    };
-    const focusin = (event) => {
-      const target = event.target;
-      if (!leaving && !popup.contains(target) && !trigger.contains(target)) {
-        leaving = true;
-        close();
-      }
-    };
-    popup.addEventListener("keydown", keydown);
-    popup.addEventListener("click", click, true);
-    document.addEventListener("focusin", focusin);
-    let stopPosition;
-    if (kind !== "select") {
-      const root = getDialKitPortalRoot(trigger);
-      if (root) {
-        popup.dataset.theme = root.dataset.theme ?? "dark";
-        const styles = getComputedStyle(root);
-        for (const property of Array.from(styles)) {
-          if (property.startsWith("--dial-")) popup.style.setProperty(property, styles.getPropertyValue(property));
-        }
-      }
-      const position = () => {
-        const pos = getDropdownPosition(trigger, root ?? document.body, { fixed: true, dropdownHeight: popup.scrollHeight + 2, width: kind === "help" ? 280 : trigger.getBoundingClientRect().width });
-        Object.assign(popup.style, { position: "fixed", top: `${pos.top}px`, left: `${pos.left}px`, right: "auto", maxHeight: `${pos.maxHeight}px` });
-        if (kind === "presets" && popup.style.maxWidth) Object.assign(popup.style, { width: "auto", minWidth: `${pos.width}px` });
-        else Object.assign(popup.style, { width: `${pos.width}px`, minWidth: "0" });
-      };
-      stopPosition = observeDropdownPosition(trigger, position, () => popup);
-    }
-    const selected = items().findIndex((el) => el.dataset.selected === "true" || el.classList.contains("dialkit-preset-name") && el.parentElement?.dataset.active === "true");
-    focusItem(Math.max(0, selected));
-    dispose = () => {
-      leaving = true;
-      if (popup.contains(document.activeElement)) trigger.focus({ preventScroll: true });
-      popup.inert = true;
-      popup.setAttribute("aria-hidden", "true");
-      observer.disconnect();
-      stopPosition?.();
-      popup.removeEventListener("keydown", keydown);
-      popup.removeEventListener("click", click, true);
-      document.removeEventListener("focusin", focusin);
-      trigger.removeAttribute("aria-controls");
-    };
-  };
-  frame = requestAnimationFrame(() => connect());
-  return () => {
-    stopped = true;
-    cancelAnimationFrame(frame);
-    dispose?.();
-  };
+  }
+  ctx.putImageData(image, 0, 0);
 }
 
 // src/gradient-gizmo.ts
@@ -2264,47 +2145,6 @@ function mountGradientGizmo(target, initial, callbacks) {
   };
 }
 
-// src/background-paint.ts
-function sample(stops, t) {
-  const { color, alpha } = gradientColorAt(stops, Math.min(100, Math.max(0, t * 100)));
-  const n = parseInt(color.slice(1), 16);
-  return [n >> 16 & 255, n >> 8 & 255, n & 255, alpha / 100];
-}
-function paintBackgroundPreview(canvas, value) {
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-  const { width, height } = canvas;
-  ctx.clearRect(0, 0, width, height);
-  if (value.mode === "solid") {
-    ctx.fillStyle = value.color;
-    ctx.fillRect(0, 0, width, height);
-    return;
-  }
-  if (value.mode !== "gradient" || width === 0 || height === 0) return;
-  const { shape, handles, stops } = value.gradient;
-  const size = 1024;
-  const table = new Uint8ClampedArray(size * 4);
-  for (let i = 0; i < size; i++) {
-    const [r, g, b, a] = sample(stops, i / (size - 1));
-    table.set([r, g, b, Math.round(a * 255)], i * 4);
-  }
-  const frame = gradientFrame(handles, width, height);
-  const image = ctx.createImageData(width, height);
-  const data = image.data;
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const t = gradientParamAt(shape, frame, x + 0.5, y + 0.5);
-      const index = Math.round(Math.min(1, Math.max(0, t)) * (size - 1)) * 4;
-      const o = (y * width + x) * 4;
-      data[o] = table[index];
-      data[o + 1] = table[index + 1];
-      data[o + 2] = table[index + 2];
-      data[o + 3] = table[index + 3];
-    }
-  }
-  ctx.putImageData(image, 0, 0);
-}
-
 // src/store/BackgroundHost.ts
 var STATE_KEY = /* @__PURE__ */ Symbol.for("dialkit.backgroundHost");
 function state() {
@@ -2340,6 +2180,266 @@ function subscribeBackgroundHost(listener) {
   };
 }
 
+// src/dropdown-keyboard.ts
+var dropdownId = 0;
+function observeDropdownKeyboard(trigger, getPopup, close, kind = "select") {
+  let frame = 0;
+  let dispose;
+  let stopped = false;
+  const connect = () => {
+    if (stopped || dispose) return;
+    const popup = getPopup();
+    if (!popup?.isConnected) {
+      frame = requestAnimationFrame(() => connect());
+      return;
+    }
+    popup.inert = false;
+    popup.removeAttribute("aria-hidden");
+    popup.id || (popup.id = `dialkit-dropdown-${++dropdownId}`);
+    popup.setAttribute("role", kind === "select" ? "listbox" : kind === "presets" ? "menu" : "dialog");
+    popup.setAttribute("aria-label", trigger.getAttribute("aria-label") || trigger.querySelector(".dialkit-select-label")?.textContent?.trim() || trigger.getAttribute("title") || trigger.textContent?.trim() || "Options");
+    popup.tabIndex = -1;
+    trigger.setAttribute("aria-controls", popup.id);
+    const selector = kind === "select" ? ".dialkit-select-option" : ".dialkit-preset-name, .dialkit-preset-more, .dialkit-preset-actions > .dialkit-preset-lock, .dialkit-preset-actions-group > button, .dialkit-preset-direct, .dialkit-preset-create";
+    let active;
+    let activeIndex = 0;
+    let query = "";
+    let typedAt = 0;
+    let leaving = false;
+    const items = () => Array.from(popup.querySelectorAll(selector)).filter((el) => !el.hasAttribute("disabled"));
+    const focusItem = (index) => {
+      const options = items();
+      activeIndex = Math.max(0, Math.min(options.length - 1, index));
+      active = options[activeIndex];
+      (active ?? popup).focus({ preventScroll: true });
+      active?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    };
+    const refresh = () => {
+      if (trigger.matches(":disabled")) {
+        leaving = true;
+        const previous = adjacentTabStop(trigger, true);
+        close();
+        queueMicrotask(() => previous?.focus());
+        return;
+      }
+      const options = items();
+      options.forEach((el) => {
+        el.tabIndex = -1;
+        el.setAttribute("role", kind === "select" ? "option" : !el.classList.contains("dialkit-preset-name") ? "menuitem" : "menuitemradio");
+        if (kind === "select") el.setAttribute("aria-selected", el.dataset.selected ?? "false");
+        else if (el.classList.contains("dialkit-preset-name")) el.setAttribute("aria-checked", el.parentElement?.dataset.active ?? "false");
+      });
+      if (active && !active.isConnected && !leaving && !popup.contains(document.activeElement)) focusItem(activeIndex);
+    };
+    refresh();
+    const observer = new MutationObserver(refresh);
+    observer.observe(popup, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-active", "data-selected"] });
+    const restore = () => {
+      leaving = true;
+      trigger.focus({ preventScroll: true });
+    };
+    const keydown = (event) => {
+      if (event.altKey || event.metaKey || event.ctrlKey || event.isComposing) return;
+      if (event.target.matches("input, textarea")) return;
+      if (event.key === "Tab") {
+        const next2 = adjacentTabStop(trigger, event.shiftKey);
+        restore();
+        close();
+        if (next2) {
+          event.preventDefault();
+          event.stopPropagation();
+          queueMicrotask(() => next2.focus());
+        }
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        restore();
+        close();
+        return;
+      }
+      const options = items();
+      const index = options.indexOf(document.activeElement);
+      const next = optionKeyIndex(event.key, Math.max(0, index), options.length);
+      if (next !== void 0) {
+        event.preventDefault();
+        event.stopPropagation();
+        focusItem(next);
+        return;
+      }
+      if (["Enter", " "].includes(event.key) && index >= 0) {
+        event.preventDefault();
+        event.stopPropagation();
+        options[index].click();
+        return;
+      }
+      if (event.key.length === 1 && event.key !== " " && event.key.toLowerCase() !== HintStore.getKey()) {
+        const now = Date.now();
+        query = now - typedAt < 700 ? query + event.key.toLocaleLowerCase() : event.key.toLocaleLowerCase();
+        typedAt = now;
+        const search = [...query].every((c) => c === query[0]) ? query[0] : query;
+        for (let offset = search.length > 1 ? 0 : 1; offset <= options.length; offset++) {
+          const candidate = (Math.max(0, index) + offset) % options.length;
+          if (options[candidate]?.textContent?.trim().toLocaleLowerCase().startsWith(search)) {
+            focusItem(candidate);
+            break;
+          }
+        }
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+    const click = (event) => {
+      const target = event.target.closest(selector);
+      if (target && !target.classList.contains("dialkit-preset-delete")) restore();
+    };
+    const focusin = (event) => {
+      const target = event.target;
+      if (!leaving && !popup.contains(target) && !trigger.contains(target)) {
+        leaving = true;
+        close();
+      }
+    };
+    popup.addEventListener("keydown", keydown);
+    popup.addEventListener("click", click, true);
+    document.addEventListener("focusin", focusin);
+    let stopPosition;
+    if (kind !== "select") {
+      const root = getDialKitPortalRoot(trigger);
+      if (root) {
+        popup.dataset.theme = root.dataset.theme ?? "dark";
+        const styles = getComputedStyle(root);
+        for (const property of Array.from(styles)) {
+          if (property.startsWith("--dial-")) popup.style.setProperty(property, styles.getPropertyValue(property));
+        }
+      }
+      const position = () => {
+        const pos = getDropdownPosition(trigger, root ?? document.body, { fixed: true, dropdownHeight: popup.scrollHeight + 2, width: kind === "help" ? 280 : trigger.getBoundingClientRect().width });
+        Object.assign(popup.style, { position: "fixed", top: `${pos.top}px`, left: `${pos.left}px`, right: "auto", maxHeight: `${pos.maxHeight}px` });
+        if (kind === "presets" && popup.style.maxWidth) Object.assign(popup.style, { width: "auto", minWidth: `${pos.width}px` });
+        else Object.assign(popup.style, { width: `${pos.width}px`, minWidth: "0" });
+      };
+      stopPosition = observeDropdownPosition(trigger, position, () => popup);
+    }
+    const selected = items().findIndex((el) => el.dataset.selected === "true" || el.classList.contains("dialkit-preset-name") && el.parentElement?.dataset.active === "true");
+    focusItem(Math.max(0, selected));
+    dispose = () => {
+      leaving = true;
+      if (popup.contains(document.activeElement)) trigger.focus({ preventScroll: true });
+      popup.inert = true;
+      popup.setAttribute("aria-hidden", "true");
+      observer.disconnect();
+      stopPosition?.();
+      popup.removeEventListener("keydown", keydown);
+      popup.removeEventListener("click", click, true);
+      document.removeEventListener("focusin", focusin);
+      trigger.removeAttribute("aria-controls");
+    };
+  };
+  frame = requestAnimationFrame(() => connect());
+  return () => {
+    stopped = true;
+    cancelAnimationFrame(frame);
+    dispose?.();
+  };
+}
+
+// src/vanilla/menus.ts
+var MENU_SPRING = { visualDuration: 0.15, bounce: 0 };
+var CHEVRON_SPRING = { visualDuration: 0.2, bounce: 0.15 };
+var menuFrame = (above, shown) => ({
+  opacity: shown,
+  transform: `translateY(${(1 - shown) * (above ? 8 : -8)}px) scale(${0.95 + 0.05 * shown})`
+});
+function popupMenu(trigger, className, kind, populate) {
+  let popup;
+  let stopKeyboard, stopPosition;
+  let above = false;
+  let chevronTurn = 0;
+  const turnChevron = (to) => {
+    const chevron = trigger.querySelector(".dialkit-select-chevron");
+    if (!chevron || to === chevronTurn) return;
+    const from = chevronTurn;
+    chevronTurn = to;
+    chevron.style.transform = `rotate(${to}deg)`;
+    animateSpring(chevron, (p) => ({ transform: `rotate(${from + (to - from) * p}deg)` }), CHEVRON_SPRING.visualDuration, CHEVRON_SPRING.bounce);
+  };
+  const outside = (event) => {
+    if (!trigger.contains(event.target) && !popup?.contains(event.target))
+      close();
+  };
+  function close() {
+    stopKeyboard?.();
+    stopPosition?.();
+    stopKeyboard = stopPosition = void 0;
+    const leaving = popup;
+    popup = void 0;
+    turnChevron(0);
+    if (leaving) {
+      leaving.inert = true;
+      leaving.style.pointerEvents = "none";
+      const from = above;
+      const out = animateSpring(leaving, (p) => menuFrame(from, 1 - p), MENU_SPRING.visualDuration, MENU_SPRING.bounce);
+      if (out) out.finished.then(() => leaving.remove(), () => leaving.remove());
+      else leaving.remove();
+    }
+    trigger.dataset.open = "false";
+    trigger.setAttribute("aria-expanded", "false");
+    document.removeEventListener("pointerdown", outside);
+  }
+  function open() {
+    if (popup || trigger.disabled)
+      return;
+    const root = getDialKitPortalRoot(trigger) ?? document.body;
+    popup = element2("div", className);
+    popup.style.position = "fixed";
+    root.append(popup);
+    populate(popup);
+    trigger.dataset.open = "true";
+    trigger.setAttribute("aria-expanded", "true");
+    stopPosition = observeDropdownPosition(trigger, () => {
+      if (!popup)
+        return;
+      if (!trigger.isConnected || !trigger.getClientRects().length) {
+        close();
+        return;
+      }
+      const p = getDropdownPosition(trigger, root, { fixed: true, dropdownHeight: popup.scrollHeight + 2, ...kind === "help" ? { width: 280 } : {} });
+      above = p.above;
+      Object.assign(popup.style, { top: `${p.top}px`, left: `${p.left}px`, width: `${p.width}px`, maxHeight: `${p.maxHeight}px`, transformOrigin: p.above ? "bottom" : "top" });
+    }, () => popup);
+    const entering = popup;
+    animateSpring(entering, (p) => menuFrame(above, p), MENU_SPRING.visualDuration, MENU_SPRING.bounce);
+    turnChevron(180);
+    stopKeyboard = observeDropdownKeyboard(trigger, () => popup, close, kind);
+    document.addEventListener("pointerdown", outside);
+  }
+  const click = () => {
+    if (popup)
+      close();
+    else
+      open();
+  };
+  const key = (e) => openDropdownOnKey(e, open);
+  trigger.setAttribute("aria-haspopup", kind === "select" ? "listbox" : kind === "presets" ? "menu" : "dialog");
+  trigger.setAttribute("aria-expanded", "false");
+  trigger.addEventListener("click", click);
+  trigger.addEventListener("keydown", key);
+  return {
+    close,
+    refresh() {
+      if (popup)
+        populate(popup);
+    },
+    destroy() {
+      close();
+      trigger.removeEventListener("click", click);
+      trigger.removeEventListener("keydown", key);
+    }
+  };
+}
+
 // src/background-control.ts
 var MODE_OPTIONS = [
   { value: "solid", label: "Solid" },
@@ -2350,6 +2450,47 @@ var SHAPE_LABEL = { linear: "Linear", radial: "Radial", angular: "Angular", diam
 var ICON_ROTATE = ["M19.5 12a7.5 7.5 0 1 1-2.2-5.3", "M19.5 4.5v3.75h-3.75"];
 var FIT_LABEL = { fill: "Fill", fit: "Fit", stretch: "Stretch", tile: "Tile" };
 var RATIO_LABEL = (ratio) => ratio === "source" ? "Source" : ratio;
+var ICON_IMAGE = ["M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z", "M4 16l4.5-4.5 4 4 2.5-2.5L20 18", "M15 9.5h.01"];
+var BG_HINTS = {
+  mode: {
+    solid: "Fills the background with one color.",
+    gradient: "Fills the background with a gradient.",
+    media: "Fills the background with an image or a video."
+  },
+  shapeTrigger: "Changes how the colors spread.",
+  shape: {
+    linear: "The colors run along a straight line.",
+    radial: "The colors grow out from a point, in circles.",
+    angular: "The colors turn around a point.",
+    diamond: "The colors grow out from a point, as a diamond."
+  },
+  flip: "Reverses the order of the stops.",
+  rotate: "Turns the gradient a quarter turn clockwise.",
+  bar: "Click to add a stop here.",
+  handle: "Drag to move this stop. Drag it off the bar to remove it. Double-click to change its color.",
+  add: "Adds a stop in the middle of the widest gap.",
+  grip: "Drag to change the order of the stops.",
+  swatch: "Opens the color picker and shows the gradient's handles on the canvas.",
+  position: "Where the stop sits along the gradient, from 0 to 100%.",
+  save: "Keeps this gradient in your list, for any board.",
+  saved: "Click to use this gradient.",
+  savedDelete: "Deletes this saved gradient.",
+  drop: "Drop an image or a video here, or click to pick one.",
+  preview: "Opens the options for how the media fills the canvas.",
+  sizing: "How the media fills the canvas.",
+  fit: {
+    fill: "Covers the whole canvas. The media's edges may be cut off.",
+    fit: "Shows all of the media inside the canvas.",
+    stretch: "Fills the canvas and does not keep the media's shape.",
+    tile: "Repeats the media across the canvas."
+  },
+  ratioSection: "The shape the media is cropped to.",
+  ratio: (ratio) => ratio === "source" ? "Keeps the media's own shape." : `Crops the media to ${ratio}.`,
+  tileSize: "How large each repeated tile is.",
+  zoom: "Scales the media inside the canvas.",
+  pin: "Which part of the media stays in view when it is cut off."
+};
+var REMOVE_DISTANCE = 24;
 var PIN_COLUMNS = ["Left", "Center", "Right"];
 var PIN_ROWS = ["Top", "Middle", "Bottom"];
 var ICON_MINUS = "M5 12H19";
@@ -2571,6 +2712,19 @@ function mountBackgroundControl(host, initial) {
   let gradientStatus = "";
   let mediaStatus = "";
   let mediaError = false;
+  let hinted = [];
+  const hint = (part, text) => {
+    hinted.push(part);
+    part.addEventListener("pointerenter", () => HintStore.enter(part, text));
+    part.addEventListener("pointerleave", () => HintStore.leave(part));
+  };
+  const unhint = (parts) => {
+    parts.forEach((part) => {
+      HintStore.leave(part);
+      HintStore.hide(part);
+    });
+    hinted = hinted.filter((part) => !parts.includes(part));
+  };
   const emit = (next) => {
     if (sameBackgroundValue(next, value)) {
       render();
@@ -2586,6 +2740,7 @@ function mountBackgroundControl(host, initial) {
   const body = element4("div", "dialkit-bg-body");
   root.append(body);
   const modes = segmented(MODE_OPTIONS, "Background type", (mode) => emit({ ...value, mode }));
+  modes.buttons.forEach((button, i) => hint(button, BG_HINTS.mode[MODE_OPTIONS[i].value]));
   body.append(modes.group);
   const solidPane = element4("div", "dialkit-bg-pane dialkit-bg-solid");
   const solidHost = element4("div", "dialkit-color-host");
@@ -2615,76 +2770,47 @@ function mountBackgroundControl(host, initial) {
   const flipButton = iconButton("dialkit-bg-flip", "Flip stops", ICON_REVERSE);
   const rotateButton = iconButton("dialkit-bg-rotate", "Rotate 90\xB0 clockwise", ICON_ROTATE);
   shapeRow.append(shapeTrigger, flipButton, rotateButton);
-  let shapeMenu;
-  let stopShapeKeys;
-  const shapeOutside = (event) => {
-    if (!shapeMenu?.contains(event.target) && !shapeTrigger.contains(event.target)) closeShapeMenu();
-  };
-  function closeShapeMenu() {
-    stopShapeKeys?.();
-    stopShapeKeys = void 0;
-    shapeMenu?.remove();
-    shapeMenu = void 0;
-    shapeTrigger.dataset.open = "false";
-    shapeTrigger.setAttribute("aria-expanded", "false");
-    document.removeEventListener("pointerdown", shapeOutside, true);
-  }
-  const placeShapeMenu = () => {
-    if (!shapeMenu) return;
-    const rect = shapeTrigger.getBoundingClientRect();
-    const current = shapeMenu.querySelector('[data-selected="true"]');
-    const offset = current ? current.offsetTop + current.offsetHeight / 2 : 0;
-    const height = shapeMenu.offsetHeight;
-    const top = Math.max(8, Math.min(rect.top + rect.height / 2 - offset, window.innerHeight - height - 8));
-    Object.assign(shapeMenu.style, { left: `${rect.left}px`, top: `${top}px`, width: `${rect.width}px` });
-  };
-  const openShapeMenu = () => {
-    if (shapeMenu) {
-      closeShapeMenu();
-      return;
-    }
-    const portal = getDialKitPortalRoot(host) ?? document.body;
-    const menu = element4("div", "dialkit-select-dropdown dialkit-bg-shape-menu");
-    menu.style.position = "fixed";
-    for (const shape of GRADIENT_SHAPES) {
-      const option = element4("button", "dialkit-select-option dialkit-bg-shape-option");
+  hint(shapeTrigger, BG_HINTS.shapeTrigger);
+  hint(flipButton, BG_HINTS.flip);
+  hint(rotateButton, BG_HINTS.rotate);
+  let shapeOptions = [];
+  const shapeMenu = popupMenu(shapeTrigger, "dialkit-select-dropdown dialkit-bg-shape-menu", "select", (popup2) => {
+    unhint(shapeOptions);
+    shapeOptions = GRADIENT_SHAPES.map((shape) => {
+      const option = element4("button", "dialkit-select-option", SHAPE_LABEL[shape]);
       option.dataset.selected = String(shape === value.gradient.shape);
-      const check = strokeIcon(ICON_CHECK);
-      check.classList.add("dialkit-bg-shape-check");
-      option.append(check, element4("span", "dialkit-bg-shape-label", SHAPE_LABEL[shape]));
       option.addEventListener("click", () => {
-        closeShapeMenu();
+        shapeMenu.close();
         setGradient(switchGradientShape(value.gradient, shape, canvasAspect()));
         shapeTrigger.focus({ preventScroll: true });
       });
-      menu.append(option);
+      hint(option, BG_HINTS.shape[shape]);
+      return option;
+    });
+    popup2.replaceChildren(...shapeOptions);
+    if (!popup2.dataset.gizmoAware) {
+      popup2.dataset.gizmoAware = "true";
+      popup2.addEventListener("pointerdown", (event) => {
+        if (gizmoRowId !== void 0) event.stopPropagation();
+      });
+      popup2.addEventListener("focusin", (event) => {
+        if (gizmoRowId !== void 0) event.stopPropagation();
+      });
     }
-    menu.addEventListener("pointerdown", (event) => {
-      if (gizmoRowId !== void 0) event.stopPropagation();
-    });
-    menu.addEventListener("focusin", (event) => {
-      if (gizmoRowId !== void 0) event.stopPropagation();
-    });
-    shapeMenu = menu;
-    portal.append(menu);
-    placeShapeMenu();
-    shapeTrigger.dataset.open = "true";
-    shapeTrigger.setAttribute("aria-expanded", "true");
-    stopShapeKeys = observeDropdownKeyboard(shapeTrigger, () => shapeMenu, closeShapeMenu, "select");
-    document.addEventListener("pointerdown", shapeOutside, true);
-  };
+  });
+  const shapeMenuOpen = () => shapeTrigger.getAttribute("aria-expanded") === "true";
+  const shapeMenuElement = () => shapeMenuOpen() ? getDialKitPortalRoot(host)?.querySelector(".dialkit-bg-shape-menu") ?? document.querySelector(".dialkit-bg-shape-menu") : null;
+  const shapeMenuWatch = new MutationObserver(() => {
+    if (!shapeMenuOpen()) {
+      unhint(shapeOptions);
+      shapeOptions = [];
+    }
+  });
+  shapeMenuWatch.observe(shapeTrigger, { attributes: true, attributeFilter: ["aria-expanded"] });
   function canvasAspect() {
     const rect = getBackgroundHost().gizmoTarget?.()?.getBoundingClientRect();
     return rect && rect.width > 0 && rect.height > 0 ? rect.width / rect.height : 1;
   }
-  shapeTrigger.addEventListener("click", openShapeMenu);
-  shapeTrigger.addEventListener("keydown", (event) => {
-    if ((event.key === "ArrowDown" || event.key === "ArrowUp") && !event.altKey && !event.metaKey && !event.ctrlKey && !shapeMenu) {
-      event.preventDefault();
-      event.stopPropagation();
-      openShapeMenu();
-    }
-  });
   flipButton.addEventListener("click", () => {
     commitEntries(entries().map(({ id, stop }) => ({ id, stop: { ...stop, at: Math.round((100 - stop.at) * 100) / 100 } })));
   });
@@ -2697,7 +2823,7 @@ function mountBackgroundControl(host, initial) {
   track.append(trackPaint);
   const handlesLayer = element4("div", "dialkit-bg-handles");
   bar.append(track, handlesLayer);
-  bar.title = "Click the bar to add a stop";
+  hint(bar, BG_HINTS.bar);
   const STRIP_HANDLES = { start: { x: 0.5, y: 0.5 }, end: { x: 1, y: 0.5 }, width: { x: 0.5, y: 0 } };
   let trackCanvas;
   const followsType = () => bar.dataset.trackStyle === "type" && value.gradient.shape !== "linear";
@@ -2741,6 +2867,7 @@ function mountBackgroundControl(host, initial) {
   const stopsTitle = element4("span", "dialkit-bg-stops-title", "Stops");
   const addButton = iconButton("dialkit-bg-add", "Add stop", ICON_PLUS);
   stopsHeader.append(stopsTitle, addButton);
+  hint(addButton, BG_HINTS.add);
   const stopsList = element4("div", "dialkit-bg-stops");
   const syncGripStyle = () => {
     const styles = getComputedStyle(stopsList);
@@ -2769,6 +2896,7 @@ function mountBackgroundControl(host, initial) {
   const saveRow = element4("div", "dialkit-bg-save-row");
   const saveButton = element4("button", "dialkit-preset-save dialkit-bg-save", "Save gradient");
   saveRow.append(saveButton);
+  hint(saveButton, BG_HINTS.save);
   const gradientStatusLine = element4("div", "dialkit-bg-status");
   gradientStatusLine.setAttribute("role", "status");
   gradientStatusLine.setAttribute("aria-live", "polite");
@@ -2828,16 +2956,18 @@ function mountBackgroundControl(host, initial) {
     } catch {
       return false;
     }
-    drag = { id: event.pointerId, index, x: event.clientX, moved };
+    drag = { id: event.pointerId, index, x: event.clientX, y: event.clientY, moved, off: false };
     bar.dataset.dragging = "true";
     return true;
   };
-  const endDrag = (event) => {
+  const endDrag = (event, drop2 = false) => {
     if (!drag || event && event.pointerId !== drag.id) return;
-    const id = drag.id;
+    const { id, index, off } = drag;
     drag = void 0;
     delete bar.dataset.dragging;
+    handles.forEach((handle) => delete handle.dataset.off);
     if (bar.hasPointerCapture(id)) bar.releasePointerCapture(id);
+    if (drop2 && off) removeStop(index);
   };
   const markPointer = () => {
     bar.dataset.input = "pointer";
@@ -2866,16 +2996,30 @@ function mountBackgroundControl(host, initial) {
   });
   bar.addEventListener("pointermove", (event) => {
     if (!drag || event.pointerId !== drag.id) return;
-    if (!drag.moved && Math.abs(event.clientX - drag.x) < DRAG_THRESHOLD2) return;
+    if (!drag.moved && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < DRAG_THRESHOLD2) return;
     drag.moved = true;
+    const rect = bar.getBoundingClientRect();
+    const away = Math.max(rect.top - event.clientY, event.clientY - rect.bottom);
+    drag.off = away > REMOVE_DISTANCE && value.gradient.stops.length > BACKGROUND_MIN_STOPS;
     updateStop(drag.index, { at: Math.round(fractionAt(event.clientX) * 100) });
     drag.index = selected;
+    handles.forEach((handle, i) => handle.toggleAttribute("data-off", drag?.off === true && i === selected));
     handles[selected]?.focus({ preventScroll: true });
   });
-  bar.addEventListener("pointerup", (event) => endDrag(event));
+  bar.addEventListener("pointerup", (event) => endDrag(event, true));
   bar.addEventListener("pointercancel", (event) => endDrag(event));
+  bar.addEventListener("dblclick", (event) => {
+    const handle = document.elementsFromPoint(event.clientX, event.clientY).find((el) => el.classList.contains("dialkit-bg-handle"));
+    const index = handle ? handles.indexOf(handle) : -1;
+    const row = index >= 0 ? rowById.get(stopIds[index]) : void 0;
+    const picker = row?.root.querySelector(".dialkit-color-control");
+    if (!picker || picker.dataset.open) return;
+    select(index);
+    picker.querySelector(".dialkit-color-swatch")?.click();
+  });
   bar.addEventListener("lostpointercapture", (event) => endDrag(event));
   const buildHandles = () => {
+    unhint(handles);
     handlesLayer.replaceChildren();
     stems = value.gradient.stops.map(() => {
       const stem = element4("span", "dialkit-bg-stem");
@@ -2891,6 +3035,7 @@ function mountBackgroundControl(host, initial) {
       const chip = element4("span", "dialkit-bg-handle-chip");
       chip.setAttribute("aria-hidden", "true");
       handle.append(chip);
+      hint(handle, BG_HINTS.handle);
       handle.addEventListener("focus", () => select(handles.indexOf(handle)));
       handle.addEventListener("keydown", (event) => {
         if (event.altKey || event.metaKey || event.ctrlKey) return;
@@ -2979,6 +3124,10 @@ function mountBackgroundControl(host, initial) {
     if (pickerRow) pickerWatch.observe(pickerRow, { attributes: true, attributeFilter: ["data-open"] });
     bindRowDrag(row, index);
     rowRoot.append(grip, at.root, colorHost, row.alpha.root, row.remove);
+    hint(grip, BG_HINTS.grip);
+    hint(at.root, BG_HINTS.position);
+    const rowSwatch = colorHost.querySelector(".dialkit-color-swatch");
+    if (rowSwatch) hint(rowSwatch, BG_HINTS.swatch);
     return row;
   };
   const pickStopColor = (row, raw) => {
@@ -2988,6 +3137,7 @@ function mountBackgroundControl(host, initial) {
     updateStop(stopIds.indexOf(row.id), picked);
   };
   const dropRow = (row) => {
+    unhint(hinted.filter((part) => row.root.contains(part)));
     row.flip?.cancel();
     row.color.destroy();
     row.root.remove();
@@ -3271,7 +3421,7 @@ function mountBackgroundControl(host, initial) {
     gizmo = void 0;
   };
   function gizmoEscape(event) {
-    if (event.key !== "Escape" || event.defaultPrevented || gizmoRowId === void 0 || shapeMenu) return;
+    if (event.key !== "Escape" || event.defaultPrevented || gizmoRowId === void 0 || shapeMenuOpen()) return;
     const row = rowById.get(gizmoRowId);
     if (row && pickerOpen(row)) toggleRowPicker(row);
     else exitGizmo();
@@ -3279,7 +3429,7 @@ function mountBackgroundControl(host, initial) {
   function gizmoPressElsewhere(event) {
     if (gizmoRowId === void 0) return;
     const target = event.target;
-    const inside = gradientPane.contains(target) || !!gizmo?.element.contains(target) || !!shapeMenu?.contains(target) || [...document.querySelectorAll(".dialkit-color-popover")].some((popover) => popover.contains(target));
+    const inside = gradientPane.contains(target) || !!gizmo?.element.contains(target) || !!shapeMenuElement()?.contains(target) || [...document.querySelectorAll(".dialkit-color-popover")].some((popover) => popover.contains(target));
     if (inside) return;
     const row = rowById.get(gizmoRowId);
     if (row && pickerOpen(row)) toggleRowPicker(row);
@@ -3330,6 +3480,7 @@ function mountBackgroundControl(host, initial) {
     const signature = JSON.stringify([list, canDelete]);
     if (signature === savedSignature) return;
     savedSignature = signature;
+    unhint(hinted.filter((part) => savedList.contains(part)));
     savedList.replaceChildren();
     savedItems = list.map((saved, i) => {
       const item = element4("div", "dialkit-bg-saved-item");
@@ -3341,6 +3492,7 @@ function mountBackgroundControl(host, initial) {
         emit({ ...value, mode: "gradient", gradient: cloneGradient(saved.gradient) });
       });
       item.append(swatch);
+      hint(swatch, BG_HINTS.saved);
       if (canDelete) {
         const remove = iconButton("dialkit-bg-saved-delete", `Delete saved gradient ${i + 1}`, ICON_CLOSE);
         remove.addEventListener("click", async () => {
@@ -3360,6 +3512,7 @@ function mountBackgroundControl(host, initial) {
           if (!destroyed) render();
         });
         item.append(remove);
+        hint(remove, BG_HINTS.savedDelete);
       }
       savedList.append(item);
       return { id: saved.id, gradient: saved.gradient, swatch };
@@ -3409,6 +3562,8 @@ function mountBackgroundControl(host, initial) {
   mediaStatusLine.setAttribute("role", "status");
   mediaStatusLine.setAttribute("aria-live", "polite");
   mediaPane.append(drop, preview, actions, mediaStatusLine, fileInput);
+  hint(drop, BG_HINTS.drop);
+  hint(preview, BG_HINTS.preview);
   const chooseFile = () => {
     if (!getBackgroundHost().upload || uploading) return;
     fileInput.value = "";
@@ -3510,6 +3665,7 @@ ${url}`;
   let syncOptions = () => {
   };
   const closeOptions = (restoreFocus = false) => {
+    if (popup) unhint(hinted.filter((part) => popup?.contains(part)));
     stopPosition?.();
     stopPosition = void 0;
     popup?.remove();
@@ -3540,14 +3696,16 @@ ${url}`;
     shell.style.position = "fixed";
     shell.setAttribute("role", "dialog");
     shell.setAttribute("aria-label", `${props.label} media options`);
-    const section = (title, control) => {
+    const section = (title, control, hintText) => {
       const wrap = element4("div", "dialkit-bg-popover-section");
       const heading = element4("div", "dialkit-bg-popover-label", title);
       wrap.append(heading, control);
       shell.append(wrap);
+      hint(wrap, hintText);
     };
-    const fits = segmented(BACKGROUND_FITS.map((fit) => ({ value: fit, label: FIT_LABEL[fit] })), "Fit", (fit) => setDisplay({ fit }));
-    section("Fit", fits.group);
+    const fits = segmented(BACKGROUND_FITS.map((fit) => ({ value: fit, label: FIT_LABEL[fit] })), "Sizing", (fit) => setDisplay({ fit }));
+    fits.buttons.forEach((button, i) => hint(button, BG_HINTS.fit[BACKGROUND_FITS[i]]));
+    section("Sizing", fits.group, BG_HINTS.sizing);
     const tileWrap = element4("div", "dialkit-bg-tile-wrap");
     const tileSize = shellSlider({
       label: "Tile Size",
@@ -3559,6 +3717,7 @@ ${url}`;
       apply: (n) => setDisplay({ tileScale: n })
     });
     tileWrap.append(tileSize.root);
+    hint(tileSize.root, BG_HINTS.tileSize);
     shell.append(tileWrap);
     const tileRow = conditionalRow(tileWrap, shell);
     const ratios = element4("div", "dialkit-bg-ratios");
@@ -3568,12 +3727,18 @@ ${url}`;
     const ratioButtons = BACKGROUND_RATIOS.map((ratio) => {
       const button = element4("button", "dialkit-segmented-button dialkit-bg-ratio");
       button.setAttribute("role", "radio");
-      button.append(element4("span", "dialkit-segmented-text", RATIO_LABEL(ratio)));
+      if (ratio === "source") {
+        button.setAttribute("aria-label", RATIO_LABEL(ratio));
+        button.append(strokeIcon(ICON_IMAGE));
+      } else {
+        button.append(element4("span", "dialkit-segmented-text", RATIO_LABEL(ratio)));
+      }
       button.addEventListener("click", () => setDisplay({ ratio }));
+      hint(button, BG_HINTS.ratio(ratio));
       ratios.append(button);
       return button;
     });
-    section("Ratio", ratios);
+    section("Ratio", ratios, BG_HINTS.ratioSection);
     const zoom = shellSlider({
       label: "Zoom",
       ...BACKGROUND_ZOOM,
@@ -3584,6 +3749,7 @@ ${url}`;
       apply: (n) => setDisplay({ zoom: n })
     });
     shell.append(zoom.root);
+    hint(zoom.root, BG_HINTS.zoom);
     const anchor = element4("div", "dialkit-anchor dialkit-bg-pin");
     anchor.setAttribute("role", "radiogroup");
     anchor.setAttribute("aria-label", "Pin");
@@ -3616,7 +3782,7 @@ ${url}`;
       setDisplay({ pinX: c - 1, pinY: r - 1 });
       cells[r * 3 + c].focus({ preventScroll: true });
     });
-    section("Pin", anchor);
+    section("Pin", anchor, BG_HINTS.pin);
     syncOptions = () => {
       const display = value.mediaDisplay;
       fits.set(display.fit);
@@ -3745,7 +3911,7 @@ ${url}`;
     const stops = gradient.stops;
     selected = clamp4(selected, 0, stops.length - 1);
     shapeValue.textContent = SHAPE_LABEL[gradient.shape];
-    placeShapeMenu();
+    shapeMenu.refresh();
     if (gizmoRowId !== void 0 && !rowById.has(gizmoRowId)) exitGizmo();
     if (gizmoRowId !== void 0) {
       ensureGizmo();
@@ -3828,13 +3994,15 @@ ${url}`;
     },
     destroy() {
       destroyed = true;
+      unhint([...hinted]);
       uploadRequest++;
       unsubscribe();
       endDrag();
       closeOptions();
       solid.destroy();
       heightAnim?.cancel();
-      closeShapeMenu();
+      shapeMenu.destroy();
+      shapeMenuWatch.disconnect();
       document.removeEventListener("pointerdown", markPointer, true);
       document.removeEventListener("keydown", markKeyboard, true);
       trackResize?.disconnect();

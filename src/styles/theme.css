@@ -1904,9 +1904,6 @@
 /* Flip and rotate are as tall as the type dropdown, their corners those of a field. */
 .dialkit-bg-shape-row .dialkit-bg-icon-button { height: var(--dial-row-height); padding: calc((var(--dial-row-height) - 16px) / 2) 6px; border-radius: var(--dial-radius); }
 .dialkit-bg-shape-trigger.dialkit-select-trigger { flex: 1 1 auto; width: auto; min-width: 0; }
-.dialkit-bg-shape-option { display: flex; align-items: center; gap: 6px; }
-.dialkit-bg-shape-check { flex: none; width: 14px; height: 14px; visibility: hidden; }
-.dialkit-bg-shape-option[data-selected="true"] .dialkit-bg-shape-check { visibility: visible; }
 .dialkit-bg-field { gap: 2px; box-sizing: border-box; }
 .dialkit-bg-field-grip { margin-right: auto; }
 .dialkit-bg-field-input { color: var(--dial-text-label); }
@@ -1952,6 +1949,8 @@
 /* Under the pointer, an unselected swatch shows the selected ring's
    thickness in a dimmer colour (--dial-bg-swatch-hover-opacity). */
 .dialkit-bg-bar:not([data-dragging]) .dialkit-bg-handle:not([data-selected]):hover .dialkit-bg-handle-chip { box-shadow: 0 0 0 var(--dial-bg-swatch-ring, 1px) color-mix(in srgb, var(--dial-text-primary) calc(var(--dial-bg-swatch-hover-opacity, 50) * 1%), transparent), 0 2px 6px rgb(0 0 0 / 30%); }
+/* A stop dragged off the bar: it fades, and a release there removes it. */
+.dialkit-bg-handle[data-off] { opacity: 0.35; }
 .dialkit-bg-handle[data-selected] .dialkit-bg-handle-chip { box-shadow: 0 0 0 var(--dial-bg-swatch-ring, 1px) var(--dial-text-primary), 0 2px 6px rgb(0 0 0 / 30%); }
 .dialkit-bg-stem[data-selected] { background: var(--dial-text-primary); }
 /* The focus ring only when the strip is used from the keyboard: a chip
@@ -2122,13 +2121,13 @@
 .dialkit-bg-save { flex: 1; }
 .dialkit-bg-status { font-size: 11px; font-weight: 400; line-height: 1.4; color: var(--dial-text-secondary); overflow-wrap: anywhere; }
 .dialkit-bg-status[data-error] { color: var(--dial-text-primary); }
-.dialkit-bg-saved { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 2px; }
+.dialkit-bg-saved { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 2px; }
 .dialkit-bg-saved-item { position: relative; }
-.dialkit-bg-saved-swatch { display: block; width: 36px; height: 36px; padding: 0; border: 1px solid var(--dial-border-hover); border-radius: var(--dial-radius); background: var(--dial-bg-gradient), var(--dial-checker); background-clip: padding-box; cursor: pointer; transition: box-shadow 0.15s, transform 0.15s; }
+.dialkit-bg-saved-swatch { display: block; width: 24px; height: 24px; padding: 0; border: 1px solid var(--dial-border-hover); border-radius: 6px; background: var(--dial-bg-gradient), var(--dial-checker); background-clip: padding-box; cursor: pointer; transition: box-shadow 0.15s, transform 0.15s; }
 .dialkit-bg-saved-swatch:hover { transform: scale(1.05); }
 .dialkit-bg-saved-swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--dial-text-primary); }
 .dialkit-bg-saved-swatch:focus-visible { outline: 2px solid var(--dial-focus-ring); outline-offset: 2px; }
-.dialkit-bg-saved-delete.dialkit-bg-icon-button { position: absolute; top: -7px; right: -7px; width: 20px; height: 20px; padding: 4px; border-radius: 50%; border: 1px solid var(--dial-border-hover); background: var(--dial-glass-bg); color: var(--dial-text-label); opacity: 0; }
+.dialkit-bg-saved-delete.dialkit-bg-icon-button { position: absolute; top: -6px; right: -6px; width: 14px; height: 14px; padding: 2px; border-radius: 50%; border: 1px solid var(--dial-border-hover); background: var(--dial-glass-bg); color: var(--dial-text-label); opacity: 0; }
 .dialkit-bg-saved-item:hover .dialkit-bg-saved-delete, .dialkit-bg-saved-delete:focus-visible { opacity: 1; }
 .dialkit-bg-saved-delete.dialkit-bg-icon-button:hover:not(:disabled) { background: var(--dial-glass-bg); }
 
@@ -2177,11 +2176,18 @@
 }
 .dialkit-bg-popover *, .dialkit-bg-popover *::before, .dialkit-bg-popover *::after { box-sizing: border-box; }
 .dialkit-bg-popover:focus { outline: none; }
-.dialkit-bg-popover-section { display: grid; gap: 4px; min-width: 0; }
+/* A group title sits a row gap above its control, as the X / Y / Z title
+   does; each group after the first stands a little further off. */
+.dialkit-bg-popover-section { display: grid; gap: var(--dial-row-gap); min-width: 0; }
+.dialkit-bg-popover > .dialkit-bg-popover-section:not(:first-child) { margin-top: 6px; }
 .dialkit-bg-popover-label { padding: 0 2px; color: var(--dial-text-secondary); font-size: 12px; }
-.dialkit-bg-ratios { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; padding: 4px; border-radius: var(--dial-radius); background: var(--dial-surface); }
-.dialkit-bg-ratio { min-width: 0; height: 28px; padding: 0 4px; border-radius: max(0px, calc(var(--dial-radius) - 4px)); justify-content: center; transition: color 0.15s, background 0.15s; }
-.dialkit-bg-ratio:last-child { grid-column: span 2; }
+/* One row: the six ratios, then Source as an icon. Each option is as wide
+   as its label, and the spare width is shared out, as in a segmented
+   control with an icon option: equal columns cut "16:9" short. */
+.dialkit-bg-ratios { display: flex; gap: 2px; padding: 4px; border-radius: var(--dial-radius); background: var(--dial-surface); }
+.dialkit-bg-ratio { flex: 1 1 auto; min-width: 0; height: 28px; padding: 0 5px; white-space: nowrap; border-radius: max(0px, calc(var(--dial-radius) - 4px)); justify-content: center; transition: color 0.15s, background 0.15s; }
+.dialkit-bg-ratio svg { flex: none; width: 16px; height: 16px; }
+.dialkit-bg-ratio .dialkit-segmented-text { overflow: visible; text-overflow: clip; }
 .dialkit-bg-ratio[data-active="true"] { background: var(--dial-surface-active); }
 .dialkit-bg-ratio:hover { color: var(--dial-text-primary); }
 .dialkit-bg-slider-number { font: inherit; }
@@ -4469,15 +4475,20 @@
   display: flex;
   align-items: center;
   box-sizing: border-box;
-  padding: 0 8px;
-  border-bottom: 0;
+  /* 1px at the bottom: the value at rest sits 0.5px above the row's middle
+     (its own padding and clear underline), so the text keeps its place. */
+  padding: 0 8px 1px;
+  /* A clear colour as well as no width: the older rule colours this border
+     on the value ready for typing, and on hover out the colour would fade
+     back over 0.15s while the 1px width returns at once. */
+  border-bottom: 0 solid transparent;
   border-radius: max(0px, calc(var(--dial-radius) - 4px));
   /* By default the pill shows nothing after a hover or a click: no fill and
      no outline. The keyboard ring is an outline, so it still shows. */
   background: transparent;
   box-shadow: none;
 }
-.dialkit-slider-input { box-sizing: content-box; height: calc(100% - 8px); min-width: 1ch; max-width: none; }
+.dialkit-slider-input { box-sizing: content-box; height: calc(100% - 9px); min-width: 1ch; max-width: none; }
 /* --dial-slider-value-style: 2 · the pill is a 1px outline, no fill. An
    inset shadow, so the pill keeps its size and the text does not move. The
    focus-visible selector keeps it while the value is typed in: the focus

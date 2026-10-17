@@ -9,10 +9,10 @@ import { mountColorControl } from './color-control';
 import { CONTROL_ANIM } from './components/control-motion';
 import { animateSpring } from './vanilla/animation';
 import { mountFolder } from './vanilla/controls';
+import { popupMenu } from './vanilla/menus';
 import { handleSegmentKey, handleSliderKey, stepInputKey } from './control-keyboard';
 import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition } from './dropdown-position';
-import { ICON_CHECK, ICON_CHEVRON, ICON_CLOSE, ICON_MORE, ICON_MORE_STROKE, ICON_PLUS } from './icons';
-import { observeDropdownKeyboard } from './dropdown-keyboard';
+import { ICON_CHEVRON, ICON_CLOSE, ICON_MORE, ICON_MORE_STROKE, ICON_PLUS } from './icons';
 import { mountGradientGizmo, rotateGradientQuarter } from './gradient-gizmo';
 import { paintBackgroundPreview } from './background-paint';
 import { getBackgroundHost, getSavedGradients, setSavedGradients, subscribeBackgroundHost } from './store/BackgroundHost';
@@ -38,6 +38,50 @@ const SHAPE_LABEL: Record<GradientShape, string> = { linear: 'Linear', radial: '
 const ICON_ROTATE = ['M19.5 12a7.5 7.5 0 1 1-2.2-5.3', 'M19.5 4.5v3.75h-3.75'];
 const FIT_LABEL: Record<BackgroundMediaDisplay['fit'], string> = { fill: 'Fill', fit: 'Fit', stretch: 'Stretch', tile: 'Tile' };
 const RATIO_LABEL = (ratio: BackgroundMediaDisplay['ratio']) => ratio === 'source' ? 'Source' : ratio;
+/** Source as an icon: a picture frame with a hill and a sun. */
+const ICON_IMAGE = ['M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z', 'M4 16l4.5-4.5 4 4 2.5-2.5L20 18', 'M15 9.5h.01'];
+/** The hints of the control's parts, shown while the hint key (H) is held. */
+const BG_HINTS = {
+  mode: {
+    solid: 'Fills the background with one color.',
+    gradient: 'Fills the background with a gradient.',
+    media: 'Fills the background with an image or a video.',
+  } as Record<string, string>,
+  shapeTrigger: 'Changes how the colors spread.',
+  shape: {
+    linear: 'The colors run along a straight line.',
+    radial: 'The colors grow out from a point, in circles.',
+    angular: 'The colors turn around a point.',
+    diamond: 'The colors grow out from a point, as a diamond.',
+  } as Record<GradientShape, string>,
+  flip: 'Reverses the order of the stops.',
+  rotate: 'Turns the gradient a quarter turn clockwise.',
+  bar: 'Click to add a stop here.',
+  handle: 'Drag to move this stop. Drag it off the bar to remove it. Double-click to change its color.',
+  add: 'Adds a stop in the middle of the widest gap.',
+  grip: 'Drag to change the order of the stops.',
+  swatch: 'Opens the color picker and shows the gradient\'s handles on the canvas.',
+  position: 'Where the stop sits along the gradient, from 0 to 100%.',
+  save: 'Keeps this gradient in your list, for any board.',
+  saved: 'Click to use this gradient.',
+  savedDelete: 'Deletes this saved gradient.',
+  drop: 'Drop an image or a video here, or click to pick one.',
+  preview: 'Opens the options for how the media fills the canvas.',
+  sizing: 'How the media fills the canvas.',
+  fit: {
+    fill: 'Covers the whole canvas. The media\'s edges may be cut off.',
+    fit: 'Shows all of the media inside the canvas.',
+    stretch: 'Fills the canvas and does not keep the media\'s shape.',
+    tile: 'Repeats the media across the canvas.',
+  } as Record<string, string>,
+  ratioSection: 'The shape the media is cropped to.',
+  ratio: (ratio: string) => ratio === 'source' ? 'Keeps the media\'s own shape.' : `Crops the media to ${ratio}.`,
+  tileSize: 'How large each repeated tile is.',
+  zoom: 'Scales the media inside the canvas.',
+  pin: 'Which part of the media stays in view when it is cut off.',
+};
+/** How far, in pixels, a stop dragged off the bar goes before a release removes it. */
+const REMOVE_DISTANCE = 24;
 const PIN_COLUMNS = ['Left', 'Center', 'Right'];
 const PIN_ROWS = ['Top', 'Middle', 'Bottom'];
 const ICON_MINUS = 'M5 12H19';
@@ -335,6 +379,17 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
   let gradientStatus = '';
   let mediaStatus = '';
   let mediaError = false;
+  // The parts with a hint; they take it down when they leave the page.
+  let hinted: HTMLElement[] = [];
+  const hint = (part: HTMLElement, text: string) => {
+    hinted.push(part);
+    part.addEventListener('pointerenter', () => HintStore.enter(part, text));
+    part.addEventListener('pointerleave', () => HintStore.leave(part));
+  };
+  const unhint = (parts: HTMLElement[]) => {
+    parts.forEach(part => { HintStore.leave(part); HintStore.hide(part); });
+    hinted = hinted.filter(part => !parts.includes(part));
+  };
 
   const emit = (next: BackgroundValue) => {
     if (sameBackgroundValue(next, value)) { render(); return; }
@@ -353,6 +408,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
   const body = element('div', 'dialkit-bg-body');
   root.append(body);
   const modes = segmented(MODE_OPTIONS, 'Background type', mode => emit({ ...value, mode }));
+  modes.buttons.forEach((button, i) => hint(button, BG_HINTS.mode[MODE_OPTIONS[i].value]));
   body.append(modes.group);
 
   // ── Solid ────────────────────────────────────────────────────────────
@@ -387,73 +443,45 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
   const flipButton = iconButton('dialkit-bg-flip', 'Flip stops', ICON_REVERSE);
   const rotateButton = iconButton('dialkit-bg-rotate', 'Rotate 90° clockwise', ICON_ROTATE);
   shapeRow.append(shapeTrigger, flipButton, rotateButton);
-  let shapeMenu: HTMLDivElement | undefined;
-  let stopShapeKeys: (() => void) | undefined;
-  const shapeOutside = (event: Event) => {
-    if (!shapeMenu?.contains(event.target as Node) && !shapeTrigger.contains(event.target as Node)) closeShapeMenu();
-  };
-  function closeShapeMenu() {
-    stopShapeKeys?.();
-    stopShapeKeys = undefined;
-    shapeMenu?.remove();
-    shapeMenu = undefined;
-    shapeTrigger.dataset.open = 'false';
-    shapeTrigger.setAttribute('aria-expanded', 'false');
-    document.removeEventListener('pointerdown', shapeOutside, true);
-  }
-  /** The menu opens over the field, the current type on top of it, as in Figma. */
-  const placeShapeMenu = () => {
-    if (!shapeMenu) return;
-    const rect = shapeTrigger.getBoundingClientRect();
-    const current = shapeMenu.querySelector<HTMLElement>('[data-selected="true"]');
-    const offset = current ? current.offsetTop + current.offsetHeight / 2 : 0;
-    const height = shapeMenu.offsetHeight;
-    const top = Math.max(8, Math.min(rect.top + rect.height / 2 - offset, window.innerHeight - height - 8));
-    Object.assign(shapeMenu.style, { left: `${rect.left}px`, top: `${top}px`, width: `${rect.width}px` });
-  };
-  const openShapeMenu = () => {
-    if (shapeMenu) { closeShapeMenu(); return; }
-    const portal = getDialKitPortalRoot(host) ?? document.body;
-    const menu = element('div', 'dialkit-select-dropdown dialkit-bg-shape-menu');
-    menu.style.position = 'fixed';
-    for (const shape of GRADIENT_SHAPES) {
-      const option = element('button', 'dialkit-select-option dialkit-bg-shape-option');
+  hint(shapeTrigger, BG_HINTS.shapeTrigger);
+  hint(flipButton, BG_HINTS.flip);
+  hint(rotateButton, BG_HINTS.rotate);
+  // The panel's own dropdown (popupMenu): it opens below the field (or above
+  // when there is no room below), as wide as the field, like every other
+  // dropdown in the panel.
+  let shapeOptions: HTMLElement[] = [];
+  const shapeMenu = popupMenu(shapeTrigger, 'dialkit-select-dropdown dialkit-bg-shape-menu', 'select', popup => {
+    unhint(shapeOptions);
+    shapeOptions = GRADIENT_SHAPES.map(shape => {
+      const option = element('button', 'dialkit-select-option', SHAPE_LABEL[shape]);
       option.dataset.selected = String(shape === value.gradient.shape);
-      const check = strokeIcon(ICON_CHECK);
-      check.classList.add('dialkit-bg-shape-check');
-      option.append(check, element('span', 'dialkit-bg-shape-label', SHAPE_LABEL[shape]));
       option.addEventListener('click', () => {
-        closeShapeMenu();
+        shapeMenu.close();
         // Switching keeps all three handles and the stops.
         setGradient(switchGradientShape(value.gradient, shape, canvasAspect()));
         shapeTrigger.focus({ preventScroll: true });
       });
-      menu.append(option);
-    }
+      hint(option, BG_HINTS.shape[shape]);
+      return option;
+    });
+    popup.replaceChildren(...shapeOptions);
     // While the gizmo is on, a press or the focus in the menu is part of the gradient's editing.
-    menu.addEventListener('pointerdown', event => { if (gizmoRowId !== undefined) event.stopPropagation(); });
-    menu.addEventListener('focusin', event => { if (gizmoRowId !== undefined) event.stopPropagation(); });
-    shapeMenu = menu;
-    portal.append(menu);
-    placeShapeMenu();
-    shapeTrigger.dataset.open = 'true';
-    shapeTrigger.setAttribute('aria-expanded', 'true');
-    stopShapeKeys = observeDropdownKeyboard(shapeTrigger, () => shapeMenu, closeShapeMenu, 'select');
-    document.addEventListener('pointerdown', shapeOutside, true);
-  };
+    if (!popup.dataset.gizmoAware) {
+      popup.dataset.gizmoAware = 'true';
+      popup.addEventListener('pointerdown', event => { if (gizmoRowId !== undefined) event.stopPropagation(); });
+      popup.addEventListener('focusin', event => { if (gizmoRowId !== undefined) event.stopPropagation(); });
+    }
+  });
+  const shapeMenuOpen = () => shapeTrigger.getAttribute('aria-expanded') === 'true';
+  const shapeMenuElement = () => shapeMenuOpen() ? getDialKitPortalRoot(host)?.querySelector<HTMLElement>('.dialkit-bg-shape-menu') ?? document.querySelector<HTMLElement>('.dialkit-bg-shape-menu') : null;
+  // The menu's options lose their hints when it closes, however it closes.
+  const shapeMenuWatch = new MutationObserver(() => { if (!shapeMenuOpen()) { unhint(shapeOptions); shapeOptions = []; } });
+  shapeMenuWatch.observe(shapeTrigger, { attributes: true, attributeFilter: ['aria-expanded'] });
   /** The canvas's width / height: the gizmo target's box when the host gives one, else a square. */
   function canvasAspect(): number {
     const rect = getBackgroundHost().gizmoTarget?.()?.getBoundingClientRect();
     return rect && rect.width > 0 && rect.height > 0 ? rect.width / rect.height : 1;
   }
-  shapeTrigger.addEventListener('click', openShapeMenu);
-  shapeTrigger.addEventListener('keydown', event => {
-    if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && !event.altKey && !event.metaKey && !event.ctrlKey && !shapeMenu) {
-      event.preventDefault();
-      event.stopPropagation();
-      openShapeMenu();
-    }
-  });
   flipButton.addEventListener('click', () => {
     commitEntries(entries().map(({ id, stop }) => ({ id, stop: { ...stop, at: Math.round((100 - stop.at) * 100) / 100 } })));
   });
@@ -470,7 +498,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
   track.append(trackPaint);
   const handlesLayer = element('div', 'dialkit-bg-handles');
   bar.append(track, handlesLayer);
-  bar.title = 'Click the bar to add a stop';
+  hint(bar, BG_HINTS.bar);
   // The strip painted as the gradient's own type (--dial-bg-track-style: 2),
   // laid out in the strip's box: Radial, Diamond and Angular centred, their
   // main radius to the strip's ends, their cross radius its half height.
@@ -519,6 +547,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
   const stopsTitle = element('span', 'dialkit-bg-stops-title', 'Stops');
   const addButton = iconButton('dialkit-bg-add', 'Add stop', ICON_PLUS);
   stopsHeader.append(stopsTitle, addButton);
+  hint(addButton, BG_HINTS.add);
   const stopsList = element('div', 'dialkit-bg-stops');
   /**
    * Reads `--dial-bg-grip-style`, `--dial-bg-stop-selected-style` and
@@ -562,6 +591,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
   const saveRow = element('div', 'dialkit-bg-save-row');
   const saveButton = element('button', 'dialkit-preset-save dialkit-bg-save', 'Save gradient');
   saveRow.append(saveButton);
+  hint(saveButton, BG_HINTS.save);
   const gradientStatusLine = element('div', 'dialkit-bg-status');
   gradientStatusLine.setAttribute('role', 'status');
   gradientStatusLine.setAttribute('aria-live', 'polite');
@@ -621,7 +651,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
   addButton.addEventListener('click', () => addStopAt(widestGapMiddle(value.gradient.stops)));
 
   // Dragging a handle moves its stop; a press on the empty bar adds a stop there and drags it.
-  let drag: { id: number; index: number; x: number; moved: boolean } | undefined;
+  let drag: { id: number; index: number; x: number; y: number; moved: boolean; off: boolean } | undefined;
   const fractionAt = (clientX: number) => {
     // The handles' range, not the strip: positions map to where the chips sit.
     const rect = handlesLayer.getBoundingClientRect();
@@ -632,16 +662,19 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
     // A pointer that is no longer active cannot be held: no drag then,
     // rather than a drag that never ends and ignores every later press.
     try { bar.setPointerCapture(event.pointerId); } catch { return false; }
-    drag = { id: event.pointerId, index, x: event.clientX, moved };
+    drag = { id: event.pointerId, index, x: event.clientX, y: event.clientY, moved, off: false };
     bar.dataset.dragging = 'true';
     return true;
   };
-  const endDrag = (event?: PointerEvent) => {
+  /** Ends a handle drag; `drop` is true on a release, which removes a stop dragged off the bar. */
+  const endDrag = (event?: PointerEvent, drop = false) => {
     if (!drag || (event && event.pointerId !== drag.id)) return;
-    const id = drag.id;
+    const { id, index, off } = drag;
     drag = undefined;
     delete bar.dataset.dragging;
+    handles.forEach(handle => delete handle.dataset.off);
     if (bar.hasPointerCapture(id)) bar.releasePointerCapture(id);
+    if (drop && off) removeStop(index);
   };
   // How the user last acted, for the strip's focus ring (see the theme): any
   // press marks the pointer, any key clears it. Kept for the whole document,
@@ -671,17 +704,38 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
   });
   bar.addEventListener('pointermove', event => {
     if (!drag || event.pointerId !== drag.id) return;
-    if (!drag.moved && Math.abs(event.clientX - drag.x) < DRAG_THRESHOLD) return;
+    // Any direction counts: a stop dragged straight down, off the bar, is a drag too.
+    if (!drag.moved && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < DRAG_THRESHOLD) return;
     drag.moved = true;
+    // Far enough above or below the bar, the stop is marked to go: a release
+    // there removes it, and coming back keeps it (Figma's way).
+    const rect = bar.getBoundingClientRect();
+    const away = Math.max(rect.top - event.clientY, event.clientY - rect.bottom);
+    drag.off = away > REMOVE_DISTANCE && value.gradient.stops.length > BACKGROUND_MIN_STOPS;
     updateStop(drag.index, { at: Math.round(fractionAt(event.clientX) * 100) });
     drag.index = selected;
+    handles.forEach((handle, i) => handle.toggleAttribute('data-off', drag?.off === true && i === selected));
     handles[selected]?.focus({ preventScroll: true });
   });
-  bar.addEventListener('pointerup', event => endDrag(event));
+  bar.addEventListener('pointerup', event => endDrag(event, true));
   bar.addEventListener('pointercancel', event => endDrag(event));
+  // A double click on a stop's swatch opens that stop's color picker, as its
+  // row's swatch does. The press held the pointer on the bar, so the event
+  // lands on the bar: the swatch is found under the pointer.
+  bar.addEventListener('dblclick', event => {
+    const handle = document.elementsFromPoint(event.clientX, event.clientY)
+      .find(el => el.classList.contains('dialkit-bg-handle')) as HTMLButtonElement | undefined;
+    const index = handle ? handles.indexOf(handle) : -1;
+    const row = index >= 0 ? rowById.get(stopIds[index]) : undefined;
+    const picker = row?.root.querySelector<HTMLElement>('.dialkit-color-control');
+    if (!picker || picker.dataset.open) return;
+    select(index);
+    picker.querySelector<HTMLButtonElement>('.dialkit-color-swatch')?.click();
+  });
   bar.addEventListener('lostpointercapture', event => endDrag(event));
 
   const buildHandles = () => {
+    unhint(handles);
     handlesLayer.replaceChildren();
     stems = value.gradient.stops.map(() => {
       const stem = element('span', 'dialkit-bg-stem');
@@ -697,6 +751,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
       const chip = element('span', 'dialkit-bg-handle-chip');
       chip.setAttribute('aria-hidden', 'true');
       handle.append(chip);
+      hint(handle, BG_HINTS.handle);
       handle.addEventListener('focus', () => select(handles.indexOf(handle)));
       handle.addEventListener('keydown', event => {
         if (event.altKey || event.metaKey || event.ctrlKey) return;
@@ -784,6 +839,10 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
     if (pickerRow) pickerWatch.observe(pickerRow, { attributes: true, attributeFilter: ['data-open'] });
     bindRowDrag(row, index);
     rowRoot.append(grip, at.root, colorHost, row.alpha.root, row.remove);
+    hint(grip, BG_HINTS.grip);
+    hint(at.root, BG_HINTS.position);
+    const rowSwatch = colorHost.querySelector<HTMLElement>('.dialkit-color-swatch');
+    if (rowSwatch) hint(rowSwatch, BG_HINTS.swatch);
     return row;
   };
   const pickStopColor = (row: StopRow, raw: string) => {
@@ -793,6 +852,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
     updateStop(stopIds.indexOf(row.id), picked);
   };
   const dropRow = (row: StopRow) => {
+    unhint(hinted.filter(part => row.root.contains(part)));
     row.flip?.cancel();
     row.color.destroy();
     row.root.remove();
@@ -1107,7 +1167,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
   };
   /** Escape with the focus outside the picker: close the picker, and the gizmo with it. */
   function gizmoEscape(event: KeyboardEvent) {
-    if (event.key !== 'Escape' || event.defaultPrevented || gizmoRowId === undefined || shapeMenu) return;
+    if (event.key !== 'Escape' || event.defaultPrevented || gizmoRowId === undefined || shapeMenuOpen()) return;
     const row = rowById.get(gizmoRowId);
     if (row && pickerOpen(row)) toggleRowPicker(row);
     else exitGizmo();
@@ -1123,7 +1183,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
     const target = event.target as Node;
     const inside = gradientPane.contains(target)
       || !!gizmo?.element.contains(target)
-      || !!shapeMenu?.contains(target)
+      || !!shapeMenuElement()?.contains(target)
       || [...document.querySelectorAll('.dialkit-color-popover')].some(popover => popover.contains(target));
     if (inside) return;
     const row = rowById.get(gizmoRowId);
@@ -1173,6 +1233,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
     const signature = JSON.stringify([list, canDelete]);
     if (signature === savedSignature) return;
     savedSignature = signature;
+    unhint(hinted.filter(part => savedList.contains(part)));
     savedList.replaceChildren();
     savedItems = list.map((saved, i) => {
       const item = element('div', 'dialkit-bg-saved-item');
@@ -1184,6 +1245,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
         emit({ ...value, mode: 'gradient', gradient: cloneGradient(saved.gradient) });
       });
       item.append(swatch);
+      hint(swatch, BG_HINTS.saved);
       if (canDelete) {
         const remove = iconButton('dialkit-bg-saved-delete', `Delete saved gradient ${i + 1}`, ICON_CLOSE);
         remove.addEventListener('click', async () => {
@@ -1203,6 +1265,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
           if (!destroyed) render();
         });
         item.append(remove);
+        hint(remove, BG_HINTS.savedDelete);
       }
       savedList.append(item);
       return { id: saved.id, gradient: saved.gradient, swatch };
@@ -1256,6 +1319,8 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
   mediaStatusLine.setAttribute('role', 'status');
   mediaStatusLine.setAttribute('aria-live', 'polite');
   mediaPane.append(drop, preview, actions, mediaStatusLine, fileInput);
+  hint(drop, BG_HINTS.drop);
+  hint(preview, BG_HINTS.preview);
 
   const chooseFile = () => {
     if (!getBackgroundHost().upload || uploading) return;
@@ -1357,6 +1422,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
   let stopPosition: (() => void) | undefined;
   let syncOptions = () => {};
   const closeOptions = (restoreFocus = false) => {
+    if (popup) unhint(hinted.filter(part => popup?.contains(part)));
     stopPosition?.();
     stopPosition = undefined;
     popup?.remove();
@@ -1384,15 +1450,19 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
     shell.setAttribute('role', 'dialog');
     shell.setAttribute('aria-label', `${props.label} media options`);
 
-    const section = (title: string, control: HTMLElement) => {
+    /** A titled group; its hint covers the title and the control, and the control's own parts keep theirs. */
+    const section = (title: string, control: HTMLElement, hintText: string) => {
       const wrap = element('div', 'dialkit-bg-popover-section');
       const heading = element('div', 'dialkit-bg-popover-label', title);
       wrap.append(heading, control);
       shell.append(wrap);
+      hint(wrap, hintText);
     };
 
-    const fits = segmented(BACKGROUND_FITS.map(fit => ({ value: fit, label: FIT_LABEL[fit] })), 'Fit', fit => setDisplay({ fit }));
-    section('Fit', fits.group);
+    const fits = segmented(BACKGROUND_FITS.map(fit => ({ value: fit, label: FIT_LABEL[fit] })), 'Sizing', fit => setDisplay({ fit }));
+    fits.buttons.forEach((button, i) => hint(button, BG_HINTS.fit[BACKGROUND_FITS[i]]));
+    // Titled Sizing, so the title is not the name of one of its options.
+    section('Sizing', fits.group, BG_HINTS.sizing);
 
     // Tile Size shows only while Fit is Tile, with the conditional row animation.
     const tileWrap = element('div', 'dialkit-bg-tile-wrap');
@@ -1406,6 +1476,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
       apply: n => setDisplay({ tileScale: n }),
     });
     tileWrap.append(tileSize.root);
+    hint(tileSize.root, BG_HINTS.tileSize);
     shell.append(tileWrap);
     const tileRow = conditionalRow(tileWrap, shell);
 
@@ -1416,12 +1487,18 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
     const ratioButtons = BACKGROUND_RATIOS.map(ratio => {
       const button = element('button', 'dialkit-segmented-button dialkit-bg-ratio');
       button.setAttribute('role', 'radio');
-      button.append(element('span', 'dialkit-segmented-text', RATIO_LABEL(ratio)));
+      if (ratio === 'source') {
+        button.setAttribute('aria-label', RATIO_LABEL(ratio));
+        button.append(strokeIcon(ICON_IMAGE));
+      } else {
+        button.append(element('span', 'dialkit-segmented-text', RATIO_LABEL(ratio)));
+      }
       button.addEventListener('click', () => setDisplay({ ratio }));
+      hint(button, BG_HINTS.ratio(ratio));
       ratios.append(button);
       return button;
     });
-    section('Ratio', ratios);
+    section('Ratio', ratios, BG_HINTS.ratioSection);
 
     const zoom = shellSlider({
       label: 'Zoom',
@@ -1433,6 +1510,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
       apply: n => setDisplay({ zoom: n }),
     });
     shell.append(zoom.root);
+    hint(zoom.root, BG_HINTS.zoom);
 
     const anchor = element('div', 'dialkit-anchor dialkit-bg-pin');
     anchor.setAttribute('role', 'radiogroup');
@@ -1466,7 +1544,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
       setDisplay({ pinX: (c - 1) as -1 | 0 | 1, pinY: (r - 1) as -1 | 0 | 1 });
       cells[r * 3 + c].focus({ preventScroll: true });
     });
-    section('Pin', anchor);
+    section('Pin', anchor, BG_HINTS.pin);
 
     syncOptions = () => {
       const display = value.mediaDisplay;
@@ -1596,7 +1674,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
     const stops = gradient.stops;
     selected = clamp(selected, 0, stops.length - 1);
     shapeValue.textContent = SHAPE_LABEL[gradient.shape];
-    placeShapeMenu();
+    shapeMenu.refresh();
     if (gizmoRowId !== undefined && !rowById.has(gizmoRowId)) exitGizmo();
     if (gizmoRowId !== undefined) {
       ensureGizmo();
@@ -1688,13 +1766,15 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
     },
     destroy() {
       destroyed = true;
+      unhint([...hinted]);
       uploadRequest++;
       unsubscribe();
       endDrag();
       closeOptions();
       solid.destroy();
       heightAnim?.cancel();
-      closeShapeMenu();
+      shapeMenu.destroy();
+      shapeMenuWatch.disconnect();
       document.removeEventListener('pointerdown', markPointer, true);
       document.removeEventListener('keydown', markKeyboard, true);
       trackResize?.disconnect();

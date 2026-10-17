@@ -118,6 +118,8 @@ function dimAreaOf(row: HTMLElement): Element | null {
     row.closest('.dialkit-color-popover') ??
     row.closest('.dialkit-image-popover') ??
     row.closest('.dialkit-timeline-popover') ??
+    row.closest('.dialkit-bg-popover') ??
+    row.closest('.dialkit-bg-shape-menu') ??
     row.closest('.dialkit-panel-inner') ??
     row.closest('.dialkit-folder-root') ??
     row.closest('.dialkit-timeline-dock')

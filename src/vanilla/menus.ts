@@ -5,9 +5,32 @@ import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition } fr
 import { findControl, formatToggleShortcut } from '../shortcut-utils';
 import { ICON_CHEVRON, ICON_TRASH } from '../icons';
 import { element, icon, type Mounted } from './dom';
+import { animateSpring } from './animation';
+
+/**
+ * The React select's motion (SelectControl): the menu fades in from 8px
+ * toward the field and 95% scale on a 0.15s spring with no bounce, and goes
+ * out the same way; the chevron turns half a turn on a 0.2s spring.
+ */
+const MENU_SPRING = { visualDuration: 0.15, bounce: 0 };
+const CHEVRON_SPRING = { visualDuration: 0.2, bounce: 0.15 };
+const menuFrame = (above: boolean, shown: number): Keyframe => ({
+  opacity: shown,
+  transform: `translateY(${(1 - shown) * (above ? 8 : -8)}px) scale(${0.95 + 0.05 * shown})`,
+});
 export function popupMenu(trigger: HTMLButtonElement, className: string, kind: 'select' | 'presets' | 'help', populate: (popup: HTMLElement) => void) {
   let popup: HTMLDivElement | undefined;
   let stopKeyboard: (() => void) | undefined, stopPosition: (() => void) | undefined;
+  let above = false;
+  let chevronTurn = 0;
+  const turnChevron = (to: number) => {
+    const chevron = trigger.querySelector<HTMLElement>('.dialkit-select-chevron');
+    if (!chevron || to === chevronTurn) return;
+    const from = chevronTurn;
+    chevronTurn = to;
+    chevron.style.transform = `rotate(${to}deg)`;
+    animateSpring(chevron, p => ({ transform: `rotate(${from + (to - from) * p}deg)` }), CHEVRON_SPRING.visualDuration, CHEVRON_SPRING.bounce);
+  };
   const outside = (event: Event) => {
     if (!trigger.contains(event.target as Node) && !popup?.contains(event.target as Node))
       close();
@@ -16,8 +39,18 @@ export function popupMenu(trigger: HTMLButtonElement, className: string, kind: '
     stopKeyboard?.();
     stopPosition?.();
     stopKeyboard = stopPosition = undefined;
-    popup?.remove();
+    const leaving = popup;
     popup = undefined;
+    turnChevron(0);
+    if (leaving) {
+      // It plays its way out, then goes; it takes no press while it does.
+      leaving.inert = true;
+      leaving.style.pointerEvents = 'none';
+      const from = above;
+      const out = animateSpring(leaving, p => menuFrame(from, 1 - p), MENU_SPRING.visualDuration, MENU_SPRING.bounce);
+      if (out) out.finished.then(() => leaving.remove(), () => leaving.remove());
+      else leaving.remove();
+    }
     trigger.dataset.open = 'false';
     trigger.setAttribute('aria-expanded', 'false');
     document.removeEventListener('pointerdown', outside);
@@ -40,8 +73,13 @@ export function popupMenu(trigger: HTMLButtonElement, className: string, kind: '
         return;
       }
       const p = getDropdownPosition(trigger, root, { fixed: true, dropdownHeight: popup.scrollHeight + 2, ...(kind === 'help' ? { width: 280 } : {}) });
-      Object.assign(popup.style, { top: `${p.top}px`, left: `${p.left}px`, width: `${p.width}px`, maxHeight: `${p.maxHeight}px` });
+      above = p.above;
+      Object.assign(popup.style, { top: `${p.top}px`, left: `${p.left}px`, width: `${p.width}px`, maxHeight: `${p.maxHeight}px`, transformOrigin: p.above ? 'bottom' : 'top' });
     }, () => popup);
+    // Placed by the first position pass above, so it comes in from the right side.
+    const entering = popup;
+    animateSpring(entering, p => menuFrame(above, p), MENU_SPRING.visualDuration, MENU_SPRING.bounce);
+    turnChevron(180);
     stopKeyboard = observeDropdownKeyboard(trigger, () => popup, close, kind);
     document.addEventListener('pointerdown', outside);
   }

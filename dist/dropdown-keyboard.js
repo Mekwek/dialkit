@@ -96,6 +96,103 @@ function adjacentTabStop(trigger, backwards = false) {
   return index < 0 ? void 0 : stops[index + (backwards ? -1 : 1)];
 }
 
+// src/store/HintStore.ts
+var TIP_SEEN_KEY = "dialkit-hint-tip-seen";
+function readTipSeen() {
+  try {
+    return typeof localStorage !== "undefined" && localStorage.getItem(TIP_SEEN_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+function writeTipSeen() {
+  try {
+    localStorage.setItem(TIP_SEEN_KEY, "1");
+  } catch {
+  }
+}
+var HintStoreClass = class {
+  constructor() {
+    this.key = "h";
+    this.keyHeld = false;
+    /** Read from storage on first use; null until then. */
+    this.tipSeen = null;
+    this.shown = null;
+    this.hovered = [];
+    this.listeners = /* @__PURE__ */ new Set();
+    this.subscribe = (listener) => {
+      this.listeners.add(listener);
+      return () => {
+        this.listeners.delete(listener);
+      };
+    };
+    /** The key held to show hints. */
+    this.getKey = () => this.key;
+    this.isKeyHeld = () => this.keyHeld;
+    /**
+     * Whether the user has pressed the hint key once. Until then, every open
+     * panel shows a tip that says what the key does (HintTip).
+     */
+    this.isTipSeen = () => {
+      if (this.tipSeen === null) this.tipSeen = readTipSeen();
+      return this.tipSeen;
+    };
+    this.getShown = () => this.shown;
+  }
+  notify() {
+    this.listeners.forEach((listener) => listener());
+  }
+  setKey(key) {
+    this.key = key.toLowerCase();
+    this.notify();
+  }
+  setKeyHeld(held) {
+    if (held === this.keyHeld) return;
+    this.keyHeld = held;
+    if (held && !this.isTipSeen()) {
+      this.tipSeen = true;
+      writeTipSeen();
+    }
+    const top = this.hovered[this.hovered.length - 1];
+    if (!held) this.shown = null;
+    else if (top) this.shown = { text: top.text, anchor: top.anchor, box: top.anchor };
+    this.notify();
+  }
+  /** The pointer entered `anchor`, a row with a hint. */
+  enter(anchor, text) {
+    this.hovered = this.hovered.filter((row) => row.anchor !== anchor);
+    this.hovered.push({ anchor, text });
+    if (this.keyHeld) this.show(text, anchor);
+  }
+  /**
+   * The pointer left `anchor`. Its hint stays while the key is held, so the
+   * gap between two rows does not flicker: the next row replaces it.
+   */
+  leave(anchor) {
+    this.hovered = this.hovered.filter((row) => row.anchor !== anchor);
+  }
+  /** A hovered row's text changed. */
+  retext(anchor, text) {
+    const row = this.hovered.find((entry) => entry.anchor === anchor);
+    if (!row) return;
+    row.text = text;
+    if (this.shown?.anchor === anchor) this.show(text, anchor);
+  }
+  /** Shows `text` above `box`, the row; `anchor` is the element that asked. */
+  show(text, anchor, box = anchor) {
+    if (this.shown?.anchor === anchor && this.shown.text === text) return;
+    this.shown = { text, anchor, box };
+    this.notify();
+  }
+  /** Hides the hint, if `anchor` is the one it points at. */
+  hide(anchor) {
+    if (!this.shown || anchor && this.shown.anchor !== anchor) return;
+    this.shown = null;
+    this.notify();
+  }
+};
+var HintStore = new HintStoreClass();
+
 // src/dropdown-keyboard.ts
 var dropdownId = 0;
 function observeDropdownKeyboard(trigger, getPopup, close, kind = "select") {
@@ -190,7 +287,7 @@ function observeDropdownKeyboard(trigger, getPopup, close, kind = "select") {
         options[index].click();
         return;
       }
-      if (event.key.length === 1 && event.key !== " ") {
+      if (event.key.length === 1 && event.key !== " " && event.key.toLowerCase() !== HintStore.getKey()) {
         const now = Date.now();
         query = now - typedAt < 700 ? query + event.key.toLocaleLowerCase() : event.key.toLocaleLowerCase();
         typedAt = now;
