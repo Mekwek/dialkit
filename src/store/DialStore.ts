@@ -1,7 +1,9 @@
 import { roundValue } from '../numeric';
 import { parseColor } from '../color';
 import { normalizePadValue, type DialPadConfig, type DialPadValue } from '../dial-pad';
+import { normalizeAnchorValue, type AnchorConfig, type AnchorValue } from '../anchor';
 export type { DialPadAxis, DialPadConfig, DialPadValue } from '../dial-pad';
+export type { AnchorConfig, AnchorValue } from '../anchor';
 
 // Lightweight state store with subscriptions for dialkit
 
@@ -54,7 +56,7 @@ export type TextConfig = {
   placeholder?: string;
 };
 
-export type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue;
+export type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue | AnchorConfig | AnchorValue;
 
 export type DialConfig = {
   [key: string]: DialValue | [number, number, number, number?] | DialConfig;
@@ -75,9 +77,11 @@ export type ResolvedValues<T extends DialConfig> = {
               ? string
               : T[K] extends DialPadConfig
                 ? DialPadValue
-                : T[K] extends DialConfig
-                  ? ResolvedValues<T[K]>
-                  : T[K];
+                : T[K] extends AnchorConfig
+                  ? AnchorValue
+                  : T[K] extends DialConfig
+                    ? ResolvedValues<T[K]>
+                    : T[K];
 };
 
 export type DialKitValueUpdates<T extends DialConfig> = {
@@ -91,9 +95,11 @@ export type DialKitValueUpdates<T extends DialConfig> = {
           ? string
           : T[K] extends DialPadConfig
             ? DialPadValue
-            : T[K] extends DialConfig
-              ? DialKitValueUpdates<T[K]>
-              : T[K];
+            : T[K] extends AnchorConfig
+              ? AnchorValue
+              : T[K] extends DialConfig
+                ? DialKitValueUpdates<T[K]>
+                : T[K];
 };
 
 export type ShortcutMode = 'fine' | 'normal' | 'coarse';
@@ -107,7 +113,7 @@ export type ShortcutConfig = {
 };
 
 export type ControlMeta = {
-  type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'image' | 'text' | 'pad';
+  type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'image' | 'text' | 'pad' | 'anchor';
   path: string;
   label: string;
   min?: number;
@@ -118,6 +124,7 @@ export type ControlMeta = {
   options?: (string | { value: string; label: string })[];
   placeholder?: string;
   pad?: DialPadConfig;
+  anchor?: AnchorConfig;
   shortcut?: ShortcutConfig;
 };
 
@@ -256,7 +263,8 @@ export function isLeafConfigValue(value: unknown): boolean {
     isColorConfigValue(value) ||
     isImageConfigValue(value) ||
     isTextConfigValue(value) ||
-    isPadConfigValue(value)
+    isPadConfigValue(value) ||
+    isAnchorConfigValue(value)
   );
 }
 
@@ -268,6 +276,7 @@ function configDefaultValue(value: DialConfig[string]): DialValue {
   if (isImageConfigValue(value)) return value.default ?? getFirstOptionValue(value.options ?? []);
   if (isTextConfigValue(value)) return value.default ?? '';
   if (isPadConfigValue(value)) return normalizePadValue(undefined, value);
+  if (isAnchorConfigValue(value)) return normalizeAnchorValue(undefined, value);
   return value as DialValue;
 }
 
@@ -276,7 +285,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function sameControlValue(previous: unknown, next: unknown, control?: ControlMeta): boolean {
-  return Object.is(previous, next) || (control?.type === 'pad' &&
+  return Object.is(previous, next) || ((control?.type === 'pad' || control?.type === 'anchor') &&
     isRecord(previous) && isRecord(next) && previous.x === next.x && previous.y === next.y);
 }
 
@@ -335,6 +344,10 @@ function isTextConfigValue(value: unknown): value is TextConfig {
 
 function isPadConfigValue(value: unknown): value is DialPadConfig {
   return hasType(value, 'pad');
+}
+
+function isAnchorConfigValue(value: unknown): value is AnchorConfig {
+  return hasType(value, 'anchor');
 }
 
 function getFirstOptionValue(options: (string | { value: string; label: string })[]): string {
@@ -527,7 +540,9 @@ class DialStoreClass {
         continue;
       }
 
-      const next = control?.type === 'pad' ? normalizePadValue(value, control.pad) : value;
+      const next = control?.type === 'pad' ? normalizePadValue(value, control.pad)
+        : control?.type === 'anchor' ? normalizeAnchorValue(value, control.anchor)
+        : value;
       if (sameControlValue(panel.values[path], next, control) &&
         (!target || sameControlValue(target[path], next, control))) continue;
       panel.values[path] = next;
@@ -962,6 +977,8 @@ class DialStoreClass {
           control = { type: 'text', path, label, placeholder: value.placeholder };
         } else if (isPadConfigValue(value)) {
           control = { type: 'pad', path, label, pad: value };
+        } else if (isAnchorConfigValue(value)) {
+          control = { type: 'anchor', path, label, anchor: value };
         } else if (typeof value === 'string') {
           // Auto-detect: hex color vs text
           if (parseColor(value) && value !== 'transparent') {
@@ -1046,6 +1063,8 @@ class DialStoreClass {
         return typeof existingValue === 'boolean' ? existingValue : defaultValue;
       case 'pad':
         return normalizePadValue(existingValue, control.pad);
+      case 'anchor':
+        return normalizeAnchorValue(existingValue, control.anchor);
       case 'select': {
         if (typeof existingValue !== 'string') {
           return defaultValue;

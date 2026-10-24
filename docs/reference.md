@@ -112,6 +112,21 @@ Each axis uses `[default, min, max, step?]`. Omitted axes default to `[0, -1, 1,
 
 X increases to the right; Y increases upward. Clicks near grid intersections snap to them. Hold Shift while dragging to lock an axis. Home or a double-click restores the configured defaults; Escape cancels an active drag.
 
+### Anchors
+
+```ts
+import type { DialConfig } from "dialkit";
+
+const config = {
+  origin: { type: "anchor" },
+  align: { type: "anchor", default: { x: "left", y: "top" } },
+} satisfies DialConfig;
+```
+
+An anchor shows nine positions as a 3 × 3 grid. One click sets both axes and returns `{ x, y }`, where `x` is `"left"`, `"center"`, or `"right"` and `y` is `"top"`, `"center"`, or `"bottom"`. Omitted default axes are `"center"`.
+
+Arrow keys move the selection one cell at a time; Home and End select the top-left and bottom-right cells. Invalid or missing axes fall back to the default.
+
 ### Transitions
 
 ```ts
@@ -232,6 +247,7 @@ DialStore.getPanelOpen("card");
 | Slider | Arrows adjust one step; Shift + Arrow or Page Up/Down adjusts ten; Home/End goes to the bounds |
 | Numeric editor | Enter opens it from a slider; Enter commits, Escape cancels, Tab commits and advances |
 | XY pad | Arrows adjust axes; Shift + Arrow adjusts ten steps; Home resets; Escape cancels a drag |
+| Anchor | Arrows move the selection one cell in any direction; Home/End selects the top-left/bottom-right cell |
 | Select or preset menu | Enter, Space, or Up/Down opens; arrows, Home/End, and typing navigate; Enter/Space selects; Escape closes |
 | Segmented control | Arrows select a segment; Home/End selects the first/last |
 | Color picker | Tab moves between controls; arrows adjust the focused control; Escape closes |
@@ -265,7 +281,7 @@ For sliders, hold the key and scroll, drag horizontally, or move the pointer acc
 
 ## Custom layouts
 
-Adapters export individual controls, including `Slider`, `Toggle`, `TextControl`, `SelectControl`, `ColorControl`, `ImageControl`, `DialPad`, `TransitionControl`, `Folder`, and `ButtonGroup`. `ControlRenderer` renders a control metadata tree. Keep custom controls inside an element with `class="dialkit-root"` and set `data-theme` to `"system"`, `"light"`, or `"dark"`.
+Adapters export individual controls, including `Slider`, `Toggle`, `TextControl`, `SelectControl`, `ColorControl`, `ImageControl`, `DialPad`, `AnchorControl`, `TransitionControl`, `Folder`, and `ButtonGroup`. `ControlRenderer` renders a control metadata tree. Keep custom controls inside an element with `class="dialkit-root"` and set `data-theme` to `"system"`, `"light"`, or `"dark"`.
 
 In vanilla, each control takes a host element and props:
 

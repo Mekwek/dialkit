@@ -1282,6 +1282,20 @@
 .dialkit-pad-instructions { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 @media (prefers-reduced-motion: reduce) { .dialkit-pad-point { transition: none; } }
 
+/* Anchor: a 3 × 3 grid of positions, shared across frameworks. */
+.dialkit-anchor { display: grid; gap: var(--dial-row-gap); min-width: 0; }
+.dialkit-anchor-caption { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; height: var(--dial-row-height); padding: 0 12px; border-radius: var(--dial-radius); background: var(--dial-surface); color: var(--dial-text-label); font-size: 13px; font-weight: 500; }
+.dialkit-anchor-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dialkit-anchor-value { flex-shrink: 0; }
+/* The same inset, radius, and pill motion as the segmented control. */
+.dialkit-anchor-grid { position: relative; display: grid; grid-template: repeat(3, 28px) / repeat(3, minmax(0, 1fr)); padding: 2px; border-radius: var(--dial-radius); background: var(--dial-surface); }
+.dialkit-anchor-pill { position: absolute; top: 2px; left: 2px; width: calc((100% - 4px) / 3); height: calc((100% - 4px) / 3); border-radius: 6px; background: var(--dial-surface-active); transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1); pointer-events: none; }
+.dialkit-anchor-cell { position: relative; display: grid; place-items: center; min-width: 0; padding: 0; border: 0; border-radius: 6px; background: none; cursor: pointer; }
+.dialkit-anchor-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--dial-text-tertiary); transition: background 0.15s; }
+.dialkit-anchor-cell:hover .dialkit-anchor-dot { background: var(--dial-text-secondary); }
+.dialkit-anchor-cell[aria-checked="true"] .dialkit-anchor-dot { background: var(--dial-text-primary); }
+@media (prefers-reduced-motion: reduce) { .dialkit-anchor-pill, .dialkit-anchor-dot { transition: none; } }
+
 /* Color Control */
 .dialkit-color-control {
   display: flex;

@@ -45,6 +45,8 @@ export { default as ColorControl } from './components/ColorControl.svelte';
 export { default as ImageControl } from './components/ImageControl.svelte';
 export { default as DialPad } from './components/DialPad.svelte';
 export type { DialPadProps } from '../dial-pad-control';
+export { default as AnchorControl } from './components/AnchorControl.svelte';
+export type { AnchorControlProps } from '../anchor-control';
 export { default as PresetManager } from './components/PresetManager.svelte';
 export { default as DialTimeline } from './components/Timeline/DialTimeline.svelte';
 
@@ -62,6 +64,8 @@ export type {
   DialPadAxis,
   DialPadConfig,
   DialPadValue,
+  AnchorConfig,
+  AnchorValue,
   TextConfig,
   ShortcutConfig,
   Preset,
