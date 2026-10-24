@@ -1,11 +1,13 @@
 import { formatEase, parseEase } from '../easing-geometry';
-import { SpringConfig, EasingConfig, TransitionConfig, DialStore } from '../store/DialStore';
+import { SpringConfig, EasingConfig, TransitionConfig, DialStore, type CopiedTransition } from '../store/DialStore';
+import { transitionPresetName } from '../transition-presets';
+import { mountTransitionCopy, mountTransitionPresets, type TransitionCopyProps, type TransitionPresetsProps } from '../transition-presets-control';
 import { Folder } from './Folder';
 import { Slider } from './Slider';
 import { SegmentedControl } from './SegmentedControl';
 import { SpringVisualization } from './SpringVisualization';
 import { EasingVisualization } from './EasingVisualization';
-import { useCallback, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 interface TransitionControlProps {
   panelId: string;
@@ -27,6 +29,9 @@ interface TransitionControlProps {
 
 type CurveMode = 'easing' | 'simple' | 'advanced';
 
+const subscribeTransitions = (callback: () => void) => DialStore.subscribeTransitions(callback);
+const getTransitionPresets = () => DialStore.getTransitionPresets();
+
 export function TransitionControl({
   panelId,
   path,
@@ -45,6 +50,7 @@ export function TransitionControl({
     [panelId, path]
   );
   const mode = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const savedPresets = useSyncExternalStore(subscribeTransitions, getTransitionPresets, getTransitionPresets);
 
   const isEasing = mode === 'easing';
   const isSimpleSpring = mode === 'simple';
@@ -84,6 +90,11 @@ export function TransitionControl({
     }
   };
 
+  const handlePaste = (copied: CopiedTransition) => {
+    DialStore.updateTransitionMode(panelId, path, copied.mode);
+    onChange(copied.value);
+  };
+
   const handleSpringUpdate = (key: keyof SpringConfig, val: number) => {
     if (isSimpleSpring) {
       const { stiffness, damping, mass, ...rest } = spring;
@@ -103,14 +114,14 @@ export function TransitionControl({
         else handleSpringUpdate('visualDuration', next);
       })}
       min={durationControl?.min ?? 0.1}
-      max={durationControl?.max ?? (isEasing ? 2 : 1)}
+      max={durationControl?.max ?? (isEasing ? 2 : 5)}
       step={durationControl?.step ?? 0.05}
       unit="s"
     />
   ) : null;
 
   return (
-    <Folder title={label} defaultOpen={true}>
+    <Folder title={label} defaultOpen={true} actions={<TransitionCopy mode={mode} value={isEasing ? easing : spring} onPaste={handlePaste} />}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {isEasing ? (
           <EasingVisualization easing={easing} onChange={(ease) => onChange({ ...easing, ease })} />
@@ -145,9 +156,39 @@ export function TransitionControl({
           </>
         )}
         {durationSlider}
+
+        <Folder title="Presets" defaultOpen={false} meta={transitionPresetName(isEasing ? easing : spring, mode, savedPresets)}>
+          <TransitionPresets mode={mode} value={isEasing ? easing : spring} onChange={onChange} />
+        </Folder>
       </div>
     </Folder>
   );
+}
+
+function TransitionPresets(props: TransitionPresetsProps) {
+  const host = useRef<HTMLDivElement>(null);
+  const control = useRef<ReturnType<typeof mountTransitionPresets>>();
+  const latest = useRef(props);
+  latest.current = props;
+  useEffect(() => {
+    control.current = mountTransitionPresets(host.current!, latest.current);
+    return () => control.current?.destroy();
+  }, []);
+  useEffect(() => { control.current?.update(props); });
+  return <div ref={host} />;
+}
+
+function TransitionCopy(props: TransitionCopyProps) {
+  const host = useRef<HTMLDivElement>(null);
+  const control = useRef<ReturnType<typeof mountTransitionCopy>>();
+  const latest = useRef(props);
+  latest.current = props;
+  useEffect(() => {
+    control.current = mountTransitionCopy(host.current!, latest.current);
+    return () => control.current?.destroy();
+  }, []);
+  useEffect(() => { control.current?.update(props); });
+  return <div ref={host} />;
 }
 
 function EaseTextInput({ ease, onChange }: { ease: [number, number, number, number]; onChange: (ease: [number, number, number, number]) => void }) {

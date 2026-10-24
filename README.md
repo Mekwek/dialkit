@@ -160,7 +160,7 @@ Define controls with an object. Keys become labels; returned values keep the sam
 
 Slider tuples use `[default, min, max, step?]`. Add `_collapsed: true` inside a folder to start it closed. Folder metadata is omitted from returned values.
 
-Spring and easing controls share an editor with **Easing**, **Time**, and **Physics** modes. Color controls accept hex, RGB, HSL, OKLCH, and Display P3. Image controls support local uploads up to 10 MB; files stay in the browser.
+Spring and easing controls share an editor with **Easing**, **Time**, and **Physics** modes. The editor's **Presets** folder lists 40 named curves and 15 named springs, and its header names the one in use; **Custom** holds the ones you save, kept with a panel's presets when it persists. Hover the **···** in the header to copy a transition, or paste it into another one, mode included. Color controls accept hex, RGB, HSL, OKLCH, and Display P3. Image controls support local uploads up to 10 MB; files stay in the browser.
 
 See the [control reference](https://github.com/joshpuckett/dialkit/blob/main/docs/reference.md#controls) for configuration and editing details.
 

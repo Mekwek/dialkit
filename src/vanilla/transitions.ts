@@ -2,6 +2,8 @@ import { DialStore, type SpringConfig, type EasingConfig, type TransitionConfig 
 import { mountEasingVisualization } from '../easing-control';
 import { formatEase, parseEase } from '../easing-geometry';
 import { springParams, springProgress } from '../transition-math';
+import { transitionPresetName } from '../transition-presets';
+import { mountTransitionCopy, mountTransitionPresets, type TransitionCopyProps, type TransitionPresetsProps } from '../transition-presets-control';
 import { mountFolder, mountSegmentedControl, mountSlider, type SliderProps } from './controls';
 import { element, svg, type Mounted } from './dom';
 export interface SpringVisualizationProps {
@@ -47,12 +49,26 @@ export interface TransitionControlProps {
 }
 export function mountTransitionControl(host: HTMLElement, initial: TransitionControlProps, springOnly = false): Mounted<TransitionControlProps> {
   let props = initial;
-  const folder = mountFolder(host, { title: props.label });
+  const folder = mountFolder(host, { title: props.label, actions: !springOnly });
   const body = element('div');
   Object.assign(body.style, { display: 'flex', flexDirection: 'column', gap: '6px' });
   folder.body.append(body);
   type Mode = 'easing' | 'simple' | 'advanced';
   let mode: Mode;
+  // Like the framework adapters, only transition controls (not spring controls) get copy and paste and presets.
+  const current = () => cache[mode];
+  const copyProps = (): TransitionCopyProps => ({
+    mode, value: current(), onPaste(copied) {
+      DialStore.updateTransitionMode(props.panelId, props.path, copied.mode);
+      props.onChange(copied.value);
+    }
+  });
+  const presetProps = (): TransitionPresetsProps => ({ mode, value: current(), onChange: value => props.onChange(value) });
+  let copy: ReturnType<typeof mountTransitionCopy> | undefined;
+  let presets: ReturnType<typeof mountTransitionPresets> | undefined;
+  const presetsFolder = springOnly ? undefined : mountFolder(element('div'), { title: 'Presets', defaultOpen: false });
+  const showPresetName = () => presetsFolder?.update({ title: 'Presets', meta: transitionPresetName(current(), mode, DialStore.getTransitionPresets()) });
+  const stopPresets = presetsFolder ? DialStore.subscribeTransitions(showPresetName) : undefined;
   let controls: {
     destroy(): void;
   }[] = [];
@@ -170,7 +186,7 @@ export function mountTransitionControl(host: HTMLElement, initial: TransitionCon
     }
     else if (mode === 'simple') {
       if (springOnly && !props.hideDuration)
-        slider('Duration', 'visualDuration', 0.3, 0.1, 1, 0.05, true);
+        slider('Duration', 'visualDuration', 0.3, 0.1, 5, 0.05, true);
       slider('Bounce', 'bounce', 0.2, 0, 1, 0.05);
     }
     else {
@@ -179,7 +195,13 @@ export function mountTransitionControl(host: HTMLElement, initial: TransitionCon
       slider('Mass', 'mass', 1, 0.1, 10, 0.1);
     }
     if (!springOnly && !props.hideDuration && mode !== 'advanced')
-      slider('Duration', mode === 'easing' ? 'duration' : 'visualDuration', 0.3, 0.1, mode === 'easing' ? 2 : 1, 0.05, true);
+      slider('Duration', mode === 'easing' ? 'duration' : 'visualDuration', 0.3, 0.1, mode === 'easing' ? 2 : 5, 0.05, true);
+    if (presetsFolder) {
+      body.append(presetsFolder.element);
+      presets ??= mountTransitionPresets(presetsFolder.body, presetProps());
+      copy ??= mountTransitionCopy(folder.actions, copyProps());
+      updates.push(() => { presets?.update(presetProps()); copy?.update(copyProps()); showPresetName(); });
+    }
     refresh = () => updates.forEach(update => update());
   }
   render();
@@ -189,6 +211,10 @@ export function mountTransitionControl(host: HTMLElement, initial: TransitionCon
       render();
     }, destroy() {
       controls.forEach(c => c.destroy());
+      stopPresets?.();
+      copy?.destroy();
+      presets?.destroy();
+      presetsFolder?.destroy();
       folder.destroy();
     }
   };

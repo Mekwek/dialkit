@@ -1,12 +1,15 @@
 <script lang="ts">
   import { formatEase, parseEase } from '../../easing-geometry';
+  import { transitionPresetName } from '../../transition-presets';
   import { DialStore } from 'dialkit/store';
-  import type { EasingConfig, SpringConfig, TransitionConfig } from 'dialkit/store';
+  import type { CopiedTransition, EasingConfig, SpringConfig, TransitionConfig } from 'dialkit/store';
   import Folder from './Folder.svelte';
   import Slider from './Slider.svelte';
   import SegmentedControl from './SegmentedControl.svelte';
   import SpringVisualization from './SpringVisualization.svelte';
   import EasingVisualization from './EasingVisualization.svelte';
+  import TransitionCopy from './TransitionCopy.svelte';
+  import TransitionPresets from './TransitionPresets.svelte';
 
   type CurveMode = 'easing' | 'simple' | 'advanced';
 
@@ -29,12 +32,20 @@
   }>();
 
   let mode = $state<CurveMode>(DialStore.getTransitionMode(panelId, path));
+  let savedPresets = $state.raw(DialStore.getTransitionPresets());
   let editingEase = $state(false);
   let easeDraft = $state('');
 
   $effect(() => {
     const unsub = DialStore.subscribe(panelId, () => {
       mode = DialStore.getTransitionMode(panelId, path);
+    });
+    return unsub;
+  });
+
+  $effect(() => {
+    const unsub = DialStore.subscribeTransitions(() => {
+      savedPresets = DialStore.getTransitionPresets();
     });
     return unsub;
   });
@@ -84,6 +95,11 @@
     }
   };
 
+  const handlePaste = (copied: CopiedTransition) => {
+    DialStore.updateTransitionMode(panelId, path, copied.mode);
+    onChange(copied.value);
+  };
+
   const handleSpringUpdate = (key: keyof SpringConfig, val: number) => {
     if (isSimpleSpring) {
       const { stiffness, damping, mass, ...rest } = spring;
@@ -106,7 +122,11 @@
   };
 </script>
 
-<Folder title={label} defaultOpen={true}>
+{#snippet copyActions()}
+  <TransitionCopy {mode} value={isEasing ? easing : spring} onPaste={handlePaste} />
+{/snippet}
+
+<Folder title={label} defaultOpen={true} actions={copyActions}>
   <div style="display: flex; flex-direction: column; gap: 6px;">
     {#if isEasing}
       <EasingVisualization {easing} onChange={(ease) => onChange({ ...easing, ease })} />
@@ -192,10 +212,14 @@
           else handleSpringUpdate('visualDuration', next);
         })}
         min={durationControl?.min ?? 0.1}
-        max={durationControl?.max ?? (isEasing ? 2 : 1)}
+        max={durationControl?.max ?? (isEasing ? 2 : 5)}
         step={durationControl?.step ?? 0.05}
         unit="s"
       />
     {/if}
+
+    <Folder title="Presets" defaultOpen={false} meta={transitionPresetName(isEasing ? easing : spring, mode, savedPresets)}>
+      <TransitionPresets {mode} value={isEasing ? easing : spring} {onChange} />
+    </Folder>
   </div>
 </Folder>

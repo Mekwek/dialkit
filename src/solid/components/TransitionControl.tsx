@@ -1,7 +1,9 @@
 import { formatEase, parseEase } from '../../easing-geometry';
-import { createSignal, Show } from 'solid-js';
+import { createEffect, createSignal, onCleanup, onMount, Show } from 'solid-js';
 import { DialStore } from '../../store/DialStore';
-import type { EasingConfig, SpringConfig, TransitionConfig } from '../../store/DialStore';
+import type { CopiedTransition, EasingConfig, SpringConfig, TransitionConfig } from '../../store/DialStore';
+import { transitionPresetName } from '../../transition-presets';
+import { mountTransitionCopy, mountTransitionPresets, type TransitionCopyProps, type TransitionPresetsProps } from '../../transition-presets-control';
 import { fromStore } from '../primitives';
 import { EasingVisualization } from './EasingVisualization';
 import { Folder } from './Folder';
@@ -33,6 +35,10 @@ export function TransitionControl(props: TransitionControlProps) {
   const mode = fromStore(
     () => DialStore.getTransitionMode(props.panelId, props.path),
     (notify) => DialStore.subscribe(props.panelId, notify)
+  );
+  const savedPresets = fromStore(
+    () => DialStore.getTransitionPresets(),
+    (notify) => DialStore.subscribeTransitions(notify)
   );
   const [editingEase, setEditingEase] = createSignal(false);
   const [easeDraft, setEaseDraft] = createSignal('');
@@ -71,6 +77,11 @@ export function TransitionControl(props: TransitionControlProps) {
     props.onChange(next === 'easing' ? cache.easing : next === 'simple' ? cache.simple : cache.advanced);
   };
 
+  const handlePaste = (copied: CopiedTransition) => {
+    DialStore.updateTransitionMode(props.panelId, props.path, copied.mode);
+    props.onChange(copied.value);
+  };
+
   const handleSpringUpdate = (key: keyof SpringConfig, value: number) => {
     const current = spring();
     if (isSimple()) {
@@ -102,7 +113,7 @@ export function TransitionControl(props: TransitionControlProps) {
           else handleSpringUpdate('visualDuration', value);
         })}
         min={external?.min ?? 0.1}
-        max={external?.max ?? (isEasing() ? 2 : 1)}
+        max={external?.max ?? (isEasing() ? 2 : 5)}
         step={external?.step ?? 0.05}
         unit="s"
       />
@@ -110,7 +121,11 @@ export function TransitionControl(props: TransitionControlProps) {
   };
 
   return (
-    <Folder title={props.label} defaultOpen={true}>
+    <Folder
+      title={props.label}
+      defaultOpen={true}
+      actions={<TransitionCopy mode={mode()} value={isEasing() ? easing() : spring()} onPaste={handlePaste} />}
+    >
       <div style={{ display: 'flex', 'flex-direction': 'column', gap: '6px' }}>
         <Show when={isEasing()} fallback={<SpringVisualization spring={spring()} isSimpleMode={isSimple()} />}>
           <EasingVisualization easing={easing()} onChange={(ease) => props.onChange({ ...easing(), ease })} />
@@ -160,7 +175,33 @@ export function TransitionControl(props: TransitionControlProps) {
           <Slider label="Mass" value={spring().mass ?? 1} onChange={(value) => handleSpringUpdate('mass', value)} min={0.1} max={10} step={0.1} />
         </Show>
         {durationSlider()}
+
+        <Folder title="Presets" defaultOpen={false} meta={transitionPresetName(isEasing() ? easing() : spring(), mode(), savedPresets())}>
+          <TransitionPresets mode={mode()} value={isEasing() ? easing() : spring()} onChange={props.onChange} />
+        </Folder>
       </div>
     </Folder>
   );
+}
+
+function TransitionPresets(props: TransitionPresetsProps) {
+  let host!: HTMLDivElement;
+  let control: ReturnType<typeof mountTransitionPresets> | undefined;
+  onMount(() => {
+    control = mountTransitionPresets(host, { ...props });
+    createEffect(() => control?.update({ mode: props.mode, value: props.value, onChange: props.onChange }));
+  });
+  onCleanup(() => control?.destroy());
+  return <div ref={host} />;
+}
+
+function TransitionCopy(props: TransitionCopyProps) {
+  let host!: HTMLDivElement;
+  let control: ReturnType<typeof mountTransitionCopy> | undefined;
+  onMount(() => {
+    control = mountTransitionCopy(host, { ...props });
+    createEffect(() => control?.update({ mode: props.mode, value: props.value, onPaste: props.onPaste }));
+  });
+  onCleanup(() => control?.destroy());
+  return <div ref={host} />;
 }

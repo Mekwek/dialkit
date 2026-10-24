@@ -9,12 +9,22 @@ export interface EasingVisualizationProps {
 
 let nextId = 0;
 
+/**
+ * How long the curve takes to move to a shape set from outside, such as a
+ * preset. Outside changes that come closer together than this are continuous
+ * input, such as a slider drag, and are drawn as they arrive.
+ */
+const MORPH_MS = 250;
+
 /** One interaction and fitting implementation for React, Solid, Vue, and Svelte. */
 export function mountEasingVisualization(host: HTMLElement, initial: EasingVisualizationProps) {
   let props = initial;
   let value = normalizeEase(props.easing.ease);
   let width = 256;
   let height = 180;
+  let shown: BezierPoints | undefined;
+  let morphFrame = 0;
+  let lastOutsideChange = -Infinity;
   let drag: { id: number; handle: 0 | 1; x: number; y: number; scale: GraphPoint; ratioX: number; ratioY: number; value: BezierPoints } | undefined;
   const root = document.createElement('div');
   root.className = 'dialkit-easing-viz';
@@ -46,6 +56,7 @@ export function mountEasingVisualization(host: HTMLElement, initial: EasingVisua
       event.preventDefault();
       event.stopPropagation();
       button.focus({ preventScroll: true });
+      stopMorph();
       measure();
       const bounds = root.getBoundingClientRect();
       if (!bounds.width || !bounds.height) return;
@@ -88,7 +99,7 @@ export function mountEasingVisualization(host: HTMLElement, initial: EasingVisua
   }
 
   function render() {
-    const graph = fitEasingGraph(value, width, height);
+    const graph = fitEasingGraph(shown ?? value, width, height);
     svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
     line(reference, graph.start, graph.end);
     [graph.start, graph.end].forEach((point, index) => {
@@ -115,6 +126,7 @@ export function mountEasingVisualization(host: HTMLElement, initial: EasingVisua
 
   function commit(next: BezierPoints) {
     if (next.every((part, index) => part === value[index])) return;
+    stopMorph();
     value = next;
     render();
     props.onChange?.([...value]);
@@ -133,6 +145,28 @@ export function mountEasingVisualization(host: HTMLElement, initial: EasingVisua
     if (handles[handle].hasPointerCapture(id)) handles[handle].releasePointerCapture(id);
   }
 
+  function morph(from: BezierPoints) {
+    cancelAnimationFrame(morphFrame);
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { shown = undefined; return; }
+    const target = value;
+    let start: number | undefined;
+    const step = (now: number) => {
+      start ??= now;
+      const t = Math.min(1, (now - start) / MORPH_MS);
+      const k = t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
+      shown = t < 1 ? from.map((part, index) => part + (target[index] - part) * k) as BezierPoints : undefined;
+      render();
+      if (shown) morphFrame = requestAnimationFrame(step);
+    };
+    shown = from;
+    morphFrame = requestAnimationFrame(step);
+  }
+
+  function stopMorph() {
+    cancelAnimationFrame(morphFrame);
+    shown = undefined;
+  }
+
   function cancelDrag() {
     if (!drag) return;
     const original = drag.value;
@@ -146,12 +180,22 @@ export function mountEasingVisualization(host: HTMLElement, initial: EasingVisua
   return {
     update(next: EasingVisualizationProps) {
       const incoming = normalizeEase(next.easing.ease);
+      const changed = incoming.some((part, index) => part !== value[index]);
+      const from = drag ? undefined : shown ?? value;
       // An external preset/edit replaces an active gesture instead of being overwritten by it.
-      if (!next.onChange || incoming.some((part, index) => part !== value[index])) endDrag();
+      if (!next.onChange || changed) endDrag();
       props = next;
       value = incoming;
+      if (changed) {
+        // A one-off change, such as a preset, moves the curve to its new shape.
+        // A run of changes follows the input directly, so the curve never lags it.
+        const now = performance.now();
+        if (from && now - lastOutsideChange >= MORPH_MS) morph(from);
+        else stopMorph();
+        lastOutsideChange = now;
+      }
       render();
     },
-    destroy() { endDrag(); observer.disconnect(); root.remove(); },
+    destroy() { endDrag(); stopMorph(); observer.disconnect(); root.remove(); },
   };
 }

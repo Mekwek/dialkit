@@ -1,6 +1,7 @@
 import { roundValue } from '../numeric';
 import { parseColor } from '../color';
 import { normalizePadValue, type DialPadConfig, type DialPadValue } from '../dial-pad';
+import { defaultTransitionPresets, type TransitionPresetOption } from '../transition-presets';
 export type { DialPadAxis, DialPadConfig, DialPadValue } from '../dial-pad';
 
 // Lightweight state store with subscriptions for dialkit
@@ -139,6 +140,22 @@ export type Preset = {
   values: Record<string, DialValue>;
 };
 
+export type TransitionMode = 'easing' | 'simple' | 'advanced';
+
+/** A curve or spring the user saved, shared by every transition control. */
+export type TransitionPreset = {
+  id: string;
+  name: string;
+  mode: TransitionMode;
+  value: TransitionConfig;
+};
+
+/** The transition a transition control copied, with the mode it was in. */
+export type CopiedTransition = {
+  value: TransitionConfig;
+  mode: TransitionMode;
+};
+
 export type DialKitPersistOptions = boolean | {
   key?: string;
   storage?: 'localStorage' | 'sessionStorage';
@@ -169,6 +186,39 @@ type PersistedPanelState = {
 
 // Stable empty object for unregistered panels (React 19 useSyncExternalStore requirement)
 const EMPTY_VALUES: Record<string, DialValue> = Object.freeze({});
+const TRANSITION_PRESETS_KEY = 'dialkit:transition-presets';
+
+function copyTransitionValue(value: TransitionConfig): TransitionConfig {
+  return value.type === 'easing' ? { ...value, ease: [...value.ease] } : { ...value };
+}
+
+/** "Custom N" for a mode, numbered after the highest saved one so names stay unique. */
+function nextTransitionPresetName(presets: TransitionPreset[], mode: TransitionMode): string {
+  const highest = presets.reduce((max, preset) => {
+    const match = /^Custom (\d+)$/.exec(preset.name);
+    return preset.mode === mode && match ? Math.max(max, Number(match[1])) : max;
+  }, 0);
+  return `Custom ${highest + 1}`;
+}
+
+/** A stored transition is kept only when it has every value its mode edits. */
+function isStoredTransitionPreset(preset: unknown): preset is TransitionPreset {
+  if (!isRecord(preset) || typeof preset.id !== 'string' || typeof preset.name !== 'string' || !isRecord(preset.value)) return false;
+  const value = preset.value;
+  const finite = (...keys: string[]) => keys.every(key => Number.isFinite(value[key]));
+  switch (preset.mode) {
+    case 'easing':
+      // Bézier X stays within 0–1; Y may overshoot.
+      return value.type === 'easing' && finite('duration') && Array.isArray(value.ease) && value.ease.length === 4 &&
+        value.ease.every((n, index) => Number.isFinite(n) && (index % 2 === 1 || (n >= 0 && n <= 1)));
+    case 'simple':
+      return value.type === 'spring' && finite('visualDuration', 'bounce');
+    case 'advanced':
+      return value.type === 'spring' && finite('stiffness', 'damping', 'mass');
+    default:
+      return false;
+  }
+}
 
 export function resolveDialValues<T extends DialConfig>(
   config: T,
@@ -364,6 +414,10 @@ class DialStoreClass {
   private registrationCounts: Map<string, number> = new Map();
   private retainedPanels: Set<string> = new Set();
   private persistConfigs: Map<string, PersistConfig> = new Map();
+  private transitionPresets: TransitionPreset[] = [];
+  private transitionStorageLoaded: Set<PersistConfig['storage']> = new Set();
+  private copiedTransition: CopiedTransition | null = null;
+  private transitionListeners: Set<Listener> = new Set();
 
   registerPanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, options: DialStorePanelOptions = {}): void {
     const { controls, controlsByPath, defaultValues } = this.parseConfig(config, shortcuts);
@@ -576,7 +630,7 @@ class DialStoreClass {
     return mode;
   }
 
-  updateTransitionMode(panelId: string, path: string, mode: 'easing' | 'simple' | 'advanced'): void {
+  updateTransitionMode(panelId: string, path: string, mode: TransitionMode): void {
     const panel = this.panels.get(panelId);
     if (!panel) return;
 
@@ -587,10 +641,10 @@ class DialStoreClass {
     this.notify(panelId);
   }
 
-  getTransitionMode(panelId: string, path: string): 'easing' | 'simple' | 'advanced' {
+  getTransitionMode(panelId: string, path: string): TransitionMode {
     const panel = this.panels.get(panelId);
     if (!panel) return 'simple';
-    return (panel.values[`${path}.__mode`] as 'easing' | 'simple' | 'advanced') || 'simple';
+    return (panel.values[`${path}.__mode`] as TransitionMode) || 'simple';
   }
 
   getValue(panelId: string, path: string): DialValue | undefined {
@@ -770,6 +824,50 @@ class DialStoreClass {
     this.notify(panelId);
   }
 
+  /** Saved curves and springs, shared by every transition control. */
+  getTransitionPresets(): TransitionPreset[] {
+    return this.transitionPresets;
+  }
+
+  /** The built-in curves (Easing) or springs (Time and Physics) for a mode, each with a short description of how it moves. */
+  getDefaultTransitionPresets(mode: TransitionMode): TransitionPresetOption[] {
+    return defaultTransitionPresets(mode);
+  }
+
+  /** Saves a transition for its mode as "Custom N" and returns the new preset's id. */
+  saveTransitionPreset(value: TransitionConfig, mode: TransitionMode): string {
+    const presets = this.getTransitionPresets();
+    const id = `transition-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    this.setTransitionPresets([...presets, { id, name: nextTransitionPresetName(presets, mode), mode, value: copyTransitionValue(value) }]);
+    return id;
+  }
+
+  deleteTransitionPreset(id: string): void {
+    this.setTransitionPresets(this.getTransitionPresets().filter(preset => preset.id !== id));
+  }
+
+  copyTransition(value: TransitionConfig, mode: TransitionMode): void {
+    this.copiedTransition = { value: copyTransitionValue(value), mode };
+    this.notifyTransitions();
+  }
+
+  /** A copy of the copied transition, so applying it never changes what was copied. */
+  getCopiedTransition(): CopiedTransition | null {
+    return this.copiedTransition && { value: copyTransitionValue(this.copiedTransition.value), mode: this.copiedTransition.mode };
+  }
+
+  clearCopiedTransition(): void {
+    if (!this.copiedTransition) return;
+    this.copiedTransition = null;
+    this.notifyTransitions();
+  }
+
+  /** Notifies when saved transitions or the copied transition change. */
+  subscribeTransitions(listener: Listener): () => void {
+    this.transitionListeners.add(listener);
+    return () => this.transitionListeners.delete(listener);
+  }
+
   resolveShortcutTarget(key: string, modifier?: 'alt' | 'shift' | 'meta'): {
     panelId: string;
     path: string;
@@ -819,6 +917,7 @@ class DialStoreClass {
     if (persistConfig) {
       this.persistConfigs.set(id, persistConfig);
       this.retainedPanels.add(id);
+      if (persistConfig.presets) this.loadTransitionPresets(persistConfig.storage);
     } else if (options.persist === false) {
       this.persistConfigs.delete(id);
     }
@@ -941,6 +1040,68 @@ class DialStoreClass {
     } catch {
       return null;
     }
+  }
+
+  private setTransitionPresets(presets: TransitionPreset[]): void {
+    this.transitionPresets = presets;
+    this.transitionStorageKinds().forEach(kind => this.persistTransitionPresets(kind));
+    this.notifyTransitions();
+  }
+
+  /** Saved transitions follow panel persistence: they are stored wherever a panel persists its presets. */
+  private transitionStorageKinds(): Set<PersistConfig['storage']> {
+    const kinds = new Set<PersistConfig['storage']>();
+    this.persistConfigs.forEach(config => { if (config.presets) kinds.add(config.storage); });
+    return kinds;
+  }
+
+  /** Merges the transitions saved in a storage the first time a persisted panel uses it. */
+  private loadTransitionPresets(kind: PersistConfig['storage']): void {
+    if (this.transitionStorageLoaded.has(kind)) return;
+    const storage = this.getStorage(kind);
+    if (!storage) return;
+    this.transitionStorageLoaded.add(kind);
+
+    let stored: TransitionPreset[] = [];
+    try {
+      const parsed: unknown = JSON.parse(storage.getItem(TRANSITION_PRESETS_KEY) ?? 'null');
+      if (isRecord(parsed) && parsed.version === 1 && Array.isArray(parsed.presets)) {
+        stored = parsed.presets.filter(isStoredTransitionPreset);
+      }
+    } catch {
+      // Malformed storage starts from the transitions already in memory.
+    }
+
+    const known = new Set(this.transitionPresets.map(preset => preset.id));
+    const added: TransitionPreset[] = [];
+    let renamed = false;
+    stored.forEach(preset => {
+      if (known.has(preset.id)) return;
+      known.add(preset.id);
+      // A name already used for the mode, such as a second "Custom 1", is numbered after the others.
+      const presets = [...added, ...this.transitionPresets];
+      const taken = presets.some(other => other.mode === preset.mode && other.name === preset.name);
+      added.push(taken ? { ...preset, name: nextTransitionPresetName(presets, preset.mode) } : preset);
+      renamed ||= taken;
+    });
+    if (added.length) {
+      this.transitionPresets = [...added, ...this.transitionPresets];
+      this.notifyTransitions();
+    }
+    // Transitions saved before this panel registered, and renamed ones, are kept in its storage too.
+    if (renamed || added.length < this.transitionPresets.length) this.persistTransitionPresets(kind);
+  }
+
+  private persistTransitionPresets(kind: PersistConfig['storage']): void {
+    try {
+      this.getStorage(kind)?.setItem(TRANSITION_PRESETS_KEY, JSON.stringify({ version: 1, presets: this.transitionPresets }));
+    } catch {
+      // Ignore storage quota/security errors; saved transitions still work in-memory.
+    }
+  }
+
+  private notifyTransitions(): void {
+    this.transitionListeners.forEach(fn => fn());
   }
 
   private notify(panelId: string): void {

@@ -87,7 +87,7 @@ export function SpringControl({ panelId, path, label, spring, onChange }: Spring
               value={spring.visualDuration ?? 0.3}
               onChange={(v) => handleUpdate('visualDuration', v)}
               min={0.1}
-              max={1}
+              max={5}
               step={0.05}
               unit="s"
             />

@@ -86,7 +86,7 @@ export const SpringControl = defineComponent({
                 label: 'Duration',
                 value: props.spring.visualDuration ?? 0.3,
                 min: 0.1,
-                max: 1,
+                max: 5,
                 step: 0.05,
                 unit: 's',
                 onChange: (next: number) => handleUpdate('visualDuration', next),
