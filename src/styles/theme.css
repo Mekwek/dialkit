@@ -757,6 +757,32 @@
   margin-right: -6px;
 }
 
+/* Without a row label, equal segments fill the row. */
+.dialkit-labeled-control[data-hide-label="true"] {
+  padding: 2px;
+}
+
+.dialkit-labeled-control[data-hide-label="true"] .dialkit-segmented {
+  flex: 1;
+  min-width: 0;
+  margin-right: 0;
+}
+
+.dialkit-labeled-control[data-hide-label="true"] .dialkit-segmented-button {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dialkit-segmented-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  margin: 0 auto;
+}
+
 .dialkit-action-button {
   width: 160px;
   flex-shrink: 0;

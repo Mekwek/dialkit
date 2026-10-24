@@ -150,9 +150,13 @@ export interface SegmentedControlProps<T extends string = string> {
   options: {
     value: T;
     label: string;
+    /** SVG path data in a 24 × 24 box, shown in place of the label. */
+    icon?: string | string[];
   }[];
   value: T;
   onChange: (value: T) => void;
+  /** Accessible name for the group. */
+  label?: string;
 }
 export function mountSegmentedControl<T extends string>(host: HTMLElement, initial: SegmentedControlProps<T>): Mounted<SegmentedControlProps<T>> {
   let props = initial;
@@ -167,13 +171,28 @@ export function mountSegmentedControl<T extends string>(host: HTMLElement, initi
   labelSegmentedControl(group);
   let buttons: HTMLButtonElement[] = [];
   let signature = '';
+  let named = false;
   function render() {
+    // A label names the group itself; without one, the row label does.
+    if (props.label) {
+      group.removeAttribute('aria-labelledby');
+      group.setAttribute('aria-label', props.label);
+    } else if (named) {
+      group.removeAttribute('aria-label');
+      labelSegmentedControl(group);
+    }
+    named = !!props.label;
     const nextSignature = JSON.stringify(props.options);
     if (signature !== nextSignature) {
       signature = nextSignature;
       buttons.forEach(b => b.remove());
       buttons = props.options.map(option => {
-        const b = element('button', 'dialkit-segmented-button', option.label);
+        const b = element('button', 'dialkit-segmented-button', option.icon ? undefined : option.label);
+        if (option.icon) {
+          b.title = option.label;
+          b.setAttribute('aria-label', option.label);
+          b.append(icon(option.icon, 'dialkit-segmented-icon'));
+        }
         b.setAttribute('role', 'radio');
         b.addEventListener('click', () => props.onChange(option.value));
         group.append(b);
@@ -186,8 +205,9 @@ export function mountSegmentedControl<T extends string>(host: HTMLElement, initi
       b.setAttribute('aria-checked', String(active));
       b.tabIndex = active ? 0 : -1;
       if (active) {
-        pill.style.left = `${b.offsetLeft}px`;
-        pill.style.width = `${b.offsetWidth}px`;
+        const groupRect = group.getBoundingClientRect(), rect = b.getBoundingClientRect();
+        pill.style.left = `${rect.left - groupRect.left}px`;
+        pill.style.width = `${rect.width}px`;
       }
     });
   }

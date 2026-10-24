@@ -1,10 +1,13 @@
 import { handleSegmentKey, labelSegmentedControl } from '../../control-keyboard';
 import { defineComponent, h, nextTick, onMounted, onUnmounted, ref, watch, type PropType } from 'vue';
 import { animate } from 'motion';
+import { iconPaths } from '../../icons';
 
 type SegmentedControlOption<T extends string> = {
   value: T;
   label: string;
+  /** SVG path data in a 24 × 24 box, shown in place of the label. */
+  icon?: string | string[];
 };
 
 export const SegmentedControl = defineComponent({
@@ -18,6 +21,8 @@ export const SegmentedControl = defineComponent({
       type: String,
       required: true,
     },
+    /** Accessible name for the group. */
+    label: { type: String, default: undefined },
   },
   emits: ['change'],
   setup(props, { emit }) {
@@ -112,13 +117,11 @@ export const SegmentedControl = defineComponent({
       { flush: 'post' }
     );
 
-    return () => h('div', { ref: containerRef, class: 'dialkit-segmented', role: 'radiogroup', onKeydown: handleSegmentKey }, [
+    return () => h('div', { ref: containerRef, class: 'dialkit-segmented', role: 'radiogroup', 'aria-label': props.label, onKeydown: handleSegmentKey }, [
       h('div', {
         ref: pillRef,
         class: 'dialkit-segmented-pill',
         style: {
-          left: '0px',
-          width: '0px',
           visibility: pillReady.value ? 'visible' : 'hidden',
         },
       }),
@@ -134,8 +137,21 @@ export const SegmentedControl = defineComponent({
         class: 'dialkit-segmented-button',
         'data-active': String(props.value === option.value),
         type: 'button', role: 'radio', 'aria-checked': props.value === option.value, tabindex: props.value === option.value ? 0 : -1,
+        title: option.icon ? option.label : undefined,
+        'aria-label': option.icon ? option.label : undefined,
         onClick: () => emit('change', option.value),
-      }, option.label)),
+      }, option.icon
+        ? h('svg', {
+          class: 'dialkit-segmented-icon',
+          viewBox: '0 0 24 24',
+          fill: 'none',
+          stroke: 'currentColor',
+          'stroke-width': '2',
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          'aria-hidden': 'true',
+        }, iconPaths(option.icon).map((d) => h('path', { d })))
+        : option.label)),
     ]);
   },
 });

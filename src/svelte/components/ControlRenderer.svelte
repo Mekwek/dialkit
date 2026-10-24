@@ -87,6 +87,8 @@
     value={controlValue as string}
     options={control.options ?? []}
     onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
+    display={control.display}
+    hideLabel={control.hideLabel}
   />
 {:else if control.type === 'color'}
   <ColorControl

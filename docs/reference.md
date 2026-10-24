@@ -55,6 +55,19 @@ Text fields grow up to five lines, then scroll. Enter inserts a line break. Use 
 
 Select options accept strings or `{ value, label }` objects. The default is the first option's value, or `""` for an empty list. Empty selects are disabled.
 
+Set `display: "segmented"` to show a short list in one row instead of a dropdown. With `hideLabel: true`, the options fill the row and the label becomes the group's accessible name. An option's `icon` replaces its text in the row: SVG path data in a 24 × 24 box, as a string or an array of paths. The label remains its accessible name and tooltip.
+
+```ts
+const config = {
+  ratio: {
+    type: "select",
+    options: ["1:1", "4:3", { value: "fill", label: "Fill", icon: "M4 4H20V20H4Z" }],
+    display: "segmented",
+    hideLabel: true,
+  },
+} satisfies DialConfig;
+```
+
 ### Colors
 
 ```ts

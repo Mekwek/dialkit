@@ -27,10 +27,17 @@ export type ActionConfig = {
   label?: string;
 };
 
+/** `icon` is SVG path data in a 24 × 24 box. Segmented controls show it in place of the label. */
+export type SelectOption = string | { value: string; label: string; icon?: string | string[] };
+
 export type SelectConfig = {
   type: 'select';
-  options: (string | { value: string; label: string })[];
+  options: SelectOption[];
   default?: string;
+  /** `'segmented'` shows every option in one row instead of a dropdown. */
+  display?: 'dropdown' | 'segmented';
+  /** Segmented only: the options fill the row, and the label becomes the group's accessible name. */
+  hideLabel?: boolean;
 };
 
 export type ColorConfig = {
@@ -115,7 +122,9 @@ export type ControlMeta = {
   step?: number;
   children?: ControlMeta[];
   defaultOpen?: boolean;
-  options?: (string | { value: string; label: string })[];
+  options?: SelectOption[];
+  display?: SelectConfig['display'];
+  hideLabel?: boolean;
   placeholder?: string;
   pad?: DialPadConfig;
   shortcut?: ShortcutConfig;
@@ -953,7 +962,7 @@ class DialStoreClass {
         } else if (isActionConfigValue(value)) {
           control = { type: 'action', path, label: value.label || label };
         } else if (isSelectConfigValue(value)) {
-          control = { type: 'select', path, label, options: value.options };
+          control = { type: 'select', path, label, options: value.options, display: value.display, hideLabel: value.hideLabel };
         } else if (isColorConfigValue(value)) {
           control = { type: 'color', path, label };
         } else if (isImageConfigValue(value)) {

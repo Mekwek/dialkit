@@ -56,6 +56,7 @@ export type {
   TransitionConfig,
   ActionConfig,
   SelectConfig,
+  SelectOption,
   ColorConfig,
   ImageConfig,
   ImageOption,

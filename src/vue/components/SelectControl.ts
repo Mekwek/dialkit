@@ -3,21 +3,21 @@ import { openDropdownOnKey } from '../../control-keyboard';
 import { Teleport, defineComponent, h, onMounted, ref, watch, type PropType } from 'vue';
 import { AnimatePresence, motion } from 'motion-v';
 import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition, type DropdownPosition } from '../../dropdown-position';
-
-type SelectOption = string | { value: string; label: string };
+import type { SelectConfig, SelectOption } from '../../store/DialStore';
+import { SegmentedControl } from './SegmentedControl';
 
 function toTitleCase(value: string): string {
   return value.replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function normalizeOptions(options: SelectOption[]): { value: string; label: string }[] {
+function normalizeOptions(options: SelectOption[]): Exclude<SelectOption, string>[] {
   return options.map((option) =>
     typeof option === 'string' ? { value: option, label: toTitleCase(option) } : option
   );
 }
 
-export const SelectControl = defineComponent({
-  name: 'DialKitSelectControl',
+const SelectDropdown = defineComponent({
+  name: 'DialKitSelectDropdown',
   props: {
     label: { type: String, required: true },
     value: { type: String, required: true },
@@ -161,5 +161,34 @@ export const SelectControl = defineComponent({
         ])
         : null,
     ]);
+  },
+});
+
+export const SelectControl = defineComponent({
+  name: 'DialKitSelectControl',
+  props: {
+    label: { type: String, required: true },
+    value: { type: String, required: true },
+    options: {
+      type: Array as PropType<SelectOption[]>,
+      required: true,
+    },
+    display: { type: String as PropType<SelectConfig['display']>, default: undefined },
+    hideLabel: { type: Boolean, default: false },
+  },
+  emits: ['change'],
+  setup(props, { emit }) {
+    const onChange = (value: string) => emit('change', value);
+    return () => props.display === 'segmented'
+      ? h('div', { class: 'dialkit-labeled-control', 'data-hide-label': props.hideLabel ? 'true' : undefined }, [
+        props.hideLabel ? null : h('span', { class: 'dialkit-labeled-control-label' }, props.label),
+        h(SegmentedControl, {
+          options: normalizeOptions(props.options),
+          value: props.value,
+          label: props.label,
+          onChange,
+        }),
+      ])
+      : h(SelectDropdown, { label: props.label, value: props.value, options: props.options, onChange });
   },
 });
