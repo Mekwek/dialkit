@@ -10,6 +10,7 @@ import { useShortcutContext } from './ShortcutListener';
 import { ColorControl } from './ColorControl';
 import { ImageControl } from './ImageControl';
 import { DialPad } from './DialPad';
+import { Fields } from './Fields';
 import type { DialPadValue } from '../../dial-pad';
 import { Folder } from './Folder';
 import { SelectControl } from './SelectControl';
@@ -77,6 +78,16 @@ export function ControlRenderer(props: ControlRendererProps) {
           />
         );
       case 'folder':
+        if (control.fields) {
+          return (
+            <Fields
+              label={control.label}
+              controls={control.children ?? []}
+              values={props.values}
+              onChange={(next) => DialStore.updateValues(props.panelId, next)}
+            />
+          );
+        }
         return (
           <Folder title={control.label} defaultOpen={control.defaultOpen ?? true}>
             <For each={control.children ?? []}>{renderControl}</For>

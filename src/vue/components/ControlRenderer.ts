@@ -4,6 +4,7 @@ import type { ControlMeta, DialValue, SpringConfig, TransitionConfig } from '../
 import { ColorControl } from './ColorControl';
 import { ImageControl } from './ImageControl';
 import { DialPad } from './DialPad';
+import { Fields } from './Fields';
 import type { DialPadValue } from '../../dial-pad';
 import { Folder } from './Folder';
 import { SelectControl } from './SelectControl';
@@ -69,6 +70,15 @@ export const ControlRenderer = defineComponent({
             onChange: (next: TransitionConfig) => DialStore.updateValue(props.panelId, control.path, next),
           });
         case 'folder':
+          if (control.fields) {
+            return h(Fields, {
+              key: control.path,
+              label: control.label,
+              controls: control.children ?? [],
+              values: props.values,
+              onChange: (next: Record<string, DialValue>) => DialStore.updateValues(props.panelId, next),
+            });
+          }
           return h(Folder, {
             key: control.path,
             title: control.label,

@@ -12,6 +12,7 @@
   import ColorControl from './ColorControl.svelte';
   import ImageControl from './ImageControl.svelte';
   import DialPad from './DialPad.svelte';
+  import Fields from './Fields.svelte';
   import ControlRenderer from './ControlRenderer.svelte';
   import { SHORTCUT_CTX } from './ShortcutListener.svelte';
   import type { ShortcutContextValue } from './ShortcutListener.svelte';
@@ -67,6 +68,13 @@
     value={controlValue as TransitionConfig}
     onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
     durationControl={transitionDuration}
+  />
+{:else if control.type === 'folder' && control.fields}
+  <Fields
+    label={control.label}
+    controls={control.children ?? []}
+    {values}
+    onChange={(v) => DialStore.updateValues(panelId, v)}
   />
 {:else if control.type === 'folder'}
   <Folder title={control.label} defaultOpen={control.defaultOpen ?? true}>
