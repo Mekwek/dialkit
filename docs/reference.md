@@ -69,7 +69,7 @@ const config = {
 
 Hex, RGB, HSL, OKLCH, and Display P3 strings are detected automatically. Hex accepts 3, 4, 6, or 8 digits. Use an explicit color config for `transparent`.
 
-The picker offers Hex, OKLCH, and Display P3 output, with hue and opacity controls. Converting to a smaller gamut reduces chroma while preserving lightness and hue. RGB and HSL text is accepted as entered; subsequent picker edits use hex. Named colors, CSS variables, relative colors, and `calc()` expressions are not parsed.
+The picker offers Hex, RGB, HSL, OKLCH, and Display P3 modes. Its color field follows the mode: saturation and brightness in Hex, RGB, and Display P3, saturation and lightness in HSL, chroma and lightness in OKLCH; the hue strip below it shows every hue at the handle's place. Each mode has a field per channel: type a value, drag the channel's letter (or the `%` after opacity), or use Up/Down to step it to the next step of the channel, ten steps with Shift. Hex is written in capitals. Hues wrap and OKLCH chroma has no upper bound; other channels stop at their range. A value keeps its format, so an `hsl()` value is edited in HSL. Converting to a smaller gamut reduces chroma while preserving lightness and hue. Where the browser supports the EyeDropper API, a button beside the fields picks a color from the screen. Named colors, CSS variables, relative colors, and `calc()` expressions are not parsed.
 
 ### Images
 
@@ -240,7 +240,7 @@ DialStore.getPanelOpen("card");
 | XY pad | Arrows adjust axes; Shift + Arrow adjusts ten steps; Home resets; Escape cancels a drag |
 | Select or preset menu | Enter, Space, or Up/Down opens; arrows, Home/End, and typing navigate; Enter/Space selects; Escape closes |
 | Segmented control | Arrows select a segment; Home/End selects the first/last |
-| Color picker | Tab moves between controls; arrows adjust the focused control; Escape closes |
+| Color picker | Tab moves between controls; arrows adjust the focused control; Up/Down steps a channel field, Shift by ten; Escape closes |
 | Image picker | Arrows move through images; Enter/Space selects; Escape closes |
 | Bézier handles | Arrows move by 0.01; Shift + Arrow by 0.1; Escape cancels a drag |
 
