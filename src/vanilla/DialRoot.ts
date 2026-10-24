@@ -3,6 +3,7 @@ import { TimelineStore } from '../store/TimelineStore';
 import { TimelineUiStore } from '../store/TimelineUiStore';
 import { blockPanelDragClick, capturePanelPointer, releasePanelPointer, getPanelCorner, getPanelDragHandle, getPanelDragOffset, getPanelDragStart, getPanelOriginX, getPanelOriginY, hasPanelDragMoved, type PanelDragStart, type PanelDragOffset } from '../panel-drag';
 import { buildCopyInstruction } from '../copy-instruction';
+import { observePointerFocus } from '../pointer-focus';
 import { ICON_CLIPBOARD_PLAIN, ICON_CHECK } from '../icons';
 import { mountControlRenderer } from './ControlRenderer';
 import { mountFolder } from './controls';
@@ -204,6 +205,8 @@ export function createDialRoot(options: DialRootOptions = {}) {
   if (options.productionEnabled !== false)
     (options.target ?? document.body).append(root);
   const shortcuts = options.productionEnabled !== false ? mountShortcutListener() : undefined;
+  const stopPointerFocus = options.productionEnabled !== false ? observePointerFocus() : () => {
+  };
   const stopGlobal = options.productionEnabled !== false ? DialStore.subscribeGlobal(render) : () => {
   };
   const stopTimelines = options.productionEnabled !== false ? TimelineStore.subscribeGlobal(render) : () => {
@@ -238,6 +241,7 @@ export function createDialRoot(options: DialRootOptions = {}) {
       stopTimelines();
       stopOpen();
       shortcuts?.destroy();
+      stopPointerFocus();
       children.forEach(child => child.destroy());
       root.remove();
     }

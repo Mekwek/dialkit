@@ -10,7 +10,7 @@ const out = path.resolve(
   process.env.DIALKIT_FIXTURE_DIR || ".toolbar-fixtures",
 );
 fs.mkdirSync(out, { recursive: true });
-const config = `{ title: 'Original', group: { amount: [10, 0, 100] } }`;
+const config = `{ title: 'Original', accent: '#ff5500', group: { amount: [10, 0, 100], motion: { type: 'easing', duration: 0.3, ease: [0.25, 0.1, 0.25, 1] } } }`;
 const entries = {
   react: `import React from 'react'; import {createRoot} from 'react-dom/client'; import {DialRoot,useDialKit} from 'dialkit'; function App(){useDialKit('Fixture',${config});return React.createElement(DialRoot,{defaultOpen:true,theme:'light'});}createRoot(document.getElementById('app')).render(React.createElement(App));`,
   solid: `import {render} from 'solid-js/web'; import {createComponent} from 'solid-js'; import {DialRoot,createDialKit} from 'dialkit/solid'; function App(){createDialKit('Fixture',${config});return createComponent(DialRoot,{defaultOpen:true,theme:'light'});}render(()=>createComponent(App,{}),document.getElementById('app'));`,

@@ -24,6 +24,7 @@
     type PanelDragOffset,
     type PanelDragStart,
   } from '../../panel-drag';
+  import { observePointerFocus } from '../../pointer-focus';
 
   export type DialPosition = 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
   export type DialMode = 'popover' | 'inline';
@@ -106,6 +107,10 @@
       unsubscribeTimelines();
       unsubscribeOpen();
     };
+  });
+
+  $effect(() => {
+    if (productionEnabled) return observePointerFocus();
   });
 
   $effect(() => {

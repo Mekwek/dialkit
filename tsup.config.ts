@@ -49,6 +49,7 @@ export default defineConfig([
       'control-keyboard': 'src/control-keyboard.ts',
       'dropdown-keyboard': 'src/dropdown-keyboard.ts',
       'text-autosize': 'src/text-autosize.ts',
+      'pointer-focus': 'src/pointer-focus.ts',
       'shortcut-utils': 'src/shortcut-utils.ts',
     },
     format: ['esm'],

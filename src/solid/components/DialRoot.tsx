@@ -7,6 +7,7 @@ import { ShortcutListener } from './ShortcutListener';
 import { RootPanel } from './RootPanel';
 import { Panel } from './Panel';
 import { TimelineToggleButton } from './Timeline/TimelineToggleButton';
+import { observePointerFocus } from '../../pointer-focus';
 import {
   blockPanelDragClick,
   capturePanelPointer,
@@ -74,6 +75,7 @@ function DialRootInner(props: DialRootProps) {
   let dragTarget: HTMLElement | null = null;
 
   onMount(() => setMounted(true));
+  onMount(() => onCleanup(observePointerFocus()));
 
   // Open state is lifted from the panels/root folder via onOpenChange
   // callbacks (this replaces the old data-collapsed MutationObserver).

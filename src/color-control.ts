@@ -74,6 +74,8 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
     props.onChange(value);
     return true;
   };
+  // Colors are replaced far more often than edited in place, so a click selects the whole value.
+  valueInput.addEventListener('focus', () => valueInput.select());
   valueInput.addEventListener('change', () => acceptText(valueInput));
   valueInput.addEventListener('blur', () => {
     if (valueInput.getAttribute('aria-invalid')) {
