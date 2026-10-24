@@ -4,7 +4,7 @@ import { adjacentTabStop, optionKeyIndex } from './control-keyboard';
 let dropdownId = 0;
 
 /** Shared focus/selection behavior; framework adapters continue to own values and rendering. */
-export function observeDropdownKeyboard(trigger: HTMLElement, getPopup: () => HTMLElement | null | undefined, close: () => void, kind: 'select' | 'presets' | 'help' = 'select'): () => void {
+export function observeDropdownKeyboard(trigger: HTMLElement, getPopup: () => HTMLElement | null | undefined, close: () => void, kind: 'select' | 'presets' | 'menu' | 'help' = 'select'): () => void {
   let frame = 0;
   let dispose: (() => void) | undefined;
   let stopped = false;
@@ -15,12 +15,12 @@ export function observeDropdownKeyboard(trigger: HTMLElement, getPopup: () => HT
     popup.inert = false;
     popup.removeAttribute('aria-hidden');
     popup.id ||= `dialkit-dropdown-${++dropdownId}`;
-    popup.setAttribute('role', kind === 'select' ? 'listbox' : kind === 'presets' ? 'menu' : 'dialog');
+    popup.setAttribute('role', kind === 'select' ? 'listbox' : kind === 'help' ? 'dialog' : 'menu');
     popup.setAttribute('aria-label', trigger.getAttribute('aria-label') || trigger.querySelector('.dialkit-select-label')?.textContent?.trim() || trigger.getAttribute('title') || trigger.textContent?.trim() || 'Options');
     popup.tabIndex = -1;
     trigger.setAttribute('aria-controls', popup.id);
 
-    const selector = kind === 'select' ? '.dialkit-select-option' : '.dialkit-preset-name, .dialkit-preset-delete, .dialkit-preset-create';
+    const selector = kind === 'select' ? '.dialkit-select-option' : kind === 'menu' ? '.dialkit-transition-menu-item' : '.dialkit-preset-name, .dialkit-preset-delete, .dialkit-preset-create';
     let active: HTMLElement | undefined;
     let activeIndex = 0;
     let query = '';
@@ -115,7 +115,10 @@ export function observeDropdownKeyboard(trigger: HTMLElement, getPopup: () => HT
         }
       }
       const position = () => {
-        const pos = getDropdownPosition(trigger, root ?? document.body, { fixed: true, dropdownHeight: popup.scrollHeight + 2, width: kind === 'help' ? 280 : trigger.getBoundingClientRect().width });
+        // Menus keep their stylesheet width and line up with the end of their icon trigger.
+        if (kind === 'menu') popup.style.width = '';
+        const width = kind === 'help' ? 280 : kind === 'menu' ? popup.offsetWidth : trigger.getBoundingClientRect().width;
+        const pos = getDropdownPosition(trigger, root ?? document.body, { fixed: true, dropdownHeight: popup.scrollHeight + 2, width, align: kind === 'menu' ? 'end' : 'start' });
         Object.assign(popup.style, { position: 'fixed', top: `${pos.top}px`, left: `${pos.left}px`, right: 'auto', width: `${pos.width}px`, minWidth: '0', maxHeight: `${pos.maxHeight}px` });
       };
       stopPosition = observeDropdownPosition(trigger, position, () => popup);

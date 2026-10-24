@@ -55,6 +55,35 @@ describe('vanilla adapter', () => {
     try { assert.equal(restored.values.group.amount, 0.6); assert.equal(DialStore.getPresets(restored.id).length, 1); } finally { restored.destroy(); }
   });
 
+  it('pastes a copied transition with its mode and keeps saved ones with a persisted kit', () => {
+    const original = Object.getOwnPropertyDescriptor(globalThis, 'window');
+    const storage = new Map<string, string>();
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: { localStorage: {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+    } } });
+    const kit = createDialKit('Transitions', config, { id: 'vanilla-transitions', persist: true });
+    try {
+      DialStore.copyTransition(kit.values.group.spring, DialStore.getTransitionMode(kit.id, 'group.spring'));
+      const copied = DialStore.getCopiedTransition()!;
+      // The header menu's Paste applies the copied mode, then the value.
+      DialStore.updateTransitionMode(kit.id, 'group.easing', copied.mode);
+      kit.setValue('group.easing', copied.value);
+      assert.equal(DialStore.getTransitionMode(kit.id, 'group.easing'), 'simple');
+      assert.deepEqual(kit.values.group.easing, config.group.spring);
+      DialStore.clearCopiedTransition();
+
+      const id = DialStore.saveTransitionPreset(config.group.easing, 'easing');
+      assert.deepEqual(JSON.parse(storage.get('dialkit:transition-presets')!).presets.map((preset: { id: string }) => preset.id), [id]);
+      DialStore.deleteTransitionPreset(id);
+      assert.deepEqual(JSON.parse(storage.get('dialkit:transition-presets')!).presets, []);
+    } finally {
+      kit.destroy();
+      if (original) Object.defineProperty(globalThis, 'window', original);
+      else Reflect.deleteProperty(globalThis, 'window');
+    }
+  });
+
   it('reconciles config changes and resets to the new defaults', () => {
     const kit = createDialKit('Config', { amount: [0.5, 0, 1, 0.1] });
     try {

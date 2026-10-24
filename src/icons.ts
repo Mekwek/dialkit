@@ -37,6 +37,8 @@ export const ICON_CLIPBOARD_PLAIN = {
 
 export const ICON_PLUS = ['M5 12H19M12 5V19'];
 
+export const ICON_MORE = ['M5 12h.01', 'M12 12h.01', 'M19 12h.01'];
+
 export const ICON_ADD_PRESET = [
   'M4 6H20',
   'M4 12H10',

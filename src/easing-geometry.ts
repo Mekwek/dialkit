@@ -7,6 +7,7 @@ const clampY = (value: number) => Math.max(-1, Math.min(2, value));
 
 export const easingPresets: Record<string, BezierPoints> = {
   linear: [0, 0, 1, 1],
+  ease: [0.25, 0.1, 0.25, 1],
   easeIn: [0.42, 0, 1, 1],
   easeOut: [0, 0, 0.58, 1],
   easeInOut: [0.42, 0, 0.58, 1],

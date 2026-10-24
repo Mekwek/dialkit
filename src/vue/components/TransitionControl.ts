@@ -1,7 +1,8 @@
 import { formatEase, parseEase } from '../../easing-geometry';
-import { defineComponent, h, onMounted, onUnmounted, ref, type PropType } from 'vue';
+import { defineComponent, h, onMounted, onUnmounted, ref, watchEffect, type PropType } from 'vue';
 import { DialStore } from '../../store/DialStore';
-import type { EasingConfig, SpringConfig, TransitionConfig } from '../../store/DialStore';
+import type { CopiedTransition, EasingConfig, SpringConfig, TransitionConfig, TransitionMode } from '../../store/DialStore';
+import { mountTransitionMenu, mountTransitionPresets } from '../../transition-presets-control';
 import { Folder } from './Folder';
 import { Slider } from './Slider';
 import { SegmentedControl } from './SegmentedControl';
@@ -70,6 +71,42 @@ const EaseTextInput = defineComponent({
   },
 });
 
+const TransitionPresets = defineComponent({
+  name: 'DialKitTransitionPresets',
+  props: {
+    mode: { type: String as PropType<TransitionMode>, required: true },
+    value: { type: Object as PropType<TransitionConfig>, required: true },
+    onChange: { type: Function as PropType<(value: TransitionConfig) => void>, required: true },
+  },
+  setup(props) {
+    const host = ref<HTMLElement>();
+    let control: ReturnType<typeof mountTransitionPresets> | undefined;
+    const options = () => ({ mode: props.mode, value: props.value, onChange: props.onChange });
+    onMounted(() => { control = mountTransitionPresets(host.value!, options()); });
+    watchEffect(() => { const next = options(); control?.update(next); });
+    onUnmounted(() => control?.destroy());
+    return () => h('div', { ref: host });
+  },
+});
+
+const TransitionMenu = defineComponent({
+  name: 'DialKitTransitionMenu',
+  props: {
+    mode: { type: String as PropType<TransitionMode>, required: true },
+    value: { type: Object as PropType<TransitionConfig>, required: true },
+    onPaste: { type: Function as PropType<(copied: CopiedTransition) => void>, required: true },
+  },
+  setup(props) {
+    const host = ref<HTMLElement>();
+    let control: ReturnType<typeof mountTransitionMenu> | undefined;
+    const options = () => ({ mode: props.mode, value: props.value, onPaste: props.onPaste });
+    onMounted(() => { control = mountTransitionMenu(host.value!, options()); });
+    watchEffect(() => { const next = options(); control?.update(next); });
+    onUnmounted(() => control?.destroy());
+    return () => h('div', { ref: host });
+  },
+});
+
 export const TransitionControl = defineComponent({
   name: 'DialKitTransitionControl',
   props: {
@@ -132,6 +169,11 @@ export const TransitionControl = defineComponent({
       }
     };
 
+    const handlePaste = (copied: CopiedTransition) => {
+      DialStore.updateTransitionMode(props.panelId, props.path, copied.mode);
+      emit('change', copied.value);
+    };
+
     const handleSpringUpdate = (key: keyof SpringConfig, value: number) => {
       const current = spring();
       if (mode.value === 'simple') {
@@ -163,7 +205,13 @@ export const TransitionControl = defineComponent({
         })
         : null;
 
-      return h(Folder, { title: props.label, defaultOpen: true }, {
+      const current = isEasing ? currentEasing : currentSpring;
+
+      return h(Folder, {
+        title: props.label,
+        defaultOpen: true,
+        actions: () => h(TransitionMenu, { mode: mode.value, value: current, onPaste: handlePaste }),
+      }, {
         default: () => [
           h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } }, [
             isEasing
@@ -226,6 +274,11 @@ export const TransitionControl = defineComponent({
                   }),
                 ]),
             durationSlider,
+            h(Folder, { title: 'Presets', defaultOpen: false }, {
+              default: () => [
+                h(TransitionPresets, { mode: mode.value, value: current, onChange: (next: TransitionConfig) => emit('change', next) }),
+              ],
+            }),
           ]),
         ],
       });

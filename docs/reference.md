@@ -134,6 +134,19 @@ All three definitions open the same transition editor:
 
 Switching modes restores the previous edits for that mode while the editor remains mounted. The returned type is `TransitionConfig`, a union of `SpringConfig` and `EasingConfig`, because users can switch between them.
 
+The **Presets** folder has two tabs. **Defaults** lists named curves in Easing mode and named springs in Time and Physics; picking a curve keeps the duration. **Custom** lists the transitions saved with **Save current curve** or **Save current spring**, per mode. Saved transitions are shared by every transition control and stay in memory; when a panel [persists](#persistence) its presets, they are also kept in that panel's storage under `dialkit:transition-presets`. Read or change them from code:
+
+```ts
+DialStore.getTransitionPresets();                 // [{ id, name, mode, value }]
+DialStore.saveTransitionPreset(value, "easing");  // saved as "Custom 1", "Custom 2", …
+DialStore.deleteTransitionPreset(id);
+DialStore.subscribeTransitions(listener);
+```
+
+The **···** menu in a transition's header copies its value and mode. **Paste** appears in every transition control once something is copied, and applies both. `DialStore.copyTransition(value, mode)`, `getCopiedTransition()`, and `clearCopiedTransition()` drive the same clipboard from code.
+
+The built-in curves are the CSS easing keywords and the common cubic-bézier fits of Robert Penner's easing equations. The springs are React Spring's `default`, `gentle`, `wobbly`, and `stiff` configs.
+
 ### Actions and folders
 
 ```tsx
@@ -202,7 +215,7 @@ const values = useDialKit("Card", { radius: [24, 0, 64] }, {
 });
 ```
 
-`storage` defaults to `"localStorage"`; `presets` defaults to `true`. With `presets: false`, only values are persisted. Open state is retained in memory for stable IDs but is never written to storage.
+`storage` defaults to `"localStorage"`; `presets` defaults to `true`. With `presets: false`, only values are persisted. Saved transition presets are shared by every panel, so they are kept under `dialkit:transition-presets` in the storage of each panel that persists presets. Each of those storages keeps its own copy, so saving or deleting a transition updates the storages of the panels persisting presets at that moment. Open state is retained in memory for stable IDs but is never written to storage.
 
 The toolbar's **+** saves and selects a new version. Selecting **Version 1** restores the editable base values. The version menu can also delete saved versions. **Copy** places the values and a configuration-update instruction on the clipboard.
 
@@ -232,7 +245,7 @@ DialStore.getPanelOpen("card");
 | Slider | Arrows adjust one step; Shift + Arrow or Page Up/Down adjusts ten; Home/End goes to the bounds |
 | Numeric editor | Enter opens it from a slider; Enter commits, Escape cancels, Tab commits and advances |
 | XY pad | Arrows adjust axes; Shift + Arrow adjusts ten steps; Home resets; Escape cancels a drag |
-| Select or preset menu | Enter, Space, or Up/Down opens; arrows, Home/End, and typing navigate; Enter/Space selects; Escape closes |
+| Select, preset, or transition menu | Enter, Space, or Up/Down opens; arrows, Home/End, and typing navigate; Enter/Space selects; Escape closes |
 | Segmented control | Arrows select a segment; Home/End selects the first/last |
 | Color picker | Tab moves between controls; arrows adjust the focused control; Escape closes |
 | Image picker | Arrows move through images; Enter/Space selects; Escape closes |

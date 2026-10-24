@@ -18,6 +18,7 @@
     inline = false,
     onOpenChange,
     toolbar,
+    actions,
     panelHeightOffset = 0,
     children,
   } = $props<{
@@ -28,6 +29,8 @@
     inline?: boolean;
     onOpenChange?: (isOpen: boolean) => void;
     toolbar?: Snippet;
+    /** Buttons beside the title of a nested folder, such as a transition's menu. */
+    actions?: Snippet;
     panelHeightOffset?: number;
     children?: Snippet;
   }>();
@@ -240,6 +243,9 @@
           <path d={ICON_CHEVRON} />
         </svg>
       </div>
+      {#if actions && !isRoot}
+        <div class="dialkit-folder-actions">{@render actions()}</div>
+      {/if}
       {#if toolbar}
         <div class="dialkit-panel-section-toolbar-clip">
           <div class="dialkit-panel-section-toolbar" onclick={(e) => e.stopPropagation()}>{@render toolbar()}</div>

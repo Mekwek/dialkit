@@ -17,6 +17,12 @@ export const Folder = defineComponent({
       required: false,
       default: null,
     },
+    /** Buttons beside the title of a nested folder, such as a transition's menu. */
+    actions: {
+      type: null as unknown as PropType<(() => VNodeChild) | null>,
+      required: false,
+      default: null,
+    },
     panelHeightOffset: {
       type: Number,
       default: 0,
@@ -125,6 +131,9 @@ export const Folder = defineComponent({
           }, [h('path', { d: ICON_CHEVRON })])
           : null,
       ]),
+      props.actions && !props.isRoot
+        ? h('div', { class: 'dialkit-folder-actions' }, [props.actions()])
+        : null,
       props.toolbar && !props.isRoot
         ? h('div', { class: 'dialkit-panel-section-toolbar-clip' }, [
           h('div', { class: 'dialkit-panel-section-toolbar', onClick: (event: Event) => event.stopPropagation() }, [props.toolbar()]),

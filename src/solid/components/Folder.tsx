@@ -18,6 +18,8 @@ interface FolderProps {
   inline?: boolean;
   /** Optional panel actions that stay with the section title while scrolling. */
   toolbar?: JSX.Element;
+  /** Buttons beside the title of a nested folder, such as a transition's menu. */
+  actions?: JSX.Element;
   /** @deprecated Only meaningful with isRoot. */
   panelHeightOffset?: number;
 }
@@ -136,6 +138,9 @@ export function Folder(props: FolderProps) {
             <path d={ICON_CHEVRON} />
           </svg>
         </div>
+        <Show when={!props.isRoot && props.actions}>
+          {(actions) => <div class="dialkit-folder-actions">{actions()}</div>}
+        </Show>
         <Show when={props.toolbar}>
           <div class="dialkit-panel-section-toolbar-clip">
             <div class="dialkit-panel-section-toolbar" onClick={(e) => e.stopPropagation()}>{props.toolbar}</div>

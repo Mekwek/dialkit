@@ -14,6 +14,12 @@ describe('popover layout', () => {
     const small = getDropdownPosition(el(20, 60, 200, 36), el(0, 0, 0, 0), { dropdownHeight: 80 });
     assert.equal(small.above, false); assert.equal(small.top, 100);
   });
+  it('lines menus up with the end of an icon trigger within the visual viewport', () => {
+    globalThis.window = { innerWidth: 800, innerHeight: 600, visualViewport: { offsetTop: 0, offsetLeft: 100, width: 400, height: 600 } } as unknown as Window & typeof globalThis;
+    assert.equal(getDropdownPosition(el(380, 100, 20, 20), el(0, 0, 0, 0), { width: 160, align: 'end' }).left, 240);
+    // Near the viewport's start edge the menu stays inside it.
+    assert.equal(getDropdownPosition(el(110, 100, 20, 20), el(0, 0, 0, 0), { width: 160, align: 'end' }).left, 108);
+  });
   it('accounts for inline root coordinates, scroll offsets and the visual viewport', () => {
     globalThis.window = { innerWidth: 800, innerHeight: 600, visualViewport: { offsetTop: 100, offsetLeft: 0, width: 320, height: 260 } } as unknown as Window & typeof globalThis;
     const root = el(20, 50, 280, 300); root.scrollTop = 30;

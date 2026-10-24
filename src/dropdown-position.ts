@@ -11,6 +11,8 @@ export type DropdownPositionOptions = {
   gap?: number;
   allowAbove?: boolean;
   width?: number;
+  /** Which trigger edge the dropdown lines up with; defaults to the start. */
+  align?: 'start' | 'end';
   maxHeight?: number;
   preferSide?: boolean;
   fixed?: boolean;
@@ -36,7 +38,8 @@ export function getDropdownPosition(
   let maxHeight = Math.min(options.maxHeight ?? 320, above ? spaceAbove : spaceBelow);
   const height = Math.min(dropdownHeight, maxHeight);
   const width = Math.min(options.width ?? triggerRect.width, Math.max(0, viewportWidth - margin * 2));
-  let left = Math.max(viewportLeft + margin, Math.min(triggerRect.left, viewportLeft + viewportWidth - width - margin));
+  const anchor = options.align === 'end' ? triggerRect.right - width : triggerRect.left;
+  let left = Math.max(viewportLeft + margin, Math.min(anchor, viewportLeft + viewportWidth - width - margin));
   let top = Math.max(viewportTop + margin, above ? triggerRect.top - height - gap : triggerRect.bottom + gap);
 
   // Taller editors sit beside the panel so the full control remains visible.

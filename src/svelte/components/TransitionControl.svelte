@@ -1,12 +1,14 @@
 <script lang="ts">
   import { formatEase, parseEase } from '../../easing-geometry';
   import { DialStore } from 'dialkit/store';
-  import type { EasingConfig, SpringConfig, TransitionConfig } from 'dialkit/store';
+  import type { CopiedTransition, EasingConfig, SpringConfig, TransitionConfig } from 'dialkit/store';
   import Folder from './Folder.svelte';
   import Slider from './Slider.svelte';
   import SegmentedControl from './SegmentedControl.svelte';
   import SpringVisualization from './SpringVisualization.svelte';
   import EasingVisualization from './EasingVisualization.svelte';
+  import TransitionMenu from './TransitionMenu.svelte';
+  import TransitionPresets from './TransitionPresets.svelte';
 
   type CurveMode = 'easing' | 'simple' | 'advanced';
 
@@ -84,6 +86,11 @@
     }
   };
 
+  const handlePaste = (copied: CopiedTransition) => {
+    DialStore.updateTransitionMode(panelId, path, copied.mode);
+    onChange(copied.value);
+  };
+
   const handleSpringUpdate = (key: keyof SpringConfig, val: number) => {
     if (isSimpleSpring) {
       const { stiffness, damping, mass, ...rest } = spring;
@@ -106,7 +113,11 @@
   };
 </script>
 
-<Folder title={label} defaultOpen={true}>
+{#snippet menu()}
+  <TransitionMenu {mode} value={isEasing ? easing : spring} onPaste={handlePaste} />
+{/snippet}
+
+<Folder title={label} defaultOpen={true} actions={menu}>
   <div style="display: flex; flex-direction: column; gap: 6px;">
     {#if isEasing}
       <EasingVisualization {easing} onChange={(ease) => onChange({ ...easing, ease })} />
@@ -197,5 +208,9 @@
         unit="s"
       />
     {/if}
+
+    <Folder title="Presets" defaultOpen={false}>
+      <TransitionPresets {mode} value={isEasing ? easing : spring} {onChange} />
+    </Folder>
   </div>
 </Folder>

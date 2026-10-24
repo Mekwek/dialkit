@@ -13,10 +13,12 @@ interface FolderProps {
   inline?: boolean;
   onOpenChange?: (isOpen: boolean) => void;
   toolbar?: ReactNode;
+  /** Buttons beside the title of a nested folder, such as a transition's menu. */
+  actions?: ReactNode;
   panelHeightOffset?: number;
 }
 
-export function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, panelHeightOffset = 0 }: FolderProps) {
+export function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, actions, panelHeightOffset = 0 }: FolderProps) {
   const [localOpen, setIsOpen] = useState(defaultOpen);
   const isOpen = open ?? localOpen;
   const isCollapsed = !isOpen;
@@ -119,6 +121,10 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
             </motion.svg>
           )}
         </div>
+
+        {actions && !isRoot && (
+          <div className="dialkit-folder-actions">{actions}</div>
+        )}
 
         {isSection ? (
           <div className="dialkit-panel-section-toolbar-clip">

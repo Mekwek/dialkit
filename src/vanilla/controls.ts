@@ -13,6 +13,8 @@ export interface FolderProps {
   isRoot?: boolean;
   isSection?: boolean;
   inline?: boolean;
+  /** Adds a slot beside the title of a nested folder, such as a transition's menu. */
+  actions?: boolean;
   onOpenChange?: (open: boolean) => void;
 }
 export function mountFolder(host: HTMLElement, initial: FolderProps) {
@@ -31,6 +33,9 @@ export function mountFolder(host: HTMLElement, initial: FolderProps) {
   const toolbar = element('div', props.isRoot ? 'dialkit-panel-toolbar' : 'dialkit-panel-section-toolbar');
   toolbar.addEventListener('click', event => event.stopPropagation());
   header.append(top);
+  const actions = element('div', 'dialkit-folder-actions');
+  if (props.actions && !props.isRoot)
+    header.append(actions);
   if (props.isSection) {
     const toolbarClip = element('div', 'dialkit-panel-section-toolbar-clip');
     toolbarClip.append(toolbar);
@@ -134,7 +139,7 @@ export function mountFolder(host: HTMLElement, initial: FolderProps) {
   if (props.isSection) sectionTransition = createPanelSectionTransition(folder, open);
   const stopHeader = props.isRoot ? observePanelHeader(folder) : undefined;
   return {
-    element: node, body, toolbar, update(next: FolderProps) {
+    element: node, body, toolbar, actions, update(next: FolderProps) {
       props = next;
       open = next.open ?? open;
       render();
