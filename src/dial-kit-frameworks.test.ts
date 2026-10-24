@@ -20,10 +20,13 @@ const config = { group: {
   spring: { type: 'spring', visualDuration: 0.3, bounce: 0.2 },
   easing: { type: 'easing', duration: 0.5, ease: [0, 0, 1, 1] },
   run: { type: 'action' },
+  scale: { _fields: true, uniform: false, x: [1, 0.1, 3, 0.01], y: [1, 0.1, 3, 0.01] },
 } } satisfies DialConfig;
 const defaults = { position: { x: 0, y: 0 }, amount: 0.25, enabled: true, title: 'Example', choice: '',
-  accent: '#000000', cover: '', spring: config.group.spring, easing: config.group.easing, run: config.group.run };
-const updates = { position: { x: 0.75, y: -0.4 }, amount: 0.5, enabled: false, title: 'Changed', accent: '#ff0000', cover: '/cover.png' };
+  accent: '#000000', cover: '', spring: config.group.spring, easing: config.group.easing, run: config.group.run,
+  scale: { uniform: false, x: 1, y: 1 } };
+const updates = { position: { x: 0.75, y: -0.4 }, amount: 0.5, enabled: false, title: 'Changed', accent: '#ff0000', cover: '/cover.png',
+  scale: { uniform: true, x: 2, y: 1.5 } };
 const changed = { ...defaults, ...updates };
 
 describe('DialKit framework values', () => {

@@ -157,8 +157,11 @@ Define controls with an object. Keys become labels; returned values keep the sam
 | Easing | `motion: { type: "easing", duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }` | `TransitionConfig` |
 | Action | `replay: { type: "action" }` | Calls `onAction(path)` |
 | Folder | `shadow: { blur: [12, 0, 40] }` | Nested values |
+| Field row | `scale: { _fields: true, x: [1, 0, 3], y: [1, 0, 3] }` | Nested numbers |
 
 Slider tuples use `[default, min, max, step?]`. Add `_collapsed: true` inside a folder to start it closed. Folder metadata is omitted from returned values.
+
+Add `_fields: true` to a folder of two to four numbers to show them as one row of fields. Drag a field's label to scrub it, or click its value to type. A boolean in the same folder becomes a lock that scales the numbers together. Once a value changes, a reset appears beside the label.
 
 Spring and easing controls share an editor with **Easing**, **Time**, and **Physics** modes. Color controls accept hex, RGB, HSL, OKLCH, and Display P3. Image controls support local uploads up to 10 MB; files stay in the browser.
 
