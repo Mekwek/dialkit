@@ -21,6 +21,7 @@ export const Folder = defineComponent({
       type: Number,
       default: 0,
     },
+    hint: { type: String, required: false },
   },
   emits: ['openChange'],
   setup(props, { emit, slots }) {
@@ -90,7 +91,7 @@ export const Folder = defineComponent({
       class: `dialkit-folder-header ${props.isRoot ? 'dialkit-panel-header' : ''}`,
       onClick: handleToggle,
     }, [
-      h('div', { class: 'dialkit-folder-header-top', role: props.inline && props.isRoot ? undefined : 'button', tabindex: props.inline && props.isRoot ? undefined : 0, 'aria-label': props.title, 'aria-expanded': isOpen.value, onKeydown: (e: KeyboardEvent) => activateOnKey(e, handleToggle) }, [
+      h('div', { class: 'dialkit-folder-header-top', 'data-hint': props.hint, role: props.inline && props.isRoot ? undefined : 'button', tabindex: props.inline && props.isRoot ? undefined : 0, 'aria-label': props.title, 'aria-expanded': isOpen.value, onKeydown: (e: KeyboardEvent) => activateOnKey(e, handleToggle) }, [
         props.isRoot
           ? (isOpen.value
               ? h('div', { class: 'dialkit-folder-title-row' }, [

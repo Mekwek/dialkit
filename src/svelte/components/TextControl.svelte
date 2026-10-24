@@ -1,11 +1,12 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import { observeTextSize } from '../../text-autosize';
-  let { label, value, onChange, placeholder } = $props<{
+  let { label, value, onChange, placeholder, hint } = $props<{
     label: string;
     value: string;
     onChange: (value: string) => void;
     placeholder?: string;
+    hint?: string;
   }>();
 
   function autosize(input: HTMLTextAreaElement, _content: [string, string | undefined]) {
@@ -17,7 +18,7 @@
   }
 </script>
 
-<label class="dialkit-text-control">
+<label class="dialkit-text-control" data-hint={hint}>
   <span class="dialkit-text-label">{label}</span>
   <textarea
     use:autosize={[value, placeholder]}

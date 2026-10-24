@@ -4,6 +4,7 @@ export type DialPadProps = Omit<DialPadConfig, 'type'> & {
   label: string;
   value: DialPadValue;
   onChange: (value: DialPadValue) => void;
+  hint?: string;
 };
 
 let nextId = 0;
@@ -99,6 +100,8 @@ export function mountDialPad(host: HTMLElement, initial: DialPadProps) {
   function render() {
     label.textContent = props.label;
     label.title = props.label;
+    if (props.hint) root.dataset.hint = props.hint;
+    else delete root.dataset.hint;
     const names = { x: props.labels?.x ?? 'X', y: props.labels?.y ?? 'Y' };
     surface.setAttribute('aria-label', `${props.label}: ${names.x} ${value.x}, ${names.y} ${value.y}`);
     inputs.forEach(({ axis, name, input }) => {

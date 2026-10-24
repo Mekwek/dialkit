@@ -20,6 +20,7 @@ interface SliderProps {
   unit?: string;
   shortcut?: ShortcutConfig;
   shortcutActive?: boolean;
+  hint?: string;
 }
 
 const CLICK_THRESHOLD = 3;
@@ -365,7 +366,7 @@ export function Slider(props: SliderProps) {
   };
 
   return (
-    <div ref={wrapperRef} class="dialkit-slider-wrapper">
+    <div ref={wrapperRef} class="dialkit-slider-wrapper" data-hint={props.hint}>
       <div
         ref={trackRef}
         class={`dialkit-slider ${isActive() ? 'dialkit-slider-active' : ''}`}

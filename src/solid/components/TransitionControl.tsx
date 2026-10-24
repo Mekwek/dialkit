@@ -25,6 +25,7 @@ interface TransitionControlProps {
   onChange: (value: TransitionConfig) => void;
   hideDuration?: boolean;
   durationControl?: TransitionDurationControl;
+  hint?: string;
 }
 
 type CurveMode = 'easing' | 'simple' | 'advanced';
@@ -110,7 +111,7 @@ export function TransitionControl(props: TransitionControlProps) {
   };
 
   return (
-    <Folder title={props.label} defaultOpen={true}>
+    <Folder title={props.label} defaultOpen={true} hint={props.hint}>
       <div style={{ display: 'flex', 'flex-direction': 'column', gap: '6px' }}>
         <Show when={isEasing()} fallback={<SpringVisualization spring={spring()} isSimpleMode={isSimple()} />}>
           <EasingVisualization easing={easing()} onChange={(ease) => props.onChange({ ...easing(), ease })} />

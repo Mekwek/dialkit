@@ -3,16 +3,17 @@
   import type { ShortcutConfig } from 'dialkit/store';
   import { formatToggleShortcut } from '../../shortcut-utils';
 
-  let { label, checked, onChange, shortcut, shortcutActive = false } = $props<{
+  let { label, checked, onChange, shortcut, shortcutActive = false, hint } = $props<{
     label: string;
     checked: boolean;
     onChange: (checked: boolean) => void;
     shortcut?: ShortcutConfig;
     shortcutActive?: boolean;
+    hint?: string;
   }>();
 </script>
 
-<div class="dialkit-labeled-control">
+<div class="dialkit-labeled-control" data-hint={hint}>
   <span class="dialkit-labeled-control-label">
     {label}
     {#if shortcut}

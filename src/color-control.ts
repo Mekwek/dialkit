@@ -2,7 +2,7 @@ import { clamp, colorFormat, colorToRgb, fitGamut, formatColor, maxChroma, parse
 import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition } from './dropdown-position';
 import { handleSegmentKey } from './control-keyboard';
 
-export type ColorControlProps = { label: string; value: string; onChange: (value: string) => void };
+export type ColorControlProps = { label: string; value: string; onChange: (value: string) => void; hint?: string };
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {
   const el = document.createElement(tag);
@@ -40,6 +40,8 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
 
   const render = () => {
     label.textContent = props.label;
+    if (props.hint) row.dataset.hint = props.hint;
+    else delete row.dataset.hint;
     valueInput.setAttribute('aria-label', `${props.label} color value`);
     if (document.activeElement !== valueInput) valueInput.value = props.value;
     valueInput.title = props.value;

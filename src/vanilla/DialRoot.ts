@@ -3,6 +3,7 @@ import { TimelineStore } from '../store/TimelineStore';
 import { TimelineUiStore } from '../store/TimelineUiStore';
 import { blockPanelDragClick, capturePanelPointer, releasePanelPointer, getPanelCorner, getPanelDragHandle, getPanelDragOffset, getPanelDragStart, getPanelOriginX, getPanelOriginY, hasPanelDragMoved, type PanelDragStart, type PanelDragOffset } from '../panel-drag';
 import { buildCopyInstruction } from '../copy-instruction';
+import { HintStore, hasHints, mountHints } from '../hints';
 import { ICON_CLIPBOARD_PLAIN, ICON_CHECK } from '../icons';
 import { mountControlRenderer } from './ControlRenderer';
 import { mountFolder } from './controls';
@@ -124,14 +125,27 @@ export function createDialRoot(options: DialRootOptions = {}) {
       timelineToggle(toolbar);
     const rendererProps = () => ({ panelId: panel.id, controls: DialStore.getPanel(panel.id)?.controls ?? [], values: DialStore.getValues(panel.id) });
     const renderer = mountControlRenderer(folder.body, rendererProps());
+    const tip = element('p', 'dialkit-hint-tip');
+    tip.append('Hold ', element('kbd', 'dialkit-hint-tip-key', 'H'), ' over a control to see what it does.');
+    const renderTip = () => {
+      if (!HintStore.isTipSeen() && hasHints(DialStore.getPanel(panel.id)?.controls ?? []))
+        folder.body.append(tip);
+      else
+        tip.remove();
+    };
+    renderTip();
     const update = () => {
       folder.update(folderProps());
       renderer.update(rendererProps());
+      renderTip();
     };
     const stop = DialStore.subscribe(panel.id, update);
+    const stopHints = HintStore.subscribe(renderTip);
     children.push({
       destroy() {
         stop();
+        stopHints();
+        tip.remove();
         toolbarView.destroy();
         renderer.destroy();
         folder.destroy();
@@ -204,6 +218,7 @@ export function createDialRoot(options: DialRootOptions = {}) {
   if (options.productionEnabled !== false)
     (options.target ?? document.body).append(root);
   const shortcuts = options.productionEnabled !== false ? mountShortcutListener() : undefined;
+  const hints = options.productionEnabled !== false ? mountHints(root) : undefined;
   const stopGlobal = options.productionEnabled !== false ? DialStore.subscribeGlobal(render) : () => {
   };
   const stopTimelines = options.productionEnabled !== false ? TimelineStore.subscribeGlobal(render) : () => {
@@ -238,6 +253,7 @@ export function createDialRoot(options: DialRootOptions = {}) {
       stopTimelines();
       stopOpen();
       shortcuts?.destroy();
+      hints?.destroy();
       children.forEach(child => child.destroy());
       root.remove();
     }

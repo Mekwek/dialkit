@@ -20,6 +20,7 @@ export const Slider = defineComponent({
     unit: { type: String, required: false },
     shortcut: { type: Object as PropType<ShortcutConfig>, default: undefined },
     shortcutActive: { type: Boolean, default: false },
+    hint: { type: String, required: false },
   },
   emits: ['change'],
   setup(props, { emit }) {
@@ -365,7 +366,7 @@ export const Slider = defineComponent({
       unsubHandleScaleY?.();
     });
 
-    return () => h('div', { ref: wrapperRef, class: 'dialkit-slider-wrapper' }, [
+    return () => h('div', { ref: wrapperRef, class: 'dialkit-slider-wrapper', 'data-hint': props.hint }, [
       h('div', {
         ref: trackRef,
         class: `dialkit-slider ${isActive.value ? 'dialkit-slider-active' : ''}`,

@@ -13,6 +13,7 @@ interface SelectControlProps {
   value: string;
   options: SelectOption[];
   onChange: (value: string) => void;
+  hint?: string;
 }
 
 function toTitleCase(s: string): string {
@@ -25,7 +26,7 @@ function normalizeOptions(options: SelectOption[]): { value: string; label: stri
   );
 }
 
-export function SelectControl({ label, value, options, onChange }: SelectControlProps) {
+export function SelectControl({ label, value, options, onChange, hint }: SelectControlProps) {
   const [isOpen, setIsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -75,7 +76,7 @@ export function SelectControl({ label, value, options, onChange }: SelectControl
   }, [isOpen]);
 
   return (
-    <div className="dialkit-select-row">
+    <div className="dialkit-select-row" data-hint={hint}>
       <button
         ref={triggerRef}
         className="dialkit-select-trigger"

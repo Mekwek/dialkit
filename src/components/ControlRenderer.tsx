@@ -41,6 +41,7 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration 
           <Slider
             key={control.path}
             label={control.label}
+            hint={control.hint}
             value={value as number}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
             min={control.min}
@@ -56,6 +57,7 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration 
           <Toggle
             key={control.path}
             label={control.label}
+            hint={control.hint}
             checked={value as boolean}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
             shortcut={control.shortcut}
@@ -70,6 +72,7 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration 
             panelId={panelId}
             path={control.path}
             label={control.label}
+            hint={control.hint}
             spring={value as SpringConfig}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
           />
@@ -82,6 +85,7 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration 
             panelId={panelId}
             path={control.path}
             label={control.label}
+            hint={control.hint}
             value={value as TransitionConfig}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
             durationControl={transitionDuration}
@@ -90,7 +94,7 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration 
 
       case 'folder':
         return (
-          <Folder key={control.path} title={control.label} defaultOpen={control.defaultOpen ?? true}>
+          <Folder key={control.path} title={control.label} defaultOpen={control.defaultOpen ?? true} hint={control.hint}>
             {control.children?.map(renderControl)}
           </Folder>
         );
@@ -100,6 +104,7 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration 
           <TextControl
             key={control.path}
             label={control.label}
+            hint={control.hint}
             value={value as string}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
             placeholder={control.placeholder}
@@ -111,6 +116,7 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration 
           <SelectControl
             key={control.path}
             label={control.label}
+            hint={control.hint}
             value={value as string}
             options={control.options ?? []}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
@@ -122,6 +128,7 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration 
           <ColorControl
             key={control.path}
             label={control.label}
+            hint={control.hint}
             value={value as string}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
           />
@@ -133,6 +140,7 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration 
             key={control.path}
             options={control.options}
             label={control.label}
+            hint={control.hint}
             value={value as string}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
           />
@@ -143,6 +151,7 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration 
           <DialPad
             key={control.path}
             label={control.label}
+            hint={control.hint}
             value={value as DialPadValue}
             x={control.pad?.x}
             y={control.pad?.y}
@@ -156,6 +165,7 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration 
           <button
             key={control.path}
             className="dialkit-button"
+            data-hint={control.hint}
             onClick={() => DialStore.triggerAction(panelId, control.path)}
           >
             {control.label}

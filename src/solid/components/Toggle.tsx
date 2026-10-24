@@ -9,11 +9,12 @@ interface ToggleProps {
   onChange: (checked: boolean) => void;
   shortcut?: ShortcutConfig;
   shortcutActive?: boolean;
+  hint?: string;
 }
 
 export function Toggle(props: ToggleProps) {
   return (
-    <div class="dialkit-labeled-control">
+    <div class="dialkit-labeled-control" data-hint={props.hint}>
       <span class="dialkit-labeled-control-label">
         {props.label}
         <Show when={props.shortcut}>

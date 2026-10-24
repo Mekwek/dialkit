@@ -20,6 +20,7 @@
     toolbar,
     panelHeightOffset = 0,
     children,
+    hint,
   } = $props<{
     title: string;
     defaultOpen?: boolean;
@@ -30,6 +31,7 @@
     toolbar?: Snippet;
     panelHeightOffset?: number;
     children?: Snippet;
+    hint?: string;
   }>();
 
   const initiallyOpen = untrack(() => open ?? defaultOpen);
@@ -222,7 +224,7 @@
 {:else}
   <div bind:this={sectionRef} class:dialkit-folder-section={!!toolbar} class="dialkit-folder" data-open={String(isOpen)}>
     <div class="dialkit-folder-header" onclick={handleToggle}>
-      <div class="dialkit-folder-header-top" role="button" tabindex="0" aria-label={title} aria-expanded={isOpen} onkeydown={(e) => activateOnKey(e, handleToggle)}>
+      <div class="dialkit-folder-header-top" data-hint={hint} role="button" tabindex="0" aria-label={title} aria-expanded={isOpen} onkeydown={(e) => activateOnKey(e, handleToggle)}>
         <div class="dialkit-folder-title-row">
           <span class="dialkit-folder-title">{title}</span>
         </div>

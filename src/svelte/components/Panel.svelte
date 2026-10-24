@@ -7,6 +7,7 @@
   import Folder from './Folder.svelte';
   import PresetManager from './PresetManager.svelte';
   import ControlRenderer from './ControlRenderer.svelte';
+  import { HintStore, hasHints } from '../../hints';
   import { ICON_CLIPBOARD_PLAIN, ICON_CHECK } from '../../icons';
 
   let { panel, defaultOpen = true, inline = false, onOpenChange, variant = 'root', toolbarExtra } = $props<{
@@ -25,6 +26,7 @@
   let values = $state<Record<string, DialValue>>(DialStore.getValues(panel.id));
   let presets = $state<Preset[]>(DialStore.getPresets(panel.id));
   let activePresetId = $state<string | null>(DialStore.getActivePresetId(panel.id));
+  let hintTipSeen = $state(true);
 
   const copyScale = new Spring(1, { stiffness: 0.25, damping: 0.7 });
   const clipboardOpacity = new Spring(1, { stiffness: 0.25, damping: 0.7 });
@@ -47,6 +49,13 @@
       unsub();
       if (copyTimeout) clearTimeout(copyTimeout);
     };
+  });
+
+  $effect(() => {
+    hintTipSeen = HintStore.isTipSeen();
+    return HintStore.subscribe(() => {
+      hintTipSeen = HintStore.isTipSeen();
+    });
   });
 
   $effect(() => {
@@ -135,6 +144,11 @@
   {#each panel.controls as control (control.path)}
     <ControlRenderer panelId={panel.id} {control} {values} />
   {/each}
+  {#if !hintTipSeen && hasHints(panel.controls)}
+    <p class="dialkit-hint-tip">
+      Hold <kbd class="dialkit-hint-tip-key">H</kbd> over a control to see what it does.
+    </p>
+  {/if}
 {/snippet}
 
 {#if variant === 'section'}

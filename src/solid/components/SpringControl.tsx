@@ -12,6 +12,7 @@ interface SpringControlProps {
   label: string;
   spring: SpringConfig;
   onChange: (spring: SpringConfig) => void;
+  hint?: string;
 }
 
 export function SpringControl(props: SpringControlProps) {
@@ -58,7 +59,7 @@ export function SpringControl(props: SpringControlProps) {
   };
 
   return (
-    <Folder title={props.label} defaultOpen={true}>
+    <Folder title={props.label} defaultOpen={true} hint={props.hint}>
       <div style={{ display: 'flex', 'flex-direction': 'column', gap: '6px' }}>
         <SpringVisualization spring={props.spring} isSimpleMode={isSimpleMode()} />
 

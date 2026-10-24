@@ -14,6 +14,7 @@ interface SliderProps {
   unit?: string;
   shortcut?: ShortcutConfig;
   shortcutActive?: boolean;
+  hint?: string;
 }
 
 const CLICK_THRESHOLD = 3;
@@ -31,6 +32,7 @@ export function Slider({
   unit,
   shortcut,
   shortcutActive,
+  hint,
 }: SliderProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -375,7 +377,7 @@ export function Slider({
       });
 
   return (
-    <div ref={wrapperRef} className="dialkit-slider-wrapper">
+    <div ref={wrapperRef} className="dialkit-slider-wrapper" data-hint={hint}>
       <motion.div
         ref={trackRef}
         className={`dialkit-slider ${isActive ? 'dialkit-slider-active' : ''}`}

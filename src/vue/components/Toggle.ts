@@ -10,10 +10,11 @@ export const Toggle = defineComponent({
     checked: { type: Boolean, required: true },
     shortcut: { type: Object as PropType<ShortcutConfig>, default: undefined },
     shortcutActive: { type: Boolean, default: false },
+    hint: { type: String, required: false },
   },
   emits: ['change'],
   setup(props, { emit }) {
-    return () => h('div', { class: 'dialkit-labeled-control' }, [
+    return () => h('div', { class: 'dialkit-labeled-control', 'data-hint': props.hint }, [
       h('span', { class: 'dialkit-labeled-control-label' }, [
         props.label,
         props.shortcut

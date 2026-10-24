@@ -35,6 +35,7 @@
 {#if control.type === 'slider'}
   <Slider
     label={control.label}
+    hint={control.hint}
     value={controlValue as number}
     onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
     min={control.min}
@@ -46,6 +47,7 @@
 {:else if control.type === 'toggle'}
   <Toggle
     label={control.label}
+    hint={control.hint}
     checked={controlValue as boolean}
     onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
     shortcut={control.shortcut}
@@ -56,6 +58,7 @@
     {panelId}
     path={control.path}
     label={control.label}
+    hint={control.hint}
     spring={controlValue as SpringConfig}
     onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
   />
@@ -64,12 +67,13 @@
     {panelId}
     path={control.path}
     label={control.label}
+    hint={control.hint}
     value={controlValue as TransitionConfig}
     onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
     durationControl={transitionDuration}
   />
 {:else if control.type === 'folder'}
-  <Folder title={control.label} defaultOpen={control.defaultOpen ?? true}>
+  <Folder title={control.label} defaultOpen={control.defaultOpen ?? true} hint={control.hint}>
     {#each control.children ?? [] as child (child.path)}
       <ControlRenderer {panelId} control={child} {values} {transitionDuration} />
     {/each}
@@ -77,6 +81,7 @@
 {:else if control.type === 'text'}
   <TextControl
     label={control.label}
+    hint={control.hint}
     value={controlValue as string}
     onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
     placeholder={control.placeholder}
@@ -84,6 +89,7 @@
 {:else if control.type === 'select'}
   <SelectControl
     label={control.label}
+    hint={control.hint}
     value={controlValue as string}
     options={control.options ?? []}
     onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
@@ -91,6 +97,7 @@
 {:else if control.type === 'color'}
   <ColorControl
     label={control.label}
+    hint={control.hint}
     value={controlValue as string}
     onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
   />
@@ -98,12 +105,14 @@
   <ImageControl
     options={control.options}
     label={control.label}
+    hint={control.hint}
     value={controlValue as string}
     onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
   />
 {:else if control.type === 'pad'}
   <DialPad
     label={control.label}
+    hint={control.hint}
     value={controlValue as DialPadValue}
     x={control.pad?.x}
     y={control.pad?.y}
@@ -111,7 +120,7 @@
     onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
   />
 {:else if control.type === 'action'}
-  <button class="dialkit-button" onclick={() => DialStore.triggerAction(panelId, control.path)}>
+  <button class="dialkit-button" data-hint={control.hint} onclick={() => DialStore.triggerAction(panelId, control.path)}>
     {control.label}
   </button>
 {/if}

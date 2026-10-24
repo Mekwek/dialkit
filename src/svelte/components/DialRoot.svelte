@@ -4,6 +4,7 @@
   import type { PanelConfig } from 'dialkit/store';
   import { TimelineStore } from 'dialkit/timeline';
   import type { TimelineMeta } from 'dialkit/timeline';
+  import { mountHints } from '../../hints';
   import { themeCSS } from '../theme-css';
   import Portal from '../Portal.svelte';
   import Folder from './Folder.svelte';
@@ -52,6 +53,7 @@
   let panels = $state<PanelConfig[]>([]);
   let timelines = $state<TimelineMeta[]>([]);
   let mounted = $state(false);
+  let rootRef = $state<HTMLDivElement>();
   let panelRef = $state<HTMLDivElement>();
   let dragOffset = $state<PanelDragOffset | null>(null);
   let activePosition = $state<DialPosition>(position);
@@ -106,6 +108,12 @@
       unsubscribeTimelines();
       unsubscribeOpen();
     };
+  });
+
+  $effect(() => {
+    if (!rootRef) return;
+    const hints = mountHints(rootRef);
+    return () => hints.destroy();
   });
 
   $effect(() => {
@@ -216,7 +224,7 @@
 {#if productionEnabled && mounted && (panels.length > 0 || timelines.length > 0)}
   {#snippet content()}
     <ShortcutListener>
-      <div class="dialkit-root" data-mode={mode} data-theme={theme}>
+      <div bind:this={rootRef} class="dialkit-root" data-mode={mode} data-theme={theme}>
         <div
           bind:this={panelRef}
           class="dialkit-panel"

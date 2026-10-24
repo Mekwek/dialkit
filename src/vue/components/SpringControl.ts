@@ -16,6 +16,7 @@ export const SpringControl = defineComponent({
       type: Object as PropType<SpringConfig>,
       required: true,
     },
+    hint: { type: String, required: false },
   },
   emits: ['change'],
   setup(props, { emit }) {
@@ -65,7 +66,7 @@ export const SpringControl = defineComponent({
       }
     };
 
-    return () => h(Folder, { title: props.label, defaultOpen: true }, {
+    return () => h(Folder, { title: props.label, defaultOpen: true, hint: props.hint }, {
       default: () => [
         h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } }, [
           h(SpringVisualization, { spring: props.spring, isSimpleMode: isSimpleMode() }),

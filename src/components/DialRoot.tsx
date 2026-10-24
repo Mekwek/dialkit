@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { DialStore, PanelConfig } from '../store/DialStore';
 import { TimelineStore } from '../store/TimelineStore';
 import { isDevDefault } from '../env';
+import { mountHints } from '../hints';
 import { Folder } from './Folder';
 import { Panel } from './Panel';
 import { ShortcutListener } from './ShortcutListener';
@@ -29,6 +30,8 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
   const [mounted, setMounted] = useState(false);
   const inline = mode === 'inline';
   const [shellOpen, setShellOpen] = useState(inline || defaultOpen);
+
+  const rootRef = useRef<HTMLDivElement>(null);
 
   // Drag state
   const panelRef = useRef<HTMLDivElement>(null);
@@ -169,6 +172,14 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
     else if (panels.length === 1) handlePanelOpenChange(id, open);
   }), [panels, handleRootOpenChange, handlePanelOpenChange]);
 
+  const visible = mounted && (panels.length > 0 || timelineCount > 0);
+
+  useEffect(() => {
+    if (!visible || !rootRef.current) return;
+    const hints = mountHints(rootRef.current);
+    return () => hints.destroy();
+  }, [visible, inline]);
+
   // Don't render on server
   if (!mounted || typeof window === 'undefined') {
     return null;
@@ -192,7 +203,7 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
 
   const content = (
   <ShortcutListener>
-    <div className="dialkit-root" data-mode={mode} data-theme={theme}>
+    <div ref={rootRef} className="dialkit-root" data-mode={mode} data-theme={theme}>
       <div
         ref={panelRef}
         className="dialkit-panel"

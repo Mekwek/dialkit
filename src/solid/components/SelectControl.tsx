@@ -14,6 +14,7 @@ interface SelectControlProps {
   value: string;
   options: SelectOption[];
   onChange: (value: string) => void;
+  hint?: string;
 }
 
 function toTitleCase(s: string): string {
@@ -100,7 +101,7 @@ export function SelectControl(props: SelectControlProps) {
   };
 
   return (
-    <div class="dialkit-select-row">
+    <div class="dialkit-select-row" data-hint={props.hint}>
       <button
         ref={triggerRef}
         class="dialkit-select-trigger"

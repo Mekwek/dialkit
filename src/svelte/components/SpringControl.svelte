@@ -6,12 +6,13 @@
   import SegmentedControl from './SegmentedControl.svelte';
   import SpringVisualization from './SpringVisualization.svelte';
 
-  let { panelId, path, label, spring, onChange } = $props<{
+  let { panelId, path, label, spring, onChange, hint } = $props<{
     panelId: string;
     path: string;
     label: string;
     spring: SpringConfig;
     onChange: (spring: SpringConfig) => void;
+    hint?: string;
   }>();
 
   let mode = $state<'simple' | 'advanced'>(DialStore.getSpringMode(panelId, path));
@@ -62,7 +63,7 @@
   };
 </script>
 
-<Folder title={label} defaultOpen={true}>
+<Folder title={label} defaultOpen={true} {hint}>
   <div style="display: flex; flex-direction: column; gap: 6px;">
     <SpringVisualization {spring} isSimpleMode={isSimpleMode} />
 

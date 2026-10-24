@@ -23,6 +23,7 @@ interface TransitionControlProps {
     max?: number;
     step?: number;
   };
+  hint?: string;
 }
 
 type CurveMode = 'easing' | 'simple' | 'advanced';
@@ -35,6 +36,7 @@ export function TransitionControl({
   onChange,
   hideDuration = false,
   durationControl,
+  hint,
 }: TransitionControlProps) {
   const subscribe = useCallback(
     (callback: () => void) => DialStore.subscribe(panelId, callback),
@@ -110,7 +112,7 @@ export function TransitionControl({
   ) : null;
 
   return (
-    <Folder title={label} defaultOpen={true}>
+    <Folder title={label} defaultOpen={true} hint={hint}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {isEasing ? (
           <EasingVisualization easing={easing} onChange={(ease) => onChange({ ...easing, ease })} />

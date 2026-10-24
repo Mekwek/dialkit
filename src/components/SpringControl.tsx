@@ -11,9 +11,10 @@ interface SpringControlProps {
   label: string;
   spring: SpringConfig;
   onChange: (spring: SpringConfig) => void;
+  hint?: string;
 }
 
-export function SpringControl({ panelId, path, label, spring, onChange }: SpringControlProps) {
+export function SpringControl({ panelId, path, label, spring, onChange, hint }: SpringControlProps) {
   const subscribe = useCallback(
     (callback: () => void) => DialStore.subscribe(panelId, callback),
     [panelId]
@@ -64,7 +65,7 @@ export function SpringControl({ panelId, path, label, spring, onChange }: Spring
   };
 
   return (
-    <Folder title={label} defaultOpen={true}>
+    <Folder title={label} defaultOpen={true} hint={hint}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <SpringVisualization spring={spring} isSimpleMode={isSimpleMode} />
 

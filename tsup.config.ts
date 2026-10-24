@@ -50,6 +50,7 @@ export default defineConfig([
       'dropdown-keyboard': 'src/dropdown-keyboard.ts',
       'text-autosize': 'src/text-autosize.ts',
       'shortcut-utils': 'src/shortcut-utils.ts',
+      hints: 'src/hints.ts',
     },
     format: ['esm'],
     dts: true,

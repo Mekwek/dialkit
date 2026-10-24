@@ -20,6 +20,7 @@ interface FolderProps {
   toolbar?: JSX.Element;
   /** @deprecated Only meaningful with isRoot. */
   panelHeightOffset?: number;
+  hint?: string;
 }
 
 const sectionTransition = { type: 'spring' as const, visualDuration: 0.35, bounce: 0.1 };
@@ -117,7 +118,7 @@ export function Folder(props: FolderProps) {
   return (
     <div ref={folderRef} class={`dialkit-folder${props.toolbar ? ' dialkit-folder-section' : ''}`} data-open={String(isOpen())}>
       <div class="dialkit-folder-header" onClick={handleToggle}>
-        <div class="dialkit-folder-header-top" role={false ? undefined : "button"} tabIndex={false ? undefined : 0} aria-label={props.title} aria-expanded={isOpen()} onKeyDown={(e) => activateOnKey(e, handleToggle)}>
+        <div class="dialkit-folder-header-top" data-hint={props.hint} role={false ? undefined : "button"} tabIndex={false ? undefined : 0} aria-label={props.title} aria-expanded={isOpen()} onKeyDown={(e) => activateOnKey(e, handleToggle)}>
           <div class="dialkit-folder-title-row">
             <span class="dialkit-folder-title">{props.title}</span>
           </div>

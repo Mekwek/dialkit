@@ -2,6 +2,7 @@ import { createSignal, createEffect, onMount, onCleanup, Show, For } from 'solid
 import { Portal } from 'solid-js/web';
 import { DialStore } from '../../store/DialStore';
 import { TimelineStore } from '../../store/TimelineStore';
+import { mountHints } from '../../hints';
 import { fromStore } from '../primitives';
 import { ShortcutListener } from './ShortcutListener';
 import { RootPanel } from './RootPanel';
@@ -208,6 +209,11 @@ function DialRootInner(props: DialRootProps) {
       : undefined;
   };
 
+  const mountRootHints = (root: HTMLDivElement) => {
+    const hints = mountHints(root);
+    onCleanup(() => hints.destroy());
+  };
+
   const timelineToggle = () => (
     <Show when={timelines().length > 0}>
       <TimelineToggleButton />
@@ -216,7 +222,7 @@ function DialRootInner(props: DialRootProps) {
 
   const content = () => (
     <ShortcutListener>
-      <div class="dialkit-root" data-mode={props.mode ?? 'popover'} data-theme={props.theme ?? 'system'}>
+      <div ref={mountRootHints} class="dialkit-root" data-mode={props.mode ?? 'popover'} data-theme={props.theme ?? 'system'}>
         <div
           ref={panelRef}
           class="dialkit-panel"

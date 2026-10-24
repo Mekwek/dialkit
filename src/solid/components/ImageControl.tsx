@@ -6,7 +6,7 @@ export function ImageControl(props: ImageControlProps) {
   let control: ReturnType<typeof mountImageControl> | undefined;
   onMount(() => {
     control = mountImageControl(host, { ...props });
-    createEffect(() => control?.update({ label: props.label, value: props.value, options: props.options, onChange: props.onChange }));
+    createEffect(() => control?.update({ label: props.label, value: props.value, options: props.options, onChange: props.onChange, hint: props.hint }));
   });
   onCleanup(() => control?.destroy());
   return <div ref={host} class="dialkit-image-host" />;

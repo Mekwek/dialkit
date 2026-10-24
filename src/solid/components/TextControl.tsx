@@ -6,6 +6,7 @@ interface TextControlProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  hint?: string;
 }
 
 export function TextControl(props: TextControlProps) {
@@ -17,7 +18,7 @@ export function TextControl(props: TextControlProps) {
   createEffect(() => { props.value; props.placeholder; size?.update(); });
 
   return (
-    <div class="dialkit-text-control">
+    <div class="dialkit-text-control" data-hint={props.hint}>
       <label class="dialkit-text-label" for={inputId}>{props.label}</label>
       <textarea
         ref={inputRef}

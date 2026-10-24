@@ -82,6 +82,7 @@ export const TransitionControl = defineComponent({
     },
     hideDuration: { type: Boolean, default: false },
     durationControl: Object as PropType<TransitionDurationControl>,
+    hint: { type: String, required: false },
   },
   emits: ['change'],
   setup(props, { emit }) {
@@ -163,7 +164,7 @@ export const TransitionControl = defineComponent({
         })
         : null;
 
-      return h(Folder, { title: props.label, defaultOpen: true }, {
+      return h(Folder, { title: props.label, defaultOpen: true, hint: props.hint }, {
         default: () => [
           h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } }, [
             isEasing

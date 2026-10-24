@@ -41,6 +41,10 @@
   --dial-shadow-collapsed: 0 4px 16px rgba(0, 0, 0, 0.25);
   --dial-shadow-dropdown: 0 8px 24px rgba(0, 0, 0, 0.4);
 
+  /* Hints */
+  --dial-hint-max-width: 240px;
+  --dial-hint-dim: 0.35; /* Opacity of the rest of the panel while a hint shows */
+
   /* Fonts */
   font-family: system-ui, -apple-system, 'SF Pro Display', sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -1755,6 +1759,80 @@
   padding: 6px 8px 2px;
   border-top: 1px solid var(--dial-border);
   margin-top: 4px;
+}
+
+/* Hints: hold the hint key over a control to read what it does. */
+.dialkit-hint {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 10000;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: var(--dial-hint-max-width);
+  padding: 6px 8px;
+  border: 1px solid var(--dial-border);
+  border-radius: var(--dial-radius);
+  background: var(--dial-dropdown-bg);
+  box-shadow: var(--dial-shadow-dropdown);
+  color: var(--dial-text-primary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  scale: 0.96;
+  transform-origin: left bottom;
+  transition: opacity 0.12s ease, scale 0.12s ease, visibility 0s 0.12s;
+}
+
+.dialkit-hint[data-below] {
+  transform-origin: left top;
+}
+
+.dialkit-hint[data-open] {
+  opacity: 1;
+  visibility: visible;
+  scale: 1;
+  transition: opacity 0.12s ease, scale 0.12s ease, transform 0.15s ease;
+}
+
+/* Everything but the hinted row and the focused control fades back. */
+.dialkit-root[data-hinting] :is(.dialkit-folder-header, .dialkit-folder-inner > :not(.dialkit-folder)):not([data-hint-shown], :focus-visible, :has([data-hint-shown], :focus-visible)) {
+  opacity: var(--dial-hint-dim);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .dialkit-root[data-hinting] :is(.dialkit-folder-header, .dialkit-folder-inner > :not(.dialkit-folder)) {
+    animation: dialkit-hint-dim 0.15s ease;
+  }
+}
+
+@keyframes dialkit-hint-dim { from { opacity: 1; } }
+
+.dialkit-hint-tip {
+  margin: 0;
+  padding: 4px 2px 0;
+  color: var(--dial-text-tertiary);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.dialkit-hint-tip-key {
+  display: inline-block;
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--dial-surface-subtle);
+  color: var(--dial-text-secondary);
+  font: inherit;
+  font-weight: 600;
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialkit-hint, .dialkit-hint[data-open] { scale: none; transition: none; }
 }
 
 /* ── Light Theme ── */

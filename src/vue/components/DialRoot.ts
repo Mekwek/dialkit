@@ -1,8 +1,9 @@
-import { computed, defineComponent, h, nextTick, onMounted, onUnmounted, ref, Teleport } from 'vue';
+import { computed, defineComponent, h, nextTick, onMounted, onUnmounted, ref, Teleport, watch } from 'vue';
 import { DialStore } from '../../store/DialStore';
 import type { PanelConfig } from '../../store/DialStore';
 import { TimelineStore } from '../../store/TimelineStore';
 import type { TimelineMeta } from '../../store/TimelineStore';
+import { mountHints } from '../../hints';
 import { Folder } from './Folder';
 import { Panel } from './Panel';
 import { ShortcutListener } from './ShortcutListener';
@@ -63,6 +64,7 @@ export const DialRoot = defineComponent({
     const panels = ref<PanelConfig[]>([]);
     const timelines = ref<TimelineMeta[]>([]);
     const mounted = ref(false);
+    const rootRef = ref<HTMLDivElement | null>(null);
     const panelRef = ref<HTMLDivElement | null>(null);
     const dragOffset = ref<PanelDragOffset | null>(null);
     const activePosition = ref<DialPosition>(props.position);
@@ -207,11 +209,18 @@ export const DialRoot = defineComponent({
       nextTick(connectObserver);
     });
 
+    let hints: ReturnType<typeof mountHints> | undefined;
+    watch(rootRef, (root) => {
+      hints?.destroy();
+      hints = root ? mountHints(root) : undefined;
+    }, { flush: 'post' });
+
     onUnmounted(() => {
       unsubscribePanels?.();
       unsubscribeTimelines?.();
       unsubscribeOpen?.();
       observer?.disconnect();
+      hints?.destroy();
     });
 
     const timelineToggle = () => timelines.value.length > 0 ? h(TimelineToggleButton) : null;
@@ -261,7 +270,7 @@ export const DialRoot = defineComponent({
     };
 
     const renderContent = () => h(ShortcutListener, null, {
-      default: () => h('div', { class: 'dialkit-root', 'data-mode': props.mode, 'data-theme': props.theme }, [
+      default: () => h('div', { ref: rootRef, class: 'dialkit-root', 'data-mode': props.mode, 'data-theme': props.theme }, [
         h('div', {
           ref: (el) => {
             panelRef.value = el as HTMLDivElement | null;

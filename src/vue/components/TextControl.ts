@@ -9,6 +9,7 @@ export const TextControl = defineComponent({
     label: { type: String, required: true },
     value: { type: String, required: true },
     placeholder: { type: String, required: false },
+    hint: { type: String, required: false },
   },
   emits: ['change'],
   setup(props, { emit }) {
@@ -19,7 +20,7 @@ export const TextControl = defineComponent({
     onUnmounted(() => size?.destroy());
     watch(() => [props.value, props.placeholder], () => size?.update(), { flush: 'post' });
 
-    return () => h('div', { class: 'dialkit-text-control' }, [
+    return () => h('div', { class: 'dialkit-text-control', 'data-hint': props.hint }, [
       h('label', { class: 'dialkit-text-label', for: inputId.value }, props.label),
       h('textarea', {
         ref: inputRef,

@@ -1,10 +1,11 @@
 import { buildCopyInstruction } from '../../copy-instruction';
-import { batch, createSignal, createEffect, on, onMount, onCleanup, type JSX } from 'solid-js';
+import { batch, createSignal, createEffect, on, onMount, onCleanup, Show, type JSX } from 'solid-js';
 import { animate } from 'motion';
 import { ICON_CLIPBOARD_PLAIN, ICON_CHECK } from '../../icons';
 import { DialStore } from '../../store/DialStore';
 import type { PanelConfig, DialValue } from '../../store/DialStore';
-import type { AnimationHandle } from '../primitives';
+import { HintStore, hasHints } from '../../hints';
+import { fromStore, type AnimationHandle } from '../primitives';
 import { Folder } from './Folder';
 import { RootPanel } from './RootPanel';
 import { ControlRenderer } from './ControlRenderer';
@@ -30,6 +31,7 @@ export function Panel(props: PanelProps) {
   // The store owns open/collapsed state so it can be driven programmatically.
   const [storeOpen, setStoreOpen] = createSignal(DialStore.getPanelOpen(props.panel.id));
   const isOpen = () => storeOpen() ?? props.defaultOpen ?? true;
+  const hintTipSeen = fromStore(() => HintStore.isTipSeen(), (notify) => HintStore.subscribe(notify));
   let copyButtonRef!: HTMLButtonElement;
   let copyClipboardIconRef!: HTMLSpanElement;
   let copyCheckIconRef!: HTMLSpanElement;
@@ -151,10 +153,19 @@ export function Panel(props: PanelProps) {
     </>
   );
 
+  const hintTip = () => (
+    <Show when={!hintTipSeen() && hasHints(props.panel.controls)}>
+      <p class="dialkit-hint-tip">
+        Hold <kbd class="dialkit-hint-tip-key">H</kbd> over a control to see what it does.
+      </p>
+    </Show>
+  );
+
   if (props.variant === 'section') {
     return (
       <Folder title={props.panel.name} open={isOpen()} onOpenChange={handleOpenChange} toolbar={toolbar}>
         <ControlRenderer panelId={props.panel.id} controls={props.panel.controls} values={values()} />
+        {hintTip()}
       </Folder>
     );
   }
@@ -163,6 +174,7 @@ export function Panel(props: PanelProps) {
     <div class="dialkit-panel-wrapper">
       <RootPanel title={props.panel.name} open={isOpen()} inline={props.inline ?? false} onOpenChange={handleOpenChange} toolbar={toolbar}>
         <ControlRenderer panelId={props.panel.id} controls={props.panel.controls} values={values()} />
+        {hintTip()}
       </RootPanel>
     </div>
   );

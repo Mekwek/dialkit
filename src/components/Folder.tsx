@@ -14,9 +14,10 @@ interface FolderProps {
   onOpenChange?: (isOpen: boolean) => void;
   toolbar?: ReactNode;
   panelHeightOffset?: number;
+  hint?: string;
 }
 
-export function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, panelHeightOffset = 0 }: FolderProps) {
+export function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, panelHeightOffset = 0, hint }: FolderProps) {
   const [localOpen, setIsOpen] = useState(defaultOpen);
   const isOpen = open ?? localOpen;
   const isCollapsed = !isOpen;
@@ -72,7 +73,7 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
       data-open={String(isOpen)}
     >
       <div className={`dialkit-folder-header ${isRoot ? 'dialkit-panel-header' : ''}`} onClick={handleToggle}>
-        <div className="dialkit-folder-header-top" role={inline && isRoot ? undefined : "button"} tabIndex={inline && isRoot ? undefined : 0} aria-label={title} aria-expanded={isOpen} onKeyDown={(e) => activateOnKey(e, handleToggle)}>
+        <div className="dialkit-folder-header-top" data-hint={hint} role={inline && isRoot ? undefined : "button"} tabIndex={inline && isRoot ? undefined : 0} aria-label={title} aria-expanded={isOpen} onKeyDown={(e) => activateOnKey(e, handleToggle)}>
           {isRoot ? (
             isOpen && (
               <div className="dialkit-folder-title-row">

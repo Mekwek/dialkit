@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'motion-v';
 import { ICON_CHECK, ICON_CLIPBOARD_PLAIN } from '../../icons';
 import { DialStore } from '../../store/DialStore';
 import type { DialValue, PanelConfig } from '../../store/DialStore';
+import { HintStore, hasHints } from '../../hints';
 import { Folder } from './Folder';
 import { ControlRenderer } from './ControlRenderer';
 import { PresetManager } from './PresetManager';
@@ -38,8 +39,10 @@ export const Panel = defineComponent({
     const storeOpen = ref<boolean | undefined>(DialStore.getPanelOpen(props.panel.id));
     // The store owns open/collapsed state so it can be driven programmatically.
     const isOpen = computed(() => storeOpen.value ?? props.defaultOpen);
+    const hintTipSeen = ref(true);
 
     let unsubscribe: (() => void) | undefined;
+    let unsubscribeHints: (() => void) | undefined;
     let copiedTimeout: ReturnType<typeof window.setTimeout> | null = null;
 
     onMounted(() => {
@@ -50,10 +53,15 @@ export const Panel = defineComponent({
         storeOpen.value = DialStore.getPanelOpen(props.panel.id);
       });
       DialStore.initPanelOpen(props.panel.id, props.defaultOpen);
+      hintTipSeen.value = HintStore.isTipSeen();
+      unsubscribeHints = HintStore.subscribe(() => {
+        hintTipSeen.value = HintStore.isTipSeen();
+      });
     });
 
     onUnmounted(() => {
       unsubscribe?.();
+      unsubscribeHints?.();
       if (copiedTimeout) {
         window.clearTimeout(copiedTimeout);
       }
@@ -147,6 +155,14 @@ export const Panel = defineComponent({
         props.toolbarExtra?.(),
       ]);
 
+      const hintTip = !hintTipSeen.value && hasHints(props.panel.controls)
+        ? h('p', { class: 'dialkit-hint-tip' }, [
+          'Hold ',
+          h('kbd', { class: 'dialkit-hint-tip-key' }, 'H'),
+          ' over a control to see what it does.',
+        ])
+        : null;
+
       if (props.variant === 'section') {
         return h(Folder, {
           title: props.panel.name,
@@ -156,6 +172,7 @@ export const Panel = defineComponent({
         }, {
           default: () => [
             h(ControlRenderer, { panelId: props.panel.id, controls: props.panel.controls, values: values.value }),
+            hintTip,
           ],
         });
       }
@@ -169,7 +186,10 @@ export const Panel = defineComponent({
           toolbar: () => toolbarNode,
           onOpenChange: handleOpenChange,
         }, {
-          default: () => h(ControlRenderer, { panelId: props.panel.id, controls: props.panel.controls, values: values.value }),
+          default: () => [
+            h(ControlRenderer, { panelId: props.panel.id, controls: props.panel.controls, values: values.value }),
+            hintTip,
+          ],
         }),
       ]);
     };

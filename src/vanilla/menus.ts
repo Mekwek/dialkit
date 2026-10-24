@@ -75,6 +75,7 @@ export interface SelectControlProps {
     label: string;
   })[];
   onChange: (value: string) => void;
+  hint?: string;
 }
 export function mountSelectControl(host: HTMLElement, initial: SelectControlProps): Mounted<SelectControlProps> {
   let props = initial;
@@ -101,6 +102,10 @@ export function mountSelectControl(host: HTMLElement, initial: SelectControlProp
   });
   function render() {
     label.textContent = props.label;
+    if (props.hint)
+      row.dataset.hint = props.hint;
+    else
+      delete row.dataset.hint;
     value.textContent = options().find(o => o.value === props.value)?.label ?? props.value;
     trigger.disabled = !props.options.length;
     menu.refresh();

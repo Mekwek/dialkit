@@ -7,6 +7,7 @@ export type ImageControlProps = {
   value: string;
   options?: ImageOption[];
   onChange: (value: string) => void;
+  hint?: string;
 };
 
 type NamedImage = { value: string; label: string };
@@ -111,6 +112,8 @@ export function mountImageControl(host: HTMLElement, initial: ImageControlProps,
   const choices = () => imageOptions(props.options, uploaded, props.value);
   const render = () => {
     label.textContent = props.label;
+    if (props.hint) trigger.dataset.hint = props.hint;
+    else delete trigger.dataset.hint;
     name.textContent = choices().find(item => item.value === props.value)?.label ?? 'No image';
     trigger.setAttribute('aria-label', `Choose ${props.label.toLowerCase()} image: ${name.textContent}`);
     thumbnail.update(props.value);
