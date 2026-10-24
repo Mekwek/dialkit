@@ -1,7 +1,7 @@
 /** Dependency-free CSS color math. Matrices use the CSS Color 4 D65 reference white.
  * https://www.w3.org/TR/css-color-4/#color-conversion-code */
 export type Color = { l: number; c: number; h: number; a: number };
-export type ColorFormat = 'hex' | 'oklch' | 'p3';
+export type ColorFormat = 'hex' | 'rgb' | 'hsl' | 'oklch' | 'p3';
 type Triple = [number, number, number];
 export const clamp = (n: number, min = 0, max = 1) => Math.max(min, Math.min(max, n));
 export const wrapHue = (h: number) => ((h % 360) + 360) % 360;
@@ -57,17 +57,85 @@ export function maxChroma(l: number, h: number, space: 'srgb' | 'p3' = 'srgb'): 
 }
 
 export function colorFormat(value: string): ColorFormat {
-  return /^oklch\(/i.test(value.trim()) ? 'oklch' : /^color\(display-p3\s/i.test(value.trim()) ? 'p3' : 'hex';
+  const text = value.trim();
+  return /^oklch\(/i.test(text) ? 'oklch' : /^color\(display-p3\s/i.test(text) ? 'p3'
+    : /^rgba?\(/i.test(text) ? 'rgb' : /^hsla?\(/i.test(text) ? 'hsl' : 'hex';
 }
+/** The RGB gamut a format can express. OKLCH is unbounded; its picker field shows P3. */
+export const formatGamut = (format: ColorFormat): 'srgb' | 'p3' => format === 'oklch' || format === 'p3' ? 'p3' : 'srgb';
 const round = (v: number, digits = 4) => Number(v.toFixed(digits));
 export function formatColor(color: Color, format: ColorFormat): string {
   const alpha = color.a < 1 ? ` / ${round(color.a)}` : '';
   if (format === 'oklch') return `oklch(${round(color.l)} ${round(color.c)} ${round(color.h, 2)}${alpha})`;
-  const rgb = colorToRgb(fitGamut(color, format === 'p3' ? 'p3' : 'srgb'), format === 'p3' ? 'p3' : 'srgb');
+  if (format === 'hsl') {
+    const [h, s, l] = colorChannels(color, 'hsl');
+    return `hsl(${round(h, 2)} ${round(s, 2)}% ${round(l, 2)}%${alpha})`;
+  }
+  const rgb = colorToRgb(fitGamut(color, formatGamut(format)), formatGamut(format));
   if (format === 'p3') return `color(display-p3 ${rgb.map(n => round(clamp(n), 5)).join(' ')}${alpha})`;
   const bytes = rgb.map(n => Math.round(clamp(n) * 255));
+  if (format === 'rgb') return `rgb(${bytes.join(' ')}${alpha})`;
   if (color.a < 1) bytes.push(Math.round(color.a * 255));
   return '#' + bytes.map(n => n.toString(16).padStart(2, '0')).join('');
+}
+
+export type ColorChannel = { name: string; label: string; max: number; step: number; digits: number; wrap?: boolean };
+const hueChannel = (digits: number): ColorChannel => ({ name: 'H', label: 'Hue', max: 360, step: 1, digits, wrap: true });
+const rgbChannels = (max: number, step: number, digits: number) => ['Red', 'Green', 'Blue'].map(label => ({ name: label[0], label, max, step, digits }));
+/** The editable channels of each format, in the units its CSS uses. Ranges start at 0; hues wrap; OKLCH chroma has no upper bound. */
+export const COLOR_CHANNELS: Record<Exclude<ColorFormat, 'hex'>, ColorChannel[]> = {
+  rgb: rgbChannels(255, 1, 0),
+  hsl: [hueChannel(0), { name: 'S', label: 'Saturation', max: 100, step: 1, digits: 0 }, { name: 'L', label: 'Lightness', max: 100, step: 1, digits: 0 }],
+  oklch: [{ name: 'L', label: 'Lightness', max: 1, step: 0.01, digits: 3 }, { name: 'C', label: 'Chroma', max: Infinity, step: 0.005, digits: 3 }, hueChannel(1)],
+  p3: rgbChannels(1, 0.01, 3),
+};
+export const clampChannel = (channel: ColorChannel, n: number) => channel.wrap ? wrapHue(n) : clamp(n, 0, channel.max);
+
+/** A color's channel values in a format, gamut-fitted for the bounded ones. */
+export function colorChannels(color: Color, format: Exclude<ColorFormat, 'hex'>): number[] {
+  if (format === 'oklch') return [color.l, color.c, color.h];
+  const rgb = colorToRgb(fitGamut(color, formatGamut(format)), formatGamut(format)).map(n => clamp(n));
+  if (format === 'p3') return rgb;
+  if (format === 'rgb') return rgb.map(n => n * 255);
+  const [r, g, b] = rgb;
+  const max = Math.max(r, g, b), d = max - Math.min(r, g, b), l = max - d / 2;
+  if (d < 1e-6) return [color.h ? grayHslHue(color.h) : 0, 0, l * 100];
+  const h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [wrapHue(h * 60), Math.min(100, d / (1 - Math.abs(2 * l - 1)) * 100), l * 100];
+}
+
+/** The color of a format's channel values, each clamped to its range. */
+export function channelsToColor(values: number[], format: Exclude<ColorFormat, 'hex'>, a = 1): Color {
+  const [x, y, z] = values.map((n, i) => clampChannel(COLOR_CHANNELS[format][i], n));
+  if (format === 'oklch') return { l: x, c: y, h: z, a: clamp(a) };
+  if (format === 'hsl') return hslToColor(x, y / 100, z / 100, a);
+  return format === 'rgb' ? rgbToColor([x / 255, y / 255, z / 255], a) : rgbToColor([x, y, z], a, 'p3');
+}
+
+function hslToRgb(h: number, s: number, l: number): Triple {
+  const a = s * Math.min(l, 1 - l);
+  const f = (n: number) => { const k = (n + h / 30) % 12; return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)); };
+  return [f(0), f(8), f(4)];
+}
+
+// A gray has no RGB hue, but its HSL text does. It keeps the OKLCH hue of that HSL
+// hue at half saturation and lightness, where the mapping is one-to-one (at full
+// saturation, a few blues share one OKLCH hue), so editing saturation does not jump to red.
+const grayHue = (h: number) => rgbToColor(hslToRgb(h, 0.5, 0.5)).h;
+/** The inverse of grayHue, by bisection: it increases from grayHue(0) around the circle. */
+function grayHslHue(h: number): number {
+  const offset = grayHue(0), target = wrapHue(h - offset);
+  let lo = 0, hi = 360;
+  for (let i = 0; i < 20; i++) {
+    const mid = (lo + hi) / 2;
+    if (wrapHue(grayHue(mid) - offset) < target) lo = mid;
+    else hi = mid;
+  }
+  return lo;
+}
+function hslToColor(h: number, s: number, l: number, a: number): Color {
+  const color = rgbToColor(hslToRgb(h, s, l), a);
+  return color.c ? color : { ...color, h: grayHue(h) };
 }
 
 const NUMBER = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?(%|deg|grad|rad|turn)?$/i;
@@ -121,10 +189,7 @@ export function parseColor(value: string): Color | null {
     const s = number(channels[1]);
     const l = number(channels[2]);
     if (h === null || s === null || l === null || !channels[1].endsWith('%') || !channels[2].endsWith('%')) return null;
-    const sat = clamp(s), light = clamp(l);
-    const a = sat * Math.min(light, 1 - light);
-    const f = (n: number) => { const k = (n + wrapHue(h) / 30) % 12; return light - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)); };
-    return rgbToColor([f(0), f(8), f(4)], alpha);
+    return hslToColor(wrapHue(h), clamp(s), clamp(l), alpha);
   }
   const values = channels.map(c => number(c, p3 ? 1 : 255));
   if (values.some(n => n === null)) return null;

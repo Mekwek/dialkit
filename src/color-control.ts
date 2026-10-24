@@ -1,8 +1,17 @@
-import { clamp, colorFormat, colorToRgb, fitGamut, formatColor, maxChroma, parseColor, type Color } from './color';
+import {
+  channelsToColor, clamp, clampChannel, COLOR_CHANNELS, colorChannels, colorFormat, colorToRgb, fitGamut, formatColor, formatGamut, maxChroma, parseColor,
+  type Color, type ColorChannel, type ColorFormat,
+} from './color';
 import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition } from './dropdown-position';
 import { handleSegmentKey } from './control-keyboard';
 
 export type ColorControlProps = { label: string; value: string; onChange: (value: string) => void };
+
+const FORMATS: { format: ColorFormat; label: string; ariaLabel?: string }[] = [
+  { format: 'hex', label: 'Hex' }, { format: 'rgb', label: 'RGB' }, { format: 'hsl', label: 'HSL' }, { format: 'oklch', label: 'OKLCH' }, { format: 'p3', label: 'P3', ariaLabel: 'Display P3' },
+];
+const OPACITY: ColorChannel = { name: '%', label: 'Opacity', max: 100, step: 1, digits: 0 };
+type EyeDropperConstructor = new () => { open: (options?: { signal?: AbortSignal }) => Promise<{ sRGBHex: string }> };
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {
   const el = document.createElement(tag);
@@ -10,6 +19,30 @@ function element<K extends keyof HTMLElementTagNameMap>(tag: K, className: strin
   if (text) el.textContent = text;
   if (el instanceof HTMLButtonElement) el.type = 'button';
   return el;
+}
+
+function eyedropperIcon() {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.5');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('aria-hidden', 'true');
+  const path = document.createElementNS(svg.namespaceURI, 'path');
+  path.setAttribute('d', 'm2 22 1-1h3l9-9M3 21v-3l9-9m3-3 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4Z');
+  svg.append(path);
+  return svg;
+}
+
+function textInput(className: string, label: string) {
+  const input = element('input', className);
+  input.type = 'text';
+  input.spellcheck = false;
+  input.autocomplete = 'off';
+  input.setAttribute('aria-label', label);
+  return input;
 }
 
 /** One interaction/rendering implementation shared by the four framework adapters. */
@@ -22,6 +55,7 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
   let popup: HTMLDivElement | undefined;
   let stopPosition: (() => void) | undefined;
   let paintFrame = 0;
+  let eyedropperAbort: AbortController | undefined;
   let updatePicker = () => {};
   const row = element('div', 'dialkit-color-control');
   const label = element('span', 'dialkit-color-label');
@@ -49,8 +83,8 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
   };
   const commit = (next: Color, nextFormat = format) => {
     format = nextFormat;
-    // Hex and P3 are bounded output spaces. Keep the handle on the emitted color.
-    color = format === 'oklch' ? next : fitGamut(next, format === 'p3' ? 'p3' : 'srgb');
+    // Every format but OKLCH is a bounded output space. Keep the handle on the emitted color.
+    color = format === 'oklch' ? next : fitGamut(next, formatGamut(format));
     const value = formatColor(color, format);
     lastEmitted = value;
     props = { ...props, value };
@@ -91,6 +125,8 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
     stopPosition?.();
     stopPosition = undefined;
     cancelAnimationFrame(paintFrame);
+    eyedropperAbort?.abort();
+    eyedropperAbort = undefined;
     popup?.remove();
     popup = undefined;
     updatePicker = () => {};
@@ -127,13 +163,13 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
     marker.setAttribute('aria-hidden', 'true');
     plane.append(canvas, marker);
     const tracks = element('div', 'dialkit-color-tracks');
+    // The strips show what they change, so they take the whole row.
     function track(name: string, max: number, step: number, className: string) {
       const line = element('label', 'dialkit-color-track-row');
-      const nameEl = element('span', '', name);
       const input = element('input', `dialkit-color-track ${className}`);
       input.type = 'range'; input.min = '0'; input.max = String(max); input.step = String(step);
       input.setAttribute('aria-label', name);
-      line.append(nameEl, input); tracks.append(line);
+      line.append(input); tracks.append(line);
       return input;
     }
     const hue = track('Hue', 360, 0.1, 'dialkit-color-hue');
@@ -154,24 +190,182 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
     const formatPill = element('div', 'dialkit-segmented-pill');
     formatPill.setAttribute('aria-hidden', 'true');
     formats.append(formatPill);
-    const formatButtons = (['hex', 'oklch', 'p3'] as const).map(f => {
-      const button = element('button', 'dialkit-segmented-button dialkit-color-format', f === 'p3' ? 'Display P3' : f === 'hex' ? 'Hex' : 'OKLCH');
+    const formatButtons = FORMATS.map(({ format: f, label, ariaLabel }) => {
+      const button = element('button', 'dialkit-segmented-button dialkit-color-format', label);
       button.type = 'button';
       button.setAttribute('role', 'radio');
+      if (ariaLabel) button.setAttribute('aria-label', ariaLabel);
       button.addEventListener('click', () => commit(color, f));
       formats.append(button);
       return button;
     });
-    const output = element('input', 'dialkit-color-css-input');
-    output.type = 'text'; output.spellcheck = false;
-    output.setAttribute('aria-label', 'CSS color');
-    output.addEventListener('change', () => acceptText(output));
-    output.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); acceptText(output); } });
+
+    // One field per channel of the format, then opacity. Type a value, step it
+    // with the arrow keys, or drag the channel's letter (or the %).
+    const fieldsRow = element('div', 'dialkit-color-fields-row');
+    const fields = element('div', 'dialkit-color-fields');
+    const EyeDropper = (window as Window & { EyeDropper?: EyeDropperConstructor }).EyeDropper;
+    if (EyeDropper) {
+      const eyedropper = element('button', 'dialkit-color-eyedropper');
+      eyedropper.setAttribute('aria-label', 'Pick a color from the screen');
+      eyedropper.title = 'Pick a color from the screen';
+      eyedropper.append(eyedropperIcon());
+      eyedropper.addEventListener('click', async () => {
+        eyedropperAbort?.abort();
+        const abort = eyedropperAbort = new AbortController();
+        try {
+          const picked = parseColor((await new EyeDropper().open({ signal: abort.signal })).sRGBHex);
+          // Screen pixels are opaque; keep the opacity already set.
+          if (picked && !abort.signal.aborted) commit({ ...picked, a: color.a });
+        } catch { /* Dismissed, or the picker closed */ }
+        if (eyedropperAbort === abort) eyedropperAbort = undefined;
+      });
+      fieldsRow.append(eyedropper);
+    }
+    fieldsRow.append(fields);
+    let fieldsFormat: ColorFormat | undefined;
+    let syncFields: (() => void)[] = [];
+    // Channel values as last typed: a round trip through the color would lose
+    // them where they stop mattering (the saturation of black in HSL).
+    let typed: { key: string; values: number[] } | undefined;
+    const channelKey = () => formatColor({ ...color, a: 1 }, format);
+    const channelValues = (f: Exclude<ColorFormat, 'hex'>) => typed?.key === channelKey() ? typed.values : colorChannels(color, f);
+
+    const scrub = (grip: HTMLElement, channel: ColorChannel, read: () => number, write: (n: number) => void) => {
+      let drag: { id: number; x: number; start: number } | undefined;
+      let moved = false;
+      grip.addEventListener('pointerdown', e => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        drag = { id: e.pointerId, x: e.clientX, start: read() };
+        moved = false;
+        grip.setPointerCapture(e.pointerId);
+      });
+      grip.addEventListener('pointermove', e => {
+        if (e.pointerId !== drag?.id) return;
+        const dx = e.clientX - drag.x;
+        if (!moved && Math.abs(dx) < 3) return;
+        moved = true;
+        write(drag.start + dx * channel.step * (e.shiftKey ? 10 : 1));
+      });
+      const end = (e: PointerEvent) => { if (e.pointerId === drag?.id) drag = undefined; };
+      grip.addEventListener('pointerup', end);
+      grip.addEventListener('lostpointercapture', end);
+      // A press without a drag still focuses the field through its label.
+      grip.addEventListener('click', e => { if (moved) e.preventDefault(); });
+    };
+    /** A text field in its label: Enter or leaving commits, Escape restores. */
+    const textField = (label: string, text: () => string, accept: (text: string) => boolean) => {
+      const cell = element('label', 'dialkit-color-field');
+      const input = textInput('dialkit-color-field-input', label);
+      cell.append(input);
+      input.addEventListener('focus', () => input.select());
+      let shown = '';
+      const show = () => { input.value = shown = text(); input.removeAttribute('aria-invalid'); };
+      const commitText = () => { if (accept(input.value.trim())) show(); else input.setAttribute('aria-invalid', 'true'); };
+      input.addEventListener('change', commitText);
+      input.addEventListener('blur', () => { if (input.getAttribute('aria-invalid')) show(); });
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); commitText(); }
+        // Escape restores a changed draft first; a second Escape closes the picker.
+        if (e.key === 'Escape' && input.value !== text()) { e.preventDefault(); e.stopPropagation(); show(); }
+      });
+      // A focused field follows outside changes too, unless it holds a draft,
+      // and keeps its text selected so the next key replaces the value.
+      const sync = () => {
+        const focused = document.activeElement === input;
+        if (focused && input.value !== shown) return;
+        const all = input.selectionStart === 0 && input.selectionEnd === input.value.length;
+        show();
+        if (focused && all) input.select();
+      };
+      return { cell, input, show, sync };
+    };
+    const numberField = (channel: ColorChannel, label: string, read: () => number, write: (n: number) => void) => {
+      const number = (text: string) => text ? Number(text.replace(/%$/, '')) : NaN;
+      const set = (n: number) => {
+        const next = clampChannel(channel, Number(n.toFixed(channel.digits)));
+        if (next !== Number(read().toFixed(channel.digits))) write(next);
+        field.show();
+      };
+      const field = textField(label, () => read().toFixed(channel.digits), text => {
+        const n = number(text);
+        if (Number.isFinite(n)) set(n);
+        return Number.isFinite(n);
+      });
+      // The same spin button as the pad's X and Y fields.
+      field.input.setAttribute('role', 'spinbutton');
+      field.input.inputMode = 'decimal';
+      field.input.setAttribute('aria-valuemin', '0');
+      if (Number.isFinite(channel.max)) field.input.setAttribute('aria-valuemax', String(channel.max));
+      field.input.addEventListener('keydown', e => {
+        if (!['ArrowUp', 'ArrowDown'].includes(e.key) || e.altKey || e.metaKey || e.ctrlKey) return;
+        e.preventDefault();
+        const draft = number(field.input.value.trim());
+        set((Number.isFinite(draft) ? draft : read()) + (e.key === 'ArrowUp' ? 1 : -1) * channel.step * (e.shiftKey ? 10 : 1));
+      });
+      const name = element('span', 'dialkit-color-field-name', channel.name);
+      name.setAttribute('aria-hidden', 'true');
+      scrub(name, channel, read, set);
+      field.cell.dataset.channel = channel.label.toLowerCase();
+      if (channel === OPACITY) field.cell.append(name);
+      else field.cell.prepend(name);
+      return { ...field, sync: () => { field.input.setAttribute('aria-valuenow', read().toFixed(channel.digits)); field.sync(); } };
+    };
+    const hexField = () => {
+      const field = textField('Hex color', () => formatColor({ ...color, a: 1 }, 'hex'), text => {
+        const hex = text.replace(/^#?/, '#');
+        if (/^#[\da-f]+$/i.test(hex)) {
+          const parsed = parseColor(hex);
+          if (!parsed) return false;
+          // Three or six digits keep the opacity already set; four or eight carry their own.
+          const next = { ...parsed, a: hex.length === 5 || hex.length === 9 ? parsed.a : color.a };
+          if (formatColor(next, 'hex') !== formatColor(color, 'hex')) commit(next);
+          return true;
+        }
+        // Any other CSS color switches to its format, as the row's field does.
+        const parsed = parseColor(text);
+        if (parsed) commit(parsed, colorFormat(text));
+        return !!parsed;
+      });
+      field.cell.dataset.channel = 'hex';
+      return field;
+    };
+    const opacityField = numberField(OPACITY, 'Opacity value', () => color.a * 100, n => commit({ ...color, a: n / 100 }));
+    fields.append(opacityField.cell);
+    let channelFields: { cell: HTMLElement; input: HTMLInputElement }[] = [];
+    const buildFields = () => {
+      const f = format;
+      const mode = FORMATS.find(({ format }) => format === f)!;
+      const channels = f === 'hex' ? [hexField()] : COLOR_CHANNELS[f].map((channel, i) => numberField(channel, `${mode.ariaLabel ?? mode.label} ${channel.label}`, () => channelValues(f)[i], n => {
+        const values = channelValues(f).slice();
+        values[i] = n;
+        const converted = channelsToColor(values, f, color.a);
+        // A gray keeps the field's hue; HSL's carries its own.
+        const next = f === 'oklch' || f === 'hsl' || converted.c > 1e-7 ? converted : { ...converted, h: color.h };
+        typed = { key: formatColor({ ...next, a: 1 }, f), values };
+        commit(next);
+      }));
+      fieldsFormat = f;
+      syncFields = [...channels, opacityField].map(field => field.sync);
+      // A mode change can come from a focused field (a pasted color) or from
+      // outside; the field at the same place keeps the focus.
+      const focused = channelFields.findIndex(field => field.input === document.activeElement);
+      channelFields.forEach(field => field.cell.remove());
+      opacityField.cell.before(...channels.map(field => field.cell));
+      channelFields = channels;
+      if (focused >= 0) {
+        // Shown before the focus, so the focus selects its text.
+        const field = channels[focused] ?? channels[0];
+        field.show();
+        field.input.focus({ preventScroll: true });
+      }
+    };
     let lastHue = -1;
     let lastSpace = '';
     let lastHueTrack = '';
     let saturation = 0;
-    const planeSpace = () => format === 'hex' ? 'srgb' : 'p3';
+    const planeSpace = () => formatGamut(format);
     const ctx = canvas.getContext('2d', { colorSpace: 'display-p3' });
     const canvasSpace = ctx?.getContextAttributes?.().colorSpace === 'display-p3' ? 'p3' : 'srgb';
     const paint = () => {
@@ -221,14 +415,14 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
       opacity.style.setProperty('--dial-color-thumb', formatColor(color, 'oklch'));
       opacity.style.setProperty('--dial-color-opaque', formatColor({ ...color, a: 1 }, 'oklch'));
       formatButtons.forEach((button, i) => {
-        const active = (['hex', 'oklch', 'p3'] as const)[i] === format;
+        const active = FORMATS[i].format === format;
         button.setAttribute('aria-checked', String(active));
         button.tabIndex = active ? 0 : -1;
         button.dataset.active = String(active);
         if (active) formatPill.style.transform = `translateX(${i * 100}%)`;
       });
-      if (document.activeElement !== output) { output.value = props.value; output.removeAttribute('aria-invalid'); }
-      output.title = props.value;
+      if (fieldsFormat !== format) buildFields();
+      syncFields.forEach(sync => sync());
       cancelAnimationFrame(paintFrame);
       paintFrame = requestAnimationFrame(paint);
     };
@@ -260,14 +454,14 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
       if (e.key === 'Escape') { e.preventDefault(); close(true); }
       if (e.key === 'Tab') {
         const first = formatButtons.find(button => button.tabIndex === 0);
-        if ((e.shiftKey && document.activeElement === first) || (!e.shiftKey && document.activeElement === output)) {
+        if ((e.shiftKey && document.activeElement === first) || (!e.shiftKey && document.activeElement === opacityField.input)) {
           swatch.focus({ preventScroll: true });
           close();
         }
       }
       e.stopPropagation();
     });
-    popup.append(formatRow, plane, tracks, output);
+    popup.append(formatRow, plane, tracks, fieldsRow);
     root.append(popup);
     const updatePosition = () => {
       if (!popup) return;
@@ -291,7 +485,7 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
     update(next: ColorControlProps) {
       const parsed = parseColor(next.value);
       if (parsed && next.value !== lastEmitted && next.value !== props.value) {
-        color = { ...parsed, h: parsed.c < 1e-7 ? color.h : parsed.h };
+        color = { ...parsed, h: parsed.c < 1e-7 && colorFormat(next.value) !== 'hsl' ? color.h : parsed.h };
         format = colorFormat(next.value);
       }
       props = next;

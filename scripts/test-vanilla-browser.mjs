@@ -33,10 +33,24 @@ try {
   await page.keyboard.press('ArrowRight');
   assert.equal((await values()).position.x, .01);
   await page.getByRole('button', { name: 'Pick accent color' }).click();
-  await page.getByRole('textbox', { name: 'CSS color', exact: true }).fill('oklch(0.65 0.18 285 / 0.6)');
+  await page.getByRole('radio', { name: 'RGB', exact: true }).click();
+  assert.equal((await values()).accent, 'rgb(167 139 250)');
+  await page.getByRole('spinbutton', { name: 'RGB Green', exact: true }).fill('100');
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('Shift+ArrowUp');
+  assert.equal((await values()).accent, 'rgb(167 111 250)');
+  // A pasted color switches the mode; the focus stays in the picker.
+  await page.getByRole('radio', { name: 'Hex', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Hex color', exact: true }).fill('rgb(10 20 30)');
+  await page.keyboard.press('Enter');
+  assert.equal((await values()).accent, 'rgb(10 20 30)');
+  assert.ok(await page.evaluate(() => !!document.activeElement?.closest('.dialkit-color-popover')));
+  await page.keyboard.press('Escape');
+  assert.equal(await page.getByRole('dialog', { name: 'Accent color picker' }).count(), 0);
+  await page.getByRole('textbox', { name: 'Accent color value', exact: true }).fill('oklch(0.65 0.18 285 / 0.6)');
   await page.keyboard.press('Enter');
   assert.equal((await values()).accent, 'oklch(0.65 0.18 285 / 0.6)');
-  await page.keyboard.press('Escape');
   await page.getByRole('button', { name: /^Choose cover image/ }).click();
   await page.getByRole('button', { name: 'Coral', exact: true }).click();
   assert.ok((await values()).cover.startsWith('data:image/'));
