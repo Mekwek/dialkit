@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { decimalsForStep, roundValue } from './numeric';
+import { decimalsForStep, isWordUnit, roundValue } from './numeric';
 import { applySliderDelta } from './shortcut-utils';
 import { DialStore } from './store/DialStore';
 
@@ -39,5 +39,16 @@ describe('slider numeric values', () => {
       assert.equal(DialStore.getValue(id, 'offset'), 0.98);
       assert.equal(DialStore.getValue(id, 'tiny'), 3e-7);
     } finally { DialStore.unregisterPanel(id); }
+  });
+});
+
+describe('slider units', () => {
+  it('spaces word units and keeps signs against the value', () => {
+    assert.equal(isWordUnit('s'), true);
+    assert.equal(isWordUnit('ms'), true);
+    assert.equal(isWordUnit('px'), true);
+    assert.equal(isWordUnit('°'), false);
+    assert.equal(isWordUnit('×'), false);
+    assert.equal(isWordUnit('%'), false);
   });
 });

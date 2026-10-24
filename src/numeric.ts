@@ -16,3 +16,8 @@ export function roundValue(value: number, step: number, min?: number, max?: numb
   const snapped = origin + Math.round((clamped - origin) / step) * step;
   return Math.max(lower, Math.min(upper, Number(snapped.toPrecision(14))));
 }
+
+/** Word units (s, ms, px) sit a small gap after the value; signs (°, ×, %) sit against it. */
+export function isWordUnit(unit: string): boolean {
+  return /^\p{L}/u.test(unit);
+}

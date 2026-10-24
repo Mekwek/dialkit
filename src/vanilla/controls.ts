@@ -1,5 +1,5 @@
 import { activateOnKey, handleSegmentKey, handleSliderKey, labelSegmentedControl } from '../control-keyboard';
-import { decimalsForStep, roundValue, snapToDecile, formatSliderShortcut, formatToggleShortcut } from '../shortcut-utils';
+import { decimalsForStep, isWordUnit, roundValue, snapToDecile, formatSliderShortcut, formatToggleShortcut } from '../shortcut-utils';
 import { observeTextSize } from '../text-autosize';
 import { createPanelSectionTransition, observePanelHeader } from '../panel-size';
 import { ICON_CLOSE, ICON_CHEVRON, ICON_PANEL } from '../icons';
@@ -262,6 +262,7 @@ export function mountSlider(host: HTMLElement, initial: SliderProps): Mounted<Sl
   const handle = element('div', 'dialkit-slider-handle');
   const label = element('span', 'dialkit-slider-label');
   const display = element('span', 'dialkit-slider-value');
+  const unit = element('span', 'dialkit-slider-unit');
   const input = element('input', 'dialkit-slider-input');
   input.type = 'text';
   input.inputMode = 'decimal';
@@ -309,6 +310,12 @@ export function mountSlider(host: HTMLElement, initial: SliderProps): Mounted<Sl
     label.textContent = props.label;
     appendShortcut(label, props.shortcut, props.shortcutActive);
     display.textContent = formatted();
+    if (props.unit) {
+      unit.textContent = props.unit;
+      if (isWordUnit(props.unit)) unit.dataset.spaced = 'true';
+      else delete unit.dataset.spaced;
+      display.append(unit);
+    }
     input.setAttribute('aria-label', `${props.label} value`);
     const signature = `${min}:${max}:${step}`;
     if (signature !== hashSignature) {
