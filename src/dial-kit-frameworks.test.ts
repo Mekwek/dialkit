@@ -12,19 +12,22 @@ import { ModuleKind, ScriptTarget, transpileModule } from 'typescript';
 import { useDialKitController } from './hooks/useDialKit';
 import { useDialKitController as useVueDialKitController } from './vue/useDialKit';
 import { DialStore, type DialConfig } from './store/DialStore';
+import { defaultBackgroundValue } from './background';
 
 const config = { group: {
   position: { type: 'pad' }, amount: [0.25, 0, 1], enabled: true,
   title: { type: 'text', default: 'Example' }, choice: { type: 'select', options: [] },
-  accent: { type: 'color' }, cover: { type: 'image' },
+  accent: { type: 'color' }, cover: { type: 'image' }, backdrop: { type: 'background', default: { mode: 'gradient' } },
   spring: { type: 'spring', visualDuration: 0.3, bounce: 0.2 },
   easing: { type: 'easing', duration: 0.5, ease: [0, 0, 1, 1] },
   run: { type: 'action' },
 } } satisfies DialConfig;
+const backdrop = { ...defaultBackgroundValue(), mode: 'gradient' };
 const defaults = { position: { x: 0, y: 0 }, amount: 0.25, enabled: true, title: 'Example', choice: '',
-  accent: '#000000', cover: '', spring: config.group.spring, easing: config.group.easing, run: config.group.run };
-const updates = { position: { x: 0.75, y: -0.4 }, amount: 0.5, enabled: false, title: 'Changed', accent: '#ff0000', cover: '/cover.png' };
-const changed = { ...defaults, ...updates };
+  accent: '#000000', cover: '', backdrop, spring: config.group.spring, easing: config.group.easing, run: config.group.run };
+// A background update may name only the fields it changes.
+const updates = { position: { x: 0.75, y: -0.4 }, amount: 0.5, enabled: false, title: 'Changed', accent: '#ff0000', cover: '/cover.png', backdrop: { color: '#ff0000' } };
+const changed = { ...defaults, ...updates, backdrop: { ...backdrop, color: '#ff0000' } };
 
 describe('DialKit framework values', () => {
   it('updates and resets the React controller under StrictMode', () => {

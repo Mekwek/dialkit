@@ -14,6 +14,12 @@ export type DropdownPositionOptions = {
   maxHeight?: number;
   preferSide?: boolean;
   fixed?: boolean;
+  /**
+   * The popup's scale on screen, for a popup drawn at a scale (a host's zoom
+   * on the trigger's ancestors, carried over to the popup): its width,
+   * height, and gap are in its own pixels, and the result is on screen.
+   */
+  scale?: number;
 };
 
 export function getDropdownPosition(
@@ -21,7 +27,10 @@ export function getDropdownPosition(
   portalRoot: HTMLElement,
   options: DropdownPositionOptions = {}
 ): DropdownPosition {
-  const { dropdownHeight = 0, gap = 4, allowAbove = true } = options;
+  const scale = options.scale ?? 1;
+  const dropdownHeight = (options.dropdownHeight ?? 0) * scale;
+  const gap = (options.gap ?? 4) * scale;
+  const { allowAbove = true } = options;
   const triggerRect = trigger.getBoundingClientRect();
   const rootRect = portalRoot.getBoundingClientRect();
   const viewport = window.visualViewport;
@@ -33,9 +42,9 @@ export function getDropdownPosition(
   const spaceBelow = Math.max(0, viewportTop + viewportHeight - triggerRect.bottom - gap - margin);
   const spaceAbove = Math.max(0, triggerRect.top - viewportTop - gap - margin);
   const above = allowAbove && spaceBelow < dropdownHeight && spaceAbove > spaceBelow;
-  let maxHeight = Math.min(options.maxHeight ?? 320, above ? spaceAbove : spaceBelow);
+  let maxHeight = Math.min((options.maxHeight ?? 320) * scale, above ? spaceAbove : spaceBelow);
   const height = Math.min(dropdownHeight, maxHeight);
-  const width = Math.min(options.width ?? triggerRect.width, Math.max(0, viewportWidth - margin * 2));
+  const width = Math.min(options.width !== undefined ? options.width * scale : triggerRect.width, Math.max(0, viewportWidth - margin * 2));
   let left = Math.max(viewportLeft + margin, Math.min(triggerRect.left, viewportLeft + viewportWidth - width - margin));
   let top = Math.max(viewportTop + margin, above ? triggerRect.top - height - gap : triggerRect.bottom + gap);
 
@@ -44,10 +53,12 @@ export function getDropdownPosition(
     const sideRect = trigger.closest('.dialkit-panel-inner')?.getBoundingClientRect() ?? triggerRect;
     const before = sideRect.left - width - gap;
     const after = sideRect.right + gap;
-    if (before >= viewportLeft + margin) left = before;
-    else if (after + width <= viewportLeft + viewportWidth - margin) left = after;
-    maxHeight = Math.min(options.maxHeight ?? 480, viewportHeight - margin * 2);
-    top = Math.max(viewportTop + margin, Math.min(triggerRect.top - 32, viewportTop + viewportHeight - Math.min(dropdownHeight, maxHeight) - margin));
+    // The side is picked as at scale 1, so a host's zoom never flips it.
+    const room = (width + gap) / scale;
+    if (sideRect.left - room >= viewportLeft + margin) left = before;
+    else if (sideRect.right + room <= viewportLeft + viewportWidth - margin) left = after;
+    maxHeight = Math.min((options.maxHeight ?? 480) * scale, viewportHeight - margin * 2);
+    top = Math.max(viewportTop + margin, Math.min(triggerRect.top - 32 * scale, viewportTop + viewportHeight - Math.min(dropdownHeight, maxHeight) - margin));
   }
 
   return {
