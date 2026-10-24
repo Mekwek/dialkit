@@ -1387,7 +1387,7 @@
 /* The same row, buttons, and pill as Enabled, with no label and equal segments. */
 .dialkit-color-format-row { padding: 2px; }
 .dialkit-color-format-row .dialkit-color-formats { flex: 1; min-width: 0; margin-right: 0; }
-.dialkit-color-formats .dialkit-segmented-pill { left: 2px; width: calc((100% - 4px) / 5); transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1); }
+.dialkit-color-formats .dialkit-segmented-pill { left: 2px; transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1); }
 .dialkit-color-format { flex: 1 1 0; min-width: 0; padding-inline: 0; white-space: nowrap; }
 .dialkit-color-format:hover { color: var(--dial-text-primary); }
 /* Eyedropper, then one field per channel and opacity. */
@@ -1408,6 +1408,139 @@
 @media (prefers-reduced-motion: reduce) {
   .dialkit-color-popover { animation: none; }
   .dialkit-color-formats .dialkit-segmented-pill { transition: none; }
+}
+
+/* Background control: shared by React, Solid, Vue, Svelte, and vanilla. */
+.dialkit-background, .dialkit-background-pane { display: grid; gap: var(--dial-row-gap); min-width: 0; }
+.dialkit-background [hidden], .dialkit-background-popover [hidden] { display: none; }
+.dialkit-background .dialkit-segmented, .dialkit-background-popover .dialkit-segmented { min-width: 0; padding: 2px; background: var(--dial-surface); }
+.dialkit-background .dialkit-segmented-pill, .dialkit-background-popover .dialkit-segmented-pill { left: 2px; transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1); }
+.dialkit-background .dialkit-segmented-button, .dialkit-background-popover .dialkit-segmented-button { display: grid; flex: 1 1 0; min-width: 0; place-items: center; padding-inline: 0; white-space: nowrap; }
+.dialkit-background .dialkit-segmented-button:hover, .dialkit-background-popover .dialkit-segmented-button:hover { color: var(--dial-text-primary); }
+.dialkit-background-ratios .dialkit-segmented-button { font-size: 12px; }
+.dialkit-background-ratios svg { width: 15px; height: 15px; }
+.dialkit-background-icon-button { display: grid; flex: 0 0 auto; place-items: center; width: 28px; height: 28px; padding: 6px; border: 0; border-radius: 6px; background: none; color: var(--dial-text-tertiary); cursor: pointer; transition: color 0.15s, background 0.15s; }
+.dialkit-background-icon-button svg { width: 100%; height: 100%; }
+.dialkit-background-icon-button:hover:not(:disabled) { background: var(--dial-surface-hover); color: var(--dial-text-primary); }
+.dialkit-background-icon-button:disabled { opacity: 0.35; cursor: default; }
+
+/* The gradient type, then Flip and Rotate as tall as its field. */
+.dialkit-background-shape-row { display: flex; gap: var(--dial-row-gap); min-width: 0; }
+.dialkit-background-shape-trigger { flex: 1 1 auto; min-width: 0; }
+.dialkit-background-shape-row .dialkit-background-icon-button { width: var(--dial-row-height); height: var(--dial-row-height); padding: 10px; border-radius: var(--dial-radius); background: var(--dial-surface); color: var(--dial-text-label); }
+
+/* The strip and its handles stop half a swatch from each end of the control,
+   so a swatch at 0 or 100 draws whole; each stem and swatch stands at its
+   stop's position on the strip. */
+.dialkit-background-bar { position: relative; height: 40px; touch-action: none; user-select: none; -webkit-user-select: none; cursor: copy; }
+.dialkit-background-bar[data-full] { cursor: default; }
+.dialkit-background-bar[data-dragging] { cursor: grabbing; }
+.dialkit-background-track { position: absolute; top: 18px; right: 10px; left: 10px; height: 20px; overflow: hidden; border-radius: 6px; background: repeating-conic-gradient(#aaa 0% 25%, #eee 0% 50%) 0 / 8px 8px; box-shadow: inset 0 0 0 1px var(--dial-border); }
+.dialkit-background-track-paint { position: absolute; inset: 0; width: 100%; height: 100%; }
+.dialkit-background-handles { position: absolute; inset: 0 10px; pointer-events: none; }
+.dialkit-background-handle { position: absolute; top: 0; left: var(--dial-stop-at, 0%); width: 20px; height: 24px; padding: 0; border: 0; background: none; transform: translateX(-50%); pointer-events: auto; cursor: grab; }
+/* A larger hit area than the swatch it draws. */
+.dialkit-background-handle::before { content: ''; position: absolute; inset: -4px -6px -14px; }
+.dialkit-background-handle-chip { position: relative; display: block; width: 20px; height: 20px; box-sizing: border-box; border: 2px solid var(--dial-glass-bg); border-radius: 6px; background: linear-gradient(var(--dial-color), var(--dial-color)), repeating-conic-gradient(#aaa 0% 25%, #eee 0% 50%) 0 / 8px 8px; background-clip: padding-box; box-shadow: 0 0 0 1px var(--dial-border-hover), 0 2px 4px rgb(0 0 0 / 25%); transition: box-shadow 0.15s; }
+.dialkit-background-stem { position: absolute; top: 22px; left: var(--dial-stop-at, 0%); width: 2px; height: 6px; border-radius: 1px; background: var(--dial-border-hover); transform: translateX(-50%); }
+.dialkit-background-handle[data-selected] .dialkit-background-handle-chip { box-shadow: 0 0 0 1px var(--dial-text-primary), 0 2px 6px rgb(0 0 0 / 30%); }
+.dialkit-background-stem[data-selected] { background: var(--dial-text-primary); }
+/* A stop pulled off the strip fades; releasing it there removes it. */
+.dialkit-background-handle[data-off] { opacity: 0.35; }
+.dialkit-root .dialkit-background-handle:focus-visible { outline: none; }
+.dialkit-background-handle:focus-visible .dialkit-background-handle-chip { box-shadow: 0 0 0 2px var(--dial-text-primary), 0 0 0 5px var(--dial-focus-ring); }
+
+/* Stops: a grip, the position, the color, and a remove button per row. */
+.dialkit-background-stops-header { display: flex; align-items: center; justify-content: space-between; padding-left: 2px; color: var(--dial-text-label); font-size: 13px; font-weight: 500; }
+.dialkit-background-stops { display: grid; gap: 4px; min-width: 0; }
+.dialkit-background-stop { position: relative; display: flex; align-items: center; gap: 4px; min-width: 0; border-radius: var(--dial-radius); }
+.dialkit-background-stop-grip.dialkit-background-icon-button { width: 12px; height: var(--dial-row-height); padding: 0; opacity: 0; cursor: grab; touch-action: none; }
+.dialkit-background-stop:is(:hover, :focus-within, [data-dragging]) .dialkit-background-stop-grip { opacity: 1; }
+.dialkit-background-stop-grip.dialkit-background-icon-button:hover { background: none; }
+.dialkit-background-stop-grip svg { height: 16px; }
+.dialkit-background-stop-remove.dialkit-background-icon-button { height: var(--dial-row-height); padding: 10px 6px; border-radius: var(--dial-radius); }
+.dialkit-background-stop-color { flex: 1 1 auto; min-width: 0; }
+.dialkit-background-stop-color .dialkit-color-control { gap: 8px; padding: 0 10px; }
+.dialkit-background-stop-color .dialkit-color-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.dialkit-background-stop-color .dialkit-color-inputs { flex-direction: row-reverse; justify-content: flex-end; }
+.dialkit-background-stop-color .dialkit-color-value { font-size: 12px; text-align: left; }
+/* The selected row's fields take the hover fill; so does every field of a hovered row. */
+.dialkit-background-stop[data-selected] :is(.dialkit-background-field, .dialkit-color-control),
+.dialkit-background-stops:not([data-dragging]) .dialkit-background-stop:hover :is(.dialkit-background-field, .dialkit-color-control) { background: var(--dial-surface-hover); }
+/* Reordering, as in the version list: the rows a dragged row passes slide aside. */
+.dialkit-background-stops[data-dragging] { cursor: grabbing; user-select: none; -webkit-user-select: none; }
+.dialkit-background-stops[data-dragging] .dialkit-background-stop { transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1); }
+.dialkit-background-stops[data-dragging] .dialkit-background-stop[data-dragging] { z-index: 1; transition: none; background: var(--dial-glass-bg); box-shadow: 0 6px 16px rgb(0 0 0 / 28%); }
+
+/* A short number field: type, step with the arrow keys, or drag its name or unit. */
+.dialkit-background-field { display: flex; align-items: center; gap: 2px; min-width: 0; height: var(--dial-row-height); padding: 0 8px; border-radius: var(--dial-radius); background: var(--dial-surface); color: var(--dial-text-label); font: 500 12px 'Geist Mono', monospace; transition: background 0.15s; }
+.dialkit-background-stop-position { flex: 0 0 52px; box-sizing: border-box; }
+.dialkit-background-field-input { width: 100%; min-width: 0; padding: 0; border: 0; outline: none; background: transparent; color: inherit; font: inherit; text-align: right; }
+.dialkit-background-field-input:focus { color: var(--dial-text-focus); }
+.dialkit-background-field-name { flex-shrink: 0; color: var(--dial-text-tertiary); cursor: ew-resize; touch-action: none; user-select: none; -webkit-user-select: none; }
+.dialkit-background-field-name:first-child { margin-right: auto; color: var(--dial-text-label); font: 500 13px system-ui, -apple-system, sans-serif; }
+.dialkit-background-option-field { padding: 0 12px; }
+.dialkit-background-option-field .dialkit-background-field-input { width: 5ch; flex: none; }
+
+/* Saved gradients. */
+.dialkit-background-saved { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 2px; }
+.dialkit-background-saved-item { position: relative; }
+.dialkit-background-saved-swatch { display: block; width: 24px; height: 24px; padding: 0; border: 1px solid var(--dial-border-hover); border-radius: 6px; background: var(--dial-gradient), repeating-conic-gradient(#aaa 0% 25%, #eee 0% 50%) 0 / 8px 8px; background-clip: padding-box; cursor: pointer; transition: transform 0.15s; }
+.dialkit-background-saved-swatch:hover { transform: scale(1.05); }
+.dialkit-background-saved-swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--dial-text-primary); }
+.dialkit-background-saved-delete.dialkit-background-icon-button { position: absolute; top: -6px; right: -6px; width: 14px; height: 14px; padding: 2px; border: 1px solid var(--dial-border-hover); border-radius: 50%; background: var(--dial-glass-bg); color: var(--dial-text-label); opacity: 0; }
+.dialkit-background-saved-item:is(:hover, :focus-within) .dialkit-background-saved-delete { opacity: 1; }
+.dialkit-background-saved-delete.dialkit-background-icon-button:hover { background: var(--dial-glass-bg); }
+
+/* Media: the drop zone, then the preview, which opens the options. */
+.dialkit-background-drop { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 72px; padding: 12px; border: 1px dashed var(--dial-border-hover); border-radius: var(--dial-radius); background: var(--dial-surface); color: var(--dial-text-label); font: 500 13px system-ui, -apple-system, sans-serif; cursor: pointer; transition: background 0.15s, color 0.15s; }
+.dialkit-background-drop svg { flex: none; width: 15px; height: 15px; }
+.dialkit-background-drop:hover:not(:disabled), .dialkit-background-media[data-dragging] .dialkit-background-drop { background: var(--dial-surface-hover); color: var(--dial-text-primary); }
+.dialkit-background-drop:disabled { opacity: 0.6; cursor: progress; }
+.dialkit-background-media-preview { position: relative; display: block; width: 100%; aspect-ratio: 16 / 9; padding: 0; overflow: hidden; border: 1px solid var(--dial-border); border-radius: var(--dial-radius); background: repeating-conic-gradient(var(--dial-surface) 0% 25%, transparent 0% 50%) 0 / 12px 12px, var(--dial-surface); cursor: pointer; }
+.dialkit-background-media-preview:hover, .dialkit-background-media-preview[data-open], .dialkit-background-media[data-dragging] .dialkit-background-media-preview { border-color: var(--dial-border-hover); }
+.dialkit-background-media-frame { position: absolute; top: 50%; left: 50%; width: 100%; height: 100%; overflow: hidden; transform: translate(-50%, -50%); }
+.dialkit-background-media-element { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+/* The badge sits on the media, so it keeps its own dark chip in both themes. */
+.dialkit-background-media-badge { position: absolute; bottom: 6px; left: 6px; max-width: calc(100% - 12px); padding: 2px 6px; overflow: hidden; border-radius: 5px; background: rgb(0 0 0 / 55%); color: #fff; font: 500 11px system-ui, -apple-system, sans-serif; text-overflow: ellipsis; white-space: nowrap; }
+.dialkit-background-media-actions { display: flex; gap: var(--dial-row-gap); }
+.dialkit-background-media-actions .dialkit-button:disabled { opacity: 0.5; cursor: default; }
+.dialkit-background-status { color: var(--dial-text-secondary); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+
+/* The media options, placed and dismissed like the color picker. */
+.dialkit-background-popover {
+  display: grid;
+  gap: var(--dial-row-gap);
+  position: fixed;
+  margin: 0;
+  inset: auto;
+  z-index: 10002;
+  box-sizing: border-box;
+  padding: 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  border: 1px solid var(--dial-border);
+  border-radius: 14px;
+  background: var(--dial-glass-bg);
+  box-shadow: var(--dial-shadow);
+  color: var(--dial-text-label);
+  font: 500 13px system-ui, -apple-system, sans-serif;
+  animation: dialkit-color-enter 0.16s ease-out;
+}
+.dialkit-background-popover *, .dialkit-background-popover *::before, .dialkit-background-popover *::after { box-sizing: border-box; }
+.dialkit-background-popover-section { display: grid; gap: 4px; min-width: 0; }
+.dialkit-background-popover-label { padding: 0 2px; color: var(--dial-text-secondary); font-size: 12px; }
+.dialkit-background-position { display: grid; grid-template-columns: repeat(3, 1fr); width: 96px; height: 72px; padding: 2px; border-radius: var(--dial-radius); background: var(--dial-surface); }
+.dialkit-background-position-cell { display: grid; place-items: center; padding: 0; border: 0; border-radius: 6px; background: none; cursor: pointer; }
+.dialkit-background-position-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--dial-text-tertiary); transition: background 0.15s, transform 0.15s; }
+.dialkit-background-position-cell:hover .dialkit-background-position-dot { background: var(--dial-text-secondary); }
+.dialkit-background-position-cell[aria-checked="true"] { background: var(--dial-surface-active); }
+.dialkit-background-position-cell[aria-checked="true"] .dialkit-background-position-dot { background: var(--dial-text-primary); transform: scale(1.33); }
+@media (prefers-reduced-motion: reduce) {
+  .dialkit-background-popover { animation: none; }
+  .dialkit-background .dialkit-segmented-pill, .dialkit-background-popover .dialkit-segmented-pill,
+  .dialkit-background-stops[data-dragging] .dialkit-background-stop { transition: none; }
 }
 
 /* Preset Manager */

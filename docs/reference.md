@@ -112,6 +112,63 @@ Each axis uses `[default, min, max, step?]`. Omitted axes default to `[0, -1, 1,
 
 X increases to the right; Y increases upward. Clicks near grid intersections snap to them. Hold Shift while dragging to lock an axis. Home or a double-click restores the configured defaults; Escape cancels an active drag.
 
+### Backgrounds
+
+```ts
+import { backgroundGradientCss, type DialConfig } from "dialkit";
+
+const config = {
+  backdrop: {
+    type: "background",
+    default: {
+      mode: "gradient",
+      gradient: { shape: "radial", stops: [{ at: 0, color: "#2b1055" }, { at: 100, color: "#7597de" }] },
+    },
+  },
+} satisfies DialConfig;
+
+// In your component:
+const { backdrop } = values;
+const background = backdrop.mode === "gradient" ? backgroundGradientCss(backdrop.gradient) : backdrop.color;
+```
+
+A background returns `{ mode, color, gradient, media, mediaDisplay }`. `mode` is `"solid"`, `"gradient"`, or `"media"`, and the other fields keep their values while another mode is on. Colors are any CSS color the color control accepts. Omitted or invalid default fields fall back to black, a black-to-white linear gradient, and no media.
+
+A gradient has a `shape` (`"linear"`, `"radial"`, `"angular"`, or `"diamond"`), `stops` of `{ at, color }` with `at` from 0 to 100, and `handles`: a linear gradient runs from `start` to `end`; the other shapes are centred on `start`, with `end` setting the main radius and `width` the radius across it, as fractions of the box. Flip reverses the stops; Rotate turns the gradient a quarter turn clockwise. Click the strip to add a stop there and drag it, drag a stop off the strip to remove it, and drag a row's grip (or press Alt with Up or Down) to reorder the colors while the positions stay. `backgroundGradientCss` writes the gradient as a CSS image, exact for a square box, and for angular only while `width` is as far from the centre as `end`, since CSS sweeps a circle; on other boxes, linear and angular angles drift. CSS has no diamond gradient either, so `paintGradient(canvas, gradient)` draws every shape exactly at any size.
+
+Save gradient adds the current gradient to the panel's saved gradients, shown under every background in the panel; click one to use it. They stay in memory, and persist with the panel when it opts into `persist`. `DialStore.saveGradient`, `DialStore.deleteGradient`, and `DialStore.getSavedGradients` take the panel ID.
+
+Media is `{ src, kind }`, where `kind` is `"image"` or `"video"`. Without an `upload` function, a picked or dropped file up to 10 MB is read locally as a data URL. With one, DialKit hands it the file and keeps the URL it returns:
+
+```ts
+backdrop: { type: "background", upload: async file => (await uploadToCdn(file)).url },
+```
+
+Click the preview to choose how the media fills its box; the preview shows each choice. `mediaDisplay` holds `fit` (`"fill"`, `"fit"`, `"stretch"`, or `"tile"`), `ratio` (`"16:9"`, `"4:3"`, `"1:1"`, `"4:5"`, `"3:4"`, `"9:16"`, or `"source"`), `zoom` from 1 to 3, `tileSize` (one tile's height as a share of the box, 0.05 to 1), and `position`, the part kept in view when the media is cropped, as `{ x, y }` with `x` `"left"`, `"center"`, or `"right"` and `y` `"top"`, `"center"`, or `"bottom"`.
+
+`backgroundMediaCss(media, mediaDisplay)` returns the CSS properties the preview uses, keyed by their CSS names (`"background-size"`, `"object-fit"`), for an element that fills a box with `overflow: hidden`: an image becomes the element's background, and a video takes them on the `<video>` itself. Tile repeats an image; a video fills its box instead. The ratio is the box's shape, so set the box's `aspect-ratio` to it, or to the media's own for `"source"`:
+
+```ts
+const { media, mediaDisplay } = backdrop;
+const css = media ? backgroundMediaCss(media, mediaDisplay) : {};
+// "16:9" becomes "16 / 9"; for "source", use the media's own width / height.
+const aspectRatio = mediaDisplay.ratio === "source" ? mediaRatio : mediaDisplay.ratio.replace(":", " / ");
+```
+
+Solid and Vue style objects take these names as they are; elsewhere, set or join them:
+
+```ts
+// Solid: <div style={css} />   Vue: <div :style="css" />
+// Svelte: <div style={cssText}></div>
+const cssText = Object.entries(css).map(([name, value]) => `${name}: ${value}`).join("; ");
+// Vanilla
+for (const [name, value] of Object.entries(css)) element.style.setProperty(name, value);
+// React style objects take camelCase names
+const style = Object.fromEntries(Object.entries(css).map(([name, value]) => [name.replace(/-./g, s => s[1].toUpperCase()), value]));
+```
+
+`setValues` takes partial backgrounds: `{ backdrop: { mode: "solid" } }` changes only the mode.
+
 ### Transitions
 
 ```ts
@@ -234,6 +291,9 @@ DialStore.getPanelOpen("card");
 | XY pad | Arrows adjust axes; Shift + Arrow adjusts ten steps; Home resets; Escape cancels a drag |
 | Select or preset menu | Enter, Space, or Up/Down opens; arrows, Home/End, and typing navigate; Enter/Space selects; Escape closes |
 | Segmented control | Arrows select a segment; Home/End selects the first/last |
+| Background strip | Arrows move the focused stop one step, Shift by ten; Home/End move it to 0 or 100; Delete removes it |
+| Background stop row | Up/Down steps the position, Shift by ten; Alt + Up/Down on the grip moves the color |
+| Background media options | Arrows move the position selection; Escape closes |
 | Color picker | Tab moves between controls; arrows adjust the focused control; Up/Down steps a channel field, Shift by ten; Escape closes |
 | Image picker | Arrows move through images; Enter/Space selects; Escape closes |
 | Bézier handles | Arrows move by 0.01; Shift + Arrow by 0.1; Escape cancels a drag |
@@ -265,7 +325,7 @@ For sliders, hold the key and scroll, drag horizontally, or move the pointer acc
 
 ## Custom layouts
 
-Adapters export individual controls, including `Slider`, `Toggle`, `TextControl`, `SelectControl`, `ColorControl`, `ImageControl`, `DialPad`, `TransitionControl`, `Folder`, and `ButtonGroup`. `ControlRenderer` renders a control metadata tree. Keep custom controls inside an element with `class="dialkit-root"` and set `data-theme` to `"system"`, `"light"`, or `"dark"`.
+Adapters export individual controls, including `Slider`, `Toggle`, `TextControl`, `SelectControl`, `ColorControl`, `ImageControl`, `DialPad`, `BackgroundControl`, `TransitionControl`, `Folder`, and `ButtonGroup`. `BackgroundControl` also takes the `panelId` whose saved gradients it shows, and has no visible title of its own; panels place it in a folder named by its label. `ControlRenderer` renders a control metadata tree. Keep custom controls inside an element with `class="dialkit-root"` and set `data-theme` to `"system"`, `"light"`, or `"dark"`.
 
 In vanilla, each control takes a host element and props:
 

@@ -45,6 +45,9 @@ export { default as ColorControl } from './components/ColorControl.svelte';
 export { default as ImageControl } from './components/ImageControl.svelte';
 export { default as DialPad } from './components/DialPad.svelte';
 export type { DialPadProps } from '../dial-pad-control';
+export { default as BackgroundControl } from './components/BackgroundControl.svelte';
+export type { BackgroundControlProps } from '../background-control';
+export { backgroundGradientCss, backgroundMediaCss, paintGradient } from '../background';
 export { default as PresetManager } from './components/PresetManager.svelte';
 export { default as DialTimeline } from './components/Timeline/DialTimeline.svelte';
 
@@ -62,6 +65,20 @@ export type {
   DialPadAxis,
   DialPadConfig,
   DialPadValue,
+  BackgroundConfig,
+  BackgroundValue,
+  BackgroundValueUpdate,
+  BackgroundGradient,
+  BackgroundMedia,
+  BackgroundMediaDisplay,
+  BackgroundMediaFit,
+  BackgroundMediaRatio,
+  BackgroundMode,
+  GradientHandles,
+  GradientPoint,
+  GradientStop,
+  GradientShape,
+  SavedGradient,
   TextConfig,
   ShortcutConfig,
   Preset,
