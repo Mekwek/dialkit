@@ -1,4 +1,4 @@
-import { useContext } from 'react';
+import { useContext, useState } from 'react';
 import { DialStore, ControlMeta, DialValue, SpringConfig, TransitionConfig } from '../store/DialStore';
 import { ShortcutContext } from './ShortcutListener';
 import { Folder } from './Folder';
@@ -31,6 +31,8 @@ interface ControlRendererProps {
 // Shared by the panel and the timeline clip popover.
 export function ControlRenderer({ panelId, controls, values, transitionDuration }: ControlRendererProps) {
   const shortcutCtx = useContext(ShortcutContext);
+  // Counts folder resets, so sliders can spring to the values a reset sets.
+  const [resetCount, setResetCount] = useState(0);
 
   const renderControl = (control: ControlMeta) => {
     const value = values[control.path];
@@ -48,6 +50,7 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration 
             step={control.step}
             shortcut={control.shortcut}
             shortcutActive={shortcutCtx.activePanelId === panelId && shortcutCtx.activePath === control.path}
+            resetCount={resetCount}
           />
         );
 
@@ -90,7 +93,16 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration 
 
       case 'folder':
         return (
-          <Folder key={control.path} title={control.label} defaultOpen={control.defaultOpen ?? true}>
+          <Folder
+            key={control.path}
+            title={control.label}
+            defaultOpen={control.defaultOpen ?? true}
+            changed={control.reset && DialStore.isFolderChanged(panelId, control.path)}
+            onReset={control.reset ? () => {
+              setResetCount((count) => count + 1);
+              DialStore.resetFolder(panelId, control.path);
+            } : undefined}
+          >
             {control.children?.map(renderControl)}
           </Folder>
         );

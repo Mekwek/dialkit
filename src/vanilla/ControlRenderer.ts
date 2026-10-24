@@ -18,6 +18,8 @@ export function mountControlRenderer(host: HTMLElement, initial: ControlRenderer
   let props = initial;
   let active: ActiveShortcut = null;
   let signature = '';
+  // Counts folder resets, so sliders can spring to the values a reset sets.
+  let resetCount = 0;
   let mounted: {
     update(): void;
     destroy(): void;
@@ -34,16 +36,22 @@ export function mountControlRenderer(host: HTMLElement, initial: ControlRenderer
       }
       switch (control.type) {
         case 'folder': {
-          const folder = mountFolder(target, { title: control.label, defaultOpen: control.defaultOpen });
-          mounted.push({
-            update() {
-            }, destroy: folder.destroy
+          const folderProps = () => ({
+            title: control.label,
+            defaultOpen: control.defaultOpen,
+            changed: control.reset && DialStore.isFolderChanged(props.panelId, control.path),
+            onReset: control.reset ? () => {
+              resetCount++;
+              DialStore.resetFolder(props.panelId, control.path);
+            } : undefined,
           });
+          const folder = mountFolder(target, folderProps());
+          mounted.push({ update: () => folder.update(folderProps()), destroy: folder.destroy });
           build(control.children ?? [], folder.body);
           break;
         }
         case 'slider':
-          mount(mountSlider, () => ({ label: control.label, value: value() as number, min: control.min, max: control.max, step: control.step, onChange: change, ...shortcut() }));
+          mount(mountSlider, () => ({ label: control.label, value: value() as number, min: control.min, max: control.max, step: control.step, resetCount, onChange: change, ...shortcut() }));
           break;
         case 'toggle':
           mount(mountToggle, () => ({ label: control.label, checked: value() as boolean, onChange: change, ...shortcut() }));

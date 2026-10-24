@@ -6,7 +6,7 @@ import { createDialKit, createDialKitController, createDialTimeline, DialStore, 
 import type { DialConfig } from './store/DialStore';
 
 const config = { group: {
-  amount: [0.25, 0, 1, 0.05], enabled: true, title: { type: 'text', default: 'Hello' },
+  _reset: true, amount: [0.25, 0, 1, 0.05], enabled: true, title: { type: 'text', default: 'Hello' },
   choice: { type: 'select', options: ['a', 'b'] }, accent: { type: 'color', default: '#ff5500' },
   cover: { type: 'image' }, position: { type: 'pad', x: [0.5, -1, 1, 0.1] },
   spring: { type: 'spring', visualDuration: 0.3, bounce: 0.2 },

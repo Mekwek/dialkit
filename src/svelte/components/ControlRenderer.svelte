@@ -17,16 +17,24 @@
   import type { ShortcutContextValue } from './ShortcutListener.svelte';
   import type { TransitionDurationControl } from './TransitionControl.svelte';
 
-  let { panelId, control, values, transitionDuration } = $props<{
+  let { panelId, control, values, transitionDuration, resetCount = 0 } = $props<{
     panelId: string;
     control: ControlMeta;
     values: Record<string, DialValue>;
     transitionDuration?: TransitionDurationControl;
+    /** Counts folder resets, so sliders can spring to the values a reset sets. */
+    resetCount?: number;
   }>();
 
   const shortcutCtx = getContext<ShortcutContextValue | undefined>(SHORTCUT_CTX);
 
   const controlValue = $derived(values[control.path]);
+  // A reset of this folder adds to the count its children get.
+  let folderResets = $state(0);
+  const changed = $derived.by(() => {
+    values;
+    return !!control.reset && DialStore.isFolderChanged(panelId, control.path);
+  });
   const isShortcutActive = $derived(
     shortcutCtx ? shortcutCtx.activePanelId === panelId && shortcutCtx.activePath === control.path : false
   );
@@ -42,6 +50,7 @@
     step={control.step}
     shortcut={control.shortcut}
     shortcutActive={isShortcutActive}
+    {resetCount}
   />
 {:else if control.type === 'toggle'}
   <Toggle
@@ -69,9 +78,17 @@
     durationControl={transitionDuration}
   />
 {:else if control.type === 'folder'}
-  <Folder title={control.label} defaultOpen={control.defaultOpen ?? true}>
+  <Folder
+    title={control.label}
+    defaultOpen={control.defaultOpen ?? true}
+    {changed}
+    onReset={control.reset ? () => {
+      folderResets++;
+      DialStore.resetFolder(panelId, control.path);
+    } : undefined}
+  >
     {#each control.children ?? [] as child (child.path)}
-      <ControlRenderer {panelId} control={child} {values} {transitionDuration} />
+      <ControlRenderer {panelId} control={child} {values} {transitionDuration} resetCount={resetCount + folderResets} />
     {/each}
   </Folder>
 {:else if control.type === 'text'}

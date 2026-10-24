@@ -313,6 +313,61 @@
   opacity: 0.6;
 }
 
+/* `_reset` folders: the reset button follows the title, outside the header's
+   toggle. The header becomes a grid, and its toggle spans every column. */
+.dialkit-folder-header:has(> .dialkit-folder-reset) {
+  display: grid;
+  grid-template-columns: minmax(0, max-content) auto 1fr;
+  align-items: center;
+  column-gap: 4px;
+}
+
+.dialkit-folder-header:has(> .dialkit-folder-reset) > .dialkit-folder-header-top {
+  grid-area: 1 / 1 / 2 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+}
+
+.dialkit-folder-header:has(> .dialkit-folder-reset) > .dialkit-folder-header-top > .dialkit-folder-icon {
+  grid-column: 3;
+  justify-self: end;
+}
+
+.dialkit-folder-reset {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  padding: 3px;
+  box-sizing: border-box;
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  color: var(--dial-text-label);
+  opacity: 0.6;
+  grid-area: 1 / 2;
+  cursor: pointer;
+  transition: opacity 0.15s, scale 0.15s, visibility 0.15s;
+}
+
+.dialkit-folder-reset:hover,
+.dialkit-folder-reset:focus-visible {
+  opacity: 1;
+}
+
+.dialkit-folder-reset[data-changed="false"] {
+  opacity: 0;
+  scale: 0.6;
+  visibility: hidden;
+}
+
+.dialkit-folder-reset svg {
+  width: 100%;
+  height: 100%;
+}
+
 .dialkit-panel-icon {
   position: absolute;
   top: 12px;

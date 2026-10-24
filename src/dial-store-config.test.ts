@@ -130,6 +130,76 @@ describe('DialStore config lifecycle', () => {
     } finally { DialStore.unregisterPanel(id); }
   });
 
+  it('resets one folder, nested folders included, and reports when it differs from its defaults', () => {
+    const id = 'config-folder-reset';
+    const config = {
+      layout: {
+        _reset: true,
+        gap: [16, 0, 64, 1],
+        grid: { columns: [3, 1, 6, 1], dense: false },
+      },
+      motion: { _reset: true, speed: [1, 0, 3, 0.1] },
+    } satisfies DialConfig;
+    try {
+      DialStore.registerPanel(id, 'Config', config);
+      const layout = DialStore.getPanel(id)?.controls.find(control => control.path === 'layout');
+      assert.equal(layout?.reset, true);
+      assert.deepEqual(layout?.children?.map(control => control.path), ['layout.gap', 'layout.grid']);
+      assert.deepEqual(resolveDialValues(config, DialStore.getValues(id)), {
+        layout: { gap: 16, grid: { columns: 3, dense: false } },
+        motion: { speed: 1 },
+      });
+      assert.equal(DialStore.isFolderChanged(id, 'layout'), false);
+
+      DialStore.updateValues(id, { 'layout.grid.columns': 5, 'layout.grid.dense': true, 'motion.speed': 2 });
+      assert.equal(DialStore.isFolderChanged(id, 'layout'), true);
+      assert.equal(DialStore.isFolderChanged(id, 'motion'), true);
+
+      DialStore.resetFolder(id, 'layout');
+      assert.deepEqual(resolveDialValues(config, DialStore.getValues(id)), {
+        layout: { gap: 16, grid: { columns: 3, dense: false } },
+        motion: { speed: 2 },
+      });
+      assert.equal(DialStore.isFolderChanged(id, 'layout'), false);
+      assert.equal(DialStore.isFolderChanged(id, 'motion'), true);
+
+      DialStore.updateValue(id, 'motion.speed', 1);
+      assert.equal(DialStore.isFolderChanged(id, 'motion'), false);
+    } finally { DialStore.unregisterPanel(id); }
+  });
+
+  it('saves a folder reset like an edit and compares transitions by content', () => {
+    const id = 'config-folder-reset-preset';
+    const config = {
+      motion: {
+        _reset: true,
+        speed: [1, 0, 3, 0.1],
+        spring: { type: 'spring', visualDuration: 0.3, bounce: 0.2 },
+      },
+    } satisfies DialConfig;
+    try {
+      DialStore.registerPanel(id, 'Config', config);
+      DialStore.updateValue(id, 'motion.speed', 2);
+      const preset = DialStore.savePreset(id, 'Variant');
+      DialStore.updateTransitionMode(id, 'motion.spring', 'easing');
+      DialStore.updateValue(id, 'motion.spring', { type: 'easing', duration: 0.4, ease: [0.4, 0, 0.2, 1] });
+      DialStore.resetFolder(id, 'motion');
+      assert.equal(DialStore.getValue(id, 'motion.speed'), 1);
+      assert.deepEqual(DialStore.getValue(id, 'motion.spring'), config.motion.spring);
+      assert.equal(DialStore.getTransitionMode(id, 'motion.spring'), 'simple');
+
+      // The reset is saved into the active version; Version 1 keeps its edit.
+      DialStore.clearActivePreset(id);
+      assert.equal(DialStore.getValue(id, 'motion.speed'), 2);
+      DialStore.loadPreset(id, preset);
+      assert.equal(DialStore.getValue(id, 'motion.speed'), 1);
+
+      // A new object with the default's content counts as unchanged.
+      DialStore.updateValue(id, 'motion.spring', { type: 'spring', bounce: 0.2, visualDuration: 0.3 });
+      assert.equal(DialStore.isFolderChanged(id, 'motion'), false);
+    } finally { DialStore.unregisterPanel(id); }
+  });
+
   it('does not retain an extra registration when an invalid config is rejected', () => {
     const id = 'config-rejected-owner';
     DialStore.registerPanel(id, 'Original', { amount: 1 });

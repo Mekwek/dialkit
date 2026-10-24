@@ -20,12 +20,15 @@ interface SliderProps {
   unit?: string;
   shortcut?: ShortcutConfig;
   shortcutActive?: boolean;
+  /** A value that arrives with a new count springs into place, like a click on the track. */
+  resetCount?: number;
 }
 
 const CLICK_THRESHOLD = 3;
 const DEAD_ZONE = 32;
 const MAX_CURSOR_RANGE = 200;
 const MAX_STRETCH = 8;
+const SNAP_SPRING = { type: 'spring', stiffness: 300, damping: 25, mass: 0.8 } as const;
 
 export function Slider(props: SliderProps) {
   const min = () => props.min ?? 0;
@@ -72,10 +75,25 @@ export function Slider(props: SliderProps) {
     handleRef.style.transform = `translateY(-50%) scaleX(${handleScaleXMv.get()}) scaleY(${handleScaleYMv.get()})`;
   };
 
-  // Sync fill from props when not interacting
+  // Sync fill from props when not interacting. A folder reset springs the
+  // fill to its new value instead.
+  let seenResetCount = props.resetCount ?? 0;
   createEffect(() => {
-    if (!isInteracting() && !snapAnim) {
-      fillPercent.jump(((props.value - min()) / (max() - min())) * 100);
+    const pct = ((props.value - min()) / (max() - min())) * 100;
+    const resetCount = props.resetCount ?? 0;
+    const isReset = seenResetCount !== resetCount;
+    seenResetCount = resetCount;
+    if (isInteracting()) return;
+    if (isReset && fillPercent.get() !== pct) {
+      snapAnim?.stop();
+      snapAnim = animate(fillPercent, pct, {
+        ...SNAP_SPRING,
+        onComplete: () => {
+          snapAnim = null;
+        },
+      });
+    } else if (!snapAnim) {
+      fillPercent.jump(pct);
     }
   });
 
@@ -179,10 +197,7 @@ export function Slider(props: SliderProps) {
 
       if (snapAnim) snapAnim.stop();
       snapAnim = animate(fillPercent, newPct, {
-        type: 'spring',
-        stiffness: 300,
-        damping: 25,
-        mass: 0.8,
+        ...SNAP_SPRING,
         onComplete: () => {
           snapAnim = null;
         },

@@ -13,7 +13,7 @@ import { SpringControl } from './SpringControl';
 import { TextControl } from './TextControl';
 import { Toggle } from './Toggle';
 import { TransitionControl, type TransitionDurationControl } from './TransitionControl';
-import { inject } from 'vue';
+import { inject, ref } from 'vue';
 
 export const ControlRenderer = defineComponent({
   name: 'DialKitControlRenderer',
@@ -25,6 +25,8 @@ export const ControlRenderer = defineComponent({
   },
   setup(props) {
     const shortcut = inject(ShortcutKey, undefined);
+    // Counts folder resets, so sliders can spring to the values a reset sets.
+    const resetCount = ref(0);
     const renderControl = (control: ControlMeta): ReturnType<typeof h> | null => {
       const value = props.values[control.path];
       switch (control.type) {
@@ -38,6 +40,7 @@ export const ControlRenderer = defineComponent({
             step: control.step,
             shortcut: control.shortcut,
             shortcutActive: shortcut?.activePanelId.value === props.panelId && shortcut.activePath.value === control.path,
+            resetCount: resetCount.value,
             onChange: (next: number) => DialStore.updateValue(props.panelId, control.path, next),
           });
         case 'toggle':
@@ -73,6 +76,11 @@ export const ControlRenderer = defineComponent({
             key: control.path,
             title: control.label,
             defaultOpen: control.defaultOpen ?? true,
+            changed: control.reset && DialStore.isFolderChanged(props.panelId, control.path),
+            onReset: control.reset ? () => {
+              resetCount.value++;
+              DialStore.resetFolder(props.panelId, control.path);
+            } : undefined,
           }, { default: () => (control.children ?? []).map(renderControl) });
         case 'text':
           return h(TextControl, {

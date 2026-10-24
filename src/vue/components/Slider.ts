@@ -8,6 +8,7 @@ const CLICK_THRESHOLD = 3;
 const DEAD_ZONE = 32;
 const MAX_CURSOR_RANGE = 200;
 const MAX_STRETCH = 8;
+const SNAP_SPRING = { type: 'spring', stiffness: 300, damping: 25, mass: 0.8 } as const;
 
 export const Slider = defineComponent({
   name: 'DialKitSlider',
@@ -20,6 +21,8 @@ export const Slider = defineComponent({
     unit: { type: String, required: false },
     shortcut: { type: Object as PropType<ShortcutConfig>, default: undefined },
     shortcutActive: { type: Boolean, default: false },
+    /** A value that arrives with a new count springs into place, like a click on the track. */
+    resetCount: { type: Number, default: 0 },
   },
   emits: ['change'],
   setup(props, { emit }) {
@@ -214,10 +217,7 @@ export const Slider = defineComponent({
 
         snapAnim?.stop();
         snapAnim = animate(fillPercent, nextPct, {
-          type: 'spring',
-          stiffness: 300,
-          damping: 25,
-          mass: 0.8,
+          ...SNAP_SPRING,
           onComplete: () => {
             snapAnim = null;
           },
@@ -279,8 +279,18 @@ export const Slider = defineComponent({
       queueMicrotask(() => trackRef.value?.focus({ preventScroll: true }));
     };
 
-    watch(() => props.value, () => {
-      if (!isInteracting.value && !snapAnim) {
+    // A folder reset springs the fill to its new value instead of jumping.
+    watch([() => props.value, () => props.resetCount], ([, resetCount], [, previousResetCount]) => {
+      if (isInteracting.value) return;
+      if (resetCount !== previousResetCount && fillPercent.get() !== percentage.value) {
+        snapAnim?.stop();
+        snapAnim = animate(fillPercent, percentage.value, {
+          ...SNAP_SPRING,
+          onComplete: () => {
+            snapAnim = null;
+          },
+        });
+      } else if (!snapAnim) {
         fillPercent.jump(percentage.value);
       }
     });

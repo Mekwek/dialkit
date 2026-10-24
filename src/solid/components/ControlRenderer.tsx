@@ -1,4 +1,4 @@
-import { For } from 'solid-js';
+import { For, batch, createMemo, createSignal, on } from 'solid-js';
 import { DialStore } from '../../store/DialStore';
 import type {
   ControlMeta,
@@ -28,6 +28,8 @@ interface ControlRendererProps {
 
 export function ControlRenderer(props: ControlRendererProps) {
   const shortcut = useShortcutContext();
+  // Counts folder resets, so sliders can spring to the values a reset sets.
+  const [resetCount, setResetCount] = createSignal(0);
 
   const renderControl = (control: ControlMeta) => {
     const value = () => props.values[control.path];
@@ -43,6 +45,7 @@ export function ControlRenderer(props: ControlRendererProps) {
             step={control.step}
             shortcut={control.shortcut}
             shortcutActive={shortcut().activePanelId === props.panelId && shortcut().activePath === control.path}
+            resetCount={resetCount()}
           />
         );
       case 'toggle':
@@ -76,12 +79,23 @@ export function ControlRenderer(props: ControlRendererProps) {
             durationControl={props.transitionDuration}
           />
         );
-      case 'folder':
+      case 'folder': {
+        const changed = createMemo(on(() => props.values, () => !!control.reset && DialStore.isFolderChanged(props.panelId, control.path)));
         return (
-          <Folder title={control.label} defaultOpen={control.defaultOpen ?? true}>
+          <Folder
+            title={control.label}
+            defaultOpen={control.defaultOpen ?? true}
+            changed={changed()}
+            // One batch, so sliders see the new count with their new values.
+            onReset={control.reset ? () => batch(() => {
+              setResetCount((count) => count + 1);
+              DialStore.resetFolder(props.panelId, control.path);
+            }) : undefined}
+          >
             <For each={control.children ?? []}>{renderControl}</For>
           </Folder>
         );
+      }
       case 'text':
         return (
           <TextControl

@@ -14,12 +14,15 @@ interface SliderProps {
   unit?: string;
   shortcut?: ShortcutConfig;
   shortcutActive?: boolean;
+  /** A value that arrives with a new count springs into place, like a click on the track. */
+  resetCount?: number;
 }
 
 const CLICK_THRESHOLD = 3;
 const DEAD_ZONE = 32;
 const MAX_CURSOR_RANGE = 200;
 const MAX_STRETCH = 8;
+const SNAP_SPRING = { type: 'spring', stiffness: 300, damping: 25, mass: 0.8 } as const;
 
 export function Slider({
   label,
@@ -31,6 +34,7 @@ export function Slider({
   unit,
   shortcut,
   shortcutActive,
+  resetCount = 0,
 }: SliderProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -75,12 +79,23 @@ export function Slider({
     (stretch) => (stretch < 0 ? stretch : 0)
   );
 
-  // Sync from props when not interacting (skip if spring animation is active)
+  // Sync from props when not interacting (skip if spring animation is active).
+  // A folder reset springs the fill to its new value instead.
+  const seenResetCount = useRef(resetCount);
   useEffect(() => {
-    if (!isInteracting && !animRef.current) {
+    const isReset = seenResetCount.current !== resetCount;
+    seenResetCount.current = resetCount;
+    if (isInteracting) return;
+    if (isReset && fillPercent.get() !== percentage) {
+      animRef.current?.stop();
+      animRef.current = animate(fillPercent, percentage, {
+        ...SNAP_SPRING,
+        onComplete: () => { animRef.current = null; },
+      });
+    } else if (!animRef.current) {
       fillPercent.jump(percentage);
     }
-  }, [percentage, isInteracting, fillPercent]);
+  }, [percentage, isInteracting, fillPercent, resetCount]);
 
   const positionToValue = useCallback(
     (clientX: number) => {
@@ -205,10 +220,7 @@ export function Slider({
           animRef.current.stop();
         }
         animRef.current = animate(fillPercent, newPct, {
-          type: 'spring',
-          stiffness: 300,
-          damping: 25,
-          mass: 0.8,
+          ...SNAP_SPRING,
           onComplete: () => { animRef.current = null; },
         });
         onChange(roundValue(snappedValue, step, min, max));

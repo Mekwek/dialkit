@@ -14,7 +14,7 @@ import { useDialKitController as useVueDialKitController } from './vue/useDialKi
 import { DialStore, type DialConfig } from './store/DialStore';
 
 const config = { group: {
-  position: { type: 'pad' }, amount: [0.25, 0, 1], enabled: true,
+  _reset: true, position: { type: 'pad' }, amount: [0.25, 0, 1], enabled: true,
   title: { type: 'text', default: 'Example' }, choice: { type: 'select', options: [] },
   accent: { type: 'color' }, cover: { type: 'image' },
   spring: { type: 'spring', visualDuration: 0.3, bounce: 0.2 },
@@ -135,6 +135,7 @@ describe('DialKit framework values', () => {
         try {
           flushSync();
           assert.deepEqual(JSON.parse(JSON.stringify(dial.values.group)), ${JSON.stringify(defaults)});
+          assert.equal('_reset' in dial.values.group, false);
           dial.setValues({ group: ${JSON.stringify(updates)} });
           flushSync();
           assert.deepEqual(JSON.parse(JSON.stringify(dial.values.group)), ${JSON.stringify(changed)});
