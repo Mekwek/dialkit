@@ -97,22 +97,10 @@ export const ShortcutsMenu = defineComponent({
       const shortcuts = Object.entries(panel.shortcuts);
       if (shortcuts.length === 0) return null;
 
-      // Find control label
-      const findLabel = (controls: typeof panel.controls, path: string): string => {
-        for (const c of controls) {
-          if (c.path === path) return c.label;
-          if (c.type === 'folder' && c.children) {
-            const found = findLabel(c.children, path);
-            if (found) return found;
-          }
-        }
-        return path;
-      };
-
       const rows = shortcuts.map(([path, shortcut]) => ({
         path,
         shortcut,
-        label: findLabel(panel.controls, path),
+        label: DialStore.getControl(panel.id, path)?.label ?? path,
       }));
 
       // Manage outside click listener based on open state

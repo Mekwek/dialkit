@@ -1,4 +1,5 @@
 import { Fragment, defineComponent, h, type PropType } from 'vue';
+import { AnimatePresence, motion } from 'motion-v';
 import { DialStore } from '../../store/DialStore';
 import type { ControlMeta, DialValue, SpringConfig, TransitionConfig } from '../../store/DialStore';
 import { ColorControl } from './ColorControl';
@@ -15,6 +16,11 @@ import { Toggle } from './Toggle';
 import { TransitionControl, type TransitionDurationControl } from './TransitionControl';
 import { inject } from 'vue';
 
+// A control fades with its height, and collapsing it also closes the row gap below it.
+// It clips only while sliding, so a settled control's popovers and focus rings are not cut off.
+const hiddenControl = { opacity: 0, height: 0, marginBottom: 'calc(var(--dial-row-gap) * -1)', overflowY: 'clip' as const };
+const shownControl = { opacity: 1, height: 'auto', marginBottom: 'calc(var(--dial-row-gap) * 0)', overflowY: 'clip' as const, transitionEnd: { overflowY: 'visible' as const } };
+
 export const ControlRenderer = defineComponent({
   name: 'DialKitControlRenderer',
   props: {
@@ -22,9 +28,23 @@ export const ControlRenderer = defineComponent({
     controls: { type: Array as PropType<ControlMeta[]>, required: true },
     values: { type: Object as PropType<Record<string, DialValue>>, required: true },
     transitionDuration: Object as PropType<TransitionDurationControl>,
+    /** Slide controls in and out as their visibility rules change. */
+    animateControls: Boolean,
   },
   setup(props) {
     const shortcut = inject(ShortcutKey, undefined);
+    const renderControls = (controls: ControlMeta[]) => props.animateControls
+      ? [h(AnimatePresence, { initial: false }, {
+        default: () => controls.map((control) => h(motion.div, {
+          key: control.path,
+          class: 'dialkit-control-wrapper',
+          initial: hiddenControl,
+          animate: shownControl,
+          exit: hiddenControl,
+          transition: { type: 'spring', visualDuration: 0.25, bounce: 0.1 },
+        }, () => [renderControl(control)])),
+      })]
+      : controls.map(renderControl);
     const renderControl = (control: ControlMeta): ReturnType<typeof h> | null => {
       const value = props.values[control.path];
       switch (control.type) {
@@ -73,7 +93,7 @@ export const ControlRenderer = defineComponent({
             key: control.path,
             title: control.label,
             defaultOpen: control.defaultOpen ?? true,
-          }, { default: () => (control.children ?? []).map(renderControl) });
+          }, { default: () => renderControls(control.children ?? []) });
         case 'text':
           return h(TextControl, {
             key: control.path,
@@ -125,6 +145,6 @@ export const ControlRenderer = defineComponent({
           return null;
       }
     };
-    return () => h(Fragment, null, props.controls.map(renderControl));
+    return () => h(Fragment, null, renderControls(props.controls));
   },
 });

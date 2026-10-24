@@ -57,11 +57,46 @@ export type TextConfig = {
 export type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue;
 
 export type DialConfig = {
-  [key: string]: DialValue | [number, number, number, number?] | DialConfig;
+  [key: string]: DialValue | [number, number, number, number?] | DialConfig | ControlWithVisibility;
 };
 
+export type VisibleWhenValue = string | number | boolean;
+
+/** Shows a control only while another control in the same panel has (`is`) or lacks (`not`) one of the given values. */
+export type VisibleWhen = {
+  /** Path of the watched control, dot-separated inside folders (`'style.outline'`). */
+  field: string;
+} & (
+  | { is: VisibleWhenValue | VisibleWhenValue[]; not?: never }
+  | { not: VisibleWhenValue | VisibleWhenValue[]; is?: never }
+);
+
+export type ControlWithVisibility<T = DialValue | [number, number, number, number?] | DialConfig> = {
+  value: T;
+  visibleWhen: VisibleWhen;
+};
+
+/** Shows `control` (any control or folder) only while `rule` holds. Hidden controls keep their values. */
+export function withVisibility<T extends DialValue | [number, number, number, number?] | DialConfig>(
+  control: T,
+  rule: VisibleWhen
+): ControlWithVisibility<T> {
+  return { value: control, visibleWhen: rule };
+}
+
+function isVisibilityWrapper(value: unknown): value is ControlWithVisibility {
+  return isRecord(value) && 'value' in value && isRecord(value.visibleWhen) && typeof value.visibleWhen.field === 'string';
+}
+
+/** The control inside a {@link withVisibility} wrapper; any other value as is. */
+export function unwrapVisibility(value: DialConfig[string]): DialConfig[string] {
+  return isVisibilityWrapper(value) ? value.value : value;
+}
+
 export type ResolvedValues<T extends DialConfig> = {
-  [K in keyof T]: T[K] extends [number, number, number, number?]
+  [K in keyof T]: T[K] extends ControlWithVisibility<infer U extends DialConfig[string]>
+    ? ResolvedValues<{ value: U }>['value']
+    : T[K] extends [number, number, number, number?]
     ? number
     : T[K] extends SpringConfig
       ? TransitionConfig
@@ -81,7 +116,9 @@ export type ResolvedValues<T extends DialConfig> = {
 };
 
 export type DialKitValueUpdates<T extends DialConfig> = {
-  [K in keyof T as K extends '_collapsed' ? never : K]?: T[K] extends [number, number, number, number?]
+  [K in keyof T as K extends '_collapsed' ? never : K]?: T[K] extends ControlWithVisibility<infer U extends DialConfig[string]>
+    ? DialKitValueUpdates<{ value: U }>['value']
+    : T[K] extends [number, number, number, number?]
     ? number
     : T[K] extends SpringConfig | EasingConfig
       ? TransitionConfig
@@ -119,6 +156,7 @@ export type ControlMeta = {
   placeholder?: string;
   pad?: DialPadConfig;
   shortcut?: ShortcutConfig;
+  visibleWhen?: VisibleWhen;
 };
 
 export type PanelConfig = {
@@ -195,9 +233,10 @@ function resolveConfigValues(
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
-  for (const [key, configValue] of Object.entries(config)) {
+  for (const [key, rawValue] of Object.entries(config)) {
     if (key === '_collapsed') continue;
     const path = prefix ? `${prefix}.${key}` : key;
+    const configValue = unwrapVisibility(rawValue);
 
     if (isLeafConfigValue(configValue)) {
       result[key] = flatValues[path] ?? configDefaultValue(configValue);
@@ -215,13 +254,14 @@ function flattenConfigUpdates(
   prefix: string,
   values: Record<string, DialValue>
 ): void {
-  for (const [key, configValue] of Object.entries(config)) {
+  for (const [key, rawValue] of Object.entries(config)) {
     if (key === '_collapsed' || !(key in updates)) continue;
 
     const nextValue = updates[key];
     if (nextValue === undefined) continue;
 
     const path = prefix ? `${prefix}.${key}` : key;
+    const configValue = unwrapVisibility(rawValue);
 
     if (isActionConfigValue(configValue)) {
       continue;
@@ -349,6 +389,8 @@ class DialStoreClass {
   private panelOpenStates = new Map<string, boolean>();
   private panels: Map<string, PanelConfig> = new Map();
   private controlsByPanel = new WeakMap<PanelConfig, Map<string, ControlMeta>>();
+  // Full control trees of panels with visibility rules; `panel.controls` holds the visible part.
+  private allControls = new WeakMap<PanelConfig, ControlMeta[]>();
   private panelsSnapshot: PanelConfig[] = [];
   private standardPanelsSnapshot: PanelConfig[] = [];
   private timelinePanelsSnapshot: PanelConfig[] = [];
@@ -366,7 +408,7 @@ class DialStoreClass {
   private persistConfigs: Map<string, PersistConfig> = new Map();
 
   registerPanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, options: DialStorePanelOptions = {}): void {
-    const { controls, controlsByPath, defaultValues } = this.parseConfig(config, shortcuts);
+    const { controls, controlsByPath, defaultValues, conditional } = this.parseConfig(id, config, shortcuts);
     if (!this.panelOpenStates.has(id) && options.defaultCollapsed !== undefined) {
       this.panelOpenStates.set(id, !options.defaultCollapsed);
     }
@@ -390,6 +432,7 @@ class DialStoreClass {
     const panel: PanelConfig = { id, name, controls, values, shortcuts: shortcuts ?? {}, kind: options.kind };
     this.panels.set(id, panel);
     this.controlsByPanel.set(panel, controlsByPath);
+    if (conditional) this.setVisibleControls(panel, controls);
     this.snapshots.set(id, { ...values });
     this.baseValues.set(id, baseValues);
     this.defaultValues.set(id, { ...defaultValues });
@@ -417,13 +460,14 @@ class DialStoreClass {
       return;
     }
 
-    const { controls, controlsByPath, defaultValues } = this.parseConfig(config, shortcuts ?? existing.shortcuts);
+    const { controls, controlsByPath, defaultValues, conditional } = this.parseConfig(id, config, shortcuts ?? existing.shortcuts);
     this.configurePanelRetention(id, options);
     const nextValues = this.reconcileValues(defaultValues, existing.values, controlsByPath);
 
     const nextPanel: PanelConfig = { id, name, controls, values: nextValues, shortcuts: shortcuts ?? existing.shortcuts, kind: options.kind ?? existing.kind };
     this.panels.set(id, nextPanel);
     this.controlsByPanel.set(nextPanel, controlsByPath);
+    if (conditional) this.setVisibleControls(nextPanel, controls);
     this.snapshots.set(id, { ...nextValues });
 
     const previousBaseValues = this.baseValues.get(id) ?? {};
@@ -549,6 +593,7 @@ class DialStoreClass {
 
     // Create a new snapshot reference so useSyncExternalStore detects the change
     this.snapshots.set(panelId, { ...panel.values });
+    this.updateVisibility(panel);
     this.persistPanel(panelId);
     this.notify(panelId);
   }
@@ -560,6 +605,7 @@ class DialStoreClass {
 
     panel.values = { ...defaults };
     this.snapshots.set(panelId, { ...panel.values });
+    this.updateVisibility(panel);
     this.baseValues.set(panelId, { ...defaults });
     this.activePreset.set(panelId, null);
     this.persistPanel(panelId);
@@ -615,6 +661,12 @@ class DialStoreClass {
 
   getPanel(id: string): PanelConfig | undefined {
     return this.panels.get(id);
+  }
+
+  /** Looks up a control by path, including one its visibility rule hides. */
+  getControl(panelId: string, path: string): ControlMeta | undefined {
+    const panel = this.panels.get(panelId);
+    return panel ? this.controlsByPanel.get(panel)?.get(path) : undefined;
   }
 
   subscribe(panelId: string, listener: Listener): () => void {
@@ -699,6 +751,7 @@ class DialStoreClass {
     // Apply preset values
     panel.values = { ...preset.values };
     this.snapshots.set(panelId, { ...panel.values });
+    this.updateVisibility(panel);
     this.activePreset.set(panelId, presetId);
     this.persistPanel(panelId);
     this.notify(panelId);
@@ -764,6 +817,7 @@ class DialStoreClass {
     if (panel && base) {
       panel.values = { ...base };
       this.snapshots.set(panelId, { ...panel.values });
+      this.updateVisibility(panel);
     }
     this.activePreset.set(panelId, null);
     this.persistPanel(panelId);
@@ -783,7 +837,7 @@ class DialStoreClass {
         if (scMod !== modifier) continue;
 
         const control = this.controlsByPanel.get(panel)?.get(path);
-        if (control) {
+        if (control && this.isShown(panel, path)) {
           return { panelId: panel.id, path, control };
         }
       }
@@ -802,7 +856,7 @@ class DialStoreClass {
       for (const [path, shortcut] of Object.entries(panel.shortcuts)) {
         if ((shortcut.interaction ?? 'scroll') !== 'scroll-only') continue;
         const control = this.controlsByPanel.get(panel)?.get(path);
-        if (control) {
+        if (control && this.isShown(panel, path)) {
           results.push({ panelId: panel.id, path, control, shortcut });
         }
       }
@@ -943,6 +997,27 @@ class DialStoreClass {
     }
   }
 
+  /** Keeps the full tree aside and shows the controls whose rules hold. */
+  private setVisibleControls(panel: PanelConfig, controls: ControlMeta[]): void {
+    this.allControls.set(panel, controls);
+    panel.controls = filterVisibleControls(controls, panel.values);
+  }
+
+  /** Re-applies visibility rules after a write. `getPanels()` snapshots are cached, so a changed tree refreshes them too. */
+  private updateVisibility(panel: PanelConfig): void {
+    const all = this.allControls.get(panel);
+    if (!all) return;
+    const controls = filterVisibleControls(all, panel.values);
+    if (sameControlPaths(controls, panel.controls)) return;
+    panel.controls = controls;
+    this.notifyGlobal();
+  }
+
+  /** Hidden controls ignore shortcuts. */
+  private isShown(panel: PanelConfig, path: string): boolean {
+    return !this.allControls.has(panel) || hasControlPath(panel.controls, path);
+  }
+
   private notify(panelId: string): void {
     this.listeners.get(panelId)?.forEach(fn => fn());
   }
@@ -955,15 +1030,17 @@ class DialStoreClass {
   }
 
   /** Compile controls, defaults, and the lookup index in one walk. */
-  private parseConfig(config: DialConfig, shortcuts?: Record<string, ShortcutConfig>) {
+  private parseConfig(panelId: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>) {
     const defaultValues: Record<string, DialValue> = {};
     const modes: Record<string, DialValue> = {};
     const controlsByPath = new Map<string, ControlMeta>();
+    const rules: [string, VisibleWhen][] = [];
     const visit = (config: DialConfig, prefix: string): ControlMeta[] => {
       const controls: ControlMeta[] = [];
 
-      for (const [key, value] of Object.entries(config)) {
+      for (const [key, rawValue] of Object.entries(config)) {
         if (key === '_collapsed') continue;
+        const value = unwrapVisibility(rawValue);
         const path = prefix ? `${prefix}.${key}` : key;
         const label = formatLabel(key);
         const shortcut = shortcuts?.[path];
@@ -1020,6 +1097,10 @@ class DialStoreClass {
           };
         }
         if (!control) continue;
+        if (isVisibilityWrapper(rawValue)) {
+          control.visibleWhen = rawValue.visibleWhen;
+          rules.push([path, rawValue.visibleWhen]);
+        }
         controls.push(control);
         controlsByPath.set(path, control);
         if (control.type === 'folder') continue;
@@ -1037,7 +1118,13 @@ class DialStoreClass {
     };
     const controls = visit(config, '');
     Object.assign(defaultValues, modes);
-    return { controls, defaultValues, controlsByPath };
+    // Checked once per registration rather than on every write.
+    for (const [path, rule] of rules) {
+      if (!(rule.field in defaultValues)) {
+        console.warn(`[dialkit] "${path}" in panel "${panelId}" depends on "${rule.field}", which is not a control in that panel.`);
+      }
+    }
+    return { controls, defaultValues, controlsByPath, conditional: rules.length > 0 };
   }
 
   private inferRange(value: number): { min: number; max: number; step: number } {
@@ -1111,6 +1198,41 @@ class DialStoreClass {
         return defaultValue;
     }
   }
+}
+
+function isVisible(rule: VisibleWhen | undefined, values: Record<string, DialValue>): boolean {
+  if (!rule) return true;
+  const value = values[rule.field];
+  const matches = (targets: VisibleWhenValue | VisibleWhenValue[]) =>
+    (Array.isArray(targets) ? targets : [targets]).some(target => target === value);
+  return rule.is !== undefined ? matches(rule.is) : !matches(rule.not);
+}
+
+/** Drops controls whose rule fails, and folders left with nothing to show. */
+function filterVisibleControls(controls: ControlMeta[], values: Record<string, DialValue>): ControlMeta[] {
+  const visible: ControlMeta[] = [];
+  for (const control of controls) {
+    if (!isVisible(control.visibleWhen, values)) continue;
+    const children = control.type === 'folder' ? control.children ?? [] : [];
+    if (children.length === 0) {
+      visible.push(control);
+      continue;
+    }
+    const shown = filterVisibleControls(children, values);
+    if (shown.length === 0) continue;
+    const unchanged = shown.length === children.length && shown.every((child, index) => child === children[index]);
+    visible.push(unchanged ? control : { ...control, children: shown });
+  }
+  return visible;
+}
+
+function hasControlPath(controls: ControlMeta[], path: string): boolean {
+  return controls.some(control => control.path === path || hasControlPath(control.children ?? [], path));
+}
+
+function sameControlPaths(a: ControlMeta[], b: ControlMeta[]): boolean {
+  return a.length === b.length && a.every((control, index) =>
+    control.path === b[index].path && sameControlPaths(control.children ?? [], b[index].children ?? []));
 }
 
 // Singleton instance

@@ -1,5 +1,6 @@
 import type { TransitionConfig } from 'svelte/transition';
 import { cubicOut } from 'svelte/easing';
+import { springParams, springProgress, springSettleDuration } from '../../transition-math';
 
 /** Fold the content without fading its controls or retaining scroll overflow. */
 export function folderTransition(node: HTMLElement): TransitionConfig {
@@ -8,6 +9,19 @@ export function folderTransition(node: HTMLElement): TransitionConfig {
     duration: 220,
     easing: cubicOut,
     css: (t) => `height:${t * height}px;overflow-y:clip;`,
+  };
+}
+
+const controlSpring = springParams({ type: 'spring', visualDuration: 0.25, bounce: 0.1 });
+
+/** Slide a control in or out on the other adapters' spring, fading it and closing the row gap below it as it goes. */
+export function controlTransition(node: HTMLElement): TransitionConfig {
+  const height = node.offsetHeight;
+  const duration = springSettleDuration(controlSpring);
+  return {
+    duration: duration * 1000,
+    easing: (t) => springProgress(t * duration, controlSpring),
+    css: (t) => `opacity:${t};height:${Math.max(0, t) * height}px;margin-bottom:calc(var(--dial-row-gap) * ${t - 1});overflow-y:clip;`,
   };
 }
 

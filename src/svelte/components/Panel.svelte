@@ -9,6 +9,7 @@
   import VersionGallery from './VersionGallery.svelte';
   import type { DialVersions } from '../../version-gallery';
   import ControlRenderer from './ControlRenderer.svelte';
+  import { controlTransition } from './transitions';
   import { ICON_CLIPBOARD_PLAIN, ICON_CHECK } from '../../icons';
 
   let { panel, defaultOpen = true, inline = false, onOpenChange, variant = 'root', toolbarExtra, versions = 'thumbnails', theme } = $props<{
@@ -146,7 +147,9 @@
     <VersionGallery panelId={panel.id} {theme} />
   {/if}
   {#each panel.controls as control (control.path)}
-    <ControlRenderer panelId={panel.id} {control} {values} />
+    <div class="dialkit-control-wrapper" transition:controlTransition>
+      <ControlRenderer panelId={panel.id} {control} {values} animateControls />
+    </div>
   {/each}
 {/snippet}
 
