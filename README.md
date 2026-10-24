@@ -222,7 +222,7 @@ Persistence includes values, saved versions, and the active version. It uses `lo
 <DialRoot position="top-right" theme="dark" />
 ```
 
-Floating panels are draggable and collapse to an icon. Multiple registered panels appear as sections in one root. Set `mode="inline"` to fill a container in your layout:
+Floating panels are draggable and collapse to an icon. Multiple registered panels appear as sections in one root. Panel, section, and folder headers stay pinned while their contents scroll. Rows fade out under the pinned headers, and floating panels fade at the bottom edge while more controls sit below. The fades need scroll-driven animations; other browsers keep the pinned headers without them. Set `mode="inline"` to fill a container in your layout:
 
 ```tsx
 <aside style={{ width: 300 }}>

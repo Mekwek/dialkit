@@ -37,6 +37,7 @@
   --dial-radius: 8px;
   --dial-row-height: 36px;
   --dial-row-gap: 6px;
+  --dial-scroll-fade: 24px;
   --dial-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
   --dial-shadow-collapsed: 0 4px 16px rgba(0, 0, 0, 0.25);
   --dial-shadow-dropdown: 0 8px 24px rgba(0, 0, 0, 0.4);
@@ -152,7 +153,7 @@
 
 /* Cover the side gutters too, including when a section pushes its header up. */
 .dialkit-panel-inner:not([data-collapsed="true"]) > .dialkit-folder-root > .dialkit-panel-header::before,
-.dialkit-folder-section > .dialkit-folder-header::before {
+.dialkit-panel .dialkit-folder:not(.dialkit-folder-root) > .dialkit-folder-header::before {
   content: '';
   position: absolute;
   inset: 0 -12px;
@@ -443,23 +444,82 @@
   padding-bottom: 12px;
 }
 
-/* Only registered panels stick; ordinary folders remain part of the content. */
-.dialkit-panel .dialkit-folder.dialkit-folder-section > .dialkit-folder-header {
+/* Every folder header pins below the headers above it and leaves with its
+   folder. Each folder hands its content the height of the stack so far. */
+.dialkit-folder-root {
+  --dial-folder-stack-height: var(--dial-panel-header-height, 0px);
+}
+
+.dialkit-folder:not(.dialkit-folder-root) {
+  --dial-folder-stack-height: calc(var(--dial-folder-header-top) + var(--dial-row-height));
+}
+
+.dialkit-folder.dialkit-folder-section {
+  --dial-folder-stack-height: calc(var(--dial-folder-header-top) + var(--dial-panel-header-height, 0px));
+}
+
+.dialkit-folder-content {
+  --dial-folder-header-top: var(--dial-folder-stack-height);
+}
+
+.dialkit-panel .dialkit-folder:not(.dialkit-folder-root) > .dialkit-folder-header {
   position: sticky;
-  top: var(--dial-panel-header-height, 0px);
+  top: var(--dial-folder-header-top);
   z-index: 2;
-  height: auto;
   background: var(--dial-glass-bg);
 }
 
-.dialkit-folder-section {
-  --dial-section-header-height: calc(44px + var(--dial-row-height) + 10px);
+.dialkit-panel .dialkit-folder.dialkit-folder-section > .dialkit-folder-header {
+  height: auto;
 }
 
-/* Keyboard navigation must reveal controls below both pinned header rows. */
+/* Keyboard navigation must reveal controls below the pinned headers and their fade. */
 .dialkit-folder-inner :is(button, input, textarea, [tabindex]) {
-  scroll-margin-top: calc(var(--dial-panel-header-height, 0px) + var(--dial-section-header-height, 0px) + var(--dial-row-gap));
+  scroll-margin-top: calc(var(--dial-folder-header-top, 0px) + max(var(--dial-row-gap), var(--dial-scroll-fade)));
 }
+
+/* Fade rows into the pinned headers once they scroll under them, and into the
+   bottom edge while more rows sit below. Without scroll timelines, rows simply
+   meet the edges. */
+@supports (animation-timeline: view()) {
+  .dialkit-panel-inner:not([data-collapsed="true"]) .dialkit-folder-content {
+    view-timeline: --dial-folder-content;
+    view-timeline-inset: var(--dial-folder-header-top) 0px;
+  }
+
+  .dialkit-panel-inner:not([data-collapsed="true"]) .dialkit-folder-content::before,
+  .dialkit-panel-inner:not([data-collapsed="true"], .dialkit-panel-inline) > .dialkit-folder-root::after {
+    content: '';
+    display: block;
+    position: sticky;
+    z-index: 1;
+    height: var(--dial-scroll-fade);
+    opacity: 0;
+    pointer-events: none;
+    animation: dialkit-scroll-fade linear both;
+  }
+
+  .dialkit-panel-inner:not([data-collapsed="true"]) .dialkit-folder-content::before {
+    top: var(--dial-folder-header-top);
+    margin: 0 -12px calc(var(--dial-scroll-fade) * -1);
+    background: linear-gradient(var(--dial-glass-bg), transparent);
+    animation-timeline: --dial-folder-content;
+    animation-range: exit-crossing 0px exit-crossing var(--dial-scroll-fade);
+  }
+
+  .dialkit-panel-inner:not([data-collapsed="true"], .dialkit-panel-inline) > .dialkit-folder-root::after {
+    bottom: 0;
+    margin: calc(var(--dial-scroll-fade) * -1) -12px 0;
+    background: linear-gradient(transparent, var(--dial-glass-bg));
+    /* Sticky boxes stop at the panel's padding; cover it down to the edge. */
+    box-shadow: 0 10px var(--dial-glass-bg);
+    animation-direction: reverse;
+    animation-timeline: scroll();
+    animation-range: calc(100% - var(--dial-scroll-fade)) 100%;
+  }
+}
+
+@keyframes dialkit-scroll-fade { from { opacity: 0; } to { opacity: 1; } }
 
 .dialkit-folder.dialkit-folder-section > .dialkit-folder-header > .dialkit-folder-header-top {
   height: var(--dial-row-height);

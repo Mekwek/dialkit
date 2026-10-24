@@ -10,7 +10,7 @@ export function measurePanelHeight(content: HTMLElement): number {
   return content.offsetHeight + chrome;
 }
 
-/** Keep nested panel headers below the root's title and optional toolbar. */
+/** Keep nested folder headers below a panel's title and optional toolbar. */
 export function observePanelHeader(folder: HTMLElement): () => void {
   const header = folder.firstElementChild as HTMLElement | null;
   if (!header) return () => {};
@@ -60,6 +60,8 @@ export function createPanelSectionTransition(folder: HTMLElement, initiallyOpen:
   const toolbar = folder.querySelector<HTMLElement>(':scope > .dialkit-folder-header > .dialkit-panel-section-toolbar-clip')!;
   let open = initiallyOpen;
   let panel: HTMLElement | null = null;
+  // The toolbar folds with the section, so folders pinned below follow its height.
+  const stopHeader = observePanelHeader(folder);
   finishSectionFold({ content, toolbar, open });
 
   return {
@@ -149,6 +151,7 @@ export function createPanelSectionTransition(folder: HTMLElement, initiallyOpen:
       tick(started);
     },
     destroy() {
+      stopHeader();
       if (!panel) return;
       const group = panelFolds.get(panel);
       group?.sections.delete(folder);
