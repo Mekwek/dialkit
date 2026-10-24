@@ -25,14 +25,17 @@ interface ControlRendererProps {
     max?: number;
     step?: number;
   };
+  /** Path of the one open top-level folder in accordion mode, or null when all are closed. */
+  openFolder?: string | null;
+  onOpenFolderChange?: (path: string | null) => void;
 }
 
 // Renders a ControlMeta tree with the standard DialKit controls.
 // Shared by the panel and the timeline clip popover.
-export function ControlRenderer({ panelId, controls, values, transitionDuration }: ControlRendererProps) {
+export function ControlRenderer({ panelId, controls, values, transitionDuration, openFolder, onOpenFolderChange }: ControlRendererProps) {
   const shortcutCtx = useContext(ShortcutContext);
 
-  const renderControl = (control: ControlMeta) => {
+  const renderControl = (control: ControlMeta, topLevel = false) => {
     const value = values[control.path];
 
     switch (control.type) {
@@ -88,12 +91,21 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration 
           />
         );
 
-      case 'folder':
+      case 'folder': {
+        // Accordion mode controls top-level folders; nested folders keep their own state.
+        const accordion = topLevel && openFolder !== undefined;
         return (
-          <Folder key={control.path} title={control.label} defaultOpen={control.defaultOpen ?? true}>
-            {control.children?.map(renderControl)}
+          <Folder
+            key={control.path}
+            title={control.label}
+            defaultOpen={control.defaultOpen ?? true}
+            open={accordion ? openFolder === control.path : undefined}
+            onOpenChange={accordion ? (open) => onOpenFolderChange?.(open ? control.path : null) : undefined}
+          >
+            {control.children?.map((child) => renderControl(child))}
           </Folder>
         );
+      }
 
       case 'text':
         return (
@@ -167,5 +179,5 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration 
     }
   };
 
-  return <>{controls.map(renderControl)}</>;
+  return <>{controls.map((control) => renderControl(control, true))}</>;
 }

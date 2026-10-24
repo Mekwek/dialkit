@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { DialStore, PanelConfig } from '../store/DialStore';
 import { TimelineStore } from '../store/TimelineStore';
+import { pruneOpenFolders } from '../accordion';
 import { isDevDefault } from '../env';
 import { Folder } from './Folder';
 import { Panel } from './Panel';
@@ -22,10 +23,11 @@ interface DialRootProps {
   productionEnabled?: boolean;
   /** How saved versions appear: captured thumbnails (default), or a menu. */
   versions?: DialVersions;
+  accordion?: boolean;
   onOpenChange?: (open: boolean) => void;
 }
 
-export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'popover', theme = 'system', productionEnabled = isDevDefault, versions = 'thumbnails', onOpenChange }: DialRootProps) {
+export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'popover', theme = 'system', productionEnabled = isDevDefault, versions = 'thumbnails', accordion = false, onOpenChange }: DialRootProps) {
   if (!productionEnabled) return null;
   const [panels, setPanels] = useState<PanelConfig[]>([]);
   const [timelineCount, setTimelineCount] = useState(0);
@@ -44,6 +46,10 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
   const dragTargetRef = useRef<HTMLElement | null>(null);
   const panelOpenStatesRef = useRef<Map<string, boolean>>(new Map());
   const rootOpenRef = useRef<boolean | null>(null);
+  // Panels remount when the root switches between one panel and several, so
+  // the root keeps each panel's accordion folder by panel ID.
+  const [openFolders, setOpenFolders] = useState<Record<string, string | null>>({});
+  const setOpenFolder = (id: string, path: string | null) => setOpenFolders(prev => ({ ...prev, [id]: path }));
 
   // Subscribe to registered editing surfaces. Timeline-backed panels render
   // in DialTimeline, but their presence adds a visibility toggle here.
@@ -64,6 +70,10 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
       unsubscribeTimelines();
     };
   }, []);
+
+  useEffect(() => {
+    setOpenFolders(prev => pruneOpenFolders(prev, panels.map(panel => panel.id)));
+  }, [panels]);
 
   useEffect(() => {
     const fallbackOpen = inline || defaultOpen;
@@ -204,6 +214,7 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
         data-origin-y={inline ? undefined : originY}
         data-mode={mode}
         data-multiple={hasMultiplePanels ? 'true' : undefined}
+        data-accordion={accordion ? 'true' : undefined}
         style={dragStyle}
         onPointerDown={!inline ? handlePointerDown : undefined}
         onPointerMove={!inline ? handlePointerMove : undefined}
@@ -240,6 +251,9 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
                   key={panel.id}
                   panel={panel}
                   defaultOpen={true}
+                  accordion={accordion}
+                  openFolder={openFolders[panel.id]}
+                  onOpenFolderChange={(path) => setOpenFolder(panel.id, path)}
                   variant="section"
                   versions={versions}
                   theme={theme}
@@ -254,6 +268,9 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
               panel={panel}
               defaultOpen={inline || defaultOpen}
               inline={inline}
+              accordion={accordion}
+              openFolder={openFolders[panel.id]}
+              onOpenFolderChange={(path) => setOpenFolder(panel.id, path)}
               toolbarExtra={timelineToggle}
               versions={versions}
               theme={theme}
