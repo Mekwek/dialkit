@@ -689,121 +689,120 @@ function TimelineSection(props: {
     return { major, medium, fine, majorStep };
   });
 
-  const rows = createMemo<JSX.Element[]>(() => {
-    const result: JSX.Element[] = [];
-    let lastGroup: string | undefined;
-    const currentValues = values();
-    for (const clip of props.meta.clips) {
-      if (clip.group !== lastGroup) {
-        lastGroup = clip.group;
-        if (clip.group) {
-          const group = clip.group;
-          const collapsed = collapsedGroups().has(group);
-          result.push(
-            <div class="dialkit-timeline-row dialkit-timeline-group-row">
-              <div class="dialkit-timeline-label">
-                <button
-                  class="dialkit-timeline-group-toggle"
-                  data-open={!collapsed}
-                  onClick={() => toggleGroup(group)}
-                  title={collapsed ? 'Expand layer' : 'Collapse layer'}
-                >
-                  <ChevronIcon />
-                </button>
-                <span>{formatLabel(group)}</span>
-              </div>
-              <div class="dialkit-timeline-lane" />
-            </div>
-          );
-        }
-      }
-      if (clip.group && collapsedGroups().has(clip.group)) continue;
-      const isProps = Boolean(clip.tracks?.length);
-      const tracksOpen = isProps && expandedTracks().has(clip.key);
-      const stat = computeClipStaticFromValues(currentValues, clip, props.meta.duration);
-      const selected = popover()?.clip.key === clip.key;
-      result.push(
-        <div class="dialkit-timeline-row" data-grouped={clip.group ? '' : undefined}>
-          <div class="dialkit-timeline-label">
-            <Show when={isProps}>
+  // Rows: clips in config order, grouped clips under a collapsible header,
+  // props clips expandable into full per-property track rows. Each bar
+  // outlives value edits, so a drag keeps its pointer.
+  const renderClipRows = (clip: TimelineClipMeta, index: () => number) => {
+    const startsGroup = () => clip.group !== undefined && clip.group !== props.meta.clips[index() - 1]?.group;
+    const groupCollapsed = () => clip.group !== undefined && collapsedGroups().has(clip.group);
+    const isProps = Boolean(clip.tracks?.length);
+    const tracksOpen = () => isProps && expandedTracks().has(clip.key);
+    const stat = createMemo(() => computeClipStaticFromValues(values(), clip, props.meta.duration));
+    const selected = () => popover()?.clip.key === clip.key;
+    return (
+      <>
+        <Show when={startsGroup()}>
+          <div class="dialkit-timeline-row dialkit-timeline-group-row">
+            <div class="dialkit-timeline-label">
               <button
                 class="dialkit-timeline-group-toggle"
-                data-open={tracksOpen}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  toggleTracks(clip.key);
-                }}
-                title={tracksOpen ? 'Collapse properties' : 'Expand properties'}
+                data-open={!groupCollapsed()}
+                onClick={() => toggleGroup(clip.group!)}
+                title={groupCollapsed() ? 'Expand layer' : 'Collapse layer'}
               >
                 <ChevronIcon />
               </button>
-            </Show>
-            {clip.label}
+              <span>{formatLabel(clip.group!)}</span>
+            </div>
+            <div class="dialkit-timeline-lane" />
           </div>
-          <div class="dialkit-timeline-lane">
-            <TimelineClip
-              timelineId={props.meta.id}
-              clip={clip}
-              at={stat.at}
-              duration={stat.duration}
-              loop={stat.loop}
-              steps={clip.stepKeys?.length ? stat.tracks[0]?.steps : undefined}
-              fixedDuration={isProps ? true : stat.isPhysics}
-              composite={isProps}
-              pxPerSecond={pxPerSecond()}
-              viewStart={safeViewStart()}
-              timelineDuration={props.meta.duration}
-              selected={selected}
-              selectedStepKey={selected ? popover()?.stepKey : undefined}
-              onClick={handleBarClick}
-              onDrag={closePopover}
-            />
-          </div>
-        </div>
-      );
-      if (!tracksOpen) continue;
-      for (const trackRef of clip.tracks ?? []) {
-        const track = stat.tracks.find((candidate) => candidate.prop === trackRef.prop);
-        if (!track) continue;
-        const trackKey = `${clip.key}.${trackRef.prop}`;
-        const trackMeta: TimelineClipMeta = {
-          key: trackKey,
-          label: `${clip.label} · ${formatLabel(trackRef.prop)}`,
-          color: clip.color,
-          loop: clip.loop,
-          group: clip.group,
-          stepKeys: trackRef.stepKeys,
-        };
-        const trackSelected = popover()?.clip.key === trackKey;
-        result.push(
-          <div class="dialkit-timeline-row dialkit-timeline-track-row" data-grouped={clip.group ? '' : undefined}>
-            <div class="dialkit-timeline-label">{formatLabel(trackRef.prop)}</div>
+        </Show>
+        <Show when={!groupCollapsed()}>
+          <div class="dialkit-timeline-row" data-grouped={clip.group ? '' : undefined}>
+            <div class="dialkit-timeline-label">
+              <Show when={isProps}>
+                <button
+                  class="dialkit-timeline-group-toggle"
+                  data-open={tracksOpen()}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    toggleTracks(clip.key);
+                  }}
+                  title={tracksOpen() ? 'Collapse properties' : 'Expand properties'}
+                >
+                  <ChevronIcon />
+                </button>
+              </Show>
+              {clip.label}
+            </div>
             <div class="dialkit-timeline-lane">
               <TimelineClip
                 timelineId={props.meta.id}
-                clip={trackMeta}
-                at={stat.at + track.delay}
-                duration={track.duration}
-                loop={stat.loop}
-                steps={trackRef.stepKeys?.length ? track.steps : undefined}
-                fixedDuration={!trackRef.stepKeys?.length && track.steps[0]?.isPhysics === true}
-                baseAt={stat.at}
-                delayMode
+                clip={clip}
+                at={stat().at}
+                duration={stat().duration}
+                loop={stat().loop}
+                steps={clip.stepKeys?.length ? stat().tracks[0]?.steps : undefined}
+                fixedDuration={isProps ? true : stat().isPhysics}
+                composite={isProps}
                 pxPerSecond={pxPerSecond()}
                 viewStart={safeViewStart()}
                 timelineDuration={props.meta.duration}
-                selected={trackSelected}
-                selectedStepKey={trackSelected ? popover()?.stepKey : undefined}
-                onClick={openClipPopover}
+                selected={selected()}
+                selectedStepKey={selected() ? popover()?.stepKey : undefined}
+                onClick={handleBarClick}
                 onDrag={closePopover}
               />
             </div>
           </div>
-        );
-      }
-    }
-    return result;
-  });
+          <Show when={tracksOpen()}>
+            <For each={clip.tracks}>{(trackRef) => {
+              const trackKey = `${clip.key}.${trackRef.prop}`;
+              const trackMeta: TimelineClipMeta = {
+                key: trackKey,
+                label: `${clip.label} · ${formatLabel(trackRef.prop)}`,
+                color: clip.color,
+                loop: clip.loop,
+                group: clip.group,
+                stepKeys: trackRef.stepKeys,
+              };
+              const track = () => stat().tracks.find((candidate) => candidate.prop === trackRef.prop);
+              const trackSelected = () => popover()?.clip.key === trackKey;
+              return (
+                <Show when={track()}>
+                  {(track) => (
+                    <div class="dialkit-timeline-row dialkit-timeline-track-row" data-grouped={clip.group ? '' : undefined}>
+                      <div class="dialkit-timeline-label">{formatLabel(trackRef.prop)}</div>
+                      <div class="dialkit-timeline-lane">
+                        <TimelineClip
+                          timelineId={props.meta.id}
+                          clip={trackMeta}
+                          at={stat().at + track().delay}
+                          duration={track().duration}
+                          loop={stat().loop}
+                          steps={trackRef.stepKeys?.length ? track().steps : undefined}
+                          fixedDuration={!trackRef.stepKeys?.length && track().steps[0]?.isPhysics === true}
+                          baseAt={stat().at}
+                          delayMode
+                          pxPerSecond={pxPerSecond()}
+                          viewStart={safeViewStart()}
+                          timelineDuration={props.meta.duration}
+                          selected={trackSelected()}
+                          selectedStepKey={trackSelected() ? popover()?.stepKey : undefined}
+                          onClick={openClipPopover}
+                          onDrag={closePopover}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </Show>
+              );
+            }}</For>
+          </Show>
+        </Show>
+      </>
+    );
+  };
 
   return (
     <div class="dialkit-timeline-section">
@@ -895,7 +894,7 @@ function TimelineSection(props: {
                 )}</For>
               </div>
             </div>
-            {rows()}
+            <For each={props.meta.clips}>{renderClipRows}</For>
             <Show when={pxPerSecond() > 0}>
               <TimelinePlayheadFlag
                 id={props.meta.id}
