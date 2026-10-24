@@ -128,9 +128,11 @@ All three definitions open the same transition editor:
 
 | Mode | Parameters |
 | --- | --- |
-| Easing | Duration and four Bézier coordinates; handles can be dragged or edited by keyboard |
+| Easing | Duration, **Intensity**, and four Bézier coordinates; handles can be dragged or edited by keyboard |
 | Time | `visualDuration` and `bounce` |
 | Physics | `stiffness`, `damping`, and `mass` |
+
+The mode tabs sit above the curve. In Easing mode, the four fields (X1, Y1, X2, Y2) edit the handles directly: drag a field to scrub it, click it to type a value, or use the Up and Down arrows. Typing all four values into one field, such as `0.25, 0.1, 0.25, 1`, sets the whole curve. **Intensity** scales how far both handles reach from their endpoints: 50% is the curve as you left it, 0% is linear, and 100% doubles the reach. It stops where a handle would leave the editable range (X from 0 to 1, Y from -1 to 2), so the curve keeps its shape. Any other edit to the curve becomes the new 50%.
 
 Switching modes restores the previous edits for that mode while the editor remains mounted. The returned type is `TransitionConfig`, a union of `SpringConfig` and `EasingConfig`, because users can switch between them.
 
@@ -258,6 +260,7 @@ DialStore.getPanelOpen("card");
 | Color picker | Tab moves between controls; arrows adjust the focused control; Escape closes |
 | Image picker | Arrows move through images; Enter/Space selects; Escape closes |
 | Bézier handles | Arrows move by 0.01; Shift + Arrow by 0.1; Escape cancels a drag |
+| Bézier fields | Up/Down adjust by 0.01, Shift by 0.1; Enter commits; Escape cancels |
 
 Menus return focus to their trigger on selection or Escape. Tab and Shift + Tab resume the owning panel's tab order.
 

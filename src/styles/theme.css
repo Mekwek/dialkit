@@ -637,6 +637,7 @@
   font-family: inherit;
   font-size: 13px;
   font-weight: 500;
+  text-align: center;
   background: transparent;
   border: none;
   cursor: pointer;
@@ -795,6 +796,8 @@
 
 /* Spring Visualization */
 .dialkit-spring-viz {
+  /* A block, so the column under it starts at its edge, not a line's descent below. */
+  display: block;
   width: 100%;
   border-radius: var(--dial-radius);
   background: var(--dial-surface);
@@ -895,7 +898,85 @@
   white-space: nowrap;
 }
 
-/* Transition copy and paste, and presets */
+/* Transition mode tabs, Bézier fields, copy and paste, and presets */
+/* The row keeps the panel's row height, so the tabs and their pill are 28px. */
+.dialkit-transition-type {
+  box-sizing: border-box;
+  padding: 4px;
+}
+
+/* The tabs name themselves through this label, which stays for screen readers only. */
+.dialkit-transition-type .dialkit-labeled-control-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* The tabs fill the row and share its width equally. The pill stays
+   concentric: 4px inside the row, its corners 4px less round. */
+.dialkit-transition-type .dialkit-segmented {
+  flex: 1;
+  align-self: stretch;
+  min-width: 0;
+  margin-right: 0;
+  padding: 0;
+}
+
+.dialkit-transition-type .dialkit-segmented-pill {
+  top: 0;
+  bottom: 0;
+  border-radius: calc(var(--dial-radius) - 4px);
+}
+
+.dialkit-transition-type .dialkit-segmented-button {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 0 4px;
+}
+
+/* The fields sit as close under the curve box as they sit to each other. */
+.dialkit-ease-fields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  margin-top: calc(4px - var(--dial-row-gap));
+}
+
+.dialkit-ease-field {
+  min-width: 0;
+  height: var(--dial-row-height);
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--dial-radius);
+  outline: none;
+  background: var(--dial-surface);
+  color: var(--dial-text-label);
+  font: 500 13px 'Geist Mono', monospace;
+  text-align: center;
+  transition: background 0.15s, color 0.15s;
+}
+
+.dialkit-ease-field:hover,
+.dialkit-ease-field:focus,
+.dialkit-ease-field[data-scrubbing] {
+  background: var(--dial-surface-hover);
+  color: var(--dial-text-focus);
+}
+
+/* A field not open for typing scrubs its value. */
+.dialkit-ease-field:not(:focus) {
+  cursor: ew-resize;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 /* Short text at the end of a nested folder's title row, such as the preset in use. */
 .dialkit-folder-meta {
   flex-shrink: 0;

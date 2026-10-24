@@ -1,5 +1,6 @@
-import { formatEase, parseEase } from '../../easing-geometry';
-import { createEffect, createSignal, onCleanup, onMount, Show } from 'solid-js';
+import { createEaseIntensity } from '../../easing-geometry';
+import { mountEaseFields, type EaseFieldsProps } from '../../easing-control';
+import { createEffect, onCleanup, onMount, Show } from 'solid-js';
 import { DialStore } from '../../store/DialStore';
 import type { CopiedTransition, EasingConfig, SpringConfig, TransitionConfig } from '../../store/DialStore';
 import { transitionPresetName } from '../../transition-presets';
@@ -40,8 +41,8 @@ export function TransitionControl(props: TransitionControlProps) {
     () => DialStore.getTransitionPresets(),
     (notify) => DialStore.subscribeTransitions(notify)
   );
-  const [editingEase, setEditingEase] = createSignal(false);
-  const [easeDraft, setEaseDraft] = createSignal('');
+  // Intensity scales the curve it started from; 50% is that curve.
+  const intensity = createEaseIntensity();
   const cache: { easing: EasingConfig; simple: SpringConfig; advanced: SpringConfig } = {
     easing: props.value.type === 'easing'
       ? props.value
@@ -93,14 +94,6 @@ export function TransitionControl(props: TransitionControlProps) {
     }
   };
 
-  const commitEase = () => {
-    const parts = parseEase(easeDraft());
-    if (parts) {
-      props.onChange({ ...easing(), ease: parts as [number, number, number, number] });
-    }
-    setEditingEase(false);
-  };
-
   const durationSlider = () => {
     if (props.hideDuration || (!isEasing() && !isSimple())) return null;
     const external = props.durationControl;
@@ -127,11 +120,7 @@ export function TransitionControl(props: TransitionControlProps) {
       actions={<TransitionCopy mode={mode()} value={isEasing() ? easing() : spring()} onPaste={handlePaste} />}
     >
       <div style={{ display: 'flex', 'flex-direction': 'column', gap: '6px' }}>
-        <Show when={isEasing()} fallback={<SpringVisualization spring={spring()} isSimpleMode={isSimple()} />}>
-          <EasingVisualization easing={easing()} onChange={(ease) => props.onChange({ ...easing(), ease })} />
-        </Show>
-
-        <div class="dialkit-labeled-control">
+        <div class="dialkit-labeled-control dialkit-transition-type">
           <span class="dialkit-labeled-control-label">Type</span>
           <SegmentedControl
             options={[
@@ -144,26 +133,21 @@ export function TransitionControl(props: TransitionControlProps) {
           />
         </div>
 
+        <Show when={isEasing()} fallback={<SpringVisualization spring={spring()} isSimpleMode={isSimple()} />}>
+          <EasingVisualization easing={easing()} onChange={(ease) => props.onChange({ ...easing(), ease })} />
+        </Show>
+
         <Show when={isEasing()}>
-          <div class="dialkit-labeled-control">
-            <span class="dialkit-labeled-control-label">Ease</span>
-            <input
-              type="text"
-              aria-label="Bézier coordinates"
-              class="dialkit-text-input"
-              value={editingEase() ? easeDraft() : formatEase(easing().ease)}
-              onInput={(event) => setEaseDraft(event.currentTarget.value)}
-              onFocus={() => {
-                setEaseDraft(formatEase(easing().ease));
-                setEditingEase(true);
-              }}
-              onBlur={commitEase}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') event.currentTarget.blur();
-              }}
-              spellcheck={false}
-            />
-          </div>
+          <EaseFields ease={easing().ease} onChange={(ease) => props.onChange({ ...easing(), ease })} />
+          <Slider
+            label="Intensity"
+            value={intensity.read(easing().ease)}
+            onChange={(value) => props.onChange({ ...easing(), ease: intensity.apply(easing().ease, value) })}
+            min={0}
+            max={100}
+            step={1}
+            unit="%"
+          />
         </Show>
 
         <Show when={isSimple()}>
@@ -182,6 +166,17 @@ export function TransitionControl(props: TransitionControlProps) {
       </div>
     </Folder>
   );
+}
+
+function EaseFields(props: EaseFieldsProps) {
+  let host!: HTMLDivElement;
+  let control: ReturnType<typeof mountEaseFields> | undefined;
+  onMount(() => {
+    control = mountEaseFields(host, { ...props });
+    createEffect(() => control?.update({ ease: props.ease, onChange: props.onChange }));
+  });
+  onCleanup(() => control?.destroy());
+  return <div ref={host} />;
 }
 
 function TransitionPresets(props: TransitionPresetsProps) {

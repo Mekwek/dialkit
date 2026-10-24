@@ -1,6 +1,6 @@
 import { DialStore, type SpringConfig, type EasingConfig, type TransitionConfig } from '../store/DialStore';
-import { mountEasingVisualization } from '../easing-control';
-import { formatEase, parseEase } from '../easing-geometry';
+import { mountEaseFields, mountEasingVisualization } from '../easing-control';
+import { createEaseIntensity } from '../easing-geometry';
 import { springParams, springProgress } from '../transition-math';
 import { transitionPresetName } from '../transition-presets';
 import { mountTransitionCopy, mountTransitionPresets, type TransitionCopyProps, type TransitionPresetsProps } from '../transition-presets-control';
@@ -64,6 +64,8 @@ export function mountTransitionControl(host: HTMLElement, initial: TransitionCon
     }
   });
   const presetProps = (): TransitionPresetsProps => ({ mode, value: current(), onChange: value => props.onChange(value) });
+  // Intensity scales the curve it started from; 50% is that curve.
+  const intensity = createEaseIntensity();
   let copy: ReturnType<typeof mountTransitionCopy> | undefined;
   let presets: ReturnType<typeof mountTransitionPresets> | undefined;
   const presetsFolder = springOnly ? undefined : mountFolder(element('div'), { title: 'Presets', defaultOpen: false });
@@ -103,6 +105,9 @@ export function mountTransitionControl(host: HTMLElement, initial: TransitionCon
     body.replaceChildren();
     const updates: (() => void)[] = [];
     const change = (value: TransitionConfig) => props.onChange(value);
+    const typeRow = element('div', 'dialkit-labeled-control dialkit-transition-type');
+    typeRow.append(element('span', 'dialkit-labeled-control-label', 'Type'));
+    body.append(typeRow);
     if (mode === 'easing') {
       const vizProps = () => ({ easing: cache.easing, onChange: (ease: EasingConfig['ease']) => change({ ...cache.easing, ease }) });
       const viz = mountEasingVisualization(body, vizProps());
@@ -115,9 +120,6 @@ export function mountTransitionControl(host: HTMLElement, initial: TransitionCon
       controls.push(viz);
       updates.push(() => viz.update(vizProps()));
     }
-    const typeRow = element('div', 'dialkit-labeled-control');
-    typeRow.append(element('span', 'dialkit-labeled-control-label', 'Type'));
-    body.append(typeRow);
     const segment = mountSegmentedControl<Mode>(typeRow, {
       options: [...(springOnly ? [] : [{ value: 'easing' as const, label: 'Easing' }]), { value: 'simple', label: 'Time' }, { value: 'advanced', label: 'Physics' }], value: mode, onChange(next) {
         const value = { ...cache[next] } as TransitionConfig;
@@ -156,33 +158,15 @@ export function mountTransitionControl(host: HTMLElement, initial: TransitionCon
       updates.push(() => control.update(getProps()));
     }
     if (mode === 'easing') {
-      const row = element('div', 'dialkit-labeled-control');
-      row.append(element('span', 'dialkit-labeled-control-label', 'Ease'));
-      const input = element('input', 'dialkit-text-input');
-      input.setAttribute('aria-label', 'Bézier coordinates');
-      input.spellcheck = false;
-      row.append(input);
-      body.append(row);
-      const commit = () => {
-        const ease = parseEase(input.value);
-        if (ease)
-          change({ ...cache.easing, ease });
-        input.value = formatEase(cache.easing.ease);
-      };
-      input.addEventListener('blur', commit);
-      input.addEventListener('keydown', event => {
-        if (event.key === 'Escape')
-          input.value = formatEase(cache.easing.ease);
-        if (event.key === 'Escape' || event.key === 'Enter') {
-          event.preventDefault();
-          input.blur();
-        }
-        event.stopPropagation();
+      const fieldsProps = () => ({ ease: cache.easing.ease, onChange: (ease: EasingConfig['ease']) => change({ ...cache.easing, ease }) });
+      const fields = mountEaseFields(body, fieldsProps());
+      const intensityProps = (): SliderProps => ({
+        label: 'Intensity', value: intensity.read(cache.easing.ease), min: 0, max: 100, step: 1, unit: '%',
+        onChange: v => change({ ...cache.easing, ease: intensity.apply(cache.easing.ease, v) }),
       });
-      updates.push(() => {
-        if (document.activeElement !== input)
-          input.value = formatEase(cache.easing.ease);
-      });
+      const intensitySlider = mountSlider(body, intensityProps());
+      controls.push(fields, intensitySlider);
+      updates.push(() => { fields.update(fieldsProps()); intensitySlider.update(intensityProps()); });
     }
     else if (mode === 'simple') {
       if (springOnly && !props.hideDuration)

@@ -12,10 +12,6 @@ export const easingPresets: Record<string, BezierPoints> = {
   easeInOut: [0.42, 0, 0.58, 1],
 };
 
-export function formatEase(ease: BezierPoints): string {
-  return ease.join(', ');
-}
-
 export function parseEase(text: string): BezierPoints | null {
   const parts = text.split(',').map(part => part.trim());
   if (parts.length !== 4 || parts.some(part => !/^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(part))) return null;
@@ -77,4 +73,49 @@ export function easingGuideEnd(start: GraphPoint, handle: GraphPoint, radius = 5
   const distance = Math.hypot(dx, dy);
   if (distance <= radius) return { ...start };
   return { x: handle.x - dx / distance * radius, y: handle.y - dy / distance * radius };
+}
+
+/**
+ * Scales how far both handles reach from their endpoints: 0 is linear, 1 is
+ * the curve itself, 2 doubles the reach. A coordinate that would leave the
+ * editable range (X in 0–1, Y in -1–2) stops at its bound, so the result is
+ * always a valid curve.
+ */
+export function scaleEase(ease: BezierPoints, scale: number): BezierPoints {
+  const k = Math.max(0, scale);
+  if (k === 1) return [...ease];
+  const [x1, y1, x2, y2] = ease;
+  const x = (value: number) => Number(Math.max(0, Math.min(1, value)).toFixed(3));
+  const y = (value: number) => Number(Math.max(-1, Math.min(2, value)).toFixed(3));
+  return [x(k * x1), y(k * y1), x(1 + k * (x2 - 1)), y(1 + k * (y2 - 1))];
+}
+
+/**
+ * Tracks an Intensity slider over a curve, in percent: 50 is the curve it
+ * started from, 0 is linear and 100 doubles the reach. Any other change to the
+ * curve becomes the new 50%, so moving the slider back to 50 always returns
+ * the exact curve it started from.
+ */
+export function createEaseIntensity() {
+  let base: BezierPoints = [0, 0, 1, 1];
+  let shown: BezierPoints | undefined;
+  let percent = 50;
+  const read = (ease: BezierPoints) => {
+    if (!shown || shown.some((part, index) => part !== ease[index])) {
+      base = [...ease];
+      shown = [...ease];
+      percent = 50;
+    }
+    return percent;
+  };
+  return {
+    read,
+    /** The curve at `next` percent, each coordinate within its range. */
+    apply(ease: BezierPoints, next: number): BezierPoints {
+      read(ease);
+      percent = Math.max(0, Math.min(Math.round(next), 100));
+      shown = scaleEase(base, percent / 50);
+      return [...shown];
+    },
+  };
 }

@@ -60,9 +60,7 @@ export function SpringControl(props: SpringControlProps) {
   return (
     <Folder title={props.label} defaultOpen={true}>
       <div style={{ display: 'flex', 'flex-direction': 'column', gap: '6px' }}>
-        <SpringVisualization spring={props.spring} isSimpleMode={isSimpleMode()} />
-
-        <div class="dialkit-labeled-control">
+        <div class="dialkit-labeled-control dialkit-transition-type">
           <span class="dialkit-labeled-control-label">Type</span>
           <SegmentedControl
             options={[
@@ -73,6 +71,8 @@ export function SpringControl(props: SpringControlProps) {
             onChange={handleModeChange}
           />
         </div>
+
+        <SpringVisualization spring={props.spring} isSimpleMode={isSimpleMode()} />
 
         {isSimpleMode() ? (
           <>

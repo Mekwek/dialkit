@@ -55,6 +55,28 @@ try {
   await page.getByRole('radio', { name: 'Time', exact: true }).nth(1).click();
   await page.getByRole('radio', { name: 'Easing', exact: true }).nth(1).click();
   assert.equal((await values()).motion.transition.ease[0], .26);
+  // Dragging a Bézier field scrubs it, a click opens it for typing, and a
+  // focused field shows an Intensity drag and keeps the curve when left.
+  const startX = page.getByRole('spinbutton', { name: 'X1', exact: true });
+  await startX.scrollIntoViewIfNeeded();
+  const field = await startX.boundingBox();
+  await page.mouse.move(field.x + field.width / 2, field.y + field.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(field.x + field.width / 2 + 15, field.y + field.height / 2, { steps: 5 });
+  await page.mouse.up();
+  assert.equal(await startX.inputValue(), '0.41');
+  assert.equal((await values()).motion.transition.ease[0], .41);
+  await startX.click();
+  assert.equal(await startX.evaluate(input => input === document.activeElement), true);
+  const intensity = await page.getByRole('slider', { name: 'Intensity', exact: true }).boundingBox();
+  await page.mouse.move(intensity.x + intensity.width / 2, intensity.y + intensity.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(intensity.x + intensity.width / 5, intensity.y + intensity.height / 2, { steps: 6 });
+  await page.mouse.up();
+  const scaled = (await values()).motion.transition.ease;
+  assert.notEqual(scaled[2], .6);
+  await page.locator('h1').click();
+  assert.deepEqual((await values()).motion.transition.ease, scaled);
   await page.getByRole('button', { name: 'Motion', exact: true }).click();
   await page.getByRole('button', { name: 'Actions', exact: true }).click();
   await page.getByRole('button', { name: 'Replay', exact: true }).click();

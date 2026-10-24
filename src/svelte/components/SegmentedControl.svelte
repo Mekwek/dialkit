@@ -32,6 +32,14 @@
     measure();
   });
 
+  // Keep the pill aligned when the container itself resizes (e.g. panel width).
+  $effect(() => {
+    if (!containerRef || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(containerRef);
+    return () => observer.disconnect();
+  });
+
   let shouldAnimate = $derived.by(() => {
     if (!hasAnimated) {
       hasAnimated = true;
