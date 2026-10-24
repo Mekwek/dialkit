@@ -8,7 +8,6 @@ import { TimelineStore } from '../../store/TimelineStore';
 import type { TimelineClipMeta, TimelineMeta } from '../../store/TimelineStore';
 import { TimelineUiStore } from '../../store/TimelineUiStore';
 import {
-  clampClipMove,
   clampClipResizeEnd,
   clampClipResizeStart,
   clampStepResize,
@@ -17,11 +16,14 @@ import {
   formatSeconds,
   formatStepLabel,
   computeClipStaticFromValues,
+  dragTimelineClip,
   normalizeTimelineValuesForCopy,
   TIMELINE_MIN_CLIP_DURATION,
+  timelineClipDragBounds,
+  timelineClipSpans,
   timelinePopoverDisplayValues,
 } from '../../timeline-core';
-import type { TimelineClipLoop, TimelineStepStatic } from '../../timeline-core';
+import type { TimelineClipDragBounds, TimelineClipLoop, TimelineStepStatic } from '../../timeline-core';
 import { clamp } from '../../transition-math';
 import { buildCopyInstruction } from '../../copy-instruction';
 import { isDevDefault } from '../../env';
@@ -839,6 +841,19 @@ const TimelineSection = memo(function TimelineSection({
     [openClipPopover, toggleTracks]
   );
 
+  // Where a dragged bar may go: the whole timeline, or the gap between its
+  // neighbors on a single track. The playhead is a snap target while paused.
+  const singleTrack = meta.track === 'single';
+  const getDragBounds = useCallback((clipKey: string) => {
+    const transport = TimelineStore.getTransport(meta.id);
+    return timelineClipDragBounds(
+      timelineClipSpans(DialStore.getValues(meta.id), meta.clips, meta.duration),
+      clipKey,
+      meta.duration,
+      { singleTrack, playhead: transport.playing ? undefined : transport.time }
+    );
+  }, [meta.clips, meta.duration, meta.id, singleTrack]);
+
   const toggleGroup = useCallback((group: string) => {
     setCollapsedGroups((prev) => {
       const next = new Set(prev);
@@ -870,10 +885,41 @@ const TimelineSection = memo(function TimelineSection({
   }
 
   // Rows: clips in config order, grouped clips under a collapsible header,
-  // props clips expandable into full per-property track rows.
+  // props clips expandable into full per-property track rows. A single
+  // track puts every clip on one lane, named inside its bar.
   const rows: ReactNode[] = [];
   let lastGroup: string | undefined;
-  for (const clip of meta.clips) {
+  if (singleTrack) {
+    rows.push(
+      <div key="single" className="dialkit-timeline-row">
+        <div className="dialkit-timeline-label" />
+        <div className="dialkit-timeline-lane">
+          {meta.clips.map((clip) => {
+            const stat = computeClipStaticFromValues(values, clip, meta.duration);
+            return (
+              <TimelineClip
+                key={clip.key}
+                timelineId={meta.id}
+                clip={clip}
+                at={stat.at}
+                duration={stat.duration}
+                loop={stat.loop}
+                fixedDuration={stat.isPhysics}
+                named
+                pxPerSecond={pxPerSecond}
+                viewStart={safeViewStart}
+                timelineDuration={meta.duration}
+                selected={popover?.clip.key === clip.key}
+                getDragBounds={getDragBounds}
+                onClick={handleBarClick}
+                onDrag={closePopover}
+              />
+            );
+          })}
+        </div>
+      </div>
+    );
+  } else for (const clip of meta.clips) {
     if (clip.group !== lastGroup) {
       lastGroup = clip.group;
       if (clip.group) {
@@ -940,6 +986,7 @@ const TimelineSection = memo(function TimelineSection({
             timelineDuration={meta.duration}
             selected={popover?.clip.key === clip.key}
             selectedStepKey={popover?.clip.key === clip.key ? popover.stepKey : undefined}
+            getDragBounds={getDragBounds}
             onClick={handleBarClick}
             onDrag={closePopover}
           />
@@ -986,6 +1033,7 @@ const TimelineSection = memo(function TimelineSection({
                 timelineDuration={meta.duration}
                 selected={popover?.clip.key === trackKey}
                 selectedStepKey={popover?.clip.key === trackKey ? popover.stepKey : undefined}
+                getDragBounds={getDragBounds}
                 onClick={openClipPopover}
                 onDrag={closePopover}
               />
@@ -997,7 +1045,7 @@ const TimelineSection = memo(function TimelineSection({
   }
 
   return (
-    <div className="dialkit-timeline-section">
+    <div className="dialkit-timeline-section" data-track={singleTrack ? 'single' : undefined}>
       <div className="dialkit-timeline-header" data-open={open || undefined}>
         <div className="dialkit-timeline-identity">
           <span className="dialkit-timeline-title">{meta.name}</span>
@@ -1168,6 +1216,9 @@ const TimelineSection = memo(function TimelineSection({
           popover={popover}
           values={values}
           theme={theme}
+          maxDuration={singleTrack && !popover.stepKey
+            ? getDragBounds(popover.clip.key).end - computeClipStaticFromValues(values, popover.clip, meta.duration).at
+            : undefined}
           onClose={closePopover}
         />
       )}
@@ -1186,12 +1237,15 @@ function ClipPopover({
   popover,
   values,
   theme,
+  maxDuration,
   onClose,
 }: {
   panelId: string;
   popover: PopoverState;
   values: Record<string, DialValue>;
   theme: DialTheme;
+  /** On a single track a clip grows only up to the next one. */
+  maxDuration?: number;
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -1277,12 +1331,20 @@ function ClipPopover({
   const targetPath = stepKey ? `${clip.key}.${stepKey}` : clip.key;
   const durationMeta = getControlAt(panelId, `${targetPath}.duration`);
   const durationValue = durationMeta ? values[durationMeta.path] : undefined;
+  const durationMin = Math.max(TIMELINE_MIN_CLIP_DURATION, durationMeta?.min ?? 0);
+  const durationMax = maxDuration === undefined
+    ? durationMeta?.max
+    : Math.max(durationMin, Math.min(durationMeta?.max ?? maxDuration, maxDuration));
   const transitionDuration = durationMeta?.type === 'slider' && typeof durationValue === 'number'
     ? {
         value: durationValue,
-        onChange: (next: number) => DialStore.updateValue(panelId, durationMeta.path, next),
-        min: Math.max(TIMELINE_MIN_CLIP_DURATION, durationMeta.min ?? 0),
-        max: durationMeta.max,
+        onChange: (next: number) => DialStore.updateValue(
+          panelId,
+          durationMeta.path,
+          durationMax === undefined ? next : Math.min(next, durationMax)
+        ),
+        min: durationMin,
+        max: durationMax,
         step: durationMeta.step,
       }
     : undefined;
@@ -1394,6 +1456,7 @@ type DragState = {
   pointerX: number;
   at: number;
   duration: number;
+  bounds: TimelineClipDragBounds;
   stepDurations?: number[];
   clickEl: HTMLElement | null;
   moved: boolean;
@@ -1408,6 +1471,7 @@ function TimelineClip({
   steps,
   fixedDuration,
   composite = false,
+  named = false,
   baseAt = 0,
   delayMode = false,
   pxPerSecond,
@@ -1415,6 +1479,7 @@ function TimelineClip({
   timelineDuration,
   selected,
   selectedStepKey,
+  getDragBounds,
   onClick,
   onDrag,
 }: {
@@ -1427,6 +1492,8 @@ function TimelineClip({
   fixedDuration: boolean;
   /** Read-only composite bar of a props clip — no handles, no editor. */
   composite?: boolean;
+  /** Draws the clip's name inside the bar (single track). */
+  named?: boolean;
   /** Track rows: position = baseAt + delay; dragging edits the delay. */
   baseAt?: number;
   delayMode?: boolean;
@@ -1435,6 +1502,7 @@ function TimelineClip({
   timelineDuration: number;
   selected: boolean;
   selectedStepKey?: string;
+  getDragBounds: (clipKey: string) => TimelineClipDragBounds;
   onClick: (clip: TimelineClipMeta, rect: DOMRect, stepKey?: string) => void;
   onDrag: () => void;
 }) {
@@ -1463,13 +1531,14 @@ function TimelineClip({
         pointerX: e.clientX,
         at,
         duration,
+        bounds: getDragBounds(clip.key),
         stepDurations: steps?.map((step) => step.duration),
         clickEl: target.closest?.('[data-step]') ?? null,
         moved: false,
       };
       e.currentTarget.setPointerCapture(e.pointerId);
     },
-    [at, duration, fixedDuration, steps]
+    [at, clip.key, duration, fixedDuration, getDragBounds, steps]
   );
 
   const handlePointerMove = useCallback(
@@ -1495,16 +1564,20 @@ function TimelineClip({
           `${clip.key}.${steps[index].key ?? ''}.duration`,
           clampStepResize(drag.stepDurations[index] + dt, drag.at, others, timelineDuration)
         );
-      } else if (drag.mode === 'move') {
-        if (delayMode) {
-          DialStore.updateValue(
-            timelineId,
-            `${clip.key}.delay`,
-            clampTrackDelay(drag.at + dt - baseAt, baseAt, drag.duration, timelineDuration)
-          );
-        } else {
-          DialStore.updateValue(timelineId, `${clip.key}.at`, clampClipMove(drag.at + dt, drag.duration, timelineDuration));
-        }
+      } else if (!delayMode && drag.mode !== 'boundary' && !(drag.mode === 'start' && steps)) {
+        // Clip bars. Cmd (Ctrl elsewhere) snaps to other clips and the playhead.
+        const next = dragTimelineClip(drag.mode, drag, dt, drag.bounds, e.metaKey || e.ctrlKey);
+        DialStore.updateValues(timelineId, {
+          ...(drag.mode !== 'end' && { [`${clip.key}.at`]: next.at }),
+          ...(drag.mode !== 'move' && { [`${clip.key}.duration`]: next.duration }),
+        });
+      } else if (drag.mode === 'move' && delayMode) {
+        // Track rows: moving the bar shifts the property's phase.
+        DialStore.updateValue(
+          timelineId,
+          `${clip.key}.delay`,
+          clampTrackDelay(drag.at + dt - baseAt, baseAt, drag.duration, timelineDuration)
+        );
       } else if (drag.mode === 'end') {
         DialStore.updateValue(
           timelineId,
@@ -1664,6 +1737,7 @@ function TimelineClip({
         ) : (
           <>
             {resizable && <div className="dialkit-timeline-clip-handle" data-edge="start" />}
+            {named && <span className="dialkit-timeline-clip-name">{clip.label}</span>}
             {width > 56 && <span className="dialkit-timeline-clip-duration">{durationText}</span>}
             {resizable && <div className="dialkit-timeline-clip-handle" data-edge="end" />}
           </>

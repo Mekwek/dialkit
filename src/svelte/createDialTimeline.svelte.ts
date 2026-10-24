@@ -47,6 +47,7 @@ export function createDialTimeline<T extends TimelineConfig>(
     const currentParsed = parsed;
     const persist = options?.persist;
     const loop = options?.loop;
+    const track = options?.track;
     const autoplay = options?.autoplay ?? true;
     // Store notifications must not become dependencies of this registration.
     return untrack(() => {
@@ -59,7 +60,7 @@ export function createDialTimeline<T extends TimelineConfig>(
       flatValues = initialValues;
       const initialStatic = computeStaticTimeline(currentParsed, initialValues);
       TimelineStore.register(
-        buildTimelineMeta(panelId, name, initialStatic.duration, currentParsed, loop),
+        buildTimelineMeta(panelId, name, initialStatic.duration, currentParsed, loop, track),
         { autoplay }
       );
       transport = TimelineStore.getTransport(panelId);
@@ -81,7 +82,7 @@ export function createDialTimeline<T extends TimelineConfig>(
   });
 
   $effect(() => {
-    const meta = buildTimelineMeta(panelId, name, staticTimeline.duration, parsed, options?.loop);
+    const meta = buildTimelineMeta(panelId, name, staticTimeline.duration, parsed, options?.loop, options?.track);
     untrack(() => TimelineStore.update(meta));
   });
 

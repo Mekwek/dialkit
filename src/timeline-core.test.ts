@@ -15,14 +15,19 @@ import {
   clampClipResizeStart,
   clampStepResize,
   clampTrackDelay,
+  canShareTrack,
+  dragTimelineClip,
   formatClock,
   formatStepLabel,
   normalizeLoopMode,
   normalizeTimelineValuesForCopy,
+  timelineClipDragBounds,
+  timelineClipSpans,
   timelinePopoverDisplayValues,
 } from './timeline-core';
 import type { TimelineConfig } from './timeline-core';
 import { foldLoopTime, loopSpan } from './store/TimelineStore';
+import { buildTimelineMeta } from './timeline/adapter';
 
 const near = (actual: number, expected: number, eps = 1e-9) =>
   assert.ok(Math.abs(actual - expected) < eps, `expected ${actual} ≈ ${expected}`);
@@ -372,6 +377,133 @@ describe('edit clamps', () => {
     near(clampStepResize(10, 0, 1.6, 4.8), 3.2);
     assert.equal(clampTrackDelay(-1, 0, 1.2, 4.8), 0);
     assert.equal(clampTrackDelay(9, 0, 1.2, 4.8), 3.6);
+  });
+});
+
+describe('single track', () => {
+  // A [0,2] butted by B [2,4], a 1.5s gap, then C [5.5,7.5]; 10s timeline.
+  const spans = [
+    { key: 'a', at: 0, duration: 2 },
+    { key: 'b', at: 2, duration: 2 },
+    { key: 'c', at: 5.5, duration: 2 },
+  ];
+  const bounds = (key: string) => timelineClipDragBounds(spans, key, 10, { singleTrack: true });
+  const span = (key: string) => spans.find((candidate) => candidate.key === key)!;
+
+  it('a move stops at its neighbors and never pushes them', () => {
+    near(dragTimelineClip('move', span('c'), -3, bounds('c')).at, 4);
+    near(dragTimelineClip('move', span('b'), -1, bounds('b')).at, 2);
+    near(dragTimelineClip('move', span('b'), 9, bounds('b')).at, 3.5);
+    // The last clip runs up to the timeline end.
+    near(dragTimelineClip('move', span('c'), 9, bounds('c')).at, 8);
+  });
+
+  it('resizes stop at the neighbors, both edges', () => {
+    near(dragTimelineClip('end', span('a'), 1, bounds('a')).duration, 2);
+    assert.deepEqual(dragTimelineClip('start', span('c'), -3, bounds('c')), { at: 4, duration: 3.5 });
+    near(dragTimelineClip('end', span('c'), 9, bounds('c')).duration, 4.5);
+  });
+
+  it('rows leave every clip the whole timeline', () => {
+    const rows = timelineClipDragBounds(spans, 'b', 10);
+    assert.equal(rows.start, 0);
+    assert.equal(rows.end, 10);
+    near(dragTimelineClip('move', span('b'), -5, rows).at, 0);
+  });
+
+  it('clips that start out overlapping can still move apart', () => {
+    const overlapping = [
+      { key: 'a', at: 0, duration: 2 },
+      { key: 'b', at: 1, duration: 2 },
+    ];
+    const b = timelineClipDragBounds(overlapping, 'b', 10, { singleTrack: true });
+    near(dragTimelineClip('move', overlapping[1], 3, b).at, 4);
+    near(dragTimelineClip('move', overlapping[1], -1, b).at, 1);
+  });
+
+  it('holds plain clips only', () => {
+    const plain = parseTimelineConfig({ a: { at: 0, duration: 1 }, b: { at: 1, from: { x: 0 }, to: { x: 1 } } });
+    assert.equal(canShareTrack(plain.clips), true);
+    for (const config of [
+      { a: { at: 0, duration: 1, loop: true } },
+      { a: { at: 0, steps: [{ to: { x: 1 } }], from: { x: 0 } } },
+      { a: { at: 0, props: { x: { from: 0, to: 1 } } } },
+      { layer: { a: { at: 0, duration: 1 } } },
+    ] as TimelineConfig[]) {
+      assert.equal(canShareTrack(parseTimelineConfig(config).clips), false);
+    }
+  });
+
+  it('falls back to rows, warning once, when a clip needs its own row', () => {
+    const plain = parseTimelineConfig({ a: { at: 0, duration: 1 } });
+    assert.equal(buildTimelineMeta('t', 'T', 1, plain, false, 'single').track, 'single');
+    const looping = parseTimelineConfig({ a: { at: 0, duration: 1, loop: true } });
+    const warnings = captureWarnings(() => {
+      assert.equal(buildTimelineMeta('t', 'T', 1, looping, false, 'single').track, 'rows');
+      buildTimelineMeta('t', 'T', 1, looping, false, 'single');
+    });
+    assert.equal(warnings.length, 1);
+  });
+
+  it('a free drag over the whole timeline is the rows clamps, edge cases included', () => {
+    const rows = { start: 0, end: 4, targets: [] };
+    const cases: Array<[number, number, number]> = [
+      // [at, duration, delta]
+      [1, 1, 0.5], [1, 1, -3], [1, 1, 5], [0, 4, 1], [3.98, 0.02, 0.5],
+      [3.97, 0.03, -0.01], [0.5, 0.03, -1], [0, 0.02, 0.3], [2.004, 1.006, 0.333],
+    ];
+    for (const [at, duration, delta] of cases) {
+      const label = `at ${at}, duration ${duration}, delta ${delta}`;
+      assert.deepEqual(dragTimelineClip('move', { at, duration }, delta, rows), { at: clampClipMove(at + delta, duration, 4), duration }, label);
+      assert.deepEqual(dragTimelineClip('end', { at, duration }, delta, rows), { at, duration: clampClipResizeEnd(duration + delta, at, 4) }, label);
+      assert.deepEqual(dragTimelineClip('start', { at, duration }, delta, rows), clampClipResizeStart(Math.max(at + delta, 0), at, duration), label);
+    }
+  });
+
+  it('reads spans from stored values', () => {
+    const parsed = parseTimelineConfig({ a: { at: 0, duration: 1 }, b: { at: 1, duration: 0.5 } });
+    assert.deepEqual(timelineClipSpans({ 'a.at': 0.25, 'a.duration': 1, 'b.at': 1, 'b.duration': 0.5 }, parsed.clips, parsed.duration), [
+      { key: 'a', at: 0.25, duration: 1 },
+      { key: 'b', at: 1, duration: 0.5 },
+    ]);
+  });
+});
+
+describe('snapping drags', () => {
+  // A [0,2], B [3,5], C [8,10] on a 12s timeline.
+  const spans = [
+    { key: 'a', at: 0, duration: 2 },
+    { key: 'b', at: 3, duration: 2 },
+    { key: 'c', at: 8, duration: 2 },
+  ];
+
+  it('targets are the other clips\' edges and the playhead', () => {
+    assert.deepEqual(timelineClipDragBounds(spans, 'b', 12).targets, [0, 2, 8, 10]);
+    assert.deepEqual(timelineClipDragBounds(spans, 'b', 12, { playhead: 4.5 }).targets, [0, 2, 4.5, 8, 10]);
+  });
+
+  it('a move lands the start or the end on the closest target', () => {
+    const bounds = timelineClipDragBounds(spans, 'b', 12, { playhead: 6.2 });
+    // Start lands on A's end.
+    near(dragTimelineClip('move', spans[1], -0.7, bounds, true).at, 2);
+    // End lands on C's start.
+    near(dragTimelineClip('move', spans[1], 2.6, bounds, true).at, 6);
+    // Start lands on the playhead.
+    near(dragTimelineClip('move', spans[1], 3.2, bounds, true).at, 6.2);
+  });
+
+  it('a single track skips targets past a neighbor', () => {
+    const bounds = timelineClipDragBounds(spans, 'b', 12, { singleTrack: true });
+    // A's start is behind A: the closest reachable landing is A's end.
+    near(dragTimelineClip('move', spans[1], -3, bounds, true).at, 2);
+  });
+
+  it('edges land on targets, and fall back to a free drag when none is reachable', () => {
+    const bounds = timelineClipDragBounds(spans, 'b', 12, { playhead: 6.2 });
+    near(dragTimelineClip('end', spans[1], 1.5, bounds, true).duration, 3.2);
+    assert.deepEqual(dragTimelineClip('start', spans[1], -0.8, bounds, true), { at: 2, duration: 3 });
+    const none = { ...bounds, targets: [] };
+    near(dragTimelineClip('move', spans[1], 0.33, none, true).at, 3.33);
   });
 });
 

@@ -2372,6 +2372,30 @@
   pointer-events: none;
 }
 
+/* ── Single track ──
+   Every clip shares one lane, so each bar carries its own name and the
+   body drops the label column. The collapsed header keeps it for the title. */
+
+.dialkit-timeline-section[data-track="single"] .dialkit-timeline-body {
+  --dial-timeline-label-w: 0px;
+}
+
+.dialkit-timeline-clip-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+}
+
+.dialkit-timeline-clip-name + .dialkit-timeline-clip-duration {
+  margin-left: 6px;
+}
+
 /* ── Sequence segments ──
    A steps clip is one bar sliced into legs; boundaries between legs are
    drag handles that retime the leg to their left. */

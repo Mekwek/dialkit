@@ -58,7 +58,7 @@ export function createDialTimeline<T extends TimelineConfig>(
 
     const currentStatic = staticTimeline();
     TimelineStore.register(
-      buildTimelineMeta(panelId, name, currentStatic.duration, parsed(), options?.loop),
+      buildTimelineMeta(panelId, name, currentStatic.duration, parsed(), options?.loop, options?.track),
       { autoplay: options?.autoplay ?? true }
     );
     setTransport(TimelineStore.getTransport(panelId));
@@ -76,7 +76,7 @@ export function createDialTimeline<T extends TimelineConfig>(
     const currentStatic = staticTimeline();
     if (!mounted) return;
     TimelineStore.update(
-      buildTimelineMeta(panelId, name, currentStatic.duration, currentParsed, options?.loop)
+      buildTimelineMeta(panelId, name, currentStatic.duration, currentParsed, options?.loop, options?.track)
     );
   });
 

@@ -1,14 +1,19 @@
 <script lang="ts">
   import { DialStore } from 'dialkit/store';
   import {
-    clampClipMove,
     clampClipResizeEnd,
     clampClipResizeStart,
     clampStepResize,
     clampTrackDelay,
+    dragTimelineClip,
     formatSeconds,
   } from 'dialkit/timeline';
-  import type { TimelineClipLoop, TimelineClipMeta, TimelineStepStatic } from 'dialkit/timeline';
+  import type {
+    TimelineClipDragBounds,
+    TimelineClipLoop,
+    TimelineClipMeta,
+    TimelineStepStatic,
+  } from 'dialkit/timeline';
 
   const DRAG_THRESHOLD_PX = 3;
 
@@ -18,6 +23,7 @@
     pointerX: number;
     at: number;
     duration: number;
+    bounds: TimelineClipDragBounds;
     stepDurations?: number[];
     clickEl: HTMLElement | null;
     moved: boolean;
@@ -32,6 +38,7 @@
     steps,
     fixedDuration,
     composite = false,
+    named = false,
     baseAt = 0,
     delayMode = false,
     pxPerSecond,
@@ -39,6 +46,7 @@
     timelineDuration,
     selected,
     selectedStepKey,
+    getDragBounds,
     onClick,
     onDrag,
   } = $props<{
@@ -50,6 +58,8 @@
     steps?: TimelineStepStatic[];
     fixedDuration: boolean;
     composite?: boolean;
+    /** Draws the clip's name inside the bar (single track). */
+    named?: boolean;
     baseAt?: number;
     delayMode?: boolean;
     pxPerSecond: number;
@@ -57,6 +67,7 @@
     timelineDuration: number;
     selected: boolean;
     selectedStepKey?: string;
+    getDragBounds: (clipKey: string) => TimelineClipDragBounds;
     onClick: (clip: TimelineClipMeta, rect: DOMRect, stepKey?: string) => void;
     onDrag: () => void;
   }>();
@@ -107,6 +118,7 @@
       pointerX: event.clientX,
       at,
       duration,
+      bounds: getDragBounds(clip.key),
       stepDurations: steps?.map((step: TimelineStepStatic) => step.duration),
       clickEl: target.closest?.('[data-step]') as HTMLElement | null,
       moved: false,
@@ -132,12 +144,16 @@
         `${clip.key}.${steps[index].key ?? ''}.duration`,
         clampStepResize(drag.stepDurations[index] + dt, drag.at, others, timelineDuration)
       );
-    } else if (drag.mode === 'move') {
-      if (delayMode) {
-        DialStore.updateValue(timelineId, `${clip.key}.delay`, clampTrackDelay(drag.at + dt - baseAt, baseAt, drag.duration, timelineDuration));
-      } else {
-        DialStore.updateValue(timelineId, `${clip.key}.at`, clampClipMove(drag.at + dt, drag.duration, timelineDuration));
-      }
+    } else if (!delayMode && drag.mode !== 'boundary' && !(drag.mode === 'start' && steps)) {
+      // Clip bars. Cmd (Ctrl elsewhere) snaps to other clips and the playhead.
+      const next = dragTimelineClip(drag.mode, drag, dt, drag.bounds, event.metaKey || event.ctrlKey);
+      DialStore.updateValues(timelineId, {
+        ...(drag.mode !== 'end' && { [`${clip.key}.at`]: next.at }),
+        ...(drag.mode !== 'move' && { [`${clip.key}.duration`]: next.duration }),
+      });
+    } else if (drag.mode === 'move' && delayMode) {
+      // Track rows: moving the bar shifts the property's phase.
+      DialStore.updateValue(timelineId, `${clip.key}.delay`, clampTrackDelay(drag.at + dt - baseAt, baseAt, drag.duration, timelineDuration));
     } else if (drag.mode === 'end') {
       DialStore.updateValue(timelineId, `${clip.key}.duration`, clampClipResizeEnd(drag.duration + dt, drag.at, timelineDuration));
     } else if (steps && drag.stepDurations) {
@@ -223,6 +239,7 @@
     {#if !steps?.[0]?.isPhysics}<div class="dialkit-timeline-clip-handle" data-edge="start"></div>{/if}
   {:else}
     {#if resizable}<div class="dialkit-timeline-clip-handle" data-edge="start"></div>{/if}
+    {#if named}<span class="dialkit-timeline-clip-name">{clip.label}</span>{/if}
     {#if width > 56}<span class="dialkit-timeline-clip-duration">{durationText}</span>{/if}
     {#if resizable}<div class="dialkit-timeline-clip-handle" data-edge="end"></div>{/if}
   {/if}

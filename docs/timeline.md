@@ -26,6 +26,7 @@ useDialTimeline(name, config, options);
 | `persist` | Save timing edits and presets; accepts the panel storage options | `false` |
 | `autoplay` | Play on mount | `true` |
 | `loop` | Wrap to 0 with `true`, or to a time with `{ from: seconds }` | `false` |
+| `track` | `"rows"` for a row per clip, `"single"` for one shared track | `"rows"` |
 
 The returned values include `time`, `playing`, `duration`, and the methods `play()`, `pause()`, `replay()`, and `seek(seconds)`. `replay()` starts from 0. In vanilla, these methods also live on the controller; use `subscribe(callback)` for frame updates and `destroy()` for cleanup.
 
@@ -159,6 +160,16 @@ const config = {
 
 Groups organize the editor. Your app decides how values from different clips combine on an element.
 
+## Single track
+
+Clips that play one after another can share one track:
+
+```tsx
+const timeline = useDialTimeline("Story", config, { track: "single" });
+```
+
+Each bar shows its name. Dragging or resizing a clip, or editing its duration, stops at the clip before or after it. A single track holds plain clips only; when a config has groups, sequences, property tracks, or looping clips, DialKit warns and uses rows.
+
 ## Loops and duration
 
 A clip's `loop: true` repeats its cycle until the timeline ends. To return to its starting state, write a sequence whose last step reaches that state. There is no mirror mode.
@@ -202,6 +213,7 @@ The toolbar includes play/pause, replay, loop, presets, Copy, Export when `onExp
 | Horizontal scroll while zoomed | Pan the visible range |
 | Drag a clip | Change its start time |
 | Drag clip edges or segment boundaries | Change duration |
+| Cmd + drag a plain clip or its edges (Ctrl on Windows and Linux) | Snap its start or end to other clips' edges and the paused playhead |
 | Click a clip or segment | Edit values and transition |
 | Drag the dock's top edge | Resize its height |
 

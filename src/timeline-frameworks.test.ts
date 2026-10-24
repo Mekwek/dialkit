@@ -84,7 +84,7 @@ describe('framework timeline adapters', () => {
       setup() {
         timeline = useVueDialTimeline('Vue Timeline Test', {
           clip: { at: 0, duration: 1 },
-        }, { id, autoplay: false });
+        }, { id, autoplay: false, track: 'single' });
         return () => h('div');
       },
     });
@@ -93,6 +93,7 @@ describe('framework timeline adapters', () => {
 
     app.mount(root);
     assert.equal(TimelineStore.getTimeline(id)?.duration, 1);
+    assert.equal(TimelineStore.getTimeline(id)?.track, 'single');
     assert.equal(DialStore.getPanel(id)?.kind, 'timeline');
     assert.equal(timeline!.value.clip.duration, 1);
 
@@ -119,16 +120,18 @@ describe('framework timeline adapters', () => {
         dispose = cleanup;
         timeline = createDialTimeline('Solid Timeline Test', {
           clip: { at: 0, duration: 1 },
-        }, { id, autoplay: false });
+        }, { id, autoplay: false, track: 'single' });
       });
       await new Promise((resolve) => setTimeout(resolve, 0));
       const registered = TimelineStore.getTimeline(id)?.duration;
+      const track = TimelineStore.getTimeline(id)?.track;
       const kind = DialStore.getPanel(id)?.kind;
       DialStore.updateValue(id, 'clip.duration', 1.5);
       const edited = timeline().clip.duration;
       dispose();
       console.log(JSON.stringify({
         registered,
+        track,
         kind,
         edited,
         timelineRemoved: TimelineStore.getTimeline(id) === undefined,
@@ -144,6 +147,7 @@ describe('framework timeline adapters', () => {
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(JSON.parse(result.stdout.trim()), {
       registered: 1,
+      track: 'single',
       kind: 'timeline',
       edited: 1.5,
       timelineRemoved: true,
