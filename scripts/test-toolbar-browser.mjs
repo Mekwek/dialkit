@@ -7,6 +7,16 @@ const { chromium } = await import(
 );
 const browser = await chromium.launch({ channel: "chrome", headless: true });
 const base = process.env.DIALKIT_FIXTURE_URL || "http://127.0.0.1:3011";
+// Drags the middle of a clip bar by dx pixels.
+const drag = async (page, bar, dx) => {
+  const box = await bar.boundingBox();
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + dx, y, { steps: 8 });
+  await page.mouse.up();
+};
 try {
   for (const framework of ["react", "solid", "vue", "svelte", "vanilla"]) {
     for (const kind of ["", "-timeline"]) {
@@ -99,6 +109,23 @@ try {
         `${framework}${kind}: version lifecycle and keyboard checks passed`,
       );
     }
+
+    // Every move of a drag edits the clip; the bar keeps the pointer to the end.
+    const page = await browser.newPage();
+    const errors = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.goto(`${base}/${framework}-clips.html`);
+    const id = await page.evaluate(() => window.DialStore.getPanels("timeline")[0].id);
+    const px = (await page.locator(".dialkit-timeline-ruler").boundingBox()).width / 3.5;
+    const rowBar = (name) =>
+      page.locator(".dialkit-timeline-row", { hasText: name }).locator(".dialkit-timeline-clip");
+    await drag(page, rowBar("Title"), 0.4 * px);
+    const titleAt = await page.evaluate((id) => window.DialStore.getValues(id)["title.at"], id);
+    assert.ok(Math.abs(titleAt - 1.4) < 0.02, `Title dragged to ${titleAt}, expected 1.4`);
+
+    assert.deepEqual(errors, []);
+    await page.close();
+    console.log(`${framework}-clips: drag checks passed`);
   }
 } finally {
   await browser.close();
