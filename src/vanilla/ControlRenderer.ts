@@ -43,7 +43,7 @@ export function mountControlRenderer(host: HTMLElement, initial: ControlRenderer
           break;
         }
         case 'slider':
-          mount(mountSlider, () => ({ label: control.label, value: value() as number, min: control.min, max: control.max, step: control.step, onChange: change, ...shortcut() }));
+          mount(mountSlider, () => ({ label: control.label, value: value() as number, min: control.min, max: control.max, step: control.step, unit: control.unit, onChange: change, ...shortcut() }));
           break;
         case 'toggle':
           mount(mountToggle, () => ({ label: control.label, checked: value() as boolean, onChange: change, ...shortcut() }));

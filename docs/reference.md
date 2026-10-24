@@ -16,6 +16,7 @@ import type { DialConfig } from "dialkit";
 const config = {
   radius: [24, 0, 64],       // [default, min, max]
   spacing: [16, 0, 64, 2],   // [default, min, max, step]
+  angle: [0, 0, 90, 1, "°"], // [default, min, max, step, unit]
   scale: 1.2,               // Infer the range and step
 } satisfies DialConfig;
 ```
@@ -29,6 +30,8 @@ When a tuple omits its step, DialKit uses `0.01` for ranges up to 1, `0.1` up to
 | Greater than 10, up to 100 | 0 | Value × 3 | 1 |
 | Greater than 100 | 0 | Value × 3 | 10 |
 | Negative | Value × 3 | −Value × 3 | 1 |
+
+A unit shows after the value in a dimmer tone. Word units such as `s` or `px` get a small gap; signs such as `°`, `×`, or `%` sit against the number. The value stays a plain number.
 
 Click or drag to adjust a slider. Focus it and press Enter to type a value, or hover over its number briefly and click. Values are clamped to the range.
 

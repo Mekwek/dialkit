@@ -36,7 +36,7 @@
     const { createDialKit, createDialRoot, createDialTimeline, createDialTimelineRoot } = DialKit;
     const params = new URLSearchParams(location.search);
     const kit = createDialKit('Card', {
-      radius: [24, 0, 64, 1], scale: [1, .5, 1.5, .01], visible: true,
+      radius: [24, 0, 64, 1, 'px'], scale: [1, .5, 1.5, .01, '×'], visible: true,
       title: { type: 'text', default: 'Hello, HTML.' },
       accent: { type: 'color', default: '#a78bfa' },
       choice: { type: 'select', options: ['center', 'left', 'right'] },

@@ -2,7 +2,7 @@ import { handleSliderKey } from '../control-keyboard';
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { motion, useMotionValue, useTransform, animate } from 'motion/react';
 import type { ShortcutConfig } from '../store/DialStore';
-import { decimalsForStep, roundValue, snapToDecile, formatSliderShortcut } from '../shortcut-utils';
+import { decimalsForStep, isWordUnit, roundValue, snapToDecile, formatSliderShortcut } from '../shortcut-utils';
 
 interface SliderProps {
   label: string;
@@ -464,6 +464,11 @@ export function Slider({
             style={{ cursor: isValueEditable ? 'text' : 'default' }}
           >
             {displayValue}
+            {unit && (
+              <span className="dialkit-slider-unit" data-spaced={isWordUnit(unit) || undefined}>
+                {unit}
+              </span>
+            )}
           </span>
         )}
       </motion.div>

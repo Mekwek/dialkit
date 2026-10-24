@@ -40,6 +40,7 @@
     min={control.min}
     max={control.max}
     step={control.step}
+    unit={control.unit}
     shortcut={control.shortcut}
     shortcutActive={isShortcutActive}
   />

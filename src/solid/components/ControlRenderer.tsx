@@ -41,6 +41,7 @@ export function ControlRenderer(props: ControlRendererProps) {
             min={control.min}
             max={control.max}
             step={control.step}
+            unit={control.unit}
             shortcut={control.shortcut}
             shortcutActive={shortcut().activePanelId === props.panelId && shortcut().activePath === control.path}
           />
