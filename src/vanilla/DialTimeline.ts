@@ -557,7 +557,9 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
     const getControl = (path: string) => findControl(DialStore.getPanel(meta.id)?.controls ?? [], path);
     const excluded = new Set([...(clip.stepKeys ?? []), ...(clip.tracks?.map(t => t.prop) ?? [])]);
     let controls = getControl(path)?.children?.filter(c => !['at', 'duration'].includes(c.path.slice(path.length + 1)) && (stepKey || !excluded.has(c.path.slice(path.length + 1)))) ?? [];
-    if (stepKey === clip.stepKeys?.[0]) {
+    // A step clip's first step shows the clip's `from` too. A plain clip has
+    // no step (both are undefined): it lists its `from` already.
+    if (stepKey && stepKey === clip.stepKeys?.[0]) {
       const from = getControl(`${clip.key}.from`);
       if (from) {
         const index = controls.findIndex(c => c.path === `${path}.to`);

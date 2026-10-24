@@ -9994,7 +9994,7 @@ function mountSection(host, initial, options) {
     const getControl = (path2) => findControl(DialStore.getPanel(meta.id)?.controls ?? [], path2);
     const excluded = /* @__PURE__ */ new Set([...clip.stepKeys ?? [], ...clip.tracks?.map((t) => t.prop) ?? []]);
     let controls = getControl(path)?.children?.filter((c) => !["at", "duration"].includes(c.path.slice(path.length + 1)) && (stepKey || !excluded.has(c.path.slice(path.length + 1)))) ?? [];
-    if (stepKey === clip.stepKeys?.[0]) {
+    if (stepKey && stepKey === clip.stepKeys?.[0]) {
       const from = getControl(`${clip.key}.from`);
       if (from) {
         const index = controls.findIndex((c) => c.path === `${path}.to`);
