@@ -1517,7 +1517,22 @@
   color: var(--dial-text-primary);
 }
 
-.dialkit-preset-delete {
+.dialkit-preset-item > .dialkit-preset-input {
+  height: 24px;
+  margin: 0 -7px;
+  padding: 0 6px;
+}
+
+.dialkit-preset-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.dialkit-preset-rename,
+.dialkit-preset-lock,
+.dialkit-preset-delete,
+.dialkit-preset-more {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1526,24 +1541,39 @@
   padding: 0;
   background: transparent;
   border: none;
+  border-radius: 6px;
   cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.15s;
+  overflow: hidden;
+  opacity: 0.6;
+  transition: width 0.15s, opacity 0.15s;
   flex-shrink: 0;
 }
 
-.dialkit-preset-item:hover .dialkit-preset-delete {
+/* Rename, lock and delete fold behind the menu icon until it is hovered or an action is focused.
+   A locked row shows its lock in the menu icon's place, and rename on hover. */
+.dialkit-preset-rename,
+.dialkit-preset-lock,
+.dialkit-preset-delete {
+  width: 0;
+  opacity: 0;
+}
+
+.dialkit-preset-actions:hover > button,
+.dialkit-preset-actions:focus-within > button,
+:where(.dialkit-preset-item[data-locked="true"]) .dialkit-preset-lock,
+:where(.dialkit-preset-item[data-locked="true"]:hover, .dialkit-preset-item[data-locked="true"]:focus-within) .dialkit-preset-rename {
+  width: 24px;
   opacity: 0.6;
 }
 
-.dialkit-preset-item:focus-within .dialkit-preset-delete { opacity: 0.6; }
 .dialkit-preset-item:focus-within { background: var(--dial-surface-hover); }
 
-.dialkit-preset-delete:hover {
-  opacity: 1 !important;
+.dialkit-preset-actions > button:hover,
+.dialkit-preset-more:hover {
+  opacity: 1;
 }
 
-.dialkit-preset-delete svg {
+.dialkit-preset-actions svg {
   transition: color 150ms ease;
   width: 14px;
   height: 14px;
@@ -1553,6 +1583,37 @@
 
 .dialkit-preset-delete:hover svg {
   color: #ff3b30;
+}
+
+/* A swipe scrolls the menu; a long-press starts a reorder drag. */
+.dialkit-preset-item[data-preset-id] {
+  touch-action: pan-y;
+}
+
+.dialkit-preset-dropdown[data-dragging],
+.dialkit-preset-dropdown[data-dragging] * {
+  cursor: grabbing;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.dialkit-preset-dropdown[data-dragging] .dialkit-preset-item[data-preset-id] {
+  transition: background 0.15s, transform 0.2s ease-out;
+}
+
+.dialkit-preset-dropdown[data-dragging] .dialkit-preset-item[data-dragging] {
+  position: relative;
+  z-index: 1;
+  background: linear-gradient(var(--dial-surface-active), var(--dial-surface-active)), var(--dial-dropdown-bg);
+  transition: background 0.15s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialkit-preset-dropdown[data-dragging] .dialkit-preset-item[data-preset-id],
+  .dialkit-preset-rename,
+  .dialkit-preset-lock,
+  .dialkit-preset-delete,
+  .dialkit-preset-more { transition: none; }
 }
 
 .dialkit-preset-save-btn {

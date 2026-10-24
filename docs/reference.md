@@ -204,9 +204,9 @@ const values = useDialKit("Card", { radius: [24, 0, 64] }, {
 
 `storage` defaults to `"localStorage"`; `presets` defaults to `true`. With `presets: false`, only values are persisted. Open state is retained in memory for stable IDs but is never written to storage.
 
-The toolbar's **+** saves and selects a new version. Selecting **Version 1** restores the editable base values. The version menu can also delete saved versions. **Copy** places the values and a configuration-update instruction on the clipboard.
+The toolbar's **+** saves and selects a new version. Selecting **Version 1** restores the editable base values. The version menu can also rename, lock, delete, and reorder saved versions; a locked version ignores edits and cannot be deleted. **Copy** places the values and a configuration-update instruction on the clipboard.
 
-For custom preset interfaces, use `DialStore.savePreset`, `loadPreset`, `deletePreset`, `getPresets`, `getActivePresetId`, and `clearActivePreset`.
+For custom preset interfaces, use `DialStore.savePreset`, `loadPreset`, `deletePreset`, `renamePreset`, `reorderPresets`, `setPresetLocked`, `getPresets`, `getActivePresetId`, and `clearActivePreset`.
 
 ## Panel state
 

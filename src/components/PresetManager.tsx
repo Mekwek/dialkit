@@ -1,10 +1,11 @@
 import { observeDropdownKeyboard } from '../dropdown-keyboard';
+import { observePresetMenu } from '../preset-menu';
 import { openDropdownOnKey } from '../control-keyboard';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { DialStore, Preset } from '../store/DialStore';
-import { ICON_CHEVRON, ICON_TRASH, ICON_PLUS, ICON_CHECK } from '../icons';
+import { ICON_CHEVRON, ICON_TRASH, ICON_PLUS, ICON_CHECK, ICON_MORE, ICON_PENCIL, ICON_LOCK, ICON_LOCK_OPEN } from '../icons';
 
 interface PresetManagerProps {
   panelId: string;
@@ -18,6 +19,7 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd }: Prese
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const activePreset = presets.find((p) => p.id === activePresetId);
 
@@ -26,6 +28,7 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd }: Prese
     if (rect) {
       setPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
     }
+    setEditingId(null);
     setIsOpen(true);
   }, []);
 
@@ -50,9 +53,10 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd }: Prese
     };
 
     const stopKeyboard = observeDropdownKeyboard(triggerRef.current!, () => dropdownRef.current, close, 'presets');
+    const stopMenu = observePresetMenu(() => dropdownRef.current, (ids) => DialStore.reorderPresets(panelId, ids));
     document.addEventListener('mousedown', handler);
-    return () => { stopKeyboard(); document.removeEventListener('mousedown', handler); };
-  }, [isOpen, close]);
+    return () => { stopKeyboard(); stopMenu(); document.removeEventListener('mousedown', handler); };
+  }, [isOpen, close, panelId]);
 
   const handleSelect = (presetId: string | null) => {
     if (presetId) {
@@ -63,9 +67,9 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd }: Prese
     close();
   };
 
-  const handleDelete = (e: React.MouseEvent, presetId: string) => {
-    e.stopPropagation();
-    DialStore.deletePreset(panelId, presetId);
+  const handleRename = (input: HTMLInputElement, presetId: string) => {
+    DialStore.renamePreset(panelId, presetId, input.value);
+    setEditingId(null);
   };
 
   return (
@@ -123,21 +127,49 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd }: Prese
                   key={preset.id}
                   className="dialkit-preset-item"
                   data-active={String(preset.id === activePresetId)}
-                  onClick={() => handleSelect(preset.id)}
+                  data-preset-id={preset.id}
+                  data-locked={String(!!preset.locked)}
+                  onClick={(e) => { if (!(e.target as HTMLElement).closest('input, .dialkit-preset-actions')) handleSelect(preset.id); }}
                 >
                   <svg className="dialkit-preset-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">{preset.id === activePresetId && <path d={ICON_CHECK} />}</svg>
-                  <button type="button" className="dialkit-preset-name">{preset.name}</button>
-                  <button
-                    className="dialkit-preset-delete"
-                    onClick={(e) => handleDelete(e, preset.id)}
-                    type="button" title={`Delete ${preset.name}`}
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      {ICON_TRASH.map((d, i) => (
-                        <path key={i} d={d} />
-                      ))}
-                    </svg>
-                  </button>
+                  {editingId === preset.id ? (
+                    <input
+                      className="dialkit-preset-input"
+                      defaultValue={preset.name}
+                      aria-label="Version name"
+                      autoFocus
+                      onFocus={(e) => e.currentTarget.select()}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleRename(e.currentTarget, preset.id);
+                        else if (e.key === 'Escape') { e.currentTarget.value = preset.name; setEditingId(null); }
+                        else return;
+                        e.preventDefault();
+                      }}
+                      onBlur={(e) => handleRename(e.currentTarget, preset.id)}
+                    />
+                  ) : (
+                    <>
+                      <button type="button" className="dialkit-preset-name">{preset.name}</button>
+                      <div className="dialkit-preset-actions">
+                        <button type="button" className="dialkit-preset-rename" title={`Rename ${preset.name}`} onClick={() => setEditingId(preset.id)}>
+                          <Icon paths={ICON_PENCIL} />
+                        </button>
+                        <button type="button" className="dialkit-preset-lock" title={`${preset.locked ? 'Unlock' : 'Lock'} ${preset.name}`} onClick={() => DialStore.setPresetLocked(panelId, preset.id, !preset.locked)}>
+                          <Icon paths={preset.locked ? ICON_LOCK : ICON_LOCK_OPEN} />
+                        </button>
+                        {!preset.locked && (
+                          <>
+                            <button type="button" className="dialkit-preset-delete" title={`Delete ${preset.name}`} onClick={() => DialStore.deletePreset(panelId, preset.id)}>
+                              <Icon paths={ICON_TRASH} />
+                            </button>
+                            <span className="dialkit-preset-more" aria-hidden="true">
+                              <Icon paths={ICON_MORE} />
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
               ))}
               <div className="dialkit-preset-divider" role="separator" />
@@ -151,5 +183,13 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd }: Prese
         document.body
       )}
     </div>
+  );
+}
+
+function Icon({ paths }: { paths: readonly string[] }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {paths.map((d) => <path key={d} d={d} />)}
+    </svg>
   );
 }

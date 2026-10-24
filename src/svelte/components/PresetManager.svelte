@@ -1,5 +1,6 @@
 <script lang="ts">
   import { observeDropdownKeyboard } from '../../dropdown-keyboard';
+  import { observePresetMenu } from '../../preset-menu';
   import { openDropdownOnKey } from '../../control-keyboard';
 
   import { Spring } from 'svelte/motion';
@@ -8,7 +9,7 @@
   import type { Preset } from 'dialkit/store';
   import { dropdownTransition } from './transitions';
   import { getDialKitPortalRoot, getDropdownPosition } from '../../dropdown-position';
-  import { ICON_CHEVRON, ICON_TRASH, ICON_PLUS, ICON_CHECK } from '../../icons';
+  import { ICON_CHEVRON, ICON_TRASH, ICON_PLUS, ICON_CHECK, ICON_MORE, ICON_PENCIL, ICON_LOCK, ICON_LOCK_OPEN } from '../../icons';
 
   let { panelId, presets, activePresetId } = $props<{
     panelId: string;
@@ -19,6 +20,7 @@
   let isOpen = $state(false);
   let pos = $state({ top: 0, left: 0, width: 0 });
   let portalTarget = $state<HTMLElement | null>(null);
+  let editingId = $state<string | null>(null);
   let triggerRef: HTMLButtonElement | undefined;
   let dropdownRef = $state<HTMLDivElement | undefined>(undefined);
 
@@ -34,6 +36,7 @@
 
   const openDropdown = () => {
     updatePos();
+    editingId = null;
     isOpen = true;
   };
 
@@ -63,12 +66,14 @@
 
     updatePos();
     const stopKeyboard = observeDropdownKeyboard(triggerRef!, () => dropdownRef, closeDropdown, 'presets');
+    const stopMenu = observePresetMenu(() => dropdownRef, (ids) => DialStore.reorderPresets(panelId, ids));
     document.addEventListener('mousedown', handler);
     window.addEventListener('resize', handleViewportChange);
     window.addEventListener('scroll', handleViewportChange, true);
 
     return () => {
       stopKeyboard();
+      stopMenu();
       document.removeEventListener('mousedown', handler);
       window.removeEventListener('resize', handleViewportChange);
       window.removeEventListener('scroll', handleViewportChange, true);
@@ -81,11 +86,26 @@
     closeDropdown();
   };
 
-  const handleDelete = (e: MouseEvent, presetId: string) => {
-    e.stopPropagation();
-    DialStore.deletePreset(panelId, presetId);
+  const handleRename = (input: HTMLInputElement, presetId: string) => {
+    DialStore.renamePreset(panelId, presetId, input.value);
+    editingId = null;
   };
+
+  const handleRenameKey = (e: KeyboardEvent & { currentTarget: HTMLInputElement }, preset: Preset) => {
+    if (e.key === 'Enter') handleRename(e.currentTarget, preset.id);
+    else if (e.key === 'Escape') { e.currentTarget.value = preset.name; editingId = null; }
+    else return;
+    e.preventDefault();
+  };
+
+  const focusOnMount = (input: HTMLInputElement) => input.focus();
 </script>
+
+{#snippet icon(paths: readonly string[])}
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    {#each paths as d}<path {d} />{/each}
+  </svg>
+{/snippet}
 
 <div class="dialkit-preset-manager">
   <button
@@ -137,23 +157,40 @@
             <div
               class="dialkit-preset-item"
               data-active={String(preset.id === activePresetId)}
-              onclick={() => handleSelect(preset.id)}
+              data-preset-id={preset.id}
+              data-locked={String(!!preset.locked)}
+              onclick={(e) => { if (!(e.target as HTMLElement).closest('input, .dialkit-preset-actions')) handleSelect(preset.id); }}
             >
               <svg class="dialkit-preset-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">{#if preset.id === activePresetId}<path d={ICON_CHECK} />{/if}</svg>
-              <button type="button" class="dialkit-preset-name">{preset.name}</button>
-              <button
-                class="dialkit-preset-delete"
-                onclick={(e) => handleDelete(e, preset.id)}
-                type="button" title={`Delete ${preset.name}`}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d={ICON_TRASH[0]} />
-                  <path d={ICON_TRASH[1]} />
-                  <path d={ICON_TRASH[2]} />
-                  <path d={ICON_TRASH[3]} />
-                  <path d={ICON_TRASH[4]} />
-                </svg>
-              </button>
+              {#if editingId === preset.id}
+                <input
+                  class="dialkit-preset-input"
+                  value={preset.name}
+                  aria-label="Version name"
+                  use:focusOnMount
+                  onfocus={(e) => e.currentTarget.select()}
+                  onkeydown={(e) => handleRenameKey(e, preset)}
+                  onblur={(e) => handleRename(e.currentTarget, preset.id)}
+                />
+              {:else}
+                <button type="button" class="dialkit-preset-name">{preset.name}</button>
+                <div class="dialkit-preset-actions">
+                  <button type="button" class="dialkit-preset-rename" title={`Rename ${preset.name}`} onclick={() => (editingId = preset.id)}>
+                    {@render icon(ICON_PENCIL)}
+                  </button>
+                  <button type="button" class="dialkit-preset-lock" title={`${preset.locked ? 'Unlock' : 'Lock'} ${preset.name}`} onclick={() => DialStore.setPresetLocked(panelId, preset.id, !preset.locked)}>
+                    {@render icon(preset.locked ? ICON_LOCK : ICON_LOCK_OPEN)}
+                  </button>
+                  {#if !preset.locked}
+                    <button type="button" class="dialkit-preset-delete" title={`Delete ${preset.name}`} onclick={() => DialStore.deletePreset(panelId, preset.id)}>
+                      {@render icon(ICON_TRASH)}
+                    </button>
+                    <span class="dialkit-preset-more" aria-hidden="true">
+                      {@render icon(ICON_MORE)}
+                    </span>
+                  {/if}
+                </div>
+              {/if}
             </div>
           {/each}
           <div class="dialkit-preset-divider" role="separator"></div>

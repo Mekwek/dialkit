@@ -48,6 +48,7 @@ export default defineConfig([
       'easing-geometry': 'src/easing-geometry.ts',
       'control-keyboard': 'src/control-keyboard.ts',
       'dropdown-keyboard': 'src/dropdown-keyboard.ts',
+      'preset-menu': 'src/preset-menu.ts',
       'text-autosize': 'src/text-autosize.ts',
       'shortcut-utils': 'src/shortcut-utils.ts',
     },

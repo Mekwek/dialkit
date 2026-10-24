@@ -52,6 +52,27 @@ describe('DialStore persistence', () => {
     } finally { DialStore.unregisterPanel(id); }
   }));
 
+  it('restores renamed, reordered and locked versions', () => withStorage(() => {
+    const id = 'persist-version-actions';
+    const register = () => DialStore.registerPanel(id, 'Config', { amount: [1, 0, 10] }, undefined, { persist: { key: id } });
+    register();
+    let first: string, second: string;
+    try {
+      first = DialStore.saveNewPreset(id);
+      second = DialStore.saveNewPreset(id);
+      DialStore.renamePreset(id, first, 'Warm');
+      DialStore.reorderPresets(id, [second, first]);
+      DialStore.setPresetLocked(id, first, true);
+    } finally { DialStore.unregisterPanel(id); }
+    register();
+    try {
+      assert.deepEqual(DialStore.getPresets(id).map(({ id, name, locked }) => ({ id, name, locked })), [
+        { id: second, name: 'Version 3', locked: undefined },
+        { id: first, name: 'Warm', locked: true },
+      ]);
+    } finally { DialStore.unregisterPanel(id); }
+  }));
+
   it('writes once per changed batch, skips unchanged values, and honors persist: false', () => withStorage((storage, writes) => {
     const id = 'persist-writes';
     const config = { amount: [1, 0, 10], enabled: true } satisfies DialConfig;

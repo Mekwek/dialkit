@@ -1,9 +1,10 @@
 import { observeDropdownKeyboard } from '../../dropdown-keyboard';
+import { observePresetMenu } from '../../preset-menu';
 import { openDropdownOnKey } from '../../control-keyboard';
 import { createSignal, createEffect, on, onMount, onCleanup, Show, For } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import { animate } from 'motion';
-import { ICON_CHEVRON, ICON_TRASH, ICON_PLUS, ICON_CHECK } from '../../icons';
+import { ICON_CHEVRON, ICON_TRASH, ICON_PLUS, ICON_CHECK, ICON_MORE, ICON_PENCIL, ICON_LOCK, ICON_LOCK_OPEN } from '../../icons';
 import { getDialKitPortalRoot, getDropdownPosition } from '../../dropdown-position';
 import { DialStore } from '../../store/DialStore';
 import type { Preset } from '../../store/DialStore';
@@ -19,6 +20,7 @@ interface PresetManagerProps {
 export function PresetManager(props: PresetManagerProps) {
   const [pos, setPos] = createSignal({ top: 0, left: 0, width: 0 });
   const [portalTarget, setPortalTarget] = createSignal<HTMLElement | null>(null);
+  const [editingId, setEditingId] = createSignal<string | null>(null);
   let triggerRef!: HTMLButtonElement;
   let dropdownRef: HTMLDivElement | undefined;
   let chevronRef!: SVGSVGElement;
@@ -58,6 +60,7 @@ export function PresetManager(props: PresetManagerProps) {
 
   const openDropdown = () => {
     updatePos();
+    setEditingId(null);
     dropdown.open();
   };
 
@@ -76,6 +79,7 @@ export function PresetManager(props: PresetManagerProps) {
   createEffect(() => {
     if (!dropdown.isOpen()) return;
     onCleanup(observeDropdownKeyboard(triggerRef, () => dropdownRef, dropdown.close, 'presets'));
+    onCleanup(observePresetMenu(() => dropdownRef, (ids) => DialStore.reorderPresets(props.panelId, ids)));
   });
 
   const handleSelect = (presetId: string | null) => {
@@ -84,9 +88,9 @@ export function PresetManager(props: PresetManagerProps) {
     dropdown.close();
   };
 
-  const handleDelete = (e: MouseEvent, presetId: string) => {
-    e.stopPropagation();
-    DialStore.deletePreset(props.panelId, presetId);
+  const handleRename = (input: HTMLInputElement, presetId: string) => {
+    DialStore.renamePreset(props.panelId, presetId, input.value);
+    setEditingId(null);
   };
 
   return (
@@ -153,23 +157,48 @@ export function PresetManager(props: PresetManagerProps) {
                   <div
                     class="dialkit-preset-item"
                     data-active={String(preset.id === props.activePresetId)}
-                    onClick={() => handleSelect(preset.id)}
+                    data-preset-id={preset.id}
+                    data-locked={String(!!preset.locked)}
+                    onClick={(e) => { if (!(e.target as HTMLElement).closest('input, .dialkit-preset-actions')) handleSelect(preset.id); }}
                   >
                     <svg class="dialkit-preset-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><Show when={preset.id === props.activePresetId}><path d={ICON_CHECK} /></Show></svg>
-                    <button type="button" class="dialkit-preset-name">{preset.name}</button>
-                    <button
-                      class="dialkit-preset-delete"
-                      onClick={(e) => handleDelete(e, preset.id)}
-                      type="button" title={`Delete ${preset.name}`}
+                    <Show
+                      when={editingId() === preset.id}
+                      fallback={<>
+                        <button type="button" class="dialkit-preset-name">{preset.name}</button>
+                        <div class="dialkit-preset-actions">
+                          <button type="button" class="dialkit-preset-rename" title={`Rename ${preset.name}`} onClick={() => setEditingId(preset.id)}>
+                            <Icon paths={ICON_PENCIL} />
+                          </button>
+                          <button type="button" class="dialkit-preset-lock" title={`${preset.locked ? 'Unlock' : 'Lock'} ${preset.name}`} onClick={() => DialStore.setPresetLocked(props.panelId, preset.id, !preset.locked)}>
+                            <Icon paths={preset.locked ? ICON_LOCK : ICON_LOCK_OPEN} />
+                          </button>
+                          <Show when={!preset.locked}>
+                            <button type="button" class="dialkit-preset-delete" title={`Delete ${preset.name}`} onClick={() => DialStore.deletePreset(props.panelId, preset.id)}>
+                              <Icon paths={ICON_TRASH} />
+                            </button>
+                            <span class="dialkit-preset-more" aria-hidden="true">
+                              <Icon paths={ICON_MORE} />
+                            </span>
+                          </Show>
+                        </div>
+                      </>}
                     >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d={ICON_TRASH[0]} />
-                        <path d={ICON_TRASH[1]} />
-                        <path d={ICON_TRASH[2]} />
-                        <path d={ICON_TRASH[3]} />
-                        <path d={ICON_TRASH[4]} />
-                      </svg>
-                    </button>
+                      <input
+                        ref={(el) => queueMicrotask(() => el.focus())}
+                        class="dialkit-preset-input"
+                        value={preset.name}
+                        aria-label="Version name"
+                        onFocus={(e) => e.currentTarget.select()}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleRename(e.currentTarget, preset.id);
+                          else if (e.key === 'Escape') { e.currentTarget.value = preset.name; setEditingId(null); }
+                          else return;
+                          e.preventDefault();
+                        }}
+                        onBlur={(e) => handleRename(e.currentTarget, preset.id)}
+                      />
+                    </Show>
                   </div>
                 )}
               </For>
@@ -183,5 +212,13 @@ export function PresetManager(props: PresetManagerProps) {
         </Portal>
       </Show>
     </div>
+  );
+}
+
+function Icon(props: { paths: readonly string[] }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <For each={props.paths}>{(d) => <path d={d} />}</For>
+    </svg>
   );
 }

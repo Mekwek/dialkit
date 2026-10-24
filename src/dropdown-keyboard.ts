@@ -20,7 +20,7 @@ export function observeDropdownKeyboard(trigger: HTMLElement, getPopup: () => HT
     popup.tabIndex = -1;
     trigger.setAttribute('aria-controls', popup.id);
 
-    const selector = kind === 'select' ? '.dialkit-select-option' : '.dialkit-preset-name, .dialkit-preset-delete, .dialkit-preset-create';
+    const selector = kind === 'select' ? '.dialkit-select-option' : '.dialkit-preset-name, .dialkit-preset-rename, .dialkit-preset-lock, .dialkit-preset-delete, .dialkit-preset-create';
     let active: HTMLElement | undefined;
     let activeIndex = 0;
     let query = '';
@@ -49,7 +49,8 @@ export function observeDropdownKeyboard(trigger: HTMLElement, getPopup: () => HT
         if (kind === 'select') el.setAttribute('aria-selected', el.dataset.selected ?? 'false');
         else if (el.classList.contains('dialkit-preset-name')) el.setAttribute('aria-checked', el.parentElement?.dataset.active ?? 'false');
       });
-      if (active && !active.isConnected && !leaving) focusItem(activeIndex);
+      // Recover focus when the focused item is removed; a rename input keeps its own.
+      if (active && !leaving && !popup.contains(document.activeElement)) focusItem(activeIndex);
     };
     refresh();
     const observer = new MutationObserver(refresh);
@@ -58,6 +59,7 @@ export function observeDropdownKeyboard(trigger: HTMLElement, getPopup: () => HT
     const restore = () => { leaving = true; trigger.focus({ preventScroll: true }); };
     const keydown = (event: KeyboardEvent) => {
       if (event.altKey || event.metaKey || event.ctrlKey || event.isComposing) return;
+      if (event.target instanceof HTMLInputElement && event.key !== 'Tab') return;
       if (event.key === 'Tab') {
         // Resume the normal document tab order at the owning control, not at its portal.
         const next = adjacentTabStop(trigger, event.shiftKey);
@@ -93,10 +95,12 @@ export function observeDropdownKeyboard(trigger: HTMLElement, getPopup: () => HT
     };
     const click = (event: MouseEvent) => {
       const target = (event.target as HTMLElement).closest(selector);
-      if (target && !target.classList.contains('dialkit-preset-delete')) restore();
+      if (target && !target.closest('.dialkit-preset-actions')) restore();
     };
     const focusin = (event: FocusEvent) => {
       const target = event.target as Node;
+      const index = items().indexOf(target as HTMLElement);
+      if (index >= 0) { active = target as HTMLElement; activeIndex = index; }
       if (!leaving && !popup.contains(target) && !trigger.contains(target)) { leaving = true; close(); }
     };
     popup.addEventListener('keydown', keydown);

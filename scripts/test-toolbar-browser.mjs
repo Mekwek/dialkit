@@ -84,6 +84,70 @@ try {
         .getByRole("menuitem", { name: "New version", exact: true })
         .press("Enter");
       assert.equal((await trigger.innerText()).trim(), "Version 2");
+      const item = (role, name) => page.getByRole(role, { name, exact: true });
+      const order = async (expected) => {
+        for (let tries = 0; tries < 50; tries++) {
+          const names = await page.getByRole("menuitemradio").allInnerTexts();
+          if (names.join() === expected.join()) return;
+          await page.waitForTimeout(20);
+        }
+        assert.deepEqual(await page.getByRole("menuitemradio").allInnerTexts(), expected);
+      };
+      const focused = (locator) => locator.evaluate((el) => el === document.activeElement);
+      await create();
+      await open();
+      await item("menuitem", "Rename Version 2").press("Enter");
+      const name = item("textbox", "Version name");
+      assert.equal(await focused(name), true);
+      await page.keyboard.type("Warm");
+      await page.keyboard.press("Enter");
+      assert.equal(await trigger.getAttribute("aria-expanded"), "true");
+      await item("menuitem", "Rename Warm").press("Enter");
+      await page.keyboard.type("Cold");
+      await page.keyboard.press("Escape");
+      assert.equal(await trigger.getAttribute("aria-expanded"), "true");
+      await order(["Version 1", "Warm", "Version 3"]);
+      await page.locator(".dialkit-preset-item[data-preset-id]").first().locator(".dialkit-preset-more").click();
+      assert.equal(await focused(item("menuitem", "Rename Warm")), true);
+      assert.equal(await trigger.getAttribute("aria-expanded"), "true");
+
+      await item("menuitem", "Lock Warm").press("Enter");
+      await item("menuitem", "Unlock Warm").waitFor();
+      assert.equal(await item("menuitem", "Delete Warm").count(), 0);
+      if (!kind) {
+        await item("menuitemradio", "Warm").press("Enter");
+        const title = page.getByRole("textbox", { name: "Title", exact: true });
+        const saved = await title.inputValue();
+        await title.fill("Edited");
+        await open();
+        await item("menuitemradio", "Version 1").press("Enter");
+        await open();
+        await item("menuitemradio", "Warm").press("Enter");
+        assert.equal(await title.inputValue(), saved);
+        await open();
+      }
+
+      await item("menuitemradio", "Warm").press("Alt+ArrowDown");
+      await order(["Version 1", "Version 3", "Warm"]);
+      assert.equal(await focused(item("menuitemradio", "Warm")), true);
+      const label = (await trigger.innerText()).trim();
+      await item("menuitemradio", "Warm").scrollIntoViewIfNeeded();
+      const from = await item("menuitemradio", "Warm").boundingBox();
+      const to = await item("menuitemradio", "Version 3").boundingBox();
+      await page.mouse.move(from.x + 10, from.y + from.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(from.x + 10, to.y + to.height / 2, { steps: 8 });
+      await page.mouse.up();
+      await order(["Version 1", "Warm", "Version 3"]);
+      assert.equal(await trigger.getAttribute("aria-expanded"), "true");
+      assert.equal((await trigger.innerText()).trim(), label);
+
+      await item("menuitem", "Unlock Warm").press("Enter");
+      await item("menuitem", "Delete Warm").press("Enter");
+      await item("menuitem", "Delete Version 3").press("Enter");
+      await order(["Version 1"]);
+      await item("menuitem", "New version").press("Enter");
+      assert.equal((await trigger.innerText()).trim(), "Version 2");
       await open();
       await page
         .getByRole("menuitemradio", { name: "Version 2", exact: true })
@@ -96,7 +160,7 @@ try {
       assert.deepEqual(errors, []);
       await page.close();
       console.log(
-        `${framework}${kind}: version lifecycle and keyboard checks passed`,
+        `${framework}${kind}: version lifecycle, actions and keyboard checks passed`,
       );
     }
   }

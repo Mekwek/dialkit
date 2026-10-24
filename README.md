@@ -204,7 +204,7 @@ Read `dial.values` in React, Svelte, and vanilla; `dial.values()` in Solid; or `
 
 Open the version menu and choose **New version** to save and select a version. Edits update the selected version automatically; **Version 1** holds the editable base values. **Copy** puts the current values and an instruction for applying them to your config on the clipboard.
 
-The version menu is always available, including before any versions are saved. A checkmark identifies the current version, and saved versions can be deleted from the menu. Panels and timelines share this behavior across React, Solid, Svelte, Vue, and vanilla JavaScript.
+The version menu is always available, including before any versions are saved. A checkmark identifies the current version. Each saved version has a menu icon that opens **Rename**, **Lock**, and **Delete**; drag a version (long-press it first on touch), or press Alt+Arrow keys on it, to reorder. A locked version keeps its saved values: edits still move the controls but are not saved into it, and it cannot be deleted until unlocked. Panels and timelines share this behavior across React, Solid, Svelte, Vue, and vanilla JavaScript.
 
 Use a stable `id` to retain values across unmounts. Add `persist: true` to retain them across page reloads:
 
@@ -214,7 +214,7 @@ const values = useDialKit("Card", {
 }, { id: "card", persist: true });
 ```
 
-Persistence includes values, saved versions, and the active version. It uses `localStorage` with the key `dialkit:card` in this example. Panel open state stays in memory and is not persisted. See [storage options](https://github.com/joshpuckett/dialkit/blob/main/docs/reference.md#persistence) for custom keys, session storage, and saving values without presets.
+Persistence includes values, saved versions (with their names, order, and locks), and the active version. It uses `localStorage` with the key `dialkit:card` in this example. Panel open state stays in memory and is not persisted. See [storage options](https://github.com/joshpuckett/dialkit/blob/main/docs/reference.md#persistence) for custom keys, session storage, and saving values without presets.
 
 ## Panel layout
 
