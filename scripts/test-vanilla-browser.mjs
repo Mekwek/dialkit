@@ -141,6 +141,14 @@ try {
   // Persistence and fresh mount use the same public value shape.
   await page.reload(); await page.waitForFunction(() => window.demo);
   assert.equal((await values()).radius, 52);
+  // A slider's unit follows its value; the editor opens on the bare number.
+  const radius = page.getByRole('slider', { name: 'Radius', exact: true });
+  assert.equal(await radius.locator('.dialkit-slider-unit').textContent(), 'px');
+  await radius.focus();
+  await page.keyboard.press('Enter');
+  assert.equal(await page.getByRole('textbox', { name: 'Radius value' }).inputValue(), '52');
+  await page.keyboard.press('Escape');
+  assert.equal((await values()).radius, 52);
   await page.screenshot({ path: '/tmp/dialkit-vanilla.png' });
   await page.evaluate(() => { Object.values(window.demo).forEach(value => value.destroy()); });
   assert.equal(await page.locator('.dialkit-root').count(), 0);
