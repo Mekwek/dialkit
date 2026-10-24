@@ -271,7 +271,7 @@ For sliders, hold the key and scroll, drag horizontally, or move the pointer acc
 
 ## Custom layouts
 
-Adapters export individual controls, including `Slider`, `Toggle`, `TextControl`, `SelectControl`, `ColorControl`, `ImageControl`, `DialPad`, `TransitionControl`, `Folder`, and `ButtonGroup`. `ControlRenderer` renders a control metadata tree. Keep custom controls inside an element with `class="dialkit-root"` and set `data-theme` to `"system"`, `"light"`, or `"dark"`.
+Adapters export individual controls, including `Slider`, `Toggle`, `TextControl`, `SelectControl`, `ColorControl`, `ImageControl`, `DialPad`, `TransitionControl`, `Folder`, and `ButtonGroup`. `ControlRenderer` renders a control metadata tree. Keep custom controls inside an element with `class="dialkit-root"` and set `data-theme` to `"system"`, `"light"`, or `"dark"`. Without a `DialRoot` or `DialTimeline` mounted, text fields also show the focus ring when clicked, a clicked folder header keeps the focus, and a slider's number input keeps a fixed width.
 
 In vanilla, each control takes a host element and props:
 
