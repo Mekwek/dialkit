@@ -1,7 +1,7 @@
 <script lang="ts">
   import { getContext } from 'svelte';
   import { DialStore } from 'dialkit/store';
-  import type { ControlMeta, DialValue, SpringConfig, TransitionConfig, DialPadValue } from 'dialkit/store';
+  import type { ControlMeta, DialValue, SpringConfig, TransitionConfig, DialPadValue, BackgroundValue } from 'dialkit/store';
   import Slider from './Slider.svelte';
   import Toggle from './Toggle.svelte';
   import Folder from './Folder.svelte';
@@ -12,6 +12,7 @@
   import ColorControl from './ColorControl.svelte';
   import ImageControl from './ImageControl.svelte';
   import DialPad from './DialPad.svelte';
+  import BackgroundControl from './BackgroundControl.svelte';
   import ControlRenderer from './ControlRenderer.svelte';
   import { SHORTCUT_CTX } from './ShortcutListener.svelte';
   import type { ShortcutContextValue } from './ShortcutListener.svelte';
@@ -110,6 +111,16 @@
     labels={control.pad?.labels}
     onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
   />
+{:else if control.type === 'background'}
+  <Folder title={control.label} defaultOpen={true}>
+    <BackgroundControl
+      {panelId}
+      label={control.label}
+      value={controlValue as BackgroundValue}
+      upload={control.background?.upload}
+      onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
+    />
+  </Folder>
 {:else if control.type === 'action'}
   <button class="dialkit-button" onclick={() => DialStore.triggerAction(panelId, control.path)}>
     {control.label}

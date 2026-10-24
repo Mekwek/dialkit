@@ -2,7 +2,9 @@ import { DialStore, type ControlMeta, type DialValue, type SpringConfig, type Tr
 import { mountColorControl } from '../color-control';
 import { mountImageControl } from '../image-control';
 import { mountDialPad } from '../dial-pad-control';
+import { mountBackgroundControl } from '../background-control';
 import type { DialPadValue } from '../dial-pad';
+import type { BackgroundValue } from '../background';
 import { mountFolder, mountSlider, mountTextControl, mountToggle } from './controls';
 import { mountSelectControl } from './menus';
 import { mountSpringControl, mountTransitionControl, type TransitionControlProps } from './transitions';
@@ -63,6 +65,19 @@ export function mountControlRenderer(host: HTMLElement, initial: ControlRenderer
         case 'pad':
           mount(mountDialPad, () => ({ ...control.pad, label: control.label, value: value() as DialPadValue, onChange: change }));
           break;
+        case 'background': {
+          const folder = mountFolder(target, { title: control.label });
+          const backgroundProps = () => ({ panelId: props.panelId, label: control.label, value: value() as BackgroundValue, upload: control.background?.upload, onChange: change });
+          const background = mountBackgroundControl(folder.body, backgroundProps());
+          mounted.push({
+            update: () => background.update(backgroundProps()),
+            destroy() {
+              background.destroy();
+              folder.destroy();
+            },
+          });
+          break;
+        }
         case 'spring':
           mount(mountSpringControl, () => ({ panelId: props.panelId, path: control.path, label: control.label, spring: value() as SpringConfig, onChange: change }));
           break;
