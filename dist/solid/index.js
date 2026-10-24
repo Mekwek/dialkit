@@ -3783,13 +3783,13 @@ import { createSignal as createSignal12, createEffect as createEffect17, onMount
 import { Portal as Portal3 } from "solid-js/web";
 
 // src/solid/primitives.ts
-import { createEffect as createEffect2, createSignal as createSignal2, from, onCleanup as onCleanup3 } from "solid-js";
+import { createEffect as createEffect2, createSignal as createSignal2, from, onCleanup as onCleanup3, untrack } from "solid-js";
 import { isServer as isServer3 } from "solid-js/web";
 function fromStore(read, subscribe) {
   if (isServer3) return read;
   const value = from((set) => {
-    set(() => read());
-    return subscribe(() => set(() => read()));
+    set(() => untrack(read));
+    return subscribe(() => set(() => untrack(read)));
   });
   return value;
 }
@@ -4251,7 +4251,7 @@ function measurePanelHeight(content) {
 }
 
 // src/solid/components/RootPanel.tsx
-import { createSignal as createSignal4, createEffect as createEffect3, on, onCleanup as onCleanup5, untrack, Show } from "solid-js";
+import { createSignal as createSignal4, createEffect as createEffect3, on, onCleanup as onCleanup5, untrack as untrack2, Show } from "solid-js";
 import { isServer as isServer4 } from "solid-js/web";
 import { animate } from "motion";
 
@@ -4482,7 +4482,7 @@ function RootPanel(props) {
     });
   }));
   createEffect3(on([contentHeight, windowHeight], ([height, winHeight]) => {
-    if (height === void 0 || !untrack(isOpen)) return;
+    if (height === void 0 || !untrack2(isOpen)) return;
     const nextHeight = Math.min(height + (props.panelHeightOffset ?? 0), winHeight - 32);
     if (morphAnim) {
       morphAnim.stop();
@@ -11443,6 +11443,7 @@ function DialTimeline(props) {
 }
 function DialTimelineDock(props) {
   const timelines = fromStore(() => TimelineStore.getTimelines(), (notify2) => TimelineStore.subscribeGlobal(notify2));
+  const timelineIds = () => timelines().map((timeline) => timeline.id);
   const visible = fromStore(() => TimelineUiStore.getVisible(), (notify2) => TimelineUiStore.subscribe(notify2));
   const [mounted, setMounted] = createSignal13(false);
   const [dockMaxHeight, setDockMaxHeight] = createSignal13(DEFAULT_DOCK_MAX_HEIGHT);
@@ -11507,19 +11508,26 @@ function DialTimelineDock(props) {
           typeof _ref$ === "function" ? _$use16(_ref$, _el$3) : dockRef = _el$3;
           _$insert16(_el$3, _$createComponent15(For7, {
             get each() {
-              return timelines();
+              return timelineIds();
             },
-            children: (timeline) => _$createComponent15(TimelineSection, {
-              meta: timeline,
-              get defaultOpen() {
-                return props.defaultOpen ?? true;
+            children: (id) => _$createComponent15(Show10, {
+              get when() {
+                return timelines().find((timeline) => timeline.id === id);
               },
-              get theme() {
-                return props.theme ?? "system";
-              },
-              get dockVisible() {
-                return visible();
-              }
+              children: (timeline) => _$createComponent15(TimelineSection, {
+                get meta() {
+                  return timeline();
+                },
+                get defaultOpen() {
+                  return props.defaultOpen ?? true;
+                },
+                get theme() {
+                  return props.theme ?? "system";
+                },
+                get dockVisible() {
+                  return visible();
+                }
+              })
             })
           }));
           _$effect14((_p$) => {
@@ -11955,130 +11963,83 @@ function TimelineSection(props) {
       majorStep
     };
   });
-  const rows = createMemo2(() => {
-    const result = [];
-    let lastGroup;
-    const currentValues = values();
-    for (const clip of props.meta.clips) {
-      if (clip.group !== lastGroup) {
-        lastGroup = clip.group;
-        if (clip.group) {
-          const group = clip.group;
-          const collapsed = collapsedGroups().has(group);
-          result.push((() => {
-            var _el$19 = _tmpl$92(), _el$20 = _el$19.firstChild, _el$21 = _el$20.firstChild, _el$22 = _el$21.nextSibling;
-            _el$21.$$click = () => toggleGroup(group);
-            _$setAttribute13(_el$21, "data-open", !collapsed);
-            _$setAttribute13(_el$21, "title", collapsed ? "Expand layer" : "Collapse layer");
-            _$insert16(_el$21, _$createComponent15(ChevronIcon, {}));
-            _$insert16(_el$22, () => formatLabel(group));
-            return _el$19;
-          })());
-        }
+  const renderClipRows = (clip, index) => {
+    const startsGroup = () => clip.group !== void 0 && clip.group !== props.meta.clips[index() - 1]?.group;
+    const groupCollapsed = () => clip.group !== void 0 && collapsedGroups().has(clip.group);
+    const isProps = Boolean(clip.tracks?.length);
+    const tracksOpen = () => isProps && expandedTracks().has(clip.key);
+    const stat = createMemo2(() => computeClipStaticFromValues(values(), clip, props.meta.duration));
+    const selected = () => popover()?.clip.key === clip.key;
+    return [_$createComponent15(Show10, {
+      get when() {
+        return startsGroup();
+      },
+      get children() {
+        var _el$19 = _tmpl$92(), _el$20 = _el$19.firstChild, _el$21 = _el$20.firstChild, _el$22 = _el$21.nextSibling;
+        _el$21.$$click = () => toggleGroup(clip.group);
+        _$insert16(_el$21, _$createComponent15(ChevronIcon, {}));
+        _$insert16(_el$22, () => formatLabel(clip.group));
+        _$effect14((_p$) => {
+          var _v$14 = !groupCollapsed(), _v$15 = groupCollapsed() ? "Expand layer" : "Collapse layer";
+          _v$14 !== _p$.e && _$setAttribute13(_el$21, "data-open", _p$.e = _v$14);
+          _v$15 !== _p$.t && _$setAttribute13(_el$21, "title", _p$.t = _v$15);
+          return _p$;
+        }, {
+          e: void 0,
+          t: void 0
+        });
+        return _el$19;
       }
-      if (clip.group && collapsedGroups().has(clip.group)) continue;
-      const isProps = Boolean(clip.tracks?.length);
-      const tracksOpen = isProps && expandedTracks().has(clip.key);
-      const stat = computeClipStaticFromValues(currentValues, clip, props.meta.duration);
-      const selected = popover()?.clip.key === clip.key;
-      result.push((() => {
-        var _el$23 = _tmpl$1(), _el$24 = _el$23.firstChild, _el$26 = _el$24.nextSibling;
-        _$insert16(_el$24, _$createComponent15(Show10, {
-          when: isProps,
-          get children() {
-            var _el$25 = _tmpl$0();
-            _el$25.$$click = (event) => {
-              event.stopPropagation();
-              toggleTracks(clip.key);
-            };
-            _$setAttribute13(_el$25, "data-open", tracksOpen);
-            _$setAttribute13(_el$25, "title", tracksOpen ? "Collapse properties" : "Expand properties");
-            _$insert16(_el$25, _$createComponent15(ChevronIcon, {}));
-            return _el$25;
-          }
-        }), null);
-        _$insert16(_el$24, () => clip.label, null);
-        _$insert16(_el$26, _$createComponent15(TimelineClip, {
-          get timelineId() {
-            return props.meta.id;
-          },
-          clip,
-          get at() {
-            return stat.at;
-          },
-          get duration() {
-            return stat.duration;
-          },
-          get loop() {
-            return stat.loop;
-          },
-          get steps() {
-            return _$memo11(() => !!clip.stepKeys?.length)() ? stat.tracks[0]?.steps : void 0;
-          },
-          get fixedDuration() {
-            return isProps ? true : stat.isPhysics;
-          },
-          composite: isProps,
-          get pxPerSecond() {
-            return pxPerSecond();
-          },
-          get viewStart() {
-            return safeViewStart();
-          },
-          get timelineDuration() {
-            return props.meta.duration;
-          },
-          selected,
-          get selectedStepKey() {
-            return selected ? popover()?.stepKey : void 0;
-          },
-          onClick: handleBarClick,
-          onDrag: closePopover
-        }));
-        _$effect14(() => _$setAttribute13(_el$23, "data-grouped", clip.group ? "" : void 0));
-        return _el$23;
-      })());
-      if (!tracksOpen) continue;
-      for (const trackRef of clip.tracks ?? []) {
-        const track = stat.tracks.find((candidate) => candidate.prop === trackRef.prop);
-        if (!track) continue;
-        const trackKey = `${clip.key}.${trackRef.prop}`;
-        const trackMeta = {
-          key: trackKey,
-          label: `${clip.label} \xB7 ${formatLabel(trackRef.prop)}`,
-          color: clip.color,
-          loop: clip.loop,
-          group: clip.group,
-          stepKeys: trackRef.stepKeys
-        };
-        const trackSelected = popover()?.clip.key === trackKey;
-        result.push((() => {
-          var _el$27 = _tmpl$102(), _el$28 = _el$27.firstChild, _el$29 = _el$28.nextSibling;
-          _$insert16(_el$28, () => formatLabel(trackRef.prop));
-          _$insert16(_el$29, _$createComponent15(TimelineClip, {
+    }), _$createComponent15(Show10, {
+      get when() {
+        return !groupCollapsed();
+      },
+      get children() {
+        return [(() => {
+          var _el$23 = _tmpl$1(), _el$24 = _el$23.firstChild, _el$26 = _el$24.nextSibling;
+          _$insert16(_el$24, _$createComponent15(Show10, {
+            when: isProps,
+            get children() {
+              var _el$25 = _tmpl$0();
+              _el$25.$$click = (event) => {
+                event.stopPropagation();
+                toggleTracks(clip.key);
+              };
+              _$insert16(_el$25, _$createComponent15(ChevronIcon, {}));
+              _$effect14((_p$) => {
+                var _v$16 = tracksOpen(), _v$17 = tracksOpen() ? "Collapse properties" : "Expand properties";
+                _v$16 !== _p$.e && _$setAttribute13(_el$25, "data-open", _p$.e = _v$16);
+                _v$17 !== _p$.t && _$setAttribute13(_el$25, "title", _p$.t = _v$17);
+                return _p$;
+              }, {
+                e: void 0,
+                t: void 0
+              });
+              return _el$25;
+            }
+          }), null);
+          _$insert16(_el$24, () => clip.label, null);
+          _$insert16(_el$26, _$createComponent15(TimelineClip, {
             get timelineId() {
               return props.meta.id;
             },
-            clip: trackMeta,
+            clip,
             get at() {
-              return stat.at + track.delay;
+              return stat().at;
             },
             get duration() {
-              return track.duration;
+              return stat().duration;
             },
             get loop() {
-              return stat.loop;
+              return stat().loop;
             },
             get steps() {
-              return _$memo11(() => !!trackRef.stepKeys?.length)() ? track.steps : void 0;
+              return _$memo11(() => !!clip.stepKeys?.length)() ? stat().tracks[0]?.steps : void 0;
             },
             get fixedDuration() {
-              return _$memo11(() => !!!trackRef.stepKeys?.length)() && track.steps[0]?.isPhysics === true;
+              return isProps ? true : stat().isPhysics;
             },
-            get baseAt() {
-              return stat.at;
-            },
-            delayMode: true,
+            composite: isProps,
             get pxPerSecond() {
               return pxPerSecond();
             },
@@ -12088,20 +12049,98 @@ function TimelineSection(props) {
             get timelineDuration() {
               return props.meta.duration;
             },
-            selected: trackSelected,
-            get selectedStepKey() {
-              return trackSelected ? popover()?.stepKey : void 0;
+            get selected() {
+              return selected();
             },
-            onClick: openClipPopover,
+            get selectedStepKey() {
+              return _$memo11(() => !!selected())() ? popover()?.stepKey : void 0;
+            },
+            onClick: handleBarClick,
             onDrag: closePopover
           }));
-          _$effect14(() => _$setAttribute13(_el$27, "data-grouped", clip.group ? "" : void 0));
-          return _el$27;
-        })());
+          _$effect14(() => _$setAttribute13(_el$23, "data-grouped", clip.group ? "" : void 0));
+          return _el$23;
+        })(), _$createComponent15(Show10, {
+          get when() {
+            return tracksOpen();
+          },
+          get children() {
+            return _$createComponent15(For7, {
+              get each() {
+                return clip.tracks;
+              },
+              children: (trackRef) => {
+                const trackKey = `${clip.key}.${trackRef.prop}`;
+                const trackMeta = {
+                  key: trackKey,
+                  label: `${clip.label} \xB7 ${formatLabel(trackRef.prop)}`,
+                  color: clip.color,
+                  loop: clip.loop,
+                  group: clip.group,
+                  stepKeys: trackRef.stepKeys
+                };
+                const track = () => stat().tracks.find((candidate) => candidate.prop === trackRef.prop);
+                const trackSelected = () => popover()?.clip.key === trackKey;
+                return _$createComponent15(Show10, {
+                  get when() {
+                    return track();
+                  },
+                  get children() {
+                    var _el$27 = _tmpl$102(), _el$28 = _el$27.firstChild, _el$29 = _el$28.nextSibling;
+                    _$insert16(_el$28, () => formatLabel(trackRef.prop));
+                    _$insert16(_el$29, _$createComponent15(TimelineClip, {
+                      get timelineId() {
+                        return props.meta.id;
+                      },
+                      clip: trackMeta,
+                      get at() {
+                        return stat().at + track().delay;
+                      },
+                      get duration() {
+                        return track().duration;
+                      },
+                      get loop() {
+                        return stat().loop;
+                      },
+                      get steps() {
+                        return _$memo11(() => !!trackRef.stepKeys?.length)() ? track().steps : void 0;
+                      },
+                      get fixedDuration() {
+                        return _$memo11(() => !!!trackRef.stepKeys?.length)() && track().steps[0]?.isPhysics === true;
+                      },
+                      get baseAt() {
+                        return stat().at;
+                      },
+                      delayMode: true,
+                      get pxPerSecond() {
+                        return pxPerSecond();
+                      },
+                      get viewStart() {
+                        return safeViewStart();
+                      },
+                      get timelineDuration() {
+                        return props.meta.duration;
+                      },
+                      get selected() {
+                        return trackSelected();
+                      },
+                      get selectedStepKey() {
+                        return _$memo11(() => !!trackSelected())() ? popover()?.stepKey : void 0;
+                      },
+                      onClick: openClipPopover,
+                      onDrag: closePopover
+                    }));
+                    _$effect14(() => _$setAttribute13(_el$27, "data-grouped", clip.group ? "" : void 0));
+                    return _el$27;
+                  }
+                });
+              }
+            });
+          }
+        })];
       }
-    }
-    return result;
-  });
+    })];
+  };
   return (() => {
     var _el$30 = _tmpl$142(), _el$31 = _el$30.firstChild, _el$32 = _el$31.firstChild, _el$33 = _el$32.firstChild, _el$34 = _el$32.nextSibling, _el$35 = _el$34.firstChild, _el$36 = _el$35.firstChild, _el$37 = _el$35.nextSibling, _el$38 = _el$37.firstChild, _el$41 = _el$37.nextSibling;
     _$insert16(_el$33, () => props.meta.name);
@@ -12165,11 +12204,11 @@ function TimelineSection(props) {
         return (() => {
           var _el$52 = _tmpl$162(), _el$53 = _el$52.firstChild, _el$54 = _el$53.nextSibling, _el$55 = _el$54.nextSibling;
           _$effect14((_p$) => {
-            var _v$19 = iconStyle, _v$20 = ICON_CLIPBOARD.board, _v$21 = ICON_CLIPBOARD.sparkle, _v$22 = ICON_CLIPBOARD.body;
-            _p$.e = _$style3(_el$52, _v$19, _p$.e);
-            _v$20 !== _p$.t && _$setAttribute13(_el$53, "d", _p$.t = _v$20);
-            _v$21 !== _p$.a && _$setAttribute13(_el$54, "d", _p$.a = _v$21);
-            _v$22 !== _p$.o && _$setAttribute13(_el$55, "d", _p$.o = _v$22);
+            var _v$23 = iconStyle, _v$24 = ICON_CLIPBOARD.board, _v$25 = ICON_CLIPBOARD.sparkle, _v$26 = ICON_CLIPBOARD.body;
+            _p$.e = _$style3(_el$52, _v$23, _p$.e);
+            _v$24 !== _p$.t && _$setAttribute13(_el$53, "d", _p$.t = _v$24);
+            _v$25 !== _p$.a && _$setAttribute13(_el$54, "d", _p$.a = _v$25);
+            _v$26 !== _p$.o && _$setAttribute13(_el$55, "d", _p$.o = _v$26);
             return _p$;
           }, {
             e: void 0,
@@ -12239,7 +12278,12 @@ function TimelineSection(props) {
             return _el$58;
           })()
         }), null);
-        _$insert16(_el$43, rows, null);
+        _$insert16(_el$43, _$createComponent15(For7, {
+          get each() {
+            return props.meta.clips;
+          },
+          children: renderClipRows
+        }), null);
         _$insert16(_el$43, _$createComponent15(Show10, {
           get when() {
             return pxPerSecond() > 0;
@@ -12306,12 +12350,12 @@ function TimelineSection(props) {
       })
     }), null);
     _$effect14((_p$) => {
-      var _v$14 = open() || void 0, _v$15 = copied() ? "Copied parameters" : "Copy parameters", _v$16 = open(), _v$17 = open(), _v$18 = open() ? "Collapse timeline" : "Expand timeline";
-      _v$14 !== _p$.e && _$setAttribute13(_el$31, "data-open", _p$.e = _v$14);
-      _v$15 !== _p$.t && _$setAttribute13(_el$37, "aria-label", _p$.t = _v$15);
-      _v$16 !== _p$.a && _$setAttribute13(_el$41, "data-open", _p$.a = _v$16);
-      _v$17 !== _p$.o && _$setAttribute13(_el$41, "aria-expanded", _p$.o = _v$17);
-      _v$18 !== _p$.i && _$setAttribute13(_el$41, "title", _p$.i = _v$18);
+      var _v$18 = open() || void 0, _v$19 = copied() ? "Copied parameters" : "Copy parameters", _v$20 = open(), _v$21 = open(), _v$22 = open() ? "Collapse timeline" : "Expand timeline";
+      _v$18 !== _p$.e && _$setAttribute13(_el$31, "data-open", _p$.e = _v$18);
+      _v$19 !== _p$.t && _$setAttribute13(_el$37, "aria-label", _p$.t = _v$19);
+      _v$20 !== _p$.a && _$setAttribute13(_el$41, "data-open", _p$.a = _v$20);
+      _v$21 !== _p$.o && _$setAttribute13(_el$41, "aria-expanded", _p$.o = _v$21);
+      _v$22 !== _p$.i && _$setAttribute13(_el$41, "title", _p$.i = _v$22);
       return _p$;
     }, {
       e: void 0,
@@ -12451,15 +12495,15 @@ function ClipPopover(props) {
             }
           }));
           _$effect14((_p$) => {
-            var _v$23 = props.theme, _v$24 = position().placeAbove ? "above" : "below", _v$25 = `${position().left}px`, _v$26 = `${position().top}px`, _v$27 = `${position().width}px`, _v$28 = `${position().availableHeight}px`, _v$29 = naturalHeight() > 0 ? "visible" : "hidden", _v$30 = `Edit ${presentation().title}`;
-            _v$23 !== _p$.e && _$setAttribute13(_el$62, "data-theme", _p$.e = _v$23);
-            _v$24 !== _p$.t && _$setAttribute13(_el$63, "data-placement", _p$.t = _v$24);
-            _v$25 !== _p$.a && _$setStyleProperty5(_el$63, "left", _p$.a = _v$25);
-            _v$26 !== _p$.o && _$setStyleProperty5(_el$63, "top", _p$.o = _v$26);
-            _v$27 !== _p$.i && _$setStyleProperty5(_el$63, "width", _p$.i = _v$27);
-            _v$28 !== _p$.n && _$setStyleProperty5(_el$63, "max-height", _p$.n = _v$28);
-            _v$29 !== _p$.s && _$setStyleProperty5(_el$63, "visibility", _p$.s = _v$29);
-            _v$30 !== _p$.h && _$setAttribute13(_el$63, "aria-label", _p$.h = _v$30);
+            var _v$27 = props.theme, _v$28 = position().placeAbove ? "above" : "below", _v$29 = `${position().left}px`, _v$30 = `${position().top}px`, _v$31 = `${position().width}px`, _v$32 = `${position().availableHeight}px`, _v$33 = naturalHeight() > 0 ? "visible" : "hidden", _v$34 = `Edit ${presentation().title}`;
+            _v$27 !== _p$.e && _$setAttribute13(_el$62, "data-theme", _p$.e = _v$27);
+            _v$28 !== _p$.t && _$setAttribute13(_el$63, "data-placement", _p$.t = _v$28);
+            _v$29 !== _p$.a && _$setStyleProperty5(_el$63, "left", _p$.a = _v$29);
+            _v$30 !== _p$.o && _$setStyleProperty5(_el$63, "top", _p$.o = _v$30);
+            _v$31 !== _p$.i && _$setStyleProperty5(_el$63, "width", _p$.i = _v$31);
+            _v$32 !== _p$.n && _$setStyleProperty5(_el$63, "max-height", _p$.n = _v$32);
+            _v$33 !== _p$.s && _$setStyleProperty5(_el$63, "visibility", _p$.s = _v$33);
+            _v$34 !== _p$.h && _$setAttribute13(_el$63, "aria-label", _p$.h = _v$34);
             return _p$;
           }, {
             e: void 0,
@@ -12618,11 +12662,11 @@ function TimelineClip(props) {
         })()
       }));
       _$effect14((_p$) => {
-        var _v$39 = isSteps() || void 0, _v$40 = `${(cycle.start - props.viewStart) * props.pxPerSecond + 1}px`, _v$41 = `${Math.max(1, cycle.duration * props.pxPerSecond - 2)}px`, _v$42 = props.clip.color;
-        _v$39 !== _p$.e && _$setAttribute13(_el$71, "data-steps", _p$.e = _v$39);
-        _v$40 !== _p$.t && _$setStyleProperty5(_el$71, "left", _p$.t = _v$40);
-        _v$41 !== _p$.a && _$setStyleProperty5(_el$71, "width", _p$.a = _v$41);
-        _v$42 !== _p$.o && _$setStyleProperty5(_el$71, "background", _p$.o = _v$42);
+        var _v$43 = isSteps() || void 0, _v$44 = `${(cycle.start - props.viewStart) * props.pxPerSecond + 1}px`, _v$45 = `${Math.max(1, cycle.duration * props.pxPerSecond - 2)}px`, _v$46 = props.clip.color;
+        _v$43 !== _p$.e && _$setAttribute13(_el$71, "data-steps", _p$.e = _v$43);
+        _v$44 !== _p$.t && _$setStyleProperty5(_el$71, "left", _p$.t = _v$44);
+        _v$45 !== _p$.a && _$setStyleProperty5(_el$71, "width", _p$.a = _v$45);
+        _v$46 !== _p$.o && _$setStyleProperty5(_el$71, "background", _p$.o = _v$46);
         return _p$;
       }, {
         e: void 0,
@@ -12706,10 +12750,10 @@ function TimelineClip(props) {
                     }
                   }));
                   _$effect14((_p$) => {
-                    var _v$43 = step.key ?? void 0, _v$44 = props.selectedStepKey === step.key || void 0, _v$45 = `${segmentWidth()}px`;
-                    _v$43 !== _p$.e && _$setAttribute13(_el$77, "data-step", _p$.e = _v$43);
-                    _v$44 !== _p$.t && _$setAttribute13(_el$77, "data-selected", _p$.t = _v$44);
-                    _v$45 !== _p$.a && _$setStyleProperty5(_el$77, "width", _p$.a = _v$45);
+                    var _v$47 = step.key ?? void 0, _v$48 = props.selectedStepKey === step.key || void 0, _v$49 = `${segmentWidth()}px`;
+                    _v$47 !== _p$.e && _$setAttribute13(_el$77, "data-step", _p$.e = _v$47);
+                    _v$48 !== _p$.t && _$setAttribute13(_el$77, "data-selected", _p$.t = _v$48);
+                    _v$49 !== _p$.a && _$setStyleProperty5(_el$77, "width", _p$.a = _v$49);
                     return _p$;
                   }, {
                     e: void 0,
@@ -12730,9 +12774,9 @@ function TimelineClip(props) {
                 get children() {
                   var _el$79 = _tmpl$302();
                   _$effect14((_p$) => {
-                    var _v$46 = index(), _v$47 = `${boundaries()[index()] * props.pxPerSecond - 4}px`;
-                    _v$46 !== _p$.e && _$setAttribute13(_el$79, "data-boundary", _p$.e = _v$46);
-                    _v$47 !== _p$.t && _$setStyleProperty5(_el$79, "left", _p$.t = _v$47);
+                    var _v$50 = index(), _v$51 = `${boundaries()[index()] * props.pxPerSecond - 4}px`;
+                    _v$50 !== _p$.e && _$setAttribute13(_el$79, "data-boundary", _p$.e = _v$50);
+                    _v$51 !== _p$.t && _$setStyleProperty5(_el$79, "left", _p$.t = _v$51);
                     return _p$;
                   }, {
                     e: void 0,
@@ -12754,15 +12798,15 @@ function TimelineClip(props) {
       }
     }));
     _$effect14((_p$) => {
-      var _v$31 = isSteps() || void 0, _v$32 = props.composite || void 0, _v$33 = props.selected || void 0, _v$34 = dragging() || void 0, _v$35 = `${(props.at - props.viewStart) * props.pxPerSecond}px`, _v$36 = `${width()}px`, _v$37 = props.composite ? `${props.clip.color}80` : props.clip.color, _v$38 = title();
-      _v$31 !== _p$.e && _$setAttribute13(_el$68, "data-steps", _p$.e = _v$31);
-      _v$32 !== _p$.t && _$setAttribute13(_el$68, "data-composite", _p$.t = _v$32);
-      _v$33 !== _p$.a && _$setAttribute13(_el$68, "data-selected", _p$.a = _v$33);
-      _v$34 !== _p$.o && _$setAttribute13(_el$68, "data-dragging", _p$.o = _v$34);
-      _v$35 !== _p$.i && _$setStyleProperty5(_el$68, "left", _p$.i = _v$35);
-      _v$36 !== _p$.n && _$setStyleProperty5(_el$68, "width", _p$.n = _v$36);
-      _v$37 !== _p$.s && _$setStyleProperty5(_el$68, "background", _p$.s = _v$37);
-      _v$38 !== _p$.h && _$setAttribute13(_el$68, "title", _p$.h = _v$38);
+      var _v$35 = isSteps() || void 0, _v$36 = props.composite || void 0, _v$37 = props.selected || void 0, _v$38 = dragging() || void 0, _v$39 = `${(props.at - props.viewStart) * props.pxPerSecond}px`, _v$40 = `${width()}px`, _v$41 = props.composite ? `${props.clip.color}80` : props.clip.color, _v$42 = title();
+      _v$35 !== _p$.e && _$setAttribute13(_el$68, "data-steps", _p$.e = _v$35);
+      _v$36 !== _p$.t && _$setAttribute13(_el$68, "data-composite", _p$.t = _v$36);
+      _v$37 !== _p$.a && _$setAttribute13(_el$68, "data-selected", _p$.a = _v$37);
+      _v$38 !== _p$.o && _$setAttribute13(_el$68, "data-dragging", _p$.o = _v$38);
+      _v$39 !== _p$.i && _$setStyleProperty5(_el$68, "left", _p$.i = _v$39);
+      _v$40 !== _p$.n && _$setStyleProperty5(_el$68, "width", _p$.n = _v$40);
+      _v$41 !== _p$.s && _$setStyleProperty5(_el$68, "background", _p$.s = _v$41);
+      _v$42 !== _p$.h && _$setAttribute13(_el$68, "title", _p$.h = _v$42);
       return _p$;
     }, {
       e: void 0,

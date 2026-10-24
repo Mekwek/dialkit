@@ -1,4 +1,4 @@
-import { createEffect, createSignal, from, onCleanup, type Accessor } from 'solid-js';
+import { createEffect, createSignal, from, onCleanup, untrack, type Accessor } from 'solid-js';
 import { isServer } from 'solid-js/web';
 import type { animate } from 'motion';
 
@@ -18,8 +18,11 @@ export function fromStore<T>(
   if (isServer) return read;
   const value = from<T>((set) => {
     // Wrap in an updater so values are never mistaken for setter callbacks.
-    set(() => read());
-    return subscribe(() => set(() => read()));
+    // Untracked: a store can notify from inside another computation (e.g. a
+    // timeline effect publishing meta), and reactive reads in `read` must not
+    // subscribe that computation to them.
+    set(() => untrack(read));
+    return subscribe(() => set(() => untrack(read)));
   });
   return value as Accessor<T>;
 }
