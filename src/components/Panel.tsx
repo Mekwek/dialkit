@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DialStore, PanelConfig } from '../store/DialStore';
 import { buildCopyInstruction } from '../copy-instruction';
+import { resolveOpenFolder } from '../accordion';
 import { ICON_CLIPBOARD_PLAIN, ICON_CHECK } from '../icons';
 import { ControlRenderer } from './ControlRenderer';
 import { Folder } from './Folder';
@@ -12,12 +13,15 @@ interface PanelProps {
   panel: PanelConfig;
   defaultOpen?: boolean;
   inline?: boolean;
+  accordion?: boolean;
+  openFolder?: string | null;
+  onOpenFolderChange?: (path: string | null) => void;
   onOpenChange?: (open: boolean) => void;
   variant?: 'root' | 'section';
   toolbarExtra?: ReactNode;
 }
 
-export function Panel({ panel, defaultOpen = true, inline = false, onOpenChange, variant = 'root', toolbarExtra }: PanelProps) {
+export function Panel({ panel, defaultOpen = true, inline = false, accordion = false, openFolder, onOpenFolderChange, onOpenChange, variant = 'root', toolbarExtra }: PanelProps) {
   const [copied, setCopied] = useState(false);
   const copyTimeout = useRef<ReturnType<typeof setTimeout>>();
   useEffect(() => () => clearTimeout(copyTimeout.current), []);
@@ -63,7 +67,13 @@ export function Panel({ panel, defaultOpen = true, inline = false, onOpenChange,
   }, [onOpenChange, panel.id]);
 
   const renderControls = () => (
-    <ControlRenderer panelId={panel.id} controls={panel.controls} values={values} />
+    <ControlRenderer
+      panelId={panel.id}
+      controls={panel.controls}
+      values={values}
+      openFolder={accordion ? resolveOpenFolder(panel.controls, openFolder) : undefined}
+      onOpenFolderChange={onOpenFolderChange}
+    />
   );
 
   const iconTransition = { type: 'spring' as const, visualDuration: 0.4, bounce: 0.1 };

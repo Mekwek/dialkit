@@ -1,6 +1,7 @@
 import { createSignal, createEffect, onMount, onCleanup, Show, For } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import { DialStore } from '../../store/DialStore';
+import { pruneOpenFolders } from '../../accordion';
 import { TimelineStore } from '../../store/TimelineStore';
 import { fromStore } from '../primitives';
 import { ShortcutListener } from './ShortcutListener';
@@ -40,6 +41,7 @@ interface DialRootProps {
   mode?: DialMode;
   theme?: DialTheme;
   productionEnabled?: boolean;
+  accordion?: boolean;
   onOpenChange?: (open: boolean) => void;
 }
 
@@ -81,6 +83,11 @@ function DialRootInner(props: DialRootProps) {
   const fallbackOpen = () => inline() || (props.defaultOpen ?? true);
   const panelOpenStates = new Map<string, boolean>();
   const [shellOpen, setShellOpen] = createSignal(inline() || (props.defaultOpen ?? true));
+  // Panels remount when the root switches between one panel and several, or
+  // when a config change replaces a panel's object, so the root keeps each
+  // panel's accordion folder by panel ID.
+  const [openFolders, setOpenFolders] = createSignal<Record<string, string | null>>({});
+  const setOpenFolder = (id: string, path: string | null) => setOpenFolders(prev => ({ ...prev, [id]: path }));
   let rootFolderOpen: boolean | undefined;
 
   // Seed the previous state before the first click, including panels that
@@ -92,6 +99,7 @@ function DialRootInner(props: DialRootProps) {
     for (const id of panelOpenStates.keys()) {
       if (!ids.has(id)) panelOpenStates.delete(id);
     }
+    setOpenFolders(prev => pruneOpenFolders(prev, list.map(panel => panel.id)));
     for (const panel of list) {
       if (!panelOpenStates.has(panel.id)) {
         panelOpenStates.set(panel.id, DialStore.getPanelOpen(panel.id) ?? fallbackOpen());
@@ -225,6 +233,7 @@ function DialRootInner(props: DialRootProps) {
           data-origin-y={inline() ? undefined : getPanelOriginY(activePosition(), dragOffset())}
           data-mode={props.mode ?? 'popover'}
           data-multiple={panels().length > 1 ? 'true' : undefined}
+          data-accordion={props.accordion ? 'true' : undefined}
           style={dragStyle()}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
@@ -254,6 +263,9 @@ function DialRootInner(props: DialRootProps) {
                     panel={panel}
                     defaultOpen={fallbackOpen()}
                     inline={inline()}
+                    accordion={props.accordion}
+                    openFolder={openFolders()[panel.id]}
+                    onOpenFolderChange={(path) => setOpenFolder(panel.id, path)}
                     toolbarExtra={timelineToggle()}
                     onOpenChange={(open) => handlePanelOpenChange(panel.id, open)}
                   />
@@ -275,6 +287,9 @@ function DialRootInner(props: DialRootProps) {
                       <Panel
                         panel={panel}
                         defaultOpen={true}
+                        accordion={props.accordion}
+                        openFolder={openFolders()[panel.id]}
+                        onOpenFolderChange={(path) => setOpenFolder(panel.id, path)}
                         variant="section"
                       />
                     )}

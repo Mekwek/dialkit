@@ -17,16 +17,21 @@
   import type { ShortcutContextValue } from './ShortcutListener.svelte';
   import type { TransitionDurationControl } from './TransitionControl.svelte';
 
-  let { panelId, control, values, transitionDuration } = $props<{
+  let { panelId, control, values, transitionDuration, openFolder, onOpenFolderChange } = $props<{
     panelId: string;
     control: ControlMeta;
     values: Record<string, DialValue>;
     transitionDuration?: TransitionDurationControl;
+    /** Path of the one open top-level folder in accordion mode, or null when all are closed. */
+    openFolder?: string | null;
+    onOpenFolderChange?: (path: string | null) => void;
   }>();
 
   const shortcutCtx = getContext<ShortcutContextValue | undefined>(SHORTCUT_CTX);
 
   const controlValue = $derived(values[control.path]);
+  // Accordion mode controls top-level folders; nested ones are rendered without openFolder.
+  const accordion = $derived(openFolder !== undefined);
   const isShortcutActive = $derived(
     shortcutCtx ? shortcutCtx.activePanelId === panelId && shortcutCtx.activePath === control.path : false
   );
@@ -69,7 +74,12 @@
     durationControl={transitionDuration}
   />
 {:else if control.type === 'folder'}
-  <Folder title={control.label} defaultOpen={control.defaultOpen ?? true}>
+  <Folder
+    title={control.label}
+    defaultOpen={control.defaultOpen ?? true}
+    open={accordion ? openFolder === control.path : undefined}
+    onOpenChange={accordion ? (open) => onOpenFolderChange?.(open ? control.path : null) : undefined}
+  >
     {#each control.children ?? [] as child (child.path)}
       <ControlRenderer {panelId} control={child} {values} {transitionDuration} />
     {/each}

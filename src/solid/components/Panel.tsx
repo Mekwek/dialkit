@@ -1,4 +1,5 @@
 import { buildCopyInstruction } from '../../copy-instruction';
+import { resolveOpenFolder } from '../../accordion';
 import { batch, createSignal, createEffect, on, onMount, onCleanup, type JSX } from 'solid-js';
 import { animate } from 'motion';
 import { ICON_CLIPBOARD_PLAIN, ICON_CHECK } from '../../icons';
@@ -14,6 +15,9 @@ interface PanelProps {
   panel: PanelConfig;
   defaultOpen?: boolean;
   inline?: boolean;
+  accordion?: boolean;
+  openFolder?: string | null;
+  onOpenFolderChange?: (path: string | null) => void;
   onOpenChange?: (open: boolean) => void;
   variant?: 'root' | 'section';
   toolbarExtra?: JSX.Element;
@@ -151,10 +155,20 @@ export function Panel(props: PanelProps) {
     </>
   );
 
+  const renderControls = () => (
+    <ControlRenderer
+      panelId={props.panel.id}
+      controls={props.panel.controls}
+      values={values()}
+      openFolder={props.accordion ? resolveOpenFolder(props.panel.controls, props.openFolder) : undefined}
+      onOpenFolderChange={props.onOpenFolderChange}
+    />
+  );
+
   if (props.variant === 'section') {
     return (
       <Folder title={props.panel.name} open={isOpen()} onOpenChange={handleOpenChange} toolbar={toolbar}>
-        <ControlRenderer panelId={props.panel.id} controls={props.panel.controls} values={values()} />
+        {renderControls()}
       </Folder>
     );
   }
@@ -162,7 +176,7 @@ export function Panel(props: PanelProps) {
   return (
     <div class="dialkit-panel-wrapper">
       <RootPanel title={props.panel.name} open={isOpen()} inline={props.inline ?? false} onOpenChange={handleOpenChange} toolbar={toolbar}>
-        <ControlRenderer panelId={props.panel.id} controls={props.panel.controls} values={values()} />
+        {renderControls()}
       </RootPanel>
     </div>
   );

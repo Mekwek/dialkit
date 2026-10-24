@@ -1,4 +1,5 @@
 import { buildCopyInstruction } from '../../copy-instruction';
+import { resolveOpenFolder } from '../../accordion';
 import { Fragment, computed, defineComponent, h, onMounted, onUnmounted, ref, type PropType, type VNodeChild } from 'vue';
 import { AnimatePresence, motion } from 'motion-v';
 import { ICON_CHECK, ICON_CLIPBOARD_PLAIN } from '../../icons';
@@ -23,13 +24,21 @@ export const Panel = defineComponent({
       type: Boolean,
       default: false,
     },
+    accordion: {
+      type: Boolean,
+      default: false,
+    },
+    openFolder: {
+      type: String as PropType<string | null>,
+      default: undefined,
+    },
     variant: {
       type: String as PropType<'root' | 'section'>,
       default: 'root',
     },
     toolbarExtra: Function as PropType<() => VNodeChild>,
   },
-  emits: ['openChange'],
+  emits: ['openChange', 'openFolderChange'],
   setup(props, { emit }) {
     const values = ref<Record<string, DialValue>>(DialStore.getValues(props.panel.id));
     const presets = ref(DialStore.getPresets(props.panel.id));
@@ -147,6 +156,14 @@ export const Panel = defineComponent({
         props.toolbarExtra?.(),
       ]);
 
+      const renderControls = () => h(ControlRenderer, {
+        panelId: props.panel.id,
+        controls: props.panel.controls,
+        values: values.value,
+        openFolder: props.accordion ? resolveOpenFolder(props.panel.controls, props.openFolder) : undefined,
+        onOpenFolderChange: (path: string | null) => emit('openFolderChange', path),
+      });
+
       if (props.variant === 'section') {
         return h(Folder, {
           title: props.panel.name,
@@ -155,7 +172,7 @@ export const Panel = defineComponent({
           toolbar: () => toolbarNode,
         }, {
           default: () => [
-            h(ControlRenderer, { panelId: props.panel.id, controls: props.panel.controls, values: values.value }),
+            renderControls(),
           ],
         });
       }
@@ -169,7 +186,7 @@ export const Panel = defineComponent({
           toolbar: () => toolbarNode,
           onOpenChange: handleOpenChange,
         }, {
-          default: () => h(ControlRenderer, { panelId: props.panel.id, controls: props.panel.controls, values: values.value }),
+          default: () => renderControls(),
         }),
       ]);
     };

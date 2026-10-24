@@ -1,5 +1,6 @@
 <script lang="ts">
   import { buildCopyInstruction } from '../../copy-instruction';
+  import { resolveOpenFolder } from '../../accordion';
   import { Spring } from 'svelte/motion';
   import type { Snippet } from 'svelte';
   import { DialStore } from 'dialkit/store';
@@ -9,16 +10,20 @@
   import ControlRenderer from './ControlRenderer.svelte';
   import { ICON_CLIPBOARD_PLAIN, ICON_CHECK } from '../../icons';
 
-  let { panel, defaultOpen = true, inline = false, onOpenChange, variant = 'root', toolbarExtra } = $props<{
+  let { panel, defaultOpen = true, inline = false, accordion = false, openFolder, onOpenFolderChange, onOpenChange, variant = 'root', toolbarExtra } = $props<{
     panel: PanelConfig;
     defaultOpen?: boolean;
     inline?: boolean;
+    accordion?: boolean;
+    openFolder?: string | null;
+    onOpenFolderChange?: (path: string | null) => void;
     onOpenChange?: (open: boolean) => void;
     variant?: 'root' | 'section';
     toolbarExtra?: Snippet;
   }>();
 
   let copied = $state(false);
+  const resolvedOpenFolder = $derived(accordion ? resolveOpenFolder(panel.controls, openFolder) : undefined);
   // The store owns open/collapsed state so it can be driven programmatically.
   let storeOpen = $state<boolean | undefined>(DialStore.getPanelOpen(panel.id));
   const isOpen = $derived(storeOpen ?? defaultOpen);
@@ -133,7 +138,13 @@
 
 {#snippet panelControls()}
   {#each panel.controls as control (control.path)}
-    <ControlRenderer panelId={panel.id} {control} {values} />
+    <ControlRenderer
+      panelId={panel.id}
+      {control}
+      {values}
+      openFolder={resolvedOpenFolder}
+      {onOpenFolderChange}
+    />
   {/each}
 {/snippet}
 

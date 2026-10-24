@@ -3,6 +3,7 @@ import { TimelineStore } from '../store/TimelineStore';
 import { TimelineUiStore } from '../store/TimelineUiStore';
 import { blockPanelDragClick, capturePanelPointer, releasePanelPointer, getPanelCorner, getPanelDragHandle, getPanelDragOffset, getPanelDragStart, getPanelOriginX, getPanelOriginY, hasPanelDragMoved, type PanelDragStart, type PanelDragOffset } from '../panel-drag';
 import { buildCopyInstruction } from '../copy-instruction';
+import { pruneOpenFolders, resolveOpenFolder } from '../accordion';
 import { ICON_CLIPBOARD_PLAIN, ICON_CHECK } from '../icons';
 import { mountControlRenderer } from './ControlRenderer';
 import { mountFolder } from './controls';
@@ -20,6 +21,7 @@ export interface DialRootOptions {
   theme?: DialTheme;
   /** Plain HTML has no build-mode detection; enabled by default. */
   productionEnabled?: boolean;
+  accordion?: boolean;
   onOpenChange?: (open: boolean) => void;
 }
 export function mountPanelToolbar(host: HTMLElement, id: string, hookName = 'createDialKit') {
@@ -60,6 +62,8 @@ export function createDialRoot(options: DialRootOptions = {}) {
   const inline = options.mode === 'inline';
   root.dataset.mode = shell.dataset.mode = inline ? 'inline' : 'popover';
   root.dataset.theme = options.theme ?? 'system';
+  if (options.accordion)
+    shell.dataset.accordion = 'true';
   let position = options.position ?? 'top-right';
   shell.dataset.position = position;
   let offset: PanelDragOffset | null = null;
@@ -81,6 +85,9 @@ export function createDialRoot(options: DialRootOptions = {}) {
     destroy(): void;
   }[] = [];
   let shellFolder: ReturnType<typeof mountFolder> | undefined;
+  // Rebuilds replace every panel view, so the root keeps each panel's
+  // accordion folder by panel ID.
+  let openFolders: Record<string, string | null> = {};
   let destroyed = false;
   const notify = (open: boolean) => {
     if (lastOpen !== open) {
@@ -122,7 +129,13 @@ export function createDialRoot(options: DialRootOptions = {}) {
     const toolbarView = mountPanelToolbar(toolbar, panel.id);
     if (isRoot)
       timelineToggle(toolbar);
-    const rendererProps = () => ({ panelId: panel.id, controls: DialStore.getPanel(panel.id)?.controls ?? [], values: DialStore.getValues(panel.id) });
+    const rendererProps = () => {
+      const controls = DialStore.getPanel(panel.id)?.controls ?? [];
+      return { panelId: panel.id, controls, values: DialStore.getValues(panel.id), openFolder: options.accordion ? resolveOpenFolder(controls, openFolders[panel.id]) : undefined, onOpenFolderChange: (path: string | null) => {
+          openFolders = { ...openFolders, [panel.id]: path };
+          renderer.update(rendererProps());
+        } };
+    };
     const renderer = mountControlRenderer(folder.body, rendererProps());
     const update = () => {
       folder.update(folderProps());
@@ -148,6 +161,7 @@ export function createDialRoot(options: DialRootOptions = {}) {
     if (next === signature)
       return;
     signature = next;
+    openFolders = pruneOpenFolders(openFolders, panels.map(p => p.id));
     children.forEach(child => child.destroy());
     children = [];
     shell.replaceChildren();

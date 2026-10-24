@@ -46,6 +46,32 @@ fs.writeFileSync(
   path.join(out, "Fixture.svelte"),
   `<script>import {DialRoot,createDialKit} from 'dialkit/svelte';createDialKit('Fixture',${config});</script><DialRoot defaultOpen={true} theme={new URLSearchParams(location.search).get('theme') || 'light'} />`,
 );
+// Accordion roots expose DialStore so the browser test can change the config.
+// Lighting holds only an action, so the test can remove it while it is open.
+// ?multiple adds a second panel, shown as its own section.
+const accordionConfig = `{ camera: { distance: [8, 1, 20], lens: { zoom: [1, 0, 4] } }, lighting: { flash: { type: 'action' } }, effects: { bloom: [0.8, 0, 1] } }`;
+const secondConfig = `{ alpha: { a: [1, 0, 2] }, beta: { b: [1, 0, 2] } }`;
+const accordionSetup = (entry) =>
+  `import {DialStore} from '${entry}';window.DialStore=DialStore;if(new URLSearchParams(location.search).has('multiple'))DialStore.registerPanel('second','Second',${secondConfig});`;
+for (const [name, entry] of [
+  ["react", "dialkit"],
+  ["solid", "dialkit/solid"],
+  ["vue", "dialkit/vue"],
+  ["vanilla", "dialkit/vanilla"],
+]) {
+  entries[name + "-accordion"] =
+    accordionSetup(entry) +
+    entries[name]
+      .replaceAll(config, `${accordionConfig},{id:'accordion'}`)
+      .replace("defaultOpen:true,", "defaultOpen:true,accordion:true,");
+}
+entries["svelte-accordion"] =
+  accordionSetup("dialkit/svelte") +
+  entries.svelte.replace("Fixture.svelte", "AccordionFixture.svelte");
+fs.writeFileSync(
+  path.join(out, "AccordionFixture.svelte"),
+  `<script>import {DialRoot,createDialKit} from 'dialkit/svelte';createDialKit('Fixture',${accordionConfig},{id:'accordion'});</script><DialRoot defaultOpen={true} accordion={true} theme={new URLSearchParams(location.search).get('theme') || 'light'} />`,
+);
 const sveltePlugin = {
   name: "svelte",
   setup(b) {
