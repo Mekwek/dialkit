@@ -36,6 +36,8 @@ import {
   ICON_CHEVRON,
   ICON_CHECK,
   ICON_CLIPBOARD_PLAIN,
+  ICON_EXPORT,
+  ICON_LOOP,
   ICON_PAUSE,
   ICON_PLAY,
   ICON_REPLAY,
@@ -70,6 +72,8 @@ export interface DialTimelineProps {
   onVisibilityChange?: (visible: boolean) => void;
   defaultOpen?: boolean;
   productionEnabled?: boolean;
+  /** Shows an Export button on each timeline; the host decides what it does. */
+  onExport?: (timeline: TimelineMeta) => void;
 }
 
 export function DialTimeline(props: DialTimelineProps) {
@@ -170,6 +174,7 @@ function DialTimelineDock(props: DialTimelineProps) {
                   defaultOpen={props.defaultOpen ?? true}
                   theme={props.theme ?? 'system'}
                   dockVisible={visible()}
+                  onExport={props.onExport}
                 />
               )}
             </For>
@@ -221,6 +226,23 @@ function ReplayButton(props: { onReplay: () => void }) {
     >
       <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <For each={ICON_REPLAY}>{(path) => <path d={path} fill="currentColor" />}</For>
+      </svg>
+    </button>
+  );
+}
+
+function LoopButton(props: { id: string; loop: boolean }) {
+  return (
+    <button
+      class="dialkit-toolbar-add dialkit-timeline-toolbar-toggle"
+      data-active={props.loop || undefined}
+      aria-pressed={props.loop}
+      aria-label="Loop"
+      title={props.loop ? 'Stop looping' : 'Loop'}
+      onClick={() => TimelineStore.setLoop(props.id, !props.loop)}
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <For each={ICON_LOOP}>{(path) => <path d={path} />}</For>
       </svg>
     </button>
   );
@@ -426,6 +448,7 @@ function TimelineSection(props: {
   defaultOpen: boolean;
   theme: DialTheme;
   dockVisible: boolean;
+  onExport?: (timeline: TimelineMeta) => void;
 }) {
   const [open, setOpen] = createSignal(props.defaultOpen);
   const [copied, setCopied] = createSignal(false);
@@ -822,6 +845,7 @@ function TimelineSection(props: {
         <div class="dialkit-timeline-actions">
           <PlayPauseButton id={props.meta.id} />
           <ReplayButton onReplay={handleReplay} />
+          <LoopButton id={props.meta.id} loop={props.meta.loop} />
 
           <PresetManager
             panelId={props.meta.id}
@@ -850,6 +874,16 @@ function TimelineSection(props: {
               </Show>
             </span>
           </button>
+          <Show when={props.onExport}>
+            {(onExport) => (
+              <button class="dialkit-toolbar-add dialkit-timeline-export" onClick={() => onExport()(props.meta)}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <For each={ICON_EXPORT}>{(path) => <path d={path} />}</For>
+                </svg>
+                Export
+              </button>
+            )}
+          </Show>
           <button
             class="dialkit-timeline-chevron"
             data-open={open()}

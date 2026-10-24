@@ -6,7 +6,7 @@ import { clamp } from '../transition-math';
 import { findControl } from '../shortcut-utils';
 import { getDropdownPosition } from '../dropdown-position';
 import { buildCopyInstruction } from '../copy-instruction';
-import { ICON_CHEVRON, ICON_PLAY, ICON_PAUSE, ICON_REPLAY, ICON_CLIPBOARD_PLAIN, ICON_CHECK } from '../icons';
+import { ICON_CHEVRON, ICON_PLAY, ICON_PAUSE, ICON_REPLAY, ICON_LOOP, ICON_CLIPBOARD_PLAIN, ICON_CHECK, ICON_EXPORT } from '../icons';
 import { mountControlRenderer } from './ControlRenderer';
 import { mountPresetManager } from './menus';
 import { element, icon, button } from './dom';
@@ -19,6 +19,8 @@ export interface DialTimelineOptions {
   onVisibilityChange?: (visible: boolean) => void;
   defaultOpen?: boolean;
   productionEnabled?: boolean;
+  /** Shows an Export button on each timeline; the host decides what it does. */
+  onExport?: (timeline: TimelineMeta) => void;
 }
 export type DialTimelineProps = DialTimelineOptions;
 /** Mount the timeline dock independently of the parameter panel. */
@@ -72,7 +74,7 @@ export function createDialTimelineRoot(initial: DialTimelineOptions = {}) {
         sections.set(meta.id, section);
       }
       else
-        section.update(meta, options.theme ?? 'system');
+        section.update(meta, options.theme ?? 'system', options.onExport);
       if (root.hidden)
         section.closeEditor();
     }
@@ -94,7 +96,7 @@ export function createDialTimelineRoot(initial: DialTimelineOptions = {}) {
       if (!destroyed)
         TimelineUiStore.requestVisible(visible);
     },
-    update(next: Pick<DialTimelineOptions, 'theme' | 'visible' | 'onVisibilityChange'>) {
+    update(next: Pick<DialTimelineOptions, 'theme' | 'visible' | 'onVisibilityChange' | 'onExport'>) {
       if (destroyed)
         return;
       options = { ...options, ...next };
@@ -156,6 +158,7 @@ function pointerGesture() {
 function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTimelineOptions) {
   let meta = initial;
   let theme = options.theme ?? 'system';
+  let onExport = options.onExport;
   let open = options.defaultOpen ?? true;
   let zoom = 1, viewStart = 0;
   const groups = new Set<string>(), tracks = new Set<string>();
@@ -183,7 +186,9 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
     render();
     TimelineStore.replay(meta.id);
   });
-  actions.append(play, replay);
+  const loop = button('Loop', ICON_LOOP, () => TimelineStore.setLoop(meta.id, !meta.loop));
+  loop.classList.add('dialkit-timeline-toolbar-toggle');
+  actions.append(play, replay, loop);
   const presetProps = () => ({ panelId: meta.id, presets: DialStore.getPresets(meta.id), activePresetId: DialStore.getActivePresetId(meta.id) });
   const presets = mountPresetManager(actions, presetProps());
   let copyTimer: ReturnType<typeof setTimeout> | undefined;
@@ -202,6 +207,9 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
     copyTimer = setTimeout(() => copy.replaceChildren(icon([ICON_CLIPBOARD_PLAIN.board, ICON_CLIPBOARD_PLAIN.body])), 1500);
   });
   copy.classList.add('dialkit-toolbar-primary');
+  const exportButton = element('button', 'dialkit-toolbar-add dialkit-timeline-export');
+  exportButton.append(icon(ICON_EXPORT), 'Export');
+  exportButton.addEventListener('click', () => onExport?.(meta));
   actions.append(copy);
   const collapse = element('button', 'dialkit-timeline-chevron');
   collapse.append(icon(ICON_CHEVRON));
@@ -382,6 +390,16 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
     collapse.setAttribute('aria-expanded', String(open));
     collapse.title = open ? 'Collapse timeline' : 'Expand timeline';
     collapse.setAttribute('aria-label', collapse.title);
+    loop.setAttribute('aria-pressed', String(meta.loop));
+    loop.title = meta.loop ? 'Stop looping' : 'Loop';
+    if (meta.loop)
+      loop.dataset.active = '';
+    else
+      delete loop.dataset.active;
+    if (!onExport)
+      exportButton.remove();
+    else if (!exportButton.isConnected)
+      collapse.before(exportButton);
     viewStart = clamp(viewStart, 0, Math.max(0, meta.duration - visibleDuration()));
     const px = scale();
     ruler.replaceChildren();
@@ -633,9 +651,10 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
   observer.observe(ruler);
   render();
   return {
-    update(next: TimelineMeta, nextTheme: DialTheme) {
+    update(next: TimelineMeta, nextTheme: DialTheme, nextExport?: (timeline: TimelineMeta) => void) {
       meta = next;
       theme = nextTheme;
+      onExport = nextExport;
       render();
     }, closeEditor, destroy() {
       destroyed = true;

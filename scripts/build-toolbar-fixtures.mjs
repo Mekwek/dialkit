@@ -42,8 +42,10 @@ fs.writeFileSync(
   path.join(out, "TimelineFixture.svelte"),
   `<script>import {DialTimeline,createDialTimeline} from 'dialkit/svelte';createDialTimeline('Fixture',${timelineConfig});</script><DialTimeline defaultOpen={true} theme={new URLSearchParams(location.search).get('theme') || 'light'} />`,
 );
-// Three plain clips. The store is exposed so checks can read and edit values.
+// Three plain clips with an Export button. The store is exposed so checks
+// can read and edit values.
 const clipsConfig = `{ duration: 3.5, intro: { at: 0, duration: 0.5 }, title: { at: 1, duration: 0.5 }, outro: { at: 2.5, duration: 0.5 } }`;
+const onExport = `(timeline) => { window.exported = timeline; }`;
 const adapterEntry = { react: "dialkit", solid: "dialkit/solid", vue: "dialkit/vue", vanilla: "dialkit/vanilla" };
 const clipFixtures = {
   clips: `{ autoplay: false }`,
@@ -51,13 +53,14 @@ const clipFixtures = {
 for (const [kind, options] of Object.entries(clipFixtures)) {
   for (const [name, entry] of Object.entries(adapterEntry)) {
     entries[`${name}-${kind}`] = `import {DialStore} from '${entry}';window.DialStore=DialStore;` + entries[name + "-timeline"]
-      .replace(`('Fixture',${timelineConfig})`, `('Fixture',${clipsConfig},${options})`);
+      .replace(`('Fixture',${timelineConfig})`, `('Fixture',${clipsConfig},${options})`)
+      .replace("{defaultOpen:true,theme:'light'}", `{defaultOpen:true,theme:'light',onExport:${onExport}}`);
   }
   const file = `${kind[0].toUpperCase()}${kind.slice(1)}Fixture.svelte`;
   entries[`svelte-${kind}`] = entries.svelte.replace("Fixture.svelte", file);
   fs.writeFileSync(
     path.join(out, file),
-    `<script>import {DialStore,DialTimeline,createDialTimeline} from 'dialkit/svelte';window.DialStore=DialStore;createDialTimeline('Fixture',${clipsConfig},${options});</script><DialTimeline defaultOpen={true} theme={new URLSearchParams(location.search).get('theme') || 'light'} />`,
+    `<script>import {DialStore,DialTimeline,createDialTimeline} from 'dialkit/svelte';window.DialStore=DialStore;createDialTimeline('Fixture',${clipsConfig},${options});</script><DialTimeline defaultOpen={true} theme={new URLSearchParams(location.search).get('theme') || 'light'} onExport={${onExport}} />`,
   );
 }
 fs.writeFileSync(

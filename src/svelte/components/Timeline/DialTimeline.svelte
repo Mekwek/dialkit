@@ -19,6 +19,7 @@
     onVisibilityChange,
     defaultOpen = true,
     productionEnabled = isDevDefault,
+    onExport,
   } = $props<{
     theme?: DialTheme;
     defaultVisible?: boolean;
@@ -26,6 +27,8 @@
     onVisibilityChange?: (visible: boolean) => void;
     defaultOpen?: boolean;
     productionEnabled?: boolean;
+    /** Shows an Export button on each timeline; the host decides what it does. */
+    onExport?: (timeline: TimelineMeta) => void;
   }>();
 
   const controllerId = Symbol('dialkit-timeline-visibility');
@@ -117,7 +120,7 @@
         style:max-height={`min(${dockMaxHeight}px, calc(100vh - 24px))`}
       >
         {#each timelines as timeline (timeline.id)}
-          <TimelineSection meta={timeline} {defaultOpen} {theme} {dockVisible} />
+          <TimelineSection meta={timeline} {defaultOpen} {theme} {dockVisible} {onExport} />
         {/each}
       </div>
     </div>

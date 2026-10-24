@@ -21,6 +21,8 @@
     ICON_CHEVRON,
     ICON_CHECK,
     ICON_CLIPBOARD_PLAIN,
+    ICON_EXPORT,
+    ICON_LOOP,
     ICON_PAUSE,
     ICON_PLAY,
     ICON_REPLAY,
@@ -89,11 +91,12 @@
     selected: boolean;
   };
 
-  let { meta, defaultOpen, theme, dockVisible } = $props<{
+  let { meta, defaultOpen, theme, dockVisible, onExport } = $props<{
     meta: TimelineMeta;
     defaultOpen: boolean;
     theme: DialTheme;
     dockVisible: boolean;
+    onExport?: (timeline: TimelineMeta) => void;
   }>();
 
   let open = $state(untrack(() => defaultOpen));
@@ -582,6 +585,18 @@
           {#each ICON_REPLAY as path}<path d={path} fill="currentColor" />{/each}
         </svg>
       </button>
+      <button
+        class="dialkit-toolbar-add dialkit-timeline-toolbar-toggle"
+        data-active={meta.loop || undefined}
+        aria-pressed={meta.loop}
+        aria-label="Loop"
+        title={meta.loop ? 'Stop looping' : 'Loop'}
+        onclick={() => TimelineStore.setLoop(meta.id, !meta.loop)}
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          {#each ICON_LOOP as path}<path d={path} />{/each}
+        </svg>
+      </button>
       <PresetManager panelId={meta.id} {presets} {activePresetId} />
       <button
         class="dialkit-toolbar-add dialkit-toolbar-primary"
@@ -602,6 +617,14 @@
           {/if}
         </span>
       </button>
+      {#if onExport}
+        <button class="dialkit-toolbar-add dialkit-timeline-export" onclick={() => onExport(meta)}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            {#each ICON_EXPORT as path}<path d={path} />{/each}
+          </svg>
+          Export
+        </button>
+      {/if}
       <button
         class="dialkit-timeline-chevron"
         data-open={open}

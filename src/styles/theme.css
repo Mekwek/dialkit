@@ -2060,6 +2060,17 @@
   padding-left: 0;
 }
 
+.dialkit-timeline-export {
+  width: auto;
+  gap: 6px;
+  padding: 0 12px 0 9px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--dial-text-label);
+  white-space: nowrap;
+}
+
 .dialkit-timeline-actions .dialkit-preset-manager {
   flex: 0 0 120px;
   width: 120px;

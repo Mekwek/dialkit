@@ -60,6 +60,8 @@ For time-based springs and easings, the bar sets the duration: resizing it retim
 
 When `duration` is omitted, DialKit uses the transition's duration or spring settling time. A clip with values but no transition uses `{ type: "spring", bounce: 0.2 }`.
 
+The dock names a clip after its key, formatted. Set `label` to show another name, for example when clips are keyed by an ID.
+
 ### Clip values
 
 | Field | Meaning |
@@ -169,6 +171,8 @@ const timeline = useDialTimeline("Hero", config, { loop: { from: 1.4 } });
 
 `true` wraps to 0. `{ from: 1.4 }` plays the introduction once, then wraps to 1.4 seconds. Looping clips retain their phase across wraps. Seeking returns to the first-pass state at that time.
 
+The dock's Loop button turns looping on and off. Turning a `{ from }` loop back on wraps to the same time. The choice lasts until the `loop` option turns looping on or off. Copy does not carry it; set `loop` in code to keep it.
+
 A top-level `duration` sets the minimum editing window. Otherwise the timeline fits its content. It grows if edits make a clip extend past the current end.
 
 For event-driven playback, set `autoplay: false` and call `replay()` from your app's event handler.
@@ -185,8 +189,9 @@ The dock sits at the bottom of the viewport and works independently of the param
 | `onVisibilityChange` | — | Receive visibility changes; `@visibility-change` in Vue |
 | `defaultOpen` | `true` | Start timeline sections expanded |
 | `productionEnabled` | Development only; always enabled in vanilla | Render the editor |
+| `onExport` | — | Show an Export button; called with the timeline's metadata (`id`, `name`, `clips`, …); `@export` in Vue |
 
-The toolbar includes play/pause, replay, presets, Copy, and collapse. When `DialRoot` is also mounted, its timeline button shows or hides the dock. Visibility does not affect playback. In vanilla, use `dock.setVisible(boolean)` or controlled `dock.update({ visible, onVisibilityChange })`.
+The toolbar includes play/pause, replay, loop, presets, Copy, Export when `onExport` is set, and collapse. When `DialRoot` is also mounted, its timeline button shows or hides the dock. Visibility does not affect playback. In vanilla, use `dock.setVisible(boolean)` or controlled `dock.update({ visible, onVisibilityChange, onExport })`.
 
 | Gesture | Effect |
 | --- | --- |

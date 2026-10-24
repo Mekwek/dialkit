@@ -25,7 +25,7 @@ import type { TimelineClipLoop, TimelineStepStatic } from '../../timeline-core';
 import { clamp } from '../../transition-math';
 import { buildCopyInstruction } from '../../copy-instruction';
 import { isDevDefault } from '../../env';
-import { ICON_CHEVRON, ICON_CHECK, ICON_CLIPBOARD_PLAIN, ICON_PAUSE, ICON_PLAY, ICON_REPLAY } from '../../icons';
+import { ICON_CHEVRON, ICON_CHECK, ICON_CLIPBOARD_PLAIN, ICON_EXPORT, ICON_LOOP, ICON_PAUSE, ICON_PLAY, ICON_REPLAY } from '../../icons';
 import { findControl } from '../../shortcut-utils';
 import { ControlRenderer } from '../ControlRenderer';
 import { PresetManager } from '../PresetManager';
@@ -62,6 +62,8 @@ export interface DialTimelineProps {
   onVisibilityChange?: (visible: boolean) => void;
   defaultOpen?: boolean;
   productionEnabled?: boolean;
+  /** Shows an Export button on each timeline; the host decides what it does. */
+  onExport?: (timeline: TimelineMeta) => void;
 }
 
 // Memoized: hosts that bind `current` re-render every frame, and the dock
@@ -75,6 +77,7 @@ export const DialTimeline = memo(function DialTimeline({
   onVisibilityChange,
   defaultOpen = true,
   productionEnabled = isDevDefault,
+  onExport,
 }: DialTimelineProps) {
   if (!productionEnabled) return null;
   return (
@@ -84,6 +87,7 @@ export const DialTimeline = memo(function DialTimeline({
       visible={visible}
       onVisibilityChange={onVisibilityChange}
       defaultOpen={defaultOpen}
+      onExport={onExport}
     />
   );
 });
@@ -94,12 +98,14 @@ function DialTimelineDock({
   visible,
   onVisibilityChange,
   defaultOpen,
+  onExport,
 }: {
   theme: DialTheme;
   defaultVisible: boolean;
   visible?: boolean;
   onVisibilityChange?: (visible: boolean) => void;
   defaultOpen: boolean;
+  onExport?: (timeline: TimelineMeta) => void;
 }) {
   const [mounted, setMounted] = useState(false);
   const [dockMaxHeight, setDockMaxHeight] = useState(DEFAULT_DOCK_MAX_HEIGHT);
@@ -187,6 +193,7 @@ function DialTimelineDock({
             defaultOpen={defaultOpen}
             theme={theme}
             dockVisible={dockVisible}
+            onExport={onExport}
           />
         ))}
       </div>
@@ -268,6 +275,25 @@ function ReplayButton({ onReplay }: { onReplay: () => void }) {
     >
       <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
         {ICON_REPLAY.map((d, i) => <path key={i} d={d} fill="currentColor" />)}
+      </svg>
+    </motion.button>
+  );
+}
+
+function LoopButton({ id, loop }: { id: string; loop: boolean }) {
+  return (
+    <motion.button
+      className="dialkit-toolbar-add dialkit-timeline-toolbar-toggle"
+      data-active={loop || undefined}
+      aria-pressed={loop}
+      aria-label="Loop"
+      title={loop ? 'Stop looping' : 'Loop'}
+      onClick={() => TimelineStore.setLoop(id, !loop)}
+      whileTap={{ scale: 0.9 }}
+      transition={{ type: 'spring', visualDuration: 0.15, bounce: 0.3 }}
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        {ICON_LOOP.map((d, i) => <path key={i} d={d} />)}
       </svg>
     </motion.button>
   );
@@ -498,11 +524,13 @@ const TimelineSection = memo(function TimelineSection({
   defaultOpen,
   theme,
   dockVisible,
+  onExport,
 }: {
   meta: TimelineMeta;
   defaultOpen: boolean;
   theme: DialTheme;
   dockVisible: boolean;
+  onExport?: (timeline: TimelineMeta) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const [copied, setCopied] = useState(false);
@@ -986,6 +1014,7 @@ const TimelineSection = memo(function TimelineSection({
         <div className="dialkit-timeline-actions">
           <PlayPauseButton id={meta.id} />
           <ReplayButton onReplay={handleReplay} />
+          <LoopButton id={meta.id} loop={meta.loop} />
 
           <PresetManager
             panelId={meta.id}
@@ -1039,6 +1068,19 @@ const TimelineSection = memo(function TimelineSection({
               </AnimatePresence>
             </span>
           </motion.button>
+          {onExport && (
+            <motion.button
+              className="dialkit-toolbar-add dialkit-timeline-export"
+              onClick={() => onExport(meta)}
+              whileTap={{ scale: 0.9 }}
+              transition={{ type: 'spring', visualDuration: 0.15, bounce: 0.3 }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                {ICON_EXPORT.map((d, i) => <path key={i} d={d} />)}
+              </svg>
+              Export
+            </motion.button>
+          )}
           <button
             className="dialkit-timeline-chevron"
             data-open={open}

@@ -87,6 +87,11 @@ const [path, float] = computeStaticClips(parsed, {});
 const current = (state: Record<string, unknown>) => state.current as Record<string, number>;
 
 describe('parse', () => {
+  it('labels clips with their label, or the formatted key', () => {
+    const parsed = parseTimelineConfig({ cardEnter: { at: 0, duration: 1 }, rec42: { at: 1, duration: 1, label: 'Title card' } });
+    assert.deepEqual(parsed.clips.map((clip) => clip.label), ['Card Enter', 'Title card']);
+  });
+
   it('flattens groups into namespaced clips', () => {
     assert.deepEqual(parsed.clips.map((c) => c.key), ['circle.path', 'circle.float']);
     assert.equal(parsed.clips[0].group, 'circle');

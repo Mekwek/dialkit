@@ -38,6 +38,8 @@ import {
   ICON_CHEVRON,
   ICON_CHECK,
   ICON_CLIPBOARD_PLAIN,
+  ICON_EXPORT,
+  ICON_LOOP,
   ICON_PAUSE,
   ICON_PLAY,
   ICON_REPLAY,
@@ -76,6 +78,8 @@ export const DialTimeline = defineComponent({
     onVisibilityChange: Function as PropType<(visible: boolean) => void>,
     defaultOpen: { type: Boolean, default: true },
     productionEnabled: { type: Boolean, default: isDevDefault },
+    /** Shows an Export button on each timeline; the host decides what it does. */
+    onExport: Function as PropType<(timeline: TimelineMeta) => void>,
   },
   setup(props) {
     const timelines = ref<TimelineMeta[]>(TimelineStore.getTimelines());
@@ -170,6 +174,7 @@ export const DialTimeline = defineComponent({
             defaultOpen: props.defaultOpen,
             theme: props.theme,
             dockVisible: dockVisible.value,
+            onExport: props.onExport,
           }))),
         ]),
       ]);
@@ -217,6 +222,26 @@ const ReplayButton = defineComponent({
     }, [
       h('svg', { viewBox: '0 0 24 24', fill: 'none', 'aria-hidden': 'true' },
         ICON_REPLAY.map((path) => h('path', { d: path, fill: 'currentColor' }))),
+    ]);
+  },
+});
+
+const LoopButton = defineComponent({
+  props: {
+    id: { type: String, required: true },
+    loop: { type: Boolean, required: true },
+  },
+  setup(props) {
+    return () => h('button', {
+      class: 'dialkit-toolbar-add dialkit-timeline-toolbar-toggle',
+      'data-active': props.loop || undefined,
+      'aria-pressed': props.loop,
+      'aria-label': 'Loop',
+      title: props.loop ? 'Stop looping' : 'Loop',
+      onClick: () => TimelineStore.setLoop(props.id, !props.loop),
+    }, [
+      h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' },
+        ICON_LOOP.map((path) => h('path', { d: path }))),
     ]);
   },
 });
@@ -415,6 +440,7 @@ const TimelineSection = defineComponent({
     defaultOpen: { type: Boolean, required: true },
     theme: { type: String as PropType<DialTheme>, required: true },
     dockVisible: { type: Boolean, required: true },
+    onExport: Function as PropType<(timeline: TimelineMeta) => void>,
   },
   setup(props) {
     const open = ref(props.defaultOpen);
@@ -715,6 +741,7 @@ const TimelineSection = defineComponent({
         h('div', { class: 'dialkit-timeline-actions' }, [
           h(PlayPauseButton, { id: props.meta.id }),
           h(ReplayButton, { onReplay: handleReplay }),
+          h(LoopButton, { id: props.meta.id, loop: props.meta.loop }),
           h(PresetManager, { panelId: props.meta.id, presets: presets.value, activePresetId: activePresetId.value }),
           h('button', {
             class: 'dialkit-toolbar-add dialkit-toolbar-primary',
@@ -729,6 +756,14 @@ const TimelineSection = defineComponent({
                 h('path', { d: ICON_CLIPBOARD_PLAIN.body, stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }),
               ]),
           ])]),
+          props.onExport ? h('button', {
+            class: 'dialkit-toolbar-add dialkit-timeline-export',
+            onClick: () => props.onExport?.(props.meta),
+          }, [
+            h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' },
+              ICON_EXPORT.map((path) => h('path', { d: path }))),
+            'Export',
+          ]) : null,
           h('button', {
             class: 'dialkit-timeline-chevron',
             'data-open': open.value,

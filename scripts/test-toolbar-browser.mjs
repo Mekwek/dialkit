@@ -45,6 +45,15 @@ try {
           .count(),
         0,
       );
+      if (kind) {
+        // Export shows only when the host passes onExport.
+        assert.equal(
+          await page
+            .getByRole("button", { name: "Export", exact: true })
+            .count(),
+          0,
+        );
+      }
       await create();
       assert.equal((await trigger.innerText()).trim(), "Version 2");
       assert.equal(await trigger.getAttribute("aria-expanded"), "false");
@@ -110,12 +119,29 @@ try {
       );
     }
 
-    // Every move of a drag edits the clip; the bar keeps the pointer to the end.
+    // Loop toggle, Export, and drags, on three clips.
     const page = await browser.newPage();
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.goto(`${base}/${framework}-clips.html`);
     const id = await page.evaluate(() => window.DialStore.getPanels("timeline")[0].id);
+    const loop = page.getByRole("button", { name: "Loop", exact: true });
+    assert.equal(await loop.getAttribute("aria-pressed"), "false");
+    await loop.click();
+    assert.equal(await loop.getAttribute("aria-pressed"), "true");
+    await loop.click();
+    assert.equal(await loop.getAttribute("aria-pressed"), "false");
+
+    const exportButton = page.getByRole("button", { name: "Export", exact: true });
+    await exportButton.click();
+    assert.equal(await page.evaluate(() => window.exported.name), "Fixture");
+    // A value edit redraws the dock; Export keeps focus.
+    await exportButton.focus();
+    await page.evaluate((id) => window.DialStore.updateValue(id, "outro.duration", 0.4), id);
+    assert.equal(await exportButton.evaluate((el) => el === document.activeElement), true);
+    await page.evaluate((id) => window.DialStore.updateValue(id, "outro.duration", 0.5), id);
+
+    // Every move of a drag edits the clip; the bar keeps the pointer to the end.
     const px = (await page.locator(".dialkit-timeline-ruler").boundingBox()).width / 3.5;
     const rowBar = (name) =>
       page.locator(".dialkit-timeline-row", { hasText: name }).locator(".dialkit-timeline-clip");
@@ -125,7 +151,7 @@ try {
 
     assert.deepEqual(errors, []);
     await page.close();
-    console.log(`${framework}-clips: drag checks passed`);
+    console.log(`${framework}-clips: loop, export and drag checks passed`);
   }
 } finally {
   await browser.close();
