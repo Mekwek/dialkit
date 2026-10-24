@@ -20,6 +20,8 @@ export { mountDialPad, mountDialPad as DialPad } from '../dial-pad-control';
 export type { DialPadProps } from '../dial-pad-control';
 export { mountBackgroundControl, mountBackgroundControl as BackgroundControl } from '../background-control';
 export type { BackgroundControlProps } from '../background-control';
+export { mountLayerListControl, mountLayerListControl as LayerListControl } from '../layer-list-control';
+export type { LayerListControlProps } from '../layer-list-control';
 export {
   setBackgroundHost,
   getBackgroundHost,
@@ -46,12 +48,15 @@ export {
   backgroundGradientCss,
   defaultBackgroundValue,
   normalizeBackgroundValue,
+  normalizeLayersValue,
+  layerAction,
+  parseLayerAction,
 } from '../store/DialStore';
 export { mountEasingVisualization, mountEasingVisualization as EasingVisualization } from '../easing-control';
 export type { EasingVisualizationProps } from '../easing-control';
 export { mountShortcutListener } from './shortcuts';
 export { DialStore } from '../store/DialStore';
-export type { SpringConfig, EasingConfig, TransitionConfig, ActionConfig, SelectConfig, ColorConfig, ImageConfig, ImageOption, DialPadAxis, DialPadConfig, DialPadValue, BackgroundConfig, BackgroundGradient, BackgroundMedia, BackgroundMediaDisplay, BackgroundStop, BackgroundValue, BackgroundHost, SavedGradient, GradientShape, GradientPoint, GradientHandles, GradientFrame, GradientGizmoProps, GradientGizmoCallbacks, GizmoBox, TextConfig, DialKitPersistOptions, ShortcutConfig, ShortcutMode, ShortcutInteraction, Preset, DialValue, DialConfig, DialKitValueUpdates, ResolvedValues, ControlMeta, PanelConfig } from '../store/DialStore';
+export type { SpringConfig, EasingConfig, TransitionConfig, ActionConfig, SelectConfig, ColorConfig, ImageConfig, ImageOption, DialPadAxis, DialPadConfig, DialPadValue, BackgroundConfig, LayerItem, LayersConfig, LayersValue, LayerActionKind, BackgroundGradient, BackgroundMedia, BackgroundMediaDisplay, BackgroundStop, BackgroundValue, BackgroundHost, SavedGradient, GradientShape, GradientPoint, GradientHandles, GradientFrame, GradientGizmoProps, GradientGizmoCallbacks, GizmoBox, TextConfig, DialKitPersistOptions, ShortcutConfig, ShortcutMode, ShortcutInteraction, Preset, DialValue, DialConfig, DialKitValueUpdates, ResolvedValues, ControlMeta, PanelConfig } from '../store/DialStore';
 export { formatClock } from '../timeline-core';
 export { TimelineStore } from '../store/TimelineStore';
 export type { TimelineMeta, TimelineClipMeta, TimelineClipTrackMeta, TimelineTransport } from '../store/TimelineStore';

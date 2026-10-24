@@ -67,6 +67,25 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
      light theme's values on the same element apply to them too. */
   --dial-bg-stop-selected-fill: var(--dial-surface-subtle);
   --dial-bg-stop-selected-border: var(--dial-border);
+  /* The layer list's rows (layer-list-control.ts). They point at theme
+     values, so the light theme's values apply to them too. The hidden row's
+     fill is the row fill at half strength: a darker row on the dark theme,
+     a lighter one on the light theme. */
+  --dial-layer-fill: var(--dial-surface);
+  --dial-layer-hover-fill: var(--dial-surface-hover);
+  --dial-layer-selected-fill: var(--dial-surface-active);
+  /* The selected row matches a color row with its picker open: the same fill, border and text. */
+  --dial-layer-selected-border: var(--dial-border-hover);
+  /* A hidden row keeps the normal row fill at this percent of its strength. */
+  --dial-layer-hidden-fill-amount: 50;
+  --dial-layer-hidden-fill: color-mix(in srgb, var(--dial-layer-fill) calc(var(--dial-layer-hidden-fill-amount) * 1%), transparent);
+  /* The eye of a row whose layer is on the canvas: brighter than the other icons, less than under the pointer. */
+  --dial-layer-eye-on-canvas: var(--dial-text-secondary);
+  /* How strong a hidden row's name and icons are, from 0 to 1. */
+  --dial-layer-hidden-opacity: 0.4;
+  --dial-layer-icon-size: 16px;
+  --dial-layer-icon-gap: 2px;
+  --dial-layer-delete-hover: #ff3b30;
   /* How the selected stop shows: 1 a row highlight, 2 only its fields, a
      step lighter (--dial-bg-stop-selected-field-fill, the hover surface). */
   --dial-bg-stop-selected-style: 2;
@@ -2132,6 +2151,39 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 .dialkit-bg-saved-item:hover .dialkit-bg-saved-delete, .dialkit-bg-saved-delete:focus-visible { opacity: 1; }
 .dialkit-bg-saved-delete.dialkit-bg-icon-button:hover:not(:disabled) { background: var(--dial-glass-bg); }
 
+/* ── Layer list (layer-list-control.ts) ── */
+.dialkit-layers { display: flex; flex-direction: column; gap: var(--dial-row-gap); }
+.dialkit-layers-add { width: 100%; }
+.dialkit-layers-list { position: relative; display: flex; flex-direction: column; gap: var(--dial-row-gap); }
+.dialkit-layers-empty { padding: 4px 12px; font-size: 13px; color: var(--dial-text-tertiary); }
+.dialkit-layer { position: relative; display: flex; align-items: center; gap: 8px; height: var(--dial-row-height); padding: 0 6px 0 12px; box-sizing: border-box; border-radius: var(--dial-radius); background: var(--dial-layer-fill); cursor: pointer; user-select: none; transition: background 0.15s, box-shadow 0.15s; }
+.dialkit-layer:hover { background: var(--dial-layer-hover-fill); }
+.dialkit-layer[data-selected] { background: var(--dial-layer-selected-fill); box-shadow: inset 0 0 0 1px var(--dial-layer-selected-border); }
+.dialkit-layer:focus-visible { outline: 2px solid var(--dial-focus-ring); outline-offset: -2px; }
+.dialkit-layer-name { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 13px; font-weight: 500; color: var(--dial-text-label); transition: color 0.15s, opacity 0.15s; }
+.dialkit-layer:hover .dialkit-layer-name { color: var(--dial-text-focus); }
+.dialkit-layer[data-selected] .dialkit-layer-name { color: var(--dial-text-primary); }
+.dialkit-layer-actions { display: flex; align-items: center; gap: var(--dial-layer-icon-gap); flex-shrink: 0; transition: opacity 0.15s; }
+.dialkit-layer-button { display: grid; place-items: center; width: calc(var(--dial-layer-icon-size) + 8px); height: calc(var(--dial-layer-icon-size) + 8px); padding: 4px; box-sizing: border-box; border: 0; border-radius: 6px; background: none; color: var(--dial-text-tertiary); cursor: pointer; transition: color 0.15s, background 0.15s; }
+.dialkit-layer-button svg { width: 100%; height: 100%; }
+.dialkit-layer-button:hover { color: var(--dial-text-focus); }
+.dialkit-layer-delete:hover { color: var(--dial-layer-delete-hover); }
+.dialkit-layer[data-on-canvas] .dialkit-layer-eye { color: var(--dial-layer-eye-on-canvas); }
+.dialkit-layer[data-on-canvas] .dialkit-layer-eye:hover { color: var(--dial-text-focus); }
+.dialkit-layer-button:focus-visible { outline: 2px solid var(--dial-focus-ring); outline-offset: -2px; }
+/* A row hidden with its eye: a darker fill, a dim name and dim icons. Under the pointer the icons come back to full
+   strength, so the eye that shows the row again is easy to hit. */
+.dialkit-layer[data-hidden] { background: var(--dial-layer-hidden-fill); }
+.dialkit-layer[data-hidden] .dialkit-layer-name { opacity: var(--dial-layer-hidden-opacity); }
+.dialkit-layer[data-hidden] .dialkit-layer-actions { opacity: var(--dial-layer-hidden-opacity); }
+.dialkit-layer[data-hidden] .dialkit-layer-actions:hover { opacity: 1; }
+.dialkit-layer[data-hidden][data-selected] { background: var(--dial-layer-selected-fill); }
+/* Reordering: the dragged row follows the pointer above the others, and the rows it passes slide aside. */
+.dialkit-layers-list[data-dragging] .dialkit-layer { cursor: grabbing; transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1), background 0.15s; }
+.dialkit-layers-list[data-dragging]:not([data-settling]) .dialkit-layer[data-dragging] { transition: background 0.15s; }
+.dialkit-layer[data-dragging] { z-index: 1; background: var(--dial-layer-selected-fill); }
+@media (prefers-reduced-motion: reduce) { .dialkit-layers-list[data-dragging] .dialkit-layer { transition: none; } }
+
 /* Media: the drop zone, the preview (it opens the options), Replace and Remove. */
 .dialkit-bg-file { display: none; }
 .dialkit-bg-drop { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 72px; padding: 12px; box-sizing: border-box; border: 1px dashed var(--dial-border-hover); border-radius: var(--dial-radius); background: var(--dial-surface); color: var(--dial-text-label); font: 500 13px system-ui, -apple-system, sans-serif; text-align: center; cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s; }
@@ -2939,6 +2991,7 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   --dial-surface: rgba(0, 0, 0, 0.04);
   --dial-surface-hover: rgba(0, 0, 0, 0.08);
   --dial-surface-active: rgba(0, 0, 0, 0.1);
+  --dial-layer-hidden-fill-amount: 50;
   --dial-surface-subtle: rgba(0, 0, 0, 0.06);
   --dial-divider: rgba(0, 0, 0, 0.08);
 
@@ -3004,6 +3057,7 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
     --dial-surface: rgba(0, 0, 0, 0.04);
     --dial-surface-hover: rgba(0, 0, 0, 0.08);
     --dial-surface-active: rgba(0, 0, 0, 0.1);
+    --dial-layer-hidden-fill-amount: 50;
     --dial-surface-subtle: rgba(0, 0, 0, 0.06);
     --dial-divider: rgba(0, 0, 0, 0.08);
 

@@ -5,8 +5,10 @@ import { ColorControl } from './ColorControl';
 import { ImageControl } from './ImageControl';
 import { DialPad } from './DialPad';
 import { BackgroundControl } from './BackgroundControl';
+import { LayerListControl } from './LayerListControl';
 import type { DialPadValue } from '../../dial-pad';
 import type { BackgroundValue } from '../../background';
+import { layerAction, type LayerActionKind, type LayersValue } from '../../layers';
 import { Folder } from './Folder';
 import { SelectControl } from './SelectControl';
 import { ShortcutKey } from './ShortcutListener';
@@ -116,6 +118,17 @@ export const ControlRenderer = defineComponent({
             y: control.pad?.y,
             labels: control.pad?.labels,
             onChange: (next: DialPadValue) => DialStore.updateValue(props.panelId, control.path, next),
+          });
+        case 'layers':
+          return h(LayerListControl, {
+            key: control.path,
+            label: control.label,
+            value: value as LayersValue,
+            addLabel: control.layers?.addLabel,
+            addDisabled: control.layers?.addDisabled,
+            empty: control.layers?.empty,
+            onChange: (next: LayersValue) => DialStore.updateValue(props.panelId, control.path, next),
+            onAction: (kind: LayerActionKind, id?: string) => DialStore.triggerAction(props.panelId, layerAction(control.path, kind, id)),
           });
         case 'background':
           return h(BackgroundControl, {

@@ -43,10 +43,13 @@ __export(DialStore_exports, {
   isHexColor: () => isHexColor,
   isLeafConfigValue: () => isLeafConfigValue,
   isSpringConfigValue: () => isSpringConfigValue,
+  layerAction: () => layerAction,
   legacyGradientHandles: () => legacyGradientHandles,
   mountGradientGizmo: () => mountGradientGizmo,
   normalizeBackgroundValue: () => normalizeBackgroundValue,
+  normalizeLayersValue: () => normalizeLayersValue,
   paintBackgroundPreview: () => paintBackgroundPreview,
+  parseLayerAction: () => parseLayerAction,
   resolveDialValues: () => resolveDialValues,
   rotateGradientHandles: () => rotateGradientHandles,
   setBackgroundHost: () => setBackgroundHost,
@@ -456,6 +459,50 @@ function backgroundGradientCss(gradient, direction) {
   const rx = round2(along ? frame.r1 : frame.r2);
   const ry = round2(along ? frame.r2 : frame.r1);
   return `radial-gradient(${rx}% ${ry}% at ${at}, ${list(gradient.stops)})`;
+}
+
+// src/layers.ts
+var ACTION_SEPARATOR = ":";
+function layerAction(path, kind, id) {
+  return id === void 0 ? `${path}${ACTION_SEPARATOR}${kind}` : `${path}${ACTION_SEPARATOR}${kind}${ACTION_SEPARATOR}${id}`;
+}
+function parseLayerAction(path, action) {
+  const prefix = `${path}${ACTION_SEPARATOR}`;
+  if (!action.startsWith(prefix)) return null;
+  const rest = action.slice(prefix.length);
+  const cut = rest.indexOf(ACTION_SEPARATOR);
+  const kind = cut === -1 ? rest : rest.slice(0, cut);
+  if (kind === "add") return cut === -1 ? { kind } : null;
+  if ((kind === "duplicate" || kind === "delete") && cut !== -1 && cut < rest.length - 1) {
+    return { kind, id: rest.slice(cut + 1) };
+  }
+  return null;
+}
+function isRecord2(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function normalizeLayersValue(value, fallback = { items: [], selected: null }) {
+  if (!isRecord2(value) || !Array.isArray(value.items)) return { items: fallback.items.map((item) => ({ ...item })), selected: fallback.selected };
+  const seen = /* @__PURE__ */ new Set();
+  const items = [];
+  for (const raw of value.items) {
+    if (!isRecord2(raw) || typeof raw.id !== "string" || raw.id === "" || typeof raw.label !== "string" || seen.has(raw.id)) continue;
+    seen.add(raw.id);
+    const item = { id: raw.id, label: raw.label };
+    if (raw.hidden === true) item.hidden = true;
+    if (typeof raw.offCanvas === "string" && raw.offCanvas !== "") item.offCanvas = raw.offCanvas;
+    items.push(item);
+  }
+  const selected = typeof value.selected === "string" && seen.has(value.selected) ? value.selected : null;
+  return { items, selected };
+}
+function sameLayersValue(a, b) {
+  if (!isRecord2(a) || !isRecord2(b) || !Array.isArray(a.items) || !Array.isArray(b.items)) return false;
+  if (a.selected !== b.selected || a.items.length !== b.items.length) return false;
+  return a.items.every((item, i) => {
+    const other = b.items[i];
+    return isRecord2(item) && isRecord2(other) && item.id === other.id && item.label === other.label && !!item.hidden === !!other.hidden && (item.offCanvas ?? "") === (other.offCanvas ?? "");
+  });
 }
 
 // src/input-modality.ts
@@ -1196,7 +1243,7 @@ function flattenConfigUpdates(config, updates, prefix, values) {
   }
 }
 function isLeafConfigValue(value) {
-  return Array.isArray(value) && value.length <= 5 && typeof value[0] === "number" || typeof value === "number" || typeof value === "boolean" || typeof value === "string" || isSpringConfigValue(value) || isEasingConfigValue(value) || isActionConfigValue(value) || isSelectConfigValue(value) || isColorConfigValue(value) || isImageConfigValue(value) || isTextConfigValue(value) || isPadConfigValue(value) || isBackgroundConfigValue(value);
+  return Array.isArray(value) && value.length <= 5 && typeof value[0] === "number" || typeof value === "number" || typeof value === "boolean" || typeof value === "string" || isSpringConfigValue(value) || isEasingConfigValue(value) || isActionConfigValue(value) || isSelectConfigValue(value) || isColorConfigValue(value) || isImageConfigValue(value) || isTextConfigValue(value) || isPadConfigValue(value) || isBackgroundConfigValue(value) || isLayersConfigValue(value);
 }
 function configDefaultValue(value) {
   if (Array.isArray(value)) return value[0];
@@ -1206,24 +1253,25 @@ function configDefaultValue(value) {
   if (isTextConfigValue(value)) return value.default ?? "";
   if (isPadConfigValue(value)) return normalizePadValue(void 0, value);
   if (isBackgroundConfigValue(value)) return backgroundConfigDefault(value);
+  if (isLayersConfigValue(value)) return normalizeLayersValue(value.default);
   return value;
 }
-function isRecord2(value) {
+function isRecord3(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function backgroundWriteBase(current, configDefault) {
-  if (!isRecord2(current)) return configDefault;
+  if (!isRecord3(current)) return configDefault;
   return sameBackgroundValue(current, normalizeBackgroundValue(current, configDefault)) ? current : configDefault;
 }
 function sameControlValue(previous, next, control) {
-  return Object.is(previous, next) || control?.type === "pad" && isRecord2(previous) && isRecord2(next) && previous.x === next.x && previous.y === next.y || control?.type === "background" && sameBackgroundValue(previous, next);
+  return Object.is(previous, next) || control?.type === "pad" && isRecord3(previous) && isRecord3(next) && previous.x === next.x && previous.y === next.y || control?.type === "background" && sameBackgroundValue(previous, next) || control?.type === "layers" && sameLayersValue(previous, next);
 }
 function sameValue(a, b) {
   if (a === b || Object.is(a, b)) return true;
   if (Array.isArray(a) && Array.isArray(b)) {
     return a.length === b.length && a.every((item, i) => sameValue(item, b[i]));
   }
-  if (isRecord2(a) && isRecord2(b)) return sameRecord(a, b);
+  if (isRecord3(a) && isRecord3(b)) return sameRecord(a, b);
   return false;
 }
 function sameRecord(a, b) {
@@ -1272,6 +1320,9 @@ function isPadConfigValue(value) {
 }
 function isBackgroundConfigValue(value) {
   return hasType(value, "background");
+}
+function isLayersConfigValue(value) {
+  return hasType(value, "layers");
 }
 function getFirstOptionValue(options) {
   const first = options[0];
@@ -1492,7 +1543,7 @@ var DialStoreClass = class {
       if (control?.type === "action") {
         continue;
       }
-      const next = control?.type === "pad" ? normalizePadValue(value, control.pad) : control?.type === "background" ? normalizeBackgroundValue(value, backgroundWriteBase(panel.values[path], control.background?.default)) : value;
+      const next = control?.type === "pad" ? normalizePadValue(value, control.pad) : control?.type === "background" ? normalizeBackgroundValue(value, backgroundWriteBase(panel.values[path], control.background?.default)) : control?.type === "layers" ? normalizeLayersValue(value) : value;
       if (sameControlValue(panel.values[path], next, control) && (!target || sameControlValue(target[path], next, control))) continue;
       panel.values[path] = next;
       validUpdates[path] = next;
@@ -1906,13 +1957,13 @@ var DialStoreClass = class {
       const raw = storage.getItem(config.key);
       if (!raw) return null;
       const parsed = JSON.parse(raw);
-      if (!isRecord2(parsed) || parsed.version !== 1) return null;
-      const values = isRecord2(parsed.values) ? parsed.values : void 0;
-      const presets = config.presets && Array.isArray(parsed.presets) ? parsed.presets.filter((preset) => isRecord2(preset) && typeof preset.id === "string" && typeof preset.name === "string" && isRecord2(preset.values)) : [];
+      if (!isRecord3(parsed) || parsed.version !== 1) return null;
+      const values = isRecord3(parsed.values) ? parsed.values : void 0;
+      const presets = config.presets && Array.isArray(parsed.presets) ? parsed.presets.filter((preset) => isRecord3(preset) && typeof preset.id === "string" && typeof preset.name === "string" && isRecord3(preset.values)) : [];
       return {
         version: 1,
         values,
-        baseValues: config.presets && isRecord2(parsed.baseValues) ? parsed.baseValues : values,
+        baseValues: config.presets && isRecord3(parsed.baseValues) ? parsed.baseValues : values,
         presets,
         activePresetId: presets.some((preset) => preset.id === parsed.activePresetId) ? parsed.activePresetId : null
       };
@@ -2032,6 +2083,8 @@ var DialStoreClass = class {
           control = { type: "pad", path, label, pad: value };
         } else if (isBackgroundConfigValue(value)) {
           control = { type: "background", path, label, background: { ...value, default: backgroundConfigDefault(value) } };
+        } else if (isLayersConfigValue(value)) {
+          control = { type: "layers", path, label, layers: { ...value, default: normalizeLayersValue(value.default) } };
         } else if (typeof value === "string") {
           if (parseColor(value) && value !== "transparent") {
             control = { type: "color", path, label };
@@ -2105,6 +2158,8 @@ var DialStoreClass = class {
         return normalizePadValue(existingValue, control.pad);
       case "background":
         return normalizeBackgroundValue(existingValue, control.background?.default);
+      case "layers":
+        return normalizeLayersValue(existingValue, control.layers?.default);
       case "select": {
         if (typeof existingValue !== "string") {
           return defaultValue;
@@ -2229,10 +2284,13 @@ var DialStore = /* @__PURE__ */ new DialStoreClass();
   isHexColor,
   isLeafConfigValue,
   isSpringConfigValue,
+  layerAction,
   legacyGradientHandles,
   mountGradientGizmo,
   normalizeBackgroundValue,
+  normalizeLayersValue,
   paintBackgroundPreview,
+  parseLayerAction,
   resolveDialValues,
   rotateGradientHandles,
   setBackgroundHost,

@@ -32,6 +32,7 @@ __export(vanilla_exports, {
   Folder: () => mountFolder,
   GRADIENT_SHAPES: () => GRADIENT_SHAPES,
   ImageControl: () => mountImageControl,
+  LayerListControl: () => mountLayerListControl,
   PresetManager: () => mountPresetManager,
   SegmentedControl: () => mountSegmentedControl,
   SelectControl: () => mountSelectControl,
@@ -62,6 +63,7 @@ __export(vanilla_exports, {
   gizmoPoints: () => gizmoPoints,
   gradientFrame: () => gradientFrame,
   gradientParamAt: () => gradientParamAt,
+  layerAction: () => layerAction,
   legacyGradientHandles: () => legacyGradientHandles,
   mountBackgroundControl: () => mountBackgroundControl,
   mountButtonGroup: () => mountButtonGroup,
@@ -72,6 +74,7 @@ __export(vanilla_exports, {
   mountFolder: () => mountFolder,
   mountGradientGizmo: () => mountGradientGizmo,
   mountImageControl: () => mountImageControl,
+  mountLayerListControl: () => mountLayerListControl,
   mountPresetManager: () => mountPresetManager,
   mountSegmentedControl: () => mountSegmentedControl,
   mountSelectControl: () => mountSelectControl,
@@ -84,7 +87,9 @@ __export(vanilla_exports, {
   mountToggle: () => mountToggle,
   mountTransitionControl: () => mountTransitionControl,
   normalizeBackgroundValue: () => normalizeBackgroundValue,
+  normalizeLayersValue: () => normalizeLayersValue,
   paintBackgroundPreview: () => paintBackgroundPreview,
+  parseLayerAction: () => parseLayerAction,
   rotateGradientHandles: () => rotateGradientHandles,
   setBackgroundHost: () => setBackgroundHost,
   setSavedGradients: () => setSavedGradients,
@@ -653,6 +658,56 @@ function backgroundGradientCss(gradient, direction) {
   const rx = round2(along ? frame.r1 : frame.r2);
   const ry = round2(along ? frame.r2 : frame.r1);
   return `radial-gradient(${rx}% ${ry}% at ${at}, ${list(gradient.stops)})`;
+}
+
+// src/layers.ts
+var ACTION_SEPARATOR = ":";
+function layerAction(path, kind, id) {
+  return id === void 0 ? `${path}${ACTION_SEPARATOR}${kind}` : `${path}${ACTION_SEPARATOR}${kind}${ACTION_SEPARATOR}${id}`;
+}
+function parseLayerAction(path, action) {
+  const prefix = `${path}${ACTION_SEPARATOR}`;
+  if (!action.startsWith(prefix)) return null;
+  const rest = action.slice(prefix.length);
+  const cut = rest.indexOf(ACTION_SEPARATOR);
+  const kind = cut === -1 ? rest : rest.slice(0, cut);
+  if (kind === "add") return cut === -1 ? { kind } : null;
+  if ((kind === "duplicate" || kind === "delete") && cut !== -1 && cut < rest.length - 1) {
+    return { kind, id: rest.slice(cut + 1) };
+  }
+  return null;
+}
+function isRecord2(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function normalizeLayersValue(value, fallback = { items: [], selected: null }) {
+  if (!isRecord2(value) || !Array.isArray(value.items)) return { items: fallback.items.map((item) => ({ ...item })), selected: fallback.selected };
+  const seen = /* @__PURE__ */ new Set();
+  const items = [];
+  for (const raw of value.items) {
+    if (!isRecord2(raw) || typeof raw.id !== "string" || raw.id === "" || typeof raw.label !== "string" || seen.has(raw.id)) continue;
+    seen.add(raw.id);
+    const item = { id: raw.id, label: raw.label };
+    if (raw.hidden === true) item.hidden = true;
+    if (typeof raw.offCanvas === "string" && raw.offCanvas !== "") item.offCanvas = raw.offCanvas;
+    items.push(item);
+  }
+  const selected = typeof value.selected === "string" && seen.has(value.selected) ? value.selected : null;
+  return { items, selected };
+}
+function sameLayersValue(a, b) {
+  if (!isRecord2(a) || !isRecord2(b) || !Array.isArray(a.items) || !Array.isArray(b.items)) return false;
+  if (a.selected !== b.selected || a.items.length !== b.items.length) return false;
+  return a.items.every((item, i) => {
+    const other = b.items[i];
+    return isRecord2(item) && isRecord2(other) && item.id === other.id && item.label === other.label && !!item.hidden === !!other.hidden && (item.offCanvas ?? "") === (other.offCanvas ?? "");
+  });
+}
+function moveLayer(value, from, to) {
+  const items = value.items.slice();
+  const [moved] = items.splice(from, 1);
+  if (moved) items.splice(to, 0, moved);
+  return { items, selected: value.selected };
 }
 
 // src/input-modality.ts
@@ -1410,7 +1465,7 @@ function flattenConfigUpdates(config, updates, prefix, values) {
   }
 }
 function isLeafConfigValue(value) {
-  return Array.isArray(value) && value.length <= 5 && typeof value[0] === "number" || typeof value === "number" || typeof value === "boolean" || typeof value === "string" || isSpringConfigValue(value) || isEasingConfigValue(value) || isActionConfigValue(value) || isSelectConfigValue(value) || isColorConfigValue(value) || isImageConfigValue(value) || isTextConfigValue(value) || isPadConfigValue(value) || isBackgroundConfigValue(value);
+  return Array.isArray(value) && value.length <= 5 && typeof value[0] === "number" || typeof value === "number" || typeof value === "boolean" || typeof value === "string" || isSpringConfigValue(value) || isEasingConfigValue(value) || isActionConfigValue(value) || isSelectConfigValue(value) || isColorConfigValue(value) || isImageConfigValue(value) || isTextConfigValue(value) || isPadConfigValue(value) || isBackgroundConfigValue(value) || isLayersConfigValue(value);
 }
 function configDefaultValue(value) {
   if (Array.isArray(value)) return value[0];
@@ -1420,24 +1475,25 @@ function configDefaultValue(value) {
   if (isTextConfigValue(value)) return value.default ?? "";
   if (isPadConfigValue(value)) return normalizePadValue(void 0, value);
   if (isBackgroundConfigValue(value)) return backgroundConfigDefault(value);
+  if (isLayersConfigValue(value)) return normalizeLayersValue(value.default);
   return value;
 }
-function isRecord2(value) {
+function isRecord3(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function backgroundWriteBase(current, configDefault) {
-  if (!isRecord2(current)) return configDefault;
+  if (!isRecord3(current)) return configDefault;
   return sameBackgroundValue(current, normalizeBackgroundValue(current, configDefault)) ? current : configDefault;
 }
 function sameControlValue(previous, next, control) {
-  return Object.is(previous, next) || control?.type === "pad" && isRecord2(previous) && isRecord2(next) && previous.x === next.x && previous.y === next.y || control?.type === "background" && sameBackgroundValue(previous, next);
+  return Object.is(previous, next) || control?.type === "pad" && isRecord3(previous) && isRecord3(next) && previous.x === next.x && previous.y === next.y || control?.type === "background" && sameBackgroundValue(previous, next) || control?.type === "layers" && sameLayersValue(previous, next);
 }
 function sameValue(a, b) {
   if (a === b || Object.is(a, b)) return true;
   if (Array.isArray(a) && Array.isArray(b)) {
     return a.length === b.length && a.every((item, i) => sameValue(item, b[i]));
   }
-  if (isRecord2(a) && isRecord2(b)) return sameRecord(a, b);
+  if (isRecord3(a) && isRecord3(b)) return sameRecord(a, b);
   return false;
 }
 function sameRecord(a, b) {
@@ -1486,6 +1542,9 @@ function isPadConfigValue(value) {
 }
 function isBackgroundConfigValue(value) {
   return hasType(value, "background");
+}
+function isLayersConfigValue(value) {
+  return hasType(value, "layers");
 }
 function getFirstOptionValue(options) {
   const first = options[0];
@@ -1706,7 +1765,7 @@ var DialStoreClass = class {
       if (control?.type === "action") {
         continue;
       }
-      const next = control?.type === "pad" ? normalizePadValue(value, control.pad) : control?.type === "background" ? normalizeBackgroundValue(value, backgroundWriteBase(panel.values[path], control.background?.default)) : value;
+      const next = control?.type === "pad" ? normalizePadValue(value, control.pad) : control?.type === "background" ? normalizeBackgroundValue(value, backgroundWriteBase(panel.values[path], control.background?.default)) : control?.type === "layers" ? normalizeLayersValue(value) : value;
       if (sameControlValue(panel.values[path], next, control) && (!target || sameControlValue(target[path], next, control))) continue;
       panel.values[path] = next;
       validUpdates[path] = next;
@@ -2120,13 +2179,13 @@ var DialStoreClass = class {
       const raw = storage.getItem(config.key);
       if (!raw) return null;
       const parsed = JSON.parse(raw);
-      if (!isRecord2(parsed) || parsed.version !== 1) return null;
-      const values = isRecord2(parsed.values) ? parsed.values : void 0;
-      const presets = config.presets && Array.isArray(parsed.presets) ? parsed.presets.filter((preset) => isRecord2(preset) && typeof preset.id === "string" && typeof preset.name === "string" && isRecord2(preset.values)) : [];
+      if (!isRecord3(parsed) || parsed.version !== 1) return null;
+      const values = isRecord3(parsed.values) ? parsed.values : void 0;
+      const presets = config.presets && Array.isArray(parsed.presets) ? parsed.presets.filter((preset) => isRecord3(preset) && typeof preset.id === "string" && typeof preset.name === "string" && isRecord3(preset.values)) : [];
       return {
         version: 1,
         values,
-        baseValues: config.presets && isRecord2(parsed.baseValues) ? parsed.baseValues : values,
+        baseValues: config.presets && isRecord3(parsed.baseValues) ? parsed.baseValues : values,
         presets,
         activePresetId: presets.some((preset) => preset.id === parsed.activePresetId) ? parsed.activePresetId : null
       };
@@ -2246,6 +2305,8 @@ var DialStoreClass = class {
           control = { type: "pad", path, label, pad: value };
         } else if (isBackgroundConfigValue(value)) {
           control = { type: "background", path, label, background: { ...value, default: backgroundConfigDefault(value) } };
+        } else if (isLayersConfigValue(value)) {
+          control = { type: "layers", path, label, layers: { ...value, default: normalizeLayersValue(value.default) } };
         } else if (typeof value === "string") {
           if (parseColor(value) && value !== "transparent") {
             control = { type: "color", path, label };
@@ -2319,6 +2380,8 @@ var DialStoreClass = class {
         return normalizePadValue(existingValue, control.pad);
       case "background":
         return normalizeBackgroundValue(existingValue, control.background?.default);
+      case "layers":
+        return normalizeLayersValue(existingValue, control.layers?.default);
       case "select": {
         if (typeof existingValue !== "string") {
           return defaultValue;
@@ -2924,6 +2987,20 @@ var ICON_PANEL = {
 };
 var ICON_MORE = ["M5 12h.01", "M12 12h.01", "M19 12h.01"];
 var ICON_MORE_STROKE = 3;
+var ICON_EYE = [
+  "M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0",
+  "M12 9a3 3 0 1 0 0 6 3 3 0 1 0 0-6"
+];
+var ICON_EYE_OFF = [
+  "M10.73 5.08a10.74 10.74 0 0 1 11.2 6.57 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-1.44 2.49",
+  "M14.08 14.16a3 3 0 0 1-4.24-4.24",
+  "M17.48 17.5a10.75 10.75 0 0 1-15.42-5.15 1 1 0 0 1 0-.7 10.75 10.75 0 0 1 4.45-5.14",
+  "M2 2l20 20"
+];
+var ICON_COPY = [
+  "M9 11a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-7a2 2 0 0 1-2-2z",
+  "M5 15a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2"
+];
 
 // src/dropdown-position.ts
 function getDropdownPosition(trigger, portalRoot, options = {}) {
@@ -7311,6 +7388,298 @@ function shellSlider(options) {
   return { root, sync };
 }
 
+// src/layer-list-control.ts
+var LAYER_HINTS = {
+  add: "Adds a new layer.",
+  row: "Click to select this layer. Drag to change which layer draws on top.",
+  hidden: "Hidden with its eye.",
+  show: "Shows this layer again.",
+  hide: "Hides this layer everywhere.",
+  duplicate: "Makes a copy of this layer.",
+  delete: "Deletes this layer."
+};
+var DRAG_LIFT_PX2 = 4;
+var ROW_DRAG_EXCLUDE2 = "button";
+var clamp5 = (n, min, max) => Math.min(max, Math.max(min, n));
+var reducedMotion2 = () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+function mountLayerListControl(host, initial) {
+  let props = initial;
+  let value = normalizeLayersValue(props.value);
+  const root = element5("div", "dialkit-layers");
+  const add = element5("button", "dialkit-preset-save dialkit-layers-add");
+  const list = element5("div", "dialkit-layers-list");
+  list.setAttribute("role", "listbox");
+  const empty = element5("div", "dialkit-layers-empty");
+  root.append(add, list, empty);
+  host.append(root);
+  const hinted = /* @__PURE__ */ new Set();
+  const hint = (part, text) => {
+    hinted.add(part);
+    part.addEventListener("pointerenter", () => HintStore.enter(part, text()));
+    part.addEventListener("pointerleave", () => HintStore.leave(part));
+  };
+  const unhint = (part) => {
+    HintStore.leave(part);
+    HintStore.hide(part);
+    hinted.delete(part);
+  };
+  add.addEventListener("click", () => {
+    if (!props.addDisabled) props.onAction("add");
+  });
+  hint(add, () => LAYER_HINTS.add);
+  const emit = (next) => {
+    if (sameLayersValue(next, value)) return;
+    value = next;
+    render();
+    props.onChange(next);
+  };
+  const select = (id) => emit({ items: value.items, selected: id });
+  const indexOf = (id) => value.items.findIndex((item) => item.id === id);
+  const rowById = /* @__PURE__ */ new Map();
+  let rowDrag;
+  let suppressClick = false;
+  const paintRowDrag = () => {
+    if (!rowDrag) return;
+    const { id, from, to, offset, step, settling } = rowDrag;
+    value.items.forEach((item, k) => {
+      const row = rowById.get(item.id);
+      if (!row) return;
+      const shift = item.id === id ? settling ? (to - from) * step : offset : from < to && k > from && k <= to ? -step : to < from && k >= to && k < from ? step : 0;
+      row.root.style.transform = shift ? `translateY(${shift}px)` : "";
+    });
+  };
+  const clearRowDrag = () => {
+    delete list.dataset.dragging;
+    delete list.dataset.settling;
+    rowById.forEach((row) => {
+      row.root.style.transform = "";
+      delete row.root.dataset.dragging;
+    });
+  };
+  const finishRowDrag = () => {
+    const drag = rowDrag;
+    if (!drag) return;
+    rowDrag = void 0;
+    clearRowDrag();
+    if (drag.to !== drag.from) emit(moveLayer(value, drag.from, drag.to));
+    else render();
+  };
+  const cancelRowDrag = () => {
+    const drag = rowDrag;
+    if (!drag) return;
+    rowDrag = void 0;
+    clearRowDrag();
+    const held = rowById.get(drag.id)?.root;
+    if (held?.hasPointerCapture(drag.pointerId)) held.releasePointerCapture(drag.pointerId);
+  };
+  const buildRow = (id) => {
+    const rowRoot = element5("div", "dialkit-layer");
+    rowRoot.setAttribute("role", "option");
+    const name = element5("span", "dialkit-layer-name");
+    const actions = element5("div", "dialkit-layer-actions");
+    const iconButton2 = (className) => {
+      const b = element5("button", `dialkit-layer-button ${className}`);
+      b.tabIndex = -1;
+      return b;
+    };
+    const eye = iconButton2("dialkit-layer-eye");
+    const duplicate = iconButton2("dialkit-layer-duplicate");
+    duplicate.append(icon2(ICON_COPY));
+    duplicate.setAttribute("aria-label", "Duplicate");
+    const remove = iconButton2("dialkit-layer-delete");
+    remove.append(icon2(ICON_CLOSE));
+    remove.setAttribute("aria-label", "Delete");
+    actions.append(eye, duplicate, remove);
+    rowRoot.append(name, actions);
+    const row = { id, root: rowRoot, name, eye, duplicate, remove };
+    const item = () => value.items.find((it) => it.id === id);
+    hint(rowRoot, () => {
+      const it = item();
+      if (it?.hidden) return LAYER_HINTS.hidden;
+      return it?.offCanvas ?? LAYER_HINTS.row;
+    });
+    hint(eye, () => item()?.hidden ? LAYER_HINTS.show : LAYER_HINTS.hide);
+    hint(duplicate, () => LAYER_HINTS.duplicate);
+    hint(remove, () => LAYER_HINTS.delete);
+    eye.addEventListener("click", () => {
+      const at = indexOf(id);
+      if (at === -1) return;
+      const items = value.items.slice();
+      const it = items[at];
+      items[at] = it.hidden ? { id: it.id, label: it.label, ...it.offCanvas ? { offCanvas: it.offCanvas } : {} } : { ...it, hidden: true };
+      emit({ items, selected: value.selected });
+    });
+    duplicate.addEventListener("click", () => props.onAction("duplicate", id));
+    remove.addEventListener("click", () => props.onAction("delete", id));
+    rowRoot.addEventListener("click", (event) => {
+      if (suppressClick) {
+        suppressClick = false;
+        return;
+      }
+      if (event.target.closest(ROW_DRAG_EXCLUDE2)) return;
+      select(id);
+    });
+    rowRoot.addEventListener("keydown", (event) => {
+      const at = indexOf(id);
+      if (at === -1) return;
+      if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+        event.preventDefault();
+        const to = at + (event.key === "ArrowUp" ? -1 : 1);
+        if (to < 0 || to >= value.items.length) return;
+        if (event.altKey) {
+          if (rowDrag) return;
+          emit(moveLayer(value, at, to));
+          rowRoot.focus({ preventScroll: true });
+        } else {
+          const next = value.items[to];
+          select(next.id);
+          rowById.get(next.id)?.root.focus({ preventScroll: true });
+        }
+      } else if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        select(id);
+      } else if (event.key === "Delete" || event.key === "Backspace") {
+        event.preventDefault();
+        props.onAction("delete", id);
+      }
+    });
+    rowRoot.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0 || rowDrag) return;
+      if (event.target.closest(ROW_DRAG_EXCLUDE2)) return;
+      const from = indexOf(id);
+      if (from === -1) return;
+      rowDrag = { id, pointerId: event.pointerId, startY: event.clientY, lifted: false, from, to: from, offset: 0, step: 0, settling: false };
+      try {
+        rowRoot.setPointerCapture(event.pointerId);
+      } catch {
+        rowDrag = void 0;
+      }
+    });
+    rowRoot.addEventListener("pointermove", (event) => {
+      const drag = rowDrag;
+      if (!drag || drag.id !== id || drag.pointerId !== event.pointerId || drag.settling) return;
+      const dy = event.clientY - drag.startY;
+      if (!drag.lifted) {
+        if (Math.abs(dy) <= DRAG_LIFT_PX2) return;
+        drag.lifted = true;
+        const first = rowById.get(value.items[0]?.id ?? "")?.root.getBoundingClientRect();
+        const second = rowById.get(value.items[1]?.id ?? "")?.root.getBoundingClientRect();
+        drag.step = first && second ? second.top - first.top : first?.height ?? 36;
+        list.dataset.dragging = "true";
+        rowRoot.dataset.dragging = "true";
+      }
+      const n = value.items.length;
+      drag.offset = clamp5(dy, -drag.from * drag.step, (n - 1 - drag.from) * drag.step);
+      drag.to = clamp5(Math.round(drag.from + drag.offset / drag.step), 0, n - 1);
+      paintRowDrag();
+    });
+    const release = (event) => {
+      const drag = rowDrag;
+      if (!drag || drag.id !== id || drag.pointerId !== event.pointerId || drag.settling) return;
+      if (rowRoot.hasPointerCapture(event.pointerId)) rowRoot.releasePointerCapture(event.pointerId);
+      if (!drag.lifted) {
+        rowDrag = void 0;
+        return;
+      }
+      suppressClick = event.type === "pointerup";
+      drag.settling = true;
+      list.dataset.settling = "true";
+      paintRowDrag();
+      if (reducedMotion2() || drag.offset === (drag.to - drag.from) * drag.step) {
+        finishRowDrag();
+        return;
+      }
+      let timer = 0;
+      const done = (e) => {
+        if (e && (e.target !== rowRoot || e.propertyName !== "transform")) return;
+        rowRoot.removeEventListener("transitionend", done);
+        clearTimeout(timer);
+        if (rowDrag === drag) finishRowDrag();
+      };
+      rowRoot.addEventListener("transitionend", done);
+      timer = window.setTimeout(done, 400);
+    };
+    rowRoot.addEventListener("pointerup", release);
+    rowRoot.addEventListener("pointercancel", release);
+    rowRoot.addEventListener("lostpointercapture", release);
+    return row;
+  };
+  const paintRow = (row) => {
+    const it = value.items.find((item) => item.id === row.id);
+    if (!it) return;
+    const selected = value.selected === it.id;
+    row.name.textContent = it.label;
+    row.root.setAttribute("aria-selected", String(selected));
+    row.root.toggleAttribute("data-selected", selected);
+    row.root.toggleAttribute("data-hidden", !!it.hidden);
+    row.root.toggleAttribute("data-on-canvas", !it.hidden && !it.offCanvas);
+    row.eye.replaceChildren(icon2(it.hidden ? ICON_EYE_OFF : ICON_EYE));
+    row.eye.setAttribute("aria-label", it.hidden ? "Show" : "Hide");
+    row.eye.setAttribute("aria-pressed", String(!!it.hidden));
+  };
+  function render() {
+    add.textContent = props.addLabel ?? "+ Add";
+    add.disabled = !!props.addDisabled;
+    list.setAttribute("aria-label", props.label);
+    empty.textContent = props.empty ?? "";
+    empty.hidden = value.items.length > 0 || !props.empty;
+    list.hidden = value.items.length === 0;
+    const live = new Set(value.items.map((item) => item.id));
+    for (const [id, row] of rowById) {
+      if (live.has(id)) continue;
+      [row.root, row.eye, row.duplicate, row.remove].forEach(unhint);
+      row.root.remove();
+      rowById.delete(id);
+    }
+    const active2 = document.activeElement;
+    let previous = null;
+    for (const item of value.items) {
+      let row = rowById.get(item.id);
+      if (!row) {
+        row = buildRow(item.id);
+        rowById.set(item.id, row);
+      }
+      paintRow(row);
+      const next = previous ? previous.nextElementSibling : list.firstElementChild;
+      if (next !== row.root) {
+        if (previous) previous.after(row.root);
+        else list.prepend(row.root);
+      }
+      previous = row.root;
+    }
+    if (active2 instanceof HTMLElement && active2 !== document.activeElement && active2.isConnected && list.contains(active2)) {
+      active2.focus({ preventScroll: true });
+    }
+    const focusId = value.selected ?? value.items[0]?.id;
+    rowById.forEach((row, id) => {
+      row.root.tabIndex = id === focusId ? 0 : -1;
+    });
+  }
+  render();
+  return {
+    update(next) {
+      props = next;
+      const incoming = normalizeLayersValue(next.value);
+      if (!sameLayersValue(incoming, value)) {
+        const sameRows = incoming.items.length === value.items.length && incoming.items.every((item, i) => item.id === value.items[i]?.id);
+        if (rowDrag && !sameRows) cancelRowDrag();
+        value = incoming;
+      }
+      if (!rowDrag) render();
+      else rowById.forEach(paintRow);
+    },
+    destroy() {
+      cancelRowDrag();
+      hinted.forEach((part) => {
+        HintStore.leave(part);
+        HintStore.hide(part);
+      });
+      hinted.clear();
+      root.remove();
+    }
+  };
+}
+
 // src/easing-geometry.ts
 var clampY = (value) => Math.max(-1, Math.min(2, value));
 function formatEase(ease) {
@@ -7888,6 +8257,17 @@ function mountControlRenderer(host, initial) {
           break;
         case "pad":
           mount2(mountDialPad, () => ({ ...control.pad, label: control.label, value: value(), onChange: change }));
+          break;
+        case "layers":
+          mount2(mountLayerListControl, () => ({
+            label: control.label,
+            value: value(),
+            addLabel: control.layers?.addLabel,
+            addDisabled: control.layers?.addDisabled,
+            empty: control.layers?.empty,
+            onChange: change,
+            onAction: (kind, id) => DialStore.triggerAction(props.panelId, layerAction(control.path, kind, id))
+          }));
           break;
         case "background":
           mount2(mountBackgroundControl, () => ({ label: control.label, value: value(), onChange: change }));
@@ -9724,6 +10104,7 @@ function mountSection(host, initial, options) {
   Folder,
   GRADIENT_SHAPES,
   ImageControl,
+  LayerListControl,
   PresetManager,
   SegmentedControl,
   SelectControl,
@@ -9754,6 +10135,7 @@ function mountSection(host, initial, options) {
   gizmoPoints,
   gradientFrame,
   gradientParamAt,
+  layerAction,
   legacyGradientHandles,
   mountBackgroundControl,
   mountButtonGroup,
@@ -9764,6 +10146,7 @@ function mountSection(host, initial, options) {
   mountFolder,
   mountGradientGizmo,
   mountImageControl,
+  mountLayerListControl,
   mountPresetManager,
   mountSegmentedControl,
   mountSelectControl,
@@ -9776,7 +10159,9 @@ function mountSection(host, initial, options) {
   mountToggle,
   mountTransitionControl,
   normalizeBackgroundValue,
+  normalizeLayersValue,
   paintBackgroundPreview,
+  parseLayerAction,
   rotateGradientHandles,
   setBackgroundHost,
   setSavedGradients,

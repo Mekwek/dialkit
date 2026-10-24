@@ -23,8 +23,9 @@ export { default as ColorControl } from './components/ColorControl.svelte';
 export { default as ImageControl } from './components/ImageControl.svelte';
 export { default as DialPad } from './components/DialPad.svelte';
 export { default as BackgroundControl } from './components/BackgroundControl.svelte';
+export { default as LayerListControl } from './components/LayerListControl.svelte';
 export { default as PresetManager } from './components/PresetManager.svelte';
 export { default as DialTimeline } from './components/Timeline/DialTimeline.svelte';
 // Store exports (via dialkit/store subpath — svelte-package doesn't bundle, so relative paths to src/store would break in dist)
 export { DialStore, withVisibility, unwrapVisibility } from 'dialkit/store';
-export { setBackgroundHost, getBackgroundHost, setSavedGradients, getSavedGradients, subscribeBackgroundHost, defaultGradientHandles, legacyGradientHandles, switchGradientShape, gradientFrame, gradientParamAt, GRADIENT_SHAPES, paintBackgroundPreview, mountGradientGizmo, rotateGradientHandles, dragGradientEnd, dragGradientCentre, dragGradientWidth, stopPositionAt, stopPlacement, gizmoAngle, formatGizmoAngle, gizmoPoints, backgroundGradientCss, defaultBackgroundValue, normalizeBackgroundValue, } from 'dialkit/store';
+export { setBackgroundHost, getBackgroundHost, setSavedGradients, getSavedGradients, subscribeBackgroundHost, defaultGradientHandles, legacyGradientHandles, switchGradientShape, gradientFrame, gradientParamAt, GRADIENT_SHAPES, paintBackgroundPreview, mountGradientGizmo, rotateGradientHandles, dragGradientEnd, dragGradientCentre, dragGradientWidth, stopPositionAt, stopPlacement, gizmoAngle, formatGizmoAngle, gizmoPoints, backgroundGradientCss, defaultBackgroundValue, normalizeBackgroundValue, normalizeLayersValue, layerAction, parseLayerAction, } from 'dialkit/store';

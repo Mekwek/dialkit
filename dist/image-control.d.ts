@@ -1,4 +1,4 @@
-import { I as ImageOption } from './DialStore-Cgyh9K8s.js';
+import { I as ImageOption } from './DialStore-Dm39v3xN.js';
 import './dial-pad.js';
 import './background.js';
 

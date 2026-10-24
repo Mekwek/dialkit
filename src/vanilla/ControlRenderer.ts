@@ -3,6 +3,8 @@ import { mountColorControl } from '../color-control';
 import { mountImageControl } from '../image-control';
 import { mountDialPad } from '../dial-pad-control';
 import { mountBackgroundControl } from '../background-control';
+import { mountLayerListControl } from '../layer-list-control';
+import { layerAction, type LayersValue } from '../layers';
 import type { BackgroundValue } from '../background';
 import type { DialPadValue } from '../dial-pad';
 import { mountFolder, mountSlider, mountTextControl, mountToggle } from './controls';
@@ -64,6 +66,14 @@ export function mountControlRenderer(host: HTMLElement, initial: ControlRenderer
           break;
         case 'pad':
           mount(mountDialPad, () => ({ ...control.pad, label: control.label, value: value() as DialPadValue, onChange: change }));
+          break;
+        case 'layers':
+          mount(mountLayerListControl, () => ({
+            label: control.label, value: value() as LayersValue,
+            addLabel: control.layers?.addLabel, addDisabled: control.layers?.addDisabled, empty: control.layers?.empty,
+            onChange: change,
+            onAction: (kind, id) => DialStore.triggerAction(props.panelId, layerAction(control.path, kind, id)),
+          }));
           break;
         case 'background':
           mount(mountBackgroundControl, () => ({ label: control.label, value: value() as BackgroundValue, onChange: change }));

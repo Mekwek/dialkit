@@ -2,6 +2,7 @@ import { roundValue } from '../numeric';
 import { parseColor } from '../color';
 import { normalizePadValue, type DialPadConfig, type DialPadValue } from '../dial-pad';
 import { backgroundConfigDefault, normalizeBackgroundValue, sameBackgroundValue, type BackgroundConfig, type BackgroundValue } from '../background';
+import { normalizeLayersValue, sameLayersValue, type LayersConfig, type LayersValue } from '../layers';
 import { trackInputModality } from '../input-modality';
 
 // Every DialKit build loads the store, so the focus marks start with it.
@@ -15,6 +16,8 @@ export {
   GRADIENT_SHAPES, defaultGradientHandles, legacyGradientHandles, switchGradientShape, gradientFrame, gradientParamAt,
 } from '../background';
 export type { GradientShape, GradientPoint, GradientHandles, GradientFrame } from '../background';
+export type { LayerItem, LayersConfig, LayersValue, LayerActionKind } from '../layers';
+export { layerAction, parseLayerAction, normalizeLayersValue } from '../layers';
 export { paintBackgroundPreview } from '../background-paint';
 export {
   mountGradientGizmo, rotateGradientHandles, dragGradientEnd, dragGradientCentre, dragGradientWidth,
@@ -88,7 +91,7 @@ export type TextConfig = {
   placeholder?: string;
 };
 
-export type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue | BackgroundConfig | BackgroundValue;
+export type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue | BackgroundConfig | BackgroundValue | LayersConfig | LayersValue;
 
 export type VisibleWhenValue = string | boolean | number;
 
@@ -270,6 +273,8 @@ export type ResolvedValues<T extends DialConfig> = {
                 ? DialPadValue
                 : T[K] extends BackgroundConfig
                   ? BackgroundValue
+                  : T[K] extends LayersConfig
+                  ? LayersValue
                   : T[K] extends DialConfig
                     ? ResolvedValues<T[K]>
                     : T[K];
@@ -290,6 +295,8 @@ export type DialKitValueUpdates<T extends DialConfig> = {
             ? DialPadValue
             : T[K] extends BackgroundConfig
               ? BackgroundValue
+              : T[K] extends LayersConfig
+              ? LayersValue
               : T[K] extends DialConfig
                 ? DialKitValueUpdates<T[K]>
                 : T[K];
@@ -306,7 +313,7 @@ export type ShortcutConfig = {
 };
 
 export type ControlMeta = {
-  type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'image' | 'text' | 'pad' | 'background';
+  type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'image' | 'text' | 'pad' | 'background' | 'layers';
   path: string;
   label: string;
   min?: number;
@@ -343,6 +350,8 @@ export type ControlMeta = {
   pad?: DialPadConfig;
   /** Background only: the config, with its default made valid. */
   background?: BackgroundConfig & { default: BackgroundValue };
+  /** Layers only: the config, with its default made valid. Its add, duplicate and delete send `layerAction` paths. */
+  layers?: LayersConfig & { default: LayersValue };
   shortcut?: ShortcutConfig;
   /** Conditional visibility rule attached via {@link withVisibility}. */
   visibleWhen?: VisibleWhen;
@@ -549,7 +558,8 @@ export function isLeafConfigValue(value: unknown): boolean {
     isImageConfigValue(value) ||
     isTextConfigValue(value) ||
     isPadConfigValue(value) ||
-    isBackgroundConfigValue(value)
+    isBackgroundConfigValue(value) ||
+    isLayersConfigValue(value)
   );
 }
 
@@ -562,6 +572,7 @@ function configDefaultValue(value: DialConfig[string]): DialValue {
   if (isTextConfigValue(value)) return value.default ?? '';
   if (isPadConfigValue(value)) return normalizePadValue(undefined, value);
   if (isBackgroundConfigValue(value)) return backgroundConfigDefault(value);
+  if (isLayersConfigValue(value)) return normalizeLayersValue(value.default);
   return value as DialValue;
 }
 
@@ -583,7 +594,8 @@ function backgroundWriteBase(current: unknown, configDefault?: BackgroundValue):
 function sameControlValue(previous: unknown, next: unknown, control?: ControlMeta): boolean {
   return Object.is(previous, next) || (control?.type === 'pad' &&
     isRecord(previous) && isRecord(next) && previous.x === next.x && previous.y === next.y) ||
-    (control?.type === 'background' && sameBackgroundValue(previous, next));
+    (control?.type === 'background' && sameBackgroundValue(previous, next)) ||
+    (control?.type === 'layers' && sameLayersValue(previous, next));
 }
 
 /** Equal values, with objects and arrays compared by their content. Zero
@@ -662,6 +674,10 @@ function isPadConfigValue(value: unknown): value is DialPadConfig {
 
 function isBackgroundConfigValue(value: unknown): value is BackgroundConfig {
   return hasType(value, 'background');
+}
+
+function isLayersConfigValue(value: unknown): value is LayersConfig {
+  return hasType(value, 'layers');
 }
 
 function getFirstOptionValue(options: (string | { value: string; label: string })[]): string {
@@ -943,6 +959,7 @@ class DialStoreClass {
 
       const next = control?.type === 'pad' ? normalizePadValue(value, control.pad)
         : control?.type === 'background' ? normalizeBackgroundValue(value, backgroundWriteBase(panel.values[path], control.background?.default))
+        : control?.type === 'layers' ? normalizeLayersValue(value)
         : value;
       if (sameControlValue(panel.values[path], next, control) &&
         (!target || sameControlValue(target[path], next, control))) continue;
@@ -1632,6 +1649,8 @@ class DialStoreClass {
           control = { type: 'pad', path, label, pad: value };
         } else if (isBackgroundConfigValue(value)) {
           control = { type: 'background', path, label, background: { ...value, default: backgroundConfigDefault(value) } };
+        } else if (isLayersConfigValue(value)) {
+          control = { type: 'layers', path, label, layers: { ...value, default: normalizeLayersValue(value.default) } };
         } else if (typeof value === 'string') {
           // Auto-detect: hex color vs text
           if (parseColor(value) && value !== 'transparent') {
@@ -1720,6 +1739,9 @@ class DialStoreClass {
       case 'background':
         // Each invalid field falls back to the default's; a valid value is kept.
         return normalizeBackgroundValue(existingValue, control.background?.default);
+      case 'layers':
+        // The app owns the rows: a valid stored value is kept, else the default.
+        return normalizeLayersValue(existingValue, control.layers?.default);
       case 'select': {
         if (typeof existingValue !== 'string') {
           return defaultValue;

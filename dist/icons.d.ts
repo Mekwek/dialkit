@@ -36,9 +36,13 @@ declare const ICON_MORE: string[];
  * all draw ICON_MORE with it, in its 24-unit box shown 14px tall.
  */
 declare const ICON_MORE_STROKE = 3;
+/** An open eye: shown. */
+declare const ICON_EYE: string[];
+/** An eye crossed out: hidden. */
+declare const ICON_EYE_OFF: string[];
 /** Two overlapping sheets: copy. */
 declare const ICON_COPY: string[];
 /** A clipboard with an arrow in: paste. */
 declare const ICON_PASTE: string[];
 
-export { ICON_ADD_PRESET, ICON_CHECK, ICON_CHEVRON, ICON_CLIPBOARD, ICON_CLOSE, ICON_COPY, ICON_LINK, ICON_LOCK, ICON_LOCK_OPEN, ICON_LOOP, ICON_MORE, ICON_MORE_STROKE, ICON_PANEL, ICON_PASTE, ICON_PAUSE, ICON_PENCIL, ICON_PLAY, ICON_PLUS, ICON_REPLAY, ICON_RESET, ICON_TIMELINE, ICON_TRASH };
+export { ICON_ADD_PRESET, ICON_CHECK, ICON_CHEVRON, ICON_CLIPBOARD, ICON_CLOSE, ICON_COPY, ICON_EYE, ICON_EYE_OFF, ICON_LINK, ICON_LOCK, ICON_LOCK_OPEN, ICON_LOOP, ICON_MORE, ICON_MORE_STROKE, ICON_PANEL, ICON_PASTE, ICON_PAUSE, ICON_PENCIL, ICON_PLAY, ICON_PLUS, ICON_REPLAY, ICON_RESET, ICON_TIMELINE, ICON_TRASH };

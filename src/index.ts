@@ -54,6 +54,8 @@ export { AnchorGrid } from './components/AnchorGrid';
 export type { DialPadProps } from './dial-pad-control';
 export { BackgroundControl } from './components/BackgroundControl';
 export type { BackgroundControlProps } from './background-control';
+export { LayerListControl } from './components/LayerListControl';
+export type { LayerListControlProps } from './layer-list-control';
 export {
   setBackgroundHost,
   getBackgroundHost,
@@ -80,6 +82,9 @@ export {
   backgroundGradientCss,
   defaultBackgroundValue,
   normalizeBackgroundValue,
+  normalizeLayersValue,
+  layerAction,
+  parseLayerAction,
 } from './store/DialStore';
 export { PresetManager } from './components/PresetManager';
 export { ShortcutsMenu } from './components/ShortcutsMenu';
@@ -112,6 +117,10 @@ export type {
   ImageConfig,
   ImageOption,
   BackgroundConfig,
+  LayerItem,
+  LayersConfig,
+  LayersValue,
+  LayerActionKind,
   BackgroundGradient,
   BackgroundMedia,
   BackgroundMediaDisplay,

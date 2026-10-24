@@ -16,11 +16,13 @@ import { ColorControl } from './ColorControl';
 import { ImageControl } from './ImageControl';
 import { DialPad } from './DialPad';
 import { BackgroundControl } from './BackgroundControl';
+import { LayerListControl } from './LayerListControl';
 import { PadGroup } from './PadGroup';
 import { AnchorGrid } from './AnchorGrid';
 import { useHint } from './Hint';
 import type { DialPadValue } from '../dial-pad';
 import type { BackgroundValue } from '../background';
+import { layerAction, type LayersValue } from '../layers';
 
 interface ControlRendererProps {
   panelId: string;
@@ -283,6 +285,21 @@ export function ControlRenderer({
             hideLabel={control.pad?.hideLabel}
             dragFields={control.pad?.dragFields}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
+            hint={control.hint}
+          />
+        );
+
+      case 'layers':
+        return (
+          <LayerListControl
+            key={control.path}
+            label={control.label}
+            value={value as LayersValue}
+            addLabel={control.layers?.addLabel}
+            addDisabled={control.layers?.addDisabled}
+            empty={control.layers?.empty}
+            onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
+            onAction={(kind, id) => DialStore.triggerAction(panelId, layerAction(control.path, kind, id))}
             hint={control.hint}
           />
         );

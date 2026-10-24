@@ -1,6 +1,46 @@
 import { DialPadConfig, DialPadValue } from './dial-pad.js';
 import { BackgroundConfig, BackgroundValue } from './background.js';
 
+/**
+ * The layer list control's value: the rows, top first, and the selected row.
+ *
+ * The app owns the layers. It writes the whole value (labels follow the
+ * layers' own text), and the control writes back a new value for the three
+ * things a user changes in place: the selection, a row's eye and the order.
+ * Adding, duplicating and deleting create or remove layers, so the control
+ * sends them as actions instead (`layerAction`), and the app writes the new
+ * value.
+ */
+type LayerItem = {
+    /** The layer's id: it stays with the row through reordering. */
+    id: string;
+    /** The row's name. */
+    label: string;
+    /** Hidden with its eye: the row shows its eye crossed out, and dims. */
+    hidden?: boolean;
+    /**
+     * Not on the canvas right now for another reason the app knows (outside
+     * its timing, for example), given as that reason. The row stays normal:
+     * only its eye is less bright than on a row whose layer is on the canvas,
+     * and the row's hint gives the reason.
+     */
+    offCanvas?: string;
+};
+type LayersValue = {
+    items: LayerItem[];
+    selected: string | null;
+};
+type LayersConfig = {
+    type: 'layers';
+    default?: LayersValue;
+    /** The add button's text. Default "+ Add". */
+    addLabel?: string;
+    /** Turns the add button off; its text should say why. */
+    addDisabled?: boolean;
+    /** The text shown in place of the list when it has no rows. */
+    empty?: string;
+};
+
 type SpringConfig = {
     type: 'spring';
     stiffness?: number;
@@ -57,7 +97,7 @@ type TextConfig = {
     default?: string;
     placeholder?: string;
 };
-type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue | BackgroundConfig | BackgroundValue;
+type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue | BackgroundConfig | BackgroundValue | LayersConfig | LayersValue;
 type VisibleWhenValue = string | boolean | number;
 /**
  * Rule for conditional control visibility. Exactly one of `is` or `not`
@@ -111,7 +151,7 @@ type ShortcutConfig = {
     interaction?: ShortcutInteraction;
 };
 type ControlMeta = {
-    type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'image' | 'text' | 'pad' | 'background';
+    type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'image' | 'text' | 'pad' | 'background' | 'layers';
     path: string;
     label: string;
     min?: number;
@@ -149,6 +189,10 @@ type ControlMeta = {
     /** Background only: the config, with its default made valid. */
     background?: BackgroundConfig & {
         default: BackgroundValue;
+    };
+    /** Layers only: the config, with its default made valid. Its add, duplicate and delete send `layerAction` paths. */
+    layers?: LayersConfig & {
+        default: LayersValue;
     };
     shortcut?: ShortcutConfig;
     /** Conditional visibility rule attached via {@link withVisibility}. */

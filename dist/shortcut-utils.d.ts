@@ -1,4 +1,4 @@
-import { C as ControlMeta, S as ShortcutConfig } from './DialStore-Cgyh9K8s.js';
+import { C as ControlMeta, S as ShortcutConfig } from './DialStore-Dm39v3xN.js';
 import './dial-pad.js';
 import './background.js';
 

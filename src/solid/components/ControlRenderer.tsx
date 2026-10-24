@@ -11,8 +11,10 @@ import { ColorControl } from './ColorControl';
 import { ImageControl } from './ImageControl';
 import { DialPad } from './DialPad';
 import { BackgroundControl } from './BackgroundControl';
+import { LayerListControl } from './LayerListControl';
 import type { DialPadValue } from '../../dial-pad';
 import type { BackgroundValue } from '../../background';
+import { layerAction, type LayersValue } from '../../layers';
 import { Folder } from './Folder';
 import { SelectControl } from './SelectControl';
 import { Slider } from './Slider';
@@ -128,6 +130,18 @@ export function ControlRenderer(props: ControlRendererProps) {
             y={control.pad?.y}
             labels={control.pad?.labels}
             onChange={(next) => DialStore.updateValue(props.panelId, control.path, next)}
+          />
+        );
+      case 'layers':
+        return (
+          <LayerListControl
+            label={control.label}
+            value={value() as LayersValue}
+            addLabel={control.layers?.addLabel}
+            addDisabled={control.layers?.addDisabled}
+            empty={control.layers?.empty}
+            onChange={(next) => DialStore.updateValue(props.panelId, control.path, next)}
+            onAction={(kind, id) => DialStore.triggerAction(props.panelId, layerAction(control.path, kind, id))}
           />
         );
       case 'background':

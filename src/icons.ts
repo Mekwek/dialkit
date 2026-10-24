@@ -96,6 +96,20 @@ export const ICON_MORE = ['M5 12h.01', 'M12 12h.01', 'M19 12h.01'];
  */
 export const ICON_MORE_STROKE = 3;
 
+/** An open eye: shown. */
+export const ICON_EYE = [
+  'M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0',
+  'M12 9a3 3 0 1 0 0 6 3 3 0 1 0 0-6',
+];
+
+/** An eye crossed out: hidden. */
+export const ICON_EYE_OFF = [
+  'M10.73 5.08a10.74 10.74 0 0 1 11.2 6.57 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-1.44 2.49',
+  'M14.08 14.16a3 3 0 0 1-4.24-4.24',
+  'M17.48 17.5a10.75 10.75 0 0 1-15.42-5.15 1 1 0 0 1 0-.7 10.75 10.75 0 0 1 4.45-5.14',
+  'M2 2l20 20',
+];
+
 /** Two overlapping sheets: copy. */
 export const ICON_COPY = [
   'M9 11a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-7a2 2 0 0 1-2-2z',

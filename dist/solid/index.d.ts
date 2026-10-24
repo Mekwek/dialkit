@@ -184,6 +184,63 @@ declare function normalizeBackgroundValue(value: unknown, fallback?: BackgroundV
 declare function backgroundGradientCss(gradient: BackgroundGradient, direction?: string): string;
 
 /**
+ * The layer list control's value: the rows, top first, and the selected row.
+ *
+ * The app owns the layers. It writes the whole value (labels follow the
+ * layers' own text), and the control writes back a new value for the three
+ * things a user changes in place: the selection, a row's eye and the order.
+ * Adding, duplicating and deleting create or remove layers, so the control
+ * sends them as actions instead (`layerAction`), and the app writes the new
+ * value.
+ */
+type LayerItem = {
+    /** The layer's id: it stays with the row through reordering. */
+    id: string;
+    /** The row's name. */
+    label: string;
+    /** Hidden with its eye: the row shows its eye crossed out, and dims. */
+    hidden?: boolean;
+    /**
+     * Not on the canvas right now for another reason the app knows (outside
+     * its timing, for example), given as that reason. The row stays normal:
+     * only its eye is less bright than on a row whose layer is on the canvas,
+     * and the row's hint gives the reason.
+     */
+    offCanvas?: string;
+};
+type LayersValue = {
+    items: LayerItem[];
+    selected: string | null;
+};
+type LayersConfig = {
+    type: 'layers';
+    default?: LayersValue;
+    /** The add button's text. Default "+ Add". */
+    addLabel?: string;
+    /** Turns the add button off; its text should say why. */
+    addDisabled?: boolean;
+    /** The text shown in place of the list when it has no rows. */
+    empty?: string;
+};
+type LayerActionKind = 'add' | 'duplicate' | 'delete';
+/**
+ * The action path a layer list sends: `<path>:add`, or
+ * `<path>:duplicate:<id>` and `<path>:delete:<id>` for one row.
+ */
+declare function layerAction(path: string, kind: LayerActionKind, id?: string): string;
+/** Reads an action path sent by the layer list at `path`, or null for any other action. */
+declare function parseLayerAction(path: string, action: string): {
+    kind: LayerActionKind;
+    id?: string;
+} | null;
+/**
+ * A complete, valid value: rows without a string id or label are dropped,
+ * repeated ids keep their first row, and a selection that names no row
+ * becomes null.
+ */
+declare function normalizeLayersValue(value: unknown, fallback?: LayersValue): LayersValue;
+
+/**
  * Draws a background value into a 2D canvas, at the canvas's own pixel size:
  * the solid colour, or the gradient with the exact shading rule
  * (gradientFrame and gradientParamAt), all four shapes. For hosts without a
@@ -382,7 +439,7 @@ type TextConfig = {
     default?: string;
     placeholder?: string;
 };
-type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue | BackgroundConfig | BackgroundValue;
+type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue | BackgroundConfig | BackgroundValue | LayersConfig | LayersValue;
 type VisibleWhenValue = string | boolean | number;
 /**
  * Rule for conditional control visibility. Exactly one of `is` or `not`
@@ -473,12 +530,12 @@ type DialConfig = {
 type ResolvedValues<T extends DialConfig> = {
     [K in keyof T]: T[K] extends ControlWithVisibility<infer U> ? U extends DialConfigValue ? ResolvedValues<{
         value: U;
-    }>['value'] : never : T[K] extends RangeConfig ? number : T[K] extends SpringConfig ? TransitionConfig : T[K] extends EasingConfig ? TransitionConfig : T[K] extends SelectConfig ? string : T[K] extends ColorConfig | ImageConfig ? string : T[K] extends TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends BackgroundConfig ? BackgroundValue : T[K] extends DialConfig ? ResolvedValues<T[K]> : T[K];
+    }>['value'] : never : T[K] extends RangeConfig ? number : T[K] extends SpringConfig ? TransitionConfig : T[K] extends EasingConfig ? TransitionConfig : T[K] extends SelectConfig ? string : T[K] extends ColorConfig | ImageConfig ? string : T[K] extends TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends BackgroundConfig ? BackgroundValue : T[K] extends LayersConfig ? LayersValue : T[K] extends DialConfig ? ResolvedValues<T[K]> : T[K];
 };
 type DialKitValueUpdates<T extends DialConfig> = {
     [K in keyof T as K extends FolderMetaKey ? never : K]?: T[K] extends ControlWithVisibility<infer U> ? U extends DialConfigValue ? DialKitValueUpdates<{
         value: U;
-    }>['value'] : never : T[K] extends RangeConfig ? number : T[K] extends SpringConfig | EasingConfig ? TransitionConfig : T[K] extends ActionConfig ? never : T[K] extends SelectConfig | ColorConfig | ImageConfig | TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends BackgroundConfig ? BackgroundValue : T[K] extends DialConfig ? DialKitValueUpdates<T[K]> : T[K];
+    }>['value'] : never : T[K] extends RangeConfig ? number : T[K] extends SpringConfig | EasingConfig ? TransitionConfig : T[K] extends ActionConfig ? never : T[K] extends SelectConfig | ColorConfig | ImageConfig | TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends BackgroundConfig ? BackgroundValue : T[K] extends LayersConfig ? LayersValue : T[K] extends DialConfig ? DialKitValueUpdates<T[K]> : T[K];
 };
 type ShortcutMode = 'fine' | 'normal' | 'coarse';
 type ShortcutInteraction = 'scroll' | 'drag' | 'move' | 'scroll-only';
@@ -489,7 +546,7 @@ type ShortcutConfig = {
     interaction?: ShortcutInteraction;
 };
 type ControlMeta = {
-    type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'image' | 'text' | 'pad' | 'background';
+    type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'image' | 'text' | 'pad' | 'background' | 'layers';
     path: string;
     label: string;
     min?: number;
@@ -527,6 +584,10 @@ type ControlMeta = {
     /** Background only: the config, with its default made valid. */
     background?: BackgroundConfig & {
         default: BackgroundValue;
+    };
+    /** Layers only: the config, with its default made valid. Its add, duplicate and delete send `layerAction` paths. */
+    layers?: LayersConfig & {
+        default: LayersValue;
     };
     shortcut?: ShortcutConfig;
     /** Conditional visibility rule attached via {@link withVisibility}. */
@@ -1232,6 +1293,19 @@ type BackgroundControlProps = {
 
 declare function BackgroundControl(props: BackgroundControlProps): solid_js.JSX.Element;
 
+type LayerListControlProps = {
+    label: string;
+    value: LayersValue;
+    onChange: (value: LayersValue) => void;
+    /** Add, duplicate and delete: the app creates or removes the layer, then writes the new value. */
+    onAction: (kind: LayerActionKind, id?: string) => void;
+    addLabel?: string;
+    addDisabled?: boolean;
+    empty?: string;
+};
+
+declare function LayerListControl(props: LayerListControlProps): solid_js.JSX.Element;
+
 interface PresetManagerProps {
     panelId: string;
     presets: Preset[];
@@ -1253,4 +1327,4 @@ interface ControlRendererProps {
 }
 declare function ControlRenderer(props: ControlRendererProps): solid_js.JSX.Element;
 
-export { type ActionConfig, type BackgroundConfig, BackgroundControl, type BackgroundControlProps, type BackgroundGradient, type BackgroundHost, type BackgroundMedia, type BackgroundMediaDisplay, type BackgroundStop, type BackgroundValue, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type CreateDialOptions, type CreateDialTimelineOptions, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, type EasingConfig, EasingVisualization, Folder, GRADIENT_SHAPES, type GizmoBox, type GradientFrame, type GradientGizmoCallbacks, type GradientGizmoProps, type GradientHandles, type GradientPoint, type GradientShape, type ImageConfig, ImageControl, type ImageOption, type PanelConfig, type Preset, PresetManager, type ResolvedValues, RootPanel, type SavedGradient, type SelectConfig, SelectControl, type ShortcutConfig, ShortcutsMenu, Slider, type SpringConfig, SpringControl, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, Toggle, type TransitionConfig, TransitionControl, type VisibleWhen, type VisibleWhenValue, backgroundGradientCss, createDialKit, createDialKitController, createDialTimeline, defaultBackgroundValue, defaultGradientHandles, dragGradientCentre, dragGradientEnd, dragGradientWidth, formatGizmoAngle, getBackgroundHost, getSavedGradients, gizmoAngle, gizmoPoints, gradientFrame, gradientParamAt, legacyGradientHandles, mountGradientGizmo, normalizeBackgroundValue, paintBackgroundPreview, rotateGradientHandles, setBackgroundHost, setSavedGradients, stopPlacement, stopPositionAt, subscribeBackgroundHost, switchGradientShape, unwrapVisibility, withVisibility };
+export { type ActionConfig, type BackgroundConfig, BackgroundControl, type BackgroundControlProps, type BackgroundGradient, type BackgroundHost, type BackgroundMedia, type BackgroundMediaDisplay, type BackgroundStop, type BackgroundValue, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type CreateDialOptions, type CreateDialTimelineOptions, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, type EasingConfig, EasingVisualization, Folder, GRADIENT_SHAPES, type GizmoBox, type GradientFrame, type GradientGizmoCallbacks, type GradientGizmoProps, type GradientHandles, type GradientPoint, type GradientShape, type ImageConfig, ImageControl, type ImageOption, type LayerActionKind, type LayerItem, LayerListControl, type LayerListControlProps, type LayersConfig, type LayersValue, type PanelConfig, type Preset, PresetManager, type ResolvedValues, RootPanel, type SavedGradient, type SelectConfig, SelectControl, type ShortcutConfig, ShortcutsMenu, Slider, type SpringConfig, SpringControl, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, Toggle, type TransitionConfig, TransitionControl, type VisibleWhen, type VisibleWhenValue, backgroundGradientCss, createDialKit, createDialKitController, createDialTimeline, defaultBackgroundValue, defaultGradientHandles, dragGradientCentre, dragGradientEnd, dragGradientWidth, formatGizmoAngle, getBackgroundHost, getSavedGradients, gizmoAngle, gizmoPoints, gradientFrame, gradientParamAt, layerAction, legacyGradientHandles, mountGradientGizmo, normalizeBackgroundValue, normalizeLayersValue, paintBackgroundPreview, parseLayerAction, rotateGradientHandles, setBackgroundHost, setSavedGradients, stopPlacement, stopPositionAt, subscribeBackgroundHost, switchGradientShape, unwrapVisibility, withVisibility };

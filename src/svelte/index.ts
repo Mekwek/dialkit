@@ -47,6 +47,8 @@ export { default as DialPad } from './components/DialPad.svelte';
 export type { DialPadProps } from '../dial-pad-control';
 export { default as BackgroundControl } from './components/BackgroundControl.svelte';
 export type { BackgroundControlProps } from '../background-control';
+export { default as LayerListControl } from './components/LayerListControl.svelte';
+export type { LayerListControlProps } from '../layer-list-control';
 export { default as PresetManager } from './components/PresetManager.svelte';
 export { default as DialTimeline } from './components/Timeline/DialTimeline.svelte';
 
@@ -78,6 +80,9 @@ export {
   backgroundGradientCss,
   defaultBackgroundValue,
   normalizeBackgroundValue,
+  normalizeLayersValue,
+  layerAction,
+  parseLayerAction,
 } from 'dialkit/store';
 export type {
   SpringConfig,
@@ -89,6 +94,10 @@ export type {
   ImageConfig,
   ImageOption,
   BackgroundConfig,
+  LayerItem,
+  LayersConfig,
+  LayersValue,
+  LayerActionKind,
   BackgroundGradient,
   BackgroundMedia,
   BackgroundMediaDisplay,
