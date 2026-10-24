@@ -105,12 +105,22 @@ const config = {
     y: [0.2, 0, 1, 0.01],
     labels: { x: "Duration", y: "Bounce" },
   },
+  spread: {
+    type: "pad",
+    x: [1, 0.1, 3, 0.01],
+    y: [1, 0.1, 3, 0.01],
+    labels: { x: "Spread X", y: "Spread Y" },
+    hideLabel: true,
+    dragLabels: true,
+  },
 } satisfies DialConfig;
 ```
 
 Each axis uses `[default, min, max, step?]`. Omitted axes default to `[0, -1, 1, 0.01]`; an explicit tuple without a step divides its range into 200 intervals. Values are clamped and snapped to the step. Labels do not change the returned `{ x, y }` keys.
 
 X increases to the right; Y increases upward. Clicks near grid intersections snap to them. Hold Shift while dragging to lock an axis. Home or a double-click restores the configured defaults; Escape cancels an active drag.
+
+`hideLabel: true` removes the label box beside the axis fields, so the two fields fill the row; the label still names the pad for assistive technology. `dragLabels: true` lets you drag an axis label left or right to change its value by one step per pixel, or ten with Shift; Escape cancels the drag. Clicking the label without dragging still opens the number for typing, and Up/Down arrows in the number step it.
 
 ### Transitions
 

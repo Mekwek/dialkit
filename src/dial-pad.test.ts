@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { normalizePadValue, padGridIntersection, padValueFromKey, padValueFromPoint, resolvePadAxis, snapPadAxis } from './dial-pad';
-import { DialStore, flattenDialValueUpdates, resolveDialValues, type DialConfig, type DialPadConfig, type DialPadValue, type ResolvedValues } from './store/DialStore';
+import { normalizePadValue, padAxisLabel, padGridIntersection, padValueFromDrag, padValueFromKey, padValueFromPoint, resolvePadAxis, snapPadAxis } from './dial-pad';
+import { DialStore, flattenDialValueUpdates, resolveDialValues, type DialConfig, type DialPadAxis, type DialPadConfig, type DialPadValue, type ResolvedValues } from './store/DialStore';
 
 describe('DialPad', () => {
   it('resolves default and nested pads as typed pairs, without exposing their config', () => {
@@ -81,6 +81,40 @@ describe('DialPad', () => {
     assert.deepEqual(padValueFromKey(value, 'ArrowDown', true), { x: 0.4, y: -0.4 });
     assert.deepEqual(padValueFromKey({ x: 1, y: 1 }, 'ArrowUp', true), { x: 1, y: 1 });
     assert.equal(padValueFromKey(value, 'Tab', false), undefined);
+  });
+
+  it('drags an axis label one step per pixel, ten with Shift, within its range', () => {
+    const axis = [1, 0.1, 3, 0.01] satisfies DialPadAxis;
+    assert.equal(snapPadAxis(padValueFromDrag(1, 80, false, axis), resolvePadAxis(axis)), 1.8);
+    assert.equal(snapPadAxis(padValueFromDrag(1, -20, true, axis), resolvePadAxis(axis)), 0.1);
+    assert.equal(padValueFromDrag(1, 500, false, axis), 3);
+    assert.equal(padValueFromDrag(0, -500, false), -1);
+    // Moves smaller than a step add up instead of snapping back each time.
+    let value = 0;
+    for (let i = 0; i < 4; i++) value = padValueFromDrag(value, 0.25, false);
+    assert.equal(snapPadAxis(value, resolvePadAxis()), 0.01);
+  });
+
+  it('names each axis field once when its label already carries the pad label', () => {
+    assert.equal(padAxisLabel('Spread', 'Spread X'), 'Spread X');
+    assert.equal(padAxisLabel('Spread', 'Spread'), 'Spread');
+    assert.equal(padAxisLabel('Spread', 'X'), 'Spread X');
+    assert.equal(padAxisLabel('Spread', 'Spreadsheet'), 'Spread Spreadsheet');
+    assert.equal(padAxisLabel('Feel', 'Duration'), 'Feel Duration');
+    assert.equal(padAxisLabel('Spread Amount', 'Spread amount X'), 'Spread amount X');
+  });
+
+  it('keeps label and drag options out of the returned value', () => {
+    const id = 'pad-options';
+    const config = { spread: { type: 'pad', x: [1, 0.1, 3, 0.01], y: [1, 0.1, 3, 0.01], labels: { x: 'Spread X', y: 'Spread Y' }, hideLabel: true, dragLabels: true } } satisfies DialConfig;
+    try {
+      DialStore.registerPanel(id, 'Pad', config);
+      const pad = DialStore.getPanel(id)!.controls[0].pad!;
+      assert.equal(pad.hideLabel, true);
+      assert.equal(pad.dragLabels, true);
+      assert.deepEqual(DialStore.getValue(id, 'spread'), { x: 1, y: 1 });
+      assert.deepEqual(resolveDialValues(config, DialStore.getValues(id)), { spread: { x: 1, y: 1 } });
+    } finally { DialStore.unregisterPanel(id); }
   });
 
   it('updates both axes atomically, preserves presets, reconciles ranges, and resets defaults', () => {

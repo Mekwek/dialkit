@@ -1,4 +1,4 @@
-import { PAD_GRID_DIVISIONS, normalizePadValue, padGridIntersection, padValueFromKey, padValueFromPoint, resolvePadAxis, snapPadAxis, type DialPadConfig, type DialPadValue } from './dial-pad';
+import { PAD_GRID_DIVISIONS, normalizePadValue, padAxisLabel, padGridIntersection, padValueFromDrag, padValueFromKey, padValueFromPoint, resolvePadAxis, snapPadAxis, type DialPadConfig, type DialPadValue } from './dial-pad';
 
 export type DialPadProps = Omit<DialPadConfig, 'type'> & {
   label: string;
@@ -28,6 +28,18 @@ export function mountDialPad(host: HTMLElement, initial: DialPadProps) {
     lock?: 'x' | 'y';
     lockValue?: DialPadValue;
   } | undefined;
+  let labelDrag: {
+    axis: 'x' | 'y';
+    name: HTMLElement;
+    field: HTMLElement;
+    id: number;
+    x: number;
+    start: number;
+    value: number;
+    moved: boolean;
+    cancelled: boolean;
+  } | undefined;
+  let suppressClick = false;
 
   const root = element('div', 'dialkit-pad');
   const fields = element('div', 'dialkit-pad-fields');
@@ -69,6 +81,35 @@ export function mountDialPad(host: HTMLElement, initial: DialPadProps) {
     field.append(name, input);
     fields.append(field);
     input.addEventListener('focus', () => input.select());
+    // With dragLabels, the axis label drags the value. A click without a drag
+    // still opens the number for typing.
+    name.addEventListener('pointerdown', event => {
+      suppressClick = false;
+      if (!props.dragLabels || event.button !== 0 || labelDrag) return;
+      event.preventDefault();
+      // Commit a typed draft first, so the drag starts from the value shown.
+      if (document.activeElement === input) input.blur();
+      labelDrag = { axis, name, field, id: event.pointerId, x: event.clientX, start: value[axis], value: value[axis], moved: false, cancelled: false };
+      name.setPointerCapture(event.pointerId);
+      window.addEventListener('keydown', cancelLabelDrag, true);
+    });
+    name.addEventListener('pointermove', event => {
+      if (event.pointerId !== labelDrag?.id || labelDrag.cancelled) return;
+      if (!labelDrag.moved && Math.abs(event.clientX - labelDrag.x) < 3) return;
+      labelDrag.moved = true;
+      field.dataset.dragging = 'true';
+      labelDrag.value = padValueFromDrag(labelDrag.value, event.clientX - labelDrag.x, event.shiftKey, props[axis]);
+      labelDrag.x = event.clientX;
+      commit({ ...value, [axis]: labelDrag.value });
+    });
+    for (const type of ['pointerup', 'pointercancel', 'lostpointercapture'] as const) {
+      name.addEventListener(type, event => { if (event.pointerId === labelDrag?.id) endLabelDrag(); });
+    }
+    // The field is a label element, so a click on the axis label would otherwise focus the number.
+    name.addEventListener('click', event => {
+      if (suppressClick) event.preventDefault();
+      suppressClick = false;
+    });
     input.addEventListener('blur', () => {
       const number = input.value.trim() === '' ? NaN : Number(input.value);
       if (Number.isFinite(number)) commit({ ...value, [axis]: number });
@@ -99,13 +140,20 @@ export function mountDialPad(host: HTMLElement, initial: DialPadProps) {
   function render() {
     label.textContent = props.label;
     label.title = props.label;
+    if (props.hideLabel) root.dataset.hideLabel = 'true';
+    else delete root.dataset.hideLabel;
+    if (props.dragLabels) root.dataset.dragLabels = 'true';
+    else delete root.dataset.dragLabels;
     const names = { x: props.labels?.x ?? 'X', y: props.labels?.y ?? 'Y' };
-    surface.setAttribute('aria-label', `${props.label}: ${names.x} ${value.x}, ${names.y} ${value.y}`);
+    const axes = `${names.x} ${value.x}, ${names.y} ${value.y}`;
+    // Axis labels that already carry the pad label name the pad on their own.
+    const named = padAxisLabel(props.label, names.x) === names.x && padAxisLabel(props.label, names.y) === names.y;
+    surface.setAttribute('aria-label', named ? axes : `${props.label}: ${axes}`);
     inputs.forEach(({ axis, name, input }) => {
       const range = resolvePadAxis(props[axis]);
       name.textContent = names[axis];
       name.title = names[axis];
-      input.setAttribute('aria-label', `${props.label} ${names[axis]}`);
+      input.setAttribute('aria-label', padAxisLabel(props.label, names[axis]));
       input.setAttribute('aria-valuemin', String(range.min));
       input.setAttribute('aria-valuemax', String(range.max));
       input.setAttribute('aria-valuenow', String(value[axis]));
@@ -121,6 +169,28 @@ export function mountDialPad(host: HTMLElement, initial: DialPadProps) {
     value = normalized;
     render();
     props.onChange({ ...value });
+  }
+
+  function endLabelDrag() {
+    if (!labelDrag) return;
+    const { name, field, id, moved, cancelled } = labelDrag;
+    labelDrag = undefined;
+    suppressClick = moved || cancelled;
+    delete field.dataset.dragging;
+    window.removeEventListener('keydown', cancelLabelDrag, true);
+    if (name.hasPointerCapture(id)) name.releasePointerCapture(id);
+  }
+
+  // Escape restores the starting value. The pointer stays captured until it's
+  // released, so the release can't click the number open.
+  function cancelLabelDrag(event: KeyboardEvent) {
+    if (event.key !== 'Escape' || !labelDrag) return;
+    event.preventDefault();
+    event.stopPropagation();
+    labelDrag.cancelled = true;
+    delete labelDrag.field.dataset.dragging;
+    window.removeEventListener('keydown', cancelLabelDrag, true);
+    commit({ ...value, [labelDrag.axis]: labelDrag.start });
   }
 
   function endDrag() {
@@ -213,9 +283,15 @@ export function mountDialPad(host: HTMLElement, initial: DialPadProps) {
   return {
     update(next: DialPadProps) {
       props = next;
-      value = normalizePadValue(next.value, props);
+      const incoming = normalizePadValue(next.value, props);
+      if (labelDrag && !props.dragLabels) endLabelDrag();
+      // A value set from outside during a label drag becomes its new start.
+      if (labelDrag && incoming[labelDrag.axis] !== value[labelDrag.axis]) {
+        labelDrag.start = labelDrag.value = incoming[labelDrag.axis];
+      }
+      value = incoming;
       render();
     },
-    destroy() { endDrag(); root.remove(); },
+    destroy() { endDrag(); endLabelDrag(); root.remove(); },
   };
 }
