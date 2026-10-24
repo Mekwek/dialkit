@@ -37,6 +37,15 @@ export function SegmentedControl<T extends string>({
     measure();
   }, [value, options.length, measure]);
 
+  // Keep the pill aligned when the container itself resizes (e.g. panel width).
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [measure]);
+
   // Enable transition after first render
   const shouldAnimate = hasAnimated.current;
   hasAnimated.current = true;

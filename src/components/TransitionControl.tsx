@@ -1,4 +1,5 @@
-import { formatEase, parseEase } from '../easing-geometry';
+import { createEaseIntensity } from '../easing-geometry';
+import { mountEaseFields, type EaseFieldsProps } from '../easing-control';
 import { SpringConfig, EasingConfig, TransitionConfig, DialStore, type CopiedTransition } from '../store/DialStore';
 import { mountTransitionMenu, mountTransitionPresets, type TransitionMenuProps, type TransitionPresetsProps } from '../transition-presets-control';
 import { Folder } from './Folder';
@@ -85,6 +86,9 @@ export function TransitionControl({
     }
   };
 
+  // Intensity scales the curve it started from; 50% is that curve.
+  const [intensity] = useState(createEaseIntensity);
+
   const handlePaste = (copied: CopiedTransition) => {
     DialStore.updateTransitionMode(panelId, path, copied.mode);
     onChange(copied.value);
@@ -118,13 +122,7 @@ export function TransitionControl({
   return (
     <Folder title={label} defaultOpen={true} actions={<TransitionMenu mode={mode} value={isEasing ? easing : spring} onPaste={handlePaste} />}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {isEasing ? (
-          <EasingVisualization easing={easing} onChange={(ease) => onChange({ ...easing, ease })} />
-        ) : (
-          <SpringVisualization spring={spring} isSimpleMode={isSimpleSpring} />
-        )}
-
-        <div className="dialkit-labeled-control">
+        <div className="dialkit-labeled-control dialkit-transition-type">
           <span className="dialkit-labeled-control-label">Type</span>
           <SegmentedControl
             options={[
@@ -138,8 +136,23 @@ export function TransitionControl({
         </div>
 
         {isEasing ? (
+          <EasingVisualization easing={easing} onChange={(ease) => onChange({ ...easing, ease })} />
+        ) : (
+          <SpringVisualization spring={spring} isSimpleMode={isSimpleSpring} />
+        )}
+
+        {isEasing ? (
           <>
-            <EaseTextInput ease={easing.ease} onChange={(newEase) => onChange({ ...easing, ease: newEase })} />
+            <EaseFields ease={easing.ease} onChange={(ease) => onChange({ ...easing, ease })} />
+            <Slider
+              label="Intensity"
+              value={intensity.read(easing.ease)}
+              onChange={(v) => onChange({ ...easing, ease: intensity.apply(easing.ease, v) })}
+              min={0}
+              max={100}
+              step={1}
+              unit="%"
+            />
           </>
         ) : isSimpleSpring ? (
           <Slider label="Bounce" value={spring.bounce ?? 0.2} onChange={(v) => handleSpringUpdate('bounce', v)} min={0} max={1} step={0.05} />
@@ -186,41 +199,15 @@ function TransitionMenu(props: TransitionMenuProps) {
   return <div ref={host} />;
 }
 
-function EaseTextInput({ ease, onChange }: { ease: [number, number, number, number]; onChange: (ease: [number, number, number, number]) => void }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState('');
-
-  const handleFocus = () => {
-    setDraft(formatEase(ease));
-    setEditing(true);
-  };
-
-  const handleBlur = () => {
-    const parsed = parseEase(draft);
-    if (parsed) onChange(parsed);
-    setEditing(false);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      (e.target as HTMLInputElement).blur();
-    }
-  };
-
-  return (
-    <div className="dialkit-labeled-control">
-      <span className="dialkit-labeled-control-label">Ease</span>
-      <input
-        type="text"
-        aria-label="Bézier coordinates"
-        className="dialkit-text-input"
-        value={editing ? draft : formatEase(ease)}
-        onChange={(e) => setDraft(e.target.value)}
-        onFocus={handleFocus}
-        onBlur={handleBlur}
-        onKeyDown={handleKeyDown}
-        spellCheck={false}
-      />
-    </div>
-  );
+function EaseFields(props: EaseFieldsProps) {
+  const host = useRef<HTMLDivElement>(null);
+  const control = useRef<ReturnType<typeof mountEaseFields>>();
+  const latest = useRef(props);
+  latest.current = props;
+  useEffect(() => {
+    control.current = mountEaseFields(host.current!, latest.current);
+    return () => control.current?.destroy();
+  }, []);
+  useEffect(() => { control.current?.update(props); });
+  return <div ref={host} />;
 }

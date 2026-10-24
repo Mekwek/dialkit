@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { formatEase, parseEase } from '../../easing-geometry';
+  import { createEaseIntensity } from '../../easing-geometry';
   import { DialStore } from 'dialkit/store';
   import type { CopiedTransition, EasingConfig, SpringConfig, TransitionConfig } from 'dialkit/store';
   import Folder from './Folder.svelte';
@@ -7,6 +7,7 @@
   import SegmentedControl from './SegmentedControl.svelte';
   import SpringVisualization from './SpringVisualization.svelte';
   import EasingVisualization from './EasingVisualization.svelte';
+  import EaseFields from './EaseFields.svelte';
   import TransitionMenu from './TransitionMenu.svelte';
   import TransitionPresets from './TransitionPresets.svelte';
 
@@ -31,8 +32,8 @@
   }>();
 
   let mode = $state<CurveMode>(DialStore.getTransitionMode(panelId, path));
-  let editingEase = $state(false);
-  let easeDraft = $state('');
+  // Intensity scales the curve it started from; 50% is that curve.
+  const intensity = createEaseIntensity();
 
   $effect(() => {
     const unsub = DialStore.subscribe(panelId, () => {
@@ -100,17 +101,6 @@
       onChange({ ...rest, [key]: val });
     }
   };
-
-  const handleEaseFocus = () => {
-    easeDraft = formatEase(easing.ease);
-    editingEase = true;
-  };
-
-  const handleEaseBlur = () => {
-    const parsed = parseEase(easeDraft);
-    if (parsed) onChange({ ...easing, ease: parsed });
-    editingEase = false;
-  };
 </script>
 
 {#snippet menu()}
@@ -119,13 +109,7 @@
 
 <Folder title={label} defaultOpen={true} actions={menu}>
   <div style="display: flex; flex-direction: column; gap: 6px;">
-    {#if isEasing}
-      <EasingVisualization {easing} onChange={(ease) => onChange({ ...easing, ease })} />
-    {:else}
-      <SpringVisualization spring={spring} isSimpleMode={isSimpleSpring} />
-    {/if}
-
-    <div class="dialkit-labeled-control">
+    <div class="dialkit-labeled-control dialkit-transition-type">
       <span class="dialkit-labeled-control-label">Type</span>
       <SegmentedControl
         options={[
@@ -139,25 +123,22 @@
     </div>
 
     {#if isEasing}
+      <EasingVisualization {easing} onChange={(ease) => onChange({ ...easing, ease })} />
+    {:else}
+      <SpringVisualization spring={spring} isSimpleMode={isSimpleSpring} />
+    {/if}
 
-      <div class="dialkit-labeled-control">
-        <span class="dialkit-labeled-control-label">Ease</span>
-        <input
-          type="text"
-          aria-label="Bézier coordinates"
-          class="dialkit-text-input"
-          value={editingEase ? easeDraft : formatEase(easing.ease)}
-          oninput={(e) => (easeDraft = (e.currentTarget as HTMLInputElement).value)}
-          onfocus={handleEaseFocus}
-          onblur={handleEaseBlur}
-          onkeydown={(e) => {
-            if (e.key === 'Enter') {
-              (e.currentTarget as HTMLInputElement).blur();
-            }
-          }}
-          spellcheck={false}
-        />
-      </div>
+    {#if isEasing}
+      <EaseFields ease={easing.ease} onChange={(ease) => onChange({ ...easing, ease })} />
+      <Slider
+        label="Intensity"
+        value={intensity.read(easing.ease)}
+        onChange={(v) => onChange({ ...easing, ease: intensity.apply(easing.ease, v) })}
+        min={0}
+        max={100}
+        step={1}
+        unit="%"
+      />
     {:else if isSimpleSpring}
       <Slider
         label="Bounce"

@@ -1,4 +1,5 @@
-import { formatEase, parseEase } from '../../easing-geometry';
+import { createEaseIntensity } from '../../easing-geometry';
+import { mountEaseFields } from '../../easing-control';
 import { defineComponent, h, onMounted, onUnmounted, ref, watchEffect, type PropType } from 'vue';
 import { DialStore } from '../../store/DialStore';
 import type { CopiedTransition, EasingConfig, SpringConfig, TransitionConfig, TransitionMode } from '../../store/DialStore';
@@ -19,55 +20,20 @@ export interface TransitionDurationControl {
   step?: number;
 }
 
-const EaseTextInput = defineComponent({
-  name: 'DialKitEaseTextInput',
+const EaseFields = defineComponent({
+  name: 'DialKitEaseFields',
   props: {
-    ease: {
-      type: Array as unknown as PropType<[number, number, number, number]>,
-      required: true,
-    },
-    onChange: {
-      type: Function as PropType<(ease: [number, number, number, number]) => void>,
-      required: true,
-    },
+    ease: { type: Array as unknown as PropType<[number, number, number, number]>, required: true },
+    onChange: { type: Function as PropType<(ease: [number, number, number, number]) => void>, required: true },
   },
   setup(props) {
-    const editing = ref(false);
-    const draft = ref('');
-
-    const handleFocus = () => {
-      draft.value = formatEase(props.ease);
-      editing.value = true;
-    };
-
-    const handleBlur = () => {
-      const parsed = parseEase(draft.value);
-      if (parsed) props.onChange(parsed);
-      editing.value = false;
-    };
-
-    const handleKeydown = (event: KeyboardEvent) => {
-      if (event.key === 'Enter') {
-        (event.target as HTMLInputElement).blur();
-      }
-    };
-
-    return () => h('div', { class: 'dialkit-labeled-control' }, [
-      h('span', { class: 'dialkit-labeled-control-label' }, 'Ease'),
-      h('input', {
-        type: 'text',
-        'aria-label': 'Bézier coordinates',
-        class: 'dialkit-text-input',
-        value: editing.value ? draft.value : formatEase(props.ease),
-        spellcheck: false,
-        onInput: (event: Event) => {
-          draft.value = (event.target as HTMLInputElement).value;
-        },
-        onFocus: handleFocus,
-        onBlur: handleBlur,
-        onKeydown: handleKeydown,
-      }),
-    ]);
+    const host = ref<HTMLElement>();
+    let control: ReturnType<typeof mountEaseFields> | undefined;
+    const options = () => ({ ease: props.ease, onChange: props.onChange });
+    onMounted(() => { control = mountEaseFields(host.value!, options()); });
+    watchEffect(() => { const next = options(); control?.update(next); });
+    onUnmounted(() => control?.destroy());
+    return () => h('div', { ref: host });
   },
 });
 
@@ -169,6 +135,9 @@ export const TransitionControl = defineComponent({
       }
     };
 
+    // Intensity scales the curve it started from; 50% is that curve.
+    const intensity = createEaseIntensity();
+
     const handlePaste = (copied: CopiedTransition) => {
       DialStore.updateTransitionMode(props.panelId, props.path, copied.mode);
       emit('change', copied.value);
@@ -214,10 +183,7 @@ export const TransitionControl = defineComponent({
       }, {
         default: () => [
           h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } }, [
-            isEasing
-              ? h(EasingVisualization, { easing: currentEasing, onChange: (ease: EasingConfig['ease']) => emit('change', { ...currentEasing, ease }) })
-              : h(SpringVisualization, { spring: currentSpring, isSimpleMode: isSimpleSpring }),
-            h('div', { class: 'dialkit-labeled-control' }, [
+            h('div', { class: 'dialkit-labeled-control dialkit-transition-type' }, [
               h('span', { class: 'dialkit-labeled-control-label' }, 'Type'),
               h(SegmentedControl, {
                 options: [
@@ -229,11 +195,23 @@ export const TransitionControl = defineComponent({
                 onChange: handleModeChange,
               }),
             ]),
+            isEasing
+              ? h(EasingVisualization, { easing: currentEasing, onChange: (ease: EasingConfig['ease']) => emit('change', { ...currentEasing, ease }) })
+              : h(SpringVisualization, { spring: currentSpring, isSimpleMode: isSimpleSpring }),
             ...(isEasing
               ? [
-                h(EaseTextInput, {
+                h(EaseFields, {
                   ease: currentEasing.ease,
-                  onChange: (next: [number, number, number, number]) => emit('change', { ...currentEasing, ease: next }),
+                  onChange: (ease: EasingConfig['ease']) => emit('change', { ...currentEasing, ease }),
+                }),
+                h(Slider, {
+                  label: 'Intensity',
+                  value: intensity.read(currentEasing.ease),
+                  min: 0,
+                  max: 100,
+                  step: 1,
+                  unit: '%',
+                  onChange: (next: number) => emit('change', { ...currentEasing, ease: intensity.apply(currentEasing.ease, next) }),
                 }),
               ]
               : isSimpleSpring

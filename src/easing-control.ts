@@ -1,5 +1,5 @@
 import type { EasingConfig } from './store/DialStore';
-import { easingGuideEnd, easingHandleFromKey, fitEasingGraph, moveEasingHandle, normalizeEase, type BezierPoints, type GraphPoint } from './easing-geometry';
+import { easingGuideEnd, easingHandleFromKey, fitEasingGraph, moveEasingHandle, normalizeEase, parseEase, type BezierPoints, type GraphPoint } from './easing-geometry';
 
 export interface EasingVisualizationProps {
   easing: EasingConfig;
@@ -197,5 +197,129 @@ export function mountEasingVisualization(host: HTMLElement, initial: EasingVisua
       render();
     },
     destroy() { endDrag(); stopMorph(); observer.disconnect(); root.remove(); },
+  };
+}
+
+export interface EaseFieldsProps {
+  ease: BezierPoints;
+  onChange: (ease: BezierPoints) => void;
+}
+
+const EASE_FIELDS = [
+  { name: 'X1', label: 'Start handle X', min: 0, max: 1 },
+  { name: 'Y1', label: 'Start handle Y', min: -1, max: 2 },
+  { name: 'X2', label: 'End handle X', min: 0, max: 1 },
+  { name: 'Y2', label: 'End handle Y', min: -1, max: 2 },
+] as const;
+
+/**
+ * The four Bézier coordinates as numeric fields. Drag a field's name to scrub
+ * it (0.01 per pixel, Shift for 0.1), use the Up and Down arrows, or type.
+ * Typing or pasting all four values ("0.25, 0.1, 0.25, 1") into any field sets the whole curve.
+ */
+export function mountEaseFields(host: HTMLElement, initial: EaseFieldsProps) {
+  let props = initial;
+  let value = normalizeEase(props.ease);
+  let scrub: { id: number; index: number; x: number; start: number; shift: boolean; last: number } | undefined;
+  const root = document.createElement('div');
+  root.className = 'dialkit-ease-fields';
+  const commitAll = (ease: BezierPoints) => {
+    if (ease.every((part, index) => part === value[index])) return;
+    value = ease;
+    render();
+    props.onChange([...value]);
+  };
+  const commit = (index: number, next: number) => {
+    const { min, max } = EASE_FIELDS[index];
+    const ease = [...value] as BezierPoints;
+    ease[index] = Number(Math.max(min, Math.min(max, next)).toFixed(3));
+    commitAll(ease);
+  };
+  const fields = EASE_FIELDS.map((field, index) => {
+    const row = document.createElement('div');
+    row.className = 'dialkit-ease-field';
+    const name = document.createElement('span');
+    name.className = 'dialkit-ease-axis';
+    name.textContent = field.name;
+    name.setAttribute('aria-hidden', 'true');
+    const input = document.createElement('input');
+    input.className = 'dialkit-ease-value';
+    input.type = 'text';
+    input.inputMode = 'decimal';
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+    input.setAttribute('role', 'spinbutton');
+    input.setAttribute('aria-label', field.label);
+    input.setAttribute('aria-valuemin', String(field.min));
+    input.setAttribute('aria-valuemax', String(field.max));
+    row.append(name, input);
+    root.append(row);
+    input.addEventListener('focus', () => input.select());
+    input.addEventListener('blur', () => {
+      const curve = parseEase(input.value);
+      const number = input.value.trim() === '' ? NaN : Number(input.value);
+      if (curve) commitAll(curve);
+      else if (Number.isFinite(number)) commit(index, number);
+      input.value = String(value[index]);
+    });
+    input.addEventListener('keydown', event => {
+      event.stopPropagation();
+      if (event.key === 'Enter' || event.key === 'Escape') {
+        event.preventDefault();
+        if (event.key === 'Escape') input.value = String(value[index]);
+        input.blur();
+      } else if (!event.altKey && !event.metaKey && !event.ctrlKey && ['ArrowUp', 'ArrowDown'].includes(event.key)) {
+        event.preventDefault();
+        const draft = input.value.trim() === '' ? NaN : Number(input.value);
+        const current = Number.isFinite(draft) ? draft : value[index];
+        commit(index, current + (event.key === 'ArrowUp' ? 1 : -1) * (event.shiftKey ? 0.1 : 0.01));
+        input.value = String(value[index]);
+        input.select();
+      }
+    });
+    name.addEventListener('pointerdown', event => {
+      if (event.button !== 0 || scrub) return;
+      event.preventDefault();
+      scrub = { id: event.pointerId, index, x: event.clientX, start: value[index], shift: event.shiftKey, last: event.clientX };
+      name.setPointerCapture(event.pointerId);
+      row.dataset.scrubbing = 'true';
+    });
+    name.addEventListener('pointermove', event => {
+      if (event.pointerId !== scrub?.id) return;
+      // Pressing or releasing Shift changes the step from here on, not for the distance already dragged.
+      if (event.shiftKey !== scrub.shift) scrub = { ...scrub, x: scrub.last, start: value[index], shift: event.shiftKey };
+      scrub.last = event.clientX;
+      commit(index, scrub.start + (event.clientX - scrub.x) * (scrub.shift ? 0.1 : 0.01));
+    });
+    name.addEventListener('pointerup', event => { if (event.pointerId === scrub?.id) endScrub(); });
+    name.addEventListener('pointercancel', event => { if (event.pointerId === scrub?.id) endScrub(); });
+    return { row, name, input };
+  });
+  host.append(root);
+
+  function endScrub() {
+    if (!scrub) return;
+    const { id, index } = scrub;
+    scrub = undefined;
+    const { row, name } = fields[index];
+    delete row.dataset.scrubbing;
+    if (name.hasPointerCapture(id)) name.releasePointerCapture(id);
+  }
+
+  function render() {
+    fields.forEach(({ input }, index) => {
+      input.setAttribute('aria-valuenow', String(value[index]));
+      if (document.activeElement !== input) input.value = String(value[index]);
+    });
+  }
+
+  render();
+  return {
+    update(next: EaseFieldsProps) {
+      props = next;
+      value = normalizeEase(next.ease);
+      render();
+    },
+    destroy() { endScrub(); root.remove(); },
   };
 }
