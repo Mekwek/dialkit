@@ -155,7 +155,7 @@ export const Panel = defineComponent({
           toolbar: () => toolbarNode,
         }, {
           default: () => [
-            h(ControlRenderer, { panelId: props.panel.id, controls: props.panel.controls, values: values.value }),
+            h(ControlRenderer, { panelId: props.panel.id, controls: props.panel.controls, values: values.value, animateControls: true }),
           ],
         });
       }
@@ -169,7 +169,7 @@ export const Panel = defineComponent({
           toolbar: () => toolbarNode,
           onOpenChange: handleOpenChange,
         }, {
-          default: () => h(ControlRenderer, { panelId: props.panel.id, controls: props.panel.controls, values: values.value }),
+          default: () => h(ControlRenderer, { panelId: props.panel.id, controls: props.panel.controls, values: values.value, animateControls: true }),
         }),
       ]);
     };

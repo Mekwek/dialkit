@@ -16,12 +16,15 @@
   import { SHORTCUT_CTX } from './ShortcutListener.svelte';
   import type { ShortcutContextValue } from './ShortcutListener.svelte';
   import type { TransitionDurationControl } from './TransitionControl.svelte';
+  import { controlTransition } from './transitions';
 
-  let { panelId, control, values, transitionDuration } = $props<{
+  let { panelId, control, values, transitionDuration, animateControls = false } = $props<{
     panelId: string;
     control: ControlMeta;
     values: Record<string, DialValue>;
     transitionDuration?: TransitionDurationControl;
+    /** Slide controls in and out as their visibility rules change. */
+    animateControls?: boolean;
   }>();
 
   const shortcutCtx = getContext<ShortcutContextValue | undefined>(SHORTCUT_CTX);
@@ -70,9 +73,17 @@
   />
 {:else if control.type === 'folder'}
   <Folder title={control.label} defaultOpen={control.defaultOpen ?? true}>
-    {#each control.children ?? [] as child (child.path)}
-      <ControlRenderer {panelId} control={child} {values} {transitionDuration} />
-    {/each}
+    {#if animateControls}
+      {#each control.children ?? [] as child (child.path)}
+        <div class="dialkit-control-wrapper" transition:controlTransition>
+          <ControlRenderer {panelId} control={child} {values} {transitionDuration} animateControls />
+        </div>
+      {/each}
+    {:else}
+      {#each control.children ?? [] as child (child.path)}
+        <ControlRenderer {panelId} control={child} {values} {transitionDuration} />
+      {/each}
+    {/if}
   </Folder>
 {:else if control.type === 'text'}
   <TextControl

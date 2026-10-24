@@ -84,23 +84,11 @@ export function ShortcutsMenu(props: ShortcutsMenuProps) {
     const shortcuts = Object.entries(p.shortcuts);
     if (shortcuts.length === 0) return [];
 
-    return shortcuts.map(([path, shortcut]) => {
-      const findLabel = (controls: typeof p.controls): string => {
-        for (const c of controls) {
-          if (c.path === path) return c.label;
-          if (c.type === 'folder' && c.children) {
-            const found = findLabel(c.children);
-            if (found) return found;
-          }
-        }
-        return path;
-      };
-      return {
-        path,
-        shortcut,
-        label: findLabel(p.controls),
-      };
-    });
+    return shortcuts.map(([path, shortcut]) => ({
+      path,
+      shortcut,
+      label: DialStore.getControl(p.id, path)?.label ?? path,
+    }));
   };
 
   const tapTo = (scale: number) => {

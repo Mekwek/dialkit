@@ -63,7 +63,7 @@ export function Panel({ panel, defaultOpen = true, inline = false, onOpenChange,
   }, [onOpenChange, panel.id]);
 
   const renderControls = () => (
-    <ControlRenderer panelId={panel.id} controls={panel.controls} values={values} />
+    <ControlRenderer panelId={panel.id} controls={panel.controls} values={values} animateControls />
   );
 
   const iconTransition = { type: 'spring' as const, visualDuration: 0.4, bounce: 0.1 };

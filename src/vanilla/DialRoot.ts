@@ -122,7 +122,7 @@ export function createDialRoot(options: DialRootOptions = {}) {
     const toolbarView = mountPanelToolbar(toolbar, panel.id);
     if (isRoot)
       timelineToggle(toolbar);
-    const rendererProps = () => ({ panelId: panel.id, controls: DialStore.getPanel(panel.id)?.controls ?? [], values: DialStore.getValues(panel.id) });
+    const rendererProps = () => ({ panelId: panel.id, controls: DialStore.getPanel(panel.id)?.controls ?? [], values: DialStore.getValues(panel.id), animateControls: true });
     const renderer = mountControlRenderer(folder.body, rendererProps());
     const update = () => {
       folder.update(folderProps());
@@ -144,7 +144,8 @@ export function createDialRoot(options: DialRootOptions = {}) {
     const panels = DialStore.getPanels('panel');
     const timelines = TimelineStore.getTimelines();
     root.style.display = panels.length || timelines.length ? '' : 'none';
-    const next = JSON.stringify([panels.map(p => [p.id, p.name, p.controls]), timelines.length > 0]);
+    // Each panel view re-renders its own controls, so they can slide in and out.
+    const next = JSON.stringify([panels.map(p => [p.id, p.name]), timelines.length > 0]);
     if (next === signature)
       return;
     signature = next;

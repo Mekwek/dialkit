@@ -213,11 +213,6 @@
   border-bottom: 1px solid var(--dial-surface-subtle);
 }
 
-.dialkit-folder:last-child:not(.dialkit-folder-root) {
-  padding-bottom: 0;
-  margin-bottom: 0;
-}
-
 .dialkit-folder-root {
   padding-bottom: 0;
   margin-bottom: 0;
@@ -340,6 +335,13 @@
   padding-bottom: 10px;
 }
 
+/* Panels wrap each control so it can slide in and out; the wrapper lays out
+   its control as the folder would. */
+.dialkit-control-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
 /* Non-root folders - top & bottom HR dividers */
 .dialkit-folder:not(.dialkit-folder-root) {
   border-top: 1px solid var(--dial-surface-subtle);
@@ -349,13 +351,15 @@
   padding-bottom: 0;
 }
 
-.dialkit-folder:not(.dialkit-folder-root):last-child {
+.dialkit-folder:not(.dialkit-folder-root):last-child:not(.dialkit-control-wrapper > *),
+.dialkit-control-wrapper:last-child > .dialkit-folder {
   border-bottom: none;
   margin-bottom: 0;
 }
 
 /* Adjacent non-root folders collapse gap and share a single divider */
-.dialkit-folder:not(.dialkit-folder-root) + .dialkit-folder:not(.dialkit-folder-root) {
+.dialkit-folder:not(.dialkit-folder-root) + .dialkit-folder:not(.dialkit-folder-root),
+.dialkit-control-wrapper:has(> .dialkit-folder) + .dialkit-control-wrapper > .dialkit-folder {
   margin-top: -10px;
   border-top: none;
 }
@@ -377,7 +381,8 @@
 }
 
 /* A sole group that comes first can share the panel header's divider. */
-.dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder:first-child:not(:has(~ .dialkit-folder)) {
+.dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder:first-child:not(:has(~ .dialkit-folder)),
+.dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-control-wrapper:first-child:not(:has(~ * > .dialkit-folder)) > .dialkit-folder {
   border-top: none;
   margin-top: 0;
 }

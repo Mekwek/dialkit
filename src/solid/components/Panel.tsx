@@ -27,6 +27,8 @@ export function Panel(props: PanelProps) {
   );
   const [presets, setPresets] = createSignal(DialStore.getPresets(props.panel.id));
   const [activePresetId, setActivePresetId] = createSignal(DialStore.getActivePresetId(props.panel.id));
+  // Visibility rules swap the panel's controls in place.
+  const [controls, setControls] = createSignal(props.panel.controls);
   // The store owns open/collapsed state so it can be driven programmatically.
   const [storeOpen, setStoreOpen] = createSignal(DialStore.getPanelOpen(props.panel.id));
   const isOpen = () => storeOpen() ?? props.defaultOpen ?? true;
@@ -46,6 +48,7 @@ export function Panel(props: PanelProps) {
         setPresets(DialStore.getPresets(props.panel.id));
         setActivePresetId(DialStore.getActivePresetId(props.panel.id));
         setStoreOpen(DialStore.getPanelOpen(props.panel.id));
+        setControls(props.panel.controls);
       });
     });
     DialStore.initPanelOpen(props.panel.id, props.defaultOpen ?? true);
@@ -154,7 +157,7 @@ export function Panel(props: PanelProps) {
   if (props.variant === 'section') {
     return (
       <Folder title={props.panel.name} open={isOpen()} onOpenChange={handleOpenChange} toolbar={toolbar}>
-        <ControlRenderer panelId={props.panel.id} controls={props.panel.controls} values={values()} />
+        <ControlRenderer panelId={props.panel.id} controls={controls()} values={values()} animateControls />
       </Folder>
     );
   }
@@ -162,7 +165,7 @@ export function Panel(props: PanelProps) {
   return (
     <div class="dialkit-panel-wrapper">
       <RootPanel title={props.panel.name} open={isOpen()} inline={props.inline ?? false} onOpenChange={handleOpenChange} toolbar={toolbar}>
-        <ControlRenderer panelId={props.panel.id} controls={props.panel.controls} values={values()} />
+        <ControlRenderer panelId={props.panel.id} controls={controls()} values={values()} animateControls />
       </RootPanel>
     </div>
   );

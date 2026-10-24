@@ -43,7 +43,7 @@ export { DialPad } from './components/DialPad';
 export { PresetManager } from './components/PresetManager';
 export { ControlRenderer } from './components/ControlRenderer';
 
-export { DialStore } from '../store/DialStore';
+export { DialStore, withVisibility } from '../store/DialStore';
 export type {
   SpringConfig,
   EasingConfig,
@@ -65,5 +65,8 @@ export type {
   ResolvedValues,
   ControlMeta,
   PanelConfig,
+  VisibleWhen,
+  VisibleWhenValue,
+  ControlWithVisibility,
   ShortcutConfig,
 } from '../store/DialStore';

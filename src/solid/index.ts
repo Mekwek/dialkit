@@ -47,7 +47,7 @@ export { ShortcutsMenu } from './components/ShortcutsMenu';
 export { ControlRenderer } from './components/ControlRenderer';
 
 // Store exports
-export { DialStore } from '../store/DialStore';
+export { DialStore, withVisibility } from '../store/DialStore';
 export type {
   SpringConfig,
   EasingConfig,
@@ -70,4 +70,7 @@ export type {
   ResolvedValues,
   ControlMeta,
   PanelConfig,
+  VisibleWhen,
+  VisibleWhenValue,
+  ControlWithVisibility,
 } from '../store/DialStore';
