@@ -41,6 +41,7 @@ export { SelectControl } from './components/SelectControl';
 export { ColorControl } from './components/ColorControl';
 export { ImageControl } from './components/ImageControl';
 export { DialPad } from './components/DialPad';
+export { AnchorControl } from './components/AnchorControl';
 export { PresetManager } from './components/PresetManager';
 export { VersionGallery } from './components/VersionGallery';
 export { ControlRenderer } from './components/ControlRenderer';
@@ -58,6 +59,8 @@ export type {
   DialPadAxis,
   DialPadConfig,
   DialPadValue,
+  AnchorConfig,
+  AnchorValue,
   TextConfig,
   Preset,
   DialValue,

@@ -1282,6 +1282,20 @@
 .dialkit-pad-instructions { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 @media (prefers-reduced-motion: reduce) { .dialkit-pad-point { transition: none; } }
 
+/* Anchor: a 3 × 3 grid of positions, shared across frameworks. */
+.dialkit-anchor { position: relative; display: grid; grid-template: repeat(3, 26px) / repeat(3, minmax(0, 1fr)); padding: 4px; border-radius: var(--dial-radius); background: var(--dial-surface); }
+/* The pill spans one cell and draws its highlight inset from the cell's edges. */
+.dialkit-anchor-pill { position: absolute; top: 4px; left: 4px; width: calc((100% - 8px) / 3); height: 26px; pointer-events: none; }
+.dialkit-anchor-pill::before { content: ''; position: absolute; inset: 2px 4px; border-radius: 4px; background: var(--dial-surface-active); }
+.dialkit-anchor-cell { position: relative; display: grid; place-items: center; min-width: 0; padding: 0; border: 0; background: none; cursor: pointer; outline: none; }
+/* A hovered cell other than the picked one shows a faint pill. */
+.dialkit-anchor-cell:not([aria-checked="true"]):hover::before { content: ''; position: absolute; inset: 2px 4px; border-radius: 4px; background: var(--dial-surface-hover); }
+.dialkit-anchor-dot { position: relative; width: 5px; height: 5px; border-radius: 50%; background: var(--dial-text-tertiary); transition: background 0.08s ease-out, box-shadow 0.08s ease-out; }
+.dialkit-anchor-cell:hover .dialkit-anchor-dot { background: var(--dial-text-secondary); }
+.dialkit-anchor-cell[aria-checked="true"] .dialkit-anchor-dot { background: var(--dial-text-primary); }
+.dialkit-anchor-cell:focus-visible .dialkit-anchor-dot { box-shadow: 0 0 0 3px var(--dial-focus-ring); }
+@media (prefers-reduced-motion: reduce) { .dialkit-anchor-dot { transition: none; } }
+
 /* Color Control */
 .dialkit-color-control {
   display: flex;
