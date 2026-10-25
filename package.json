@@ -1,6 +1,6 @@
 {
   "name": "dialkit",
-  "version": "2.0.2",
+  "version": "2.1.0",
   "description": "Live controls for tuning interfaces in React, Solid, Svelte, Vue, and plain JavaScript",
   "type": "module",
   "sideEffects": false,
