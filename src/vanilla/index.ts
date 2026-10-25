@@ -10,6 +10,8 @@ export { mountSlider, mountSlider as Slider, mountToggle, mountToggle as Toggle,
 export type { SliderProps, ToggleProps, TextControlProps, FolderProps, ButtonGroupProps, SegmentedControlProps } from './controls';
 export { mountSelectControl, mountSelectControl as SelectControl, mountPresetManager, mountPresetManager as PresetManager, mountShortcutsMenu, mountShortcutsMenu as ShortcutsMenu } from './menus';
 export type { SelectControlProps, PresetManagerProps } from './menus';
+export { mountVersionGallery, mountVersionGallery as VersionGallery } from '../versions/gallery';
+export type { VersionGalleryProps, DialVersions } from '../versions/gallery';
 export { mountSpringControl, mountSpringControl as SpringControl, mountTransitionControl, mountTransitionControl as TransitionControl, mountSpringVisualization, mountSpringVisualization as SpringVisualization } from './transitions';
 export type { SpringControlProps, TransitionControlProps, SpringVisualizationProps } from './transitions';
 export { mountColorControl, mountColorControl as ColorControl } from '../color-control';

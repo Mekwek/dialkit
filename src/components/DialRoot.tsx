@@ -5,6 +5,7 @@ import { TimelineStore } from '../store/TimelineStore';
 import { isDevDefault } from '../env';
 import { Folder } from './Folder';
 import { Panel } from './Panel';
+import type { DialVersions } from '../versions/gallery';
 import { ShortcutListener } from './ShortcutListener';
 import { TimelineToggleButton } from './Timeline/TimelineToggleButton';
 import { blockPanelDragClick, capturePanelPointer, releasePanelPointer, getPanelCorner, getPanelDragHandle, getPanelDragOffset, getPanelDragStart, getPanelOriginX, getPanelOriginY, hasPanelDragMoved } from '../panel-drag';
@@ -19,10 +20,12 @@ interface DialRootProps {
   mode?: DialMode;
   theme?: DialTheme;
   productionEnabled?: boolean;
+  /** How saved versions appear: captured thumbnails (default), or a menu. */
+  versions?: DialVersions;
   onOpenChange?: (open: boolean) => void;
 }
 
-export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'popover', theme = 'system', productionEnabled = isDevDefault, onOpenChange }: DialRootProps) {
+export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'popover', theme = 'system', productionEnabled = isDevDefault, versions = 'thumbnails', onOpenChange }: DialRootProps) {
   if (!productionEnabled) return null;
   const [panels, setPanels] = useState<PanelConfig[]>([]);
   const [timelineCount, setTimelineCount] = useState(0);
@@ -238,6 +241,8 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
                   panel={panel}
                   defaultOpen={true}
                   variant="section"
+                  versions={versions}
+                  theme={theme}
                 />
               ))}
             </Folder>
@@ -250,6 +255,8 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
               defaultOpen={inline || defaultOpen}
               inline={inline}
               toolbarExtra={timelineToggle}
+              versions={versions}
+              theme={theme}
               onOpenChange={(open) => handlePanelOpenChange(panel.id, open)}
             />
           ))

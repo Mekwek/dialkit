@@ -9,6 +9,8 @@ import { Folder } from './Folder';
 import { RootPanel } from './RootPanel';
 import { ControlRenderer } from './ControlRenderer';
 import { PresetManager } from './PresetManager';
+import { VersionGallery } from './VersionGallery';
+import type { DialVersions } from '../../versions/gallery';
 
 interface PanelProps {
   panel: PanelConfig;
@@ -17,6 +19,8 @@ interface PanelProps {
   onOpenChange?: (open: boolean) => void;
   variant?: 'root' | 'section';
   toolbarExtra?: JSX.Element;
+  versions?: DialVersions;
+  theme?: 'light' | 'dark' | 'system';
 }
 
 export function Panel(props: PanelProps) {
@@ -30,6 +34,7 @@ export function Panel(props: PanelProps) {
   // The store owns open/collapsed state so it can be driven programmatically.
   const [storeOpen, setStoreOpen] = createSignal(DialStore.getPanelOpen(props.panel.id));
   const isOpen = () => storeOpen() ?? props.defaultOpen ?? true;
+  const versions = () => props.versions ?? 'thumbnails';
   let copyButtonRef!: HTMLButtonElement;
   let copyClipboardIconRef!: HTMLSpanElement;
   let copyCheckIconRef!: HTMLSpanElement;
@@ -107,15 +112,18 @@ export function Panel(props: PanelProps) {
 
   const toolbar = (
     <>
-      <PresetManager
-        panelId={props.panel.id}
-        presets={presets()}
-        activePresetId={activePresetId()}
-      />
+      {versions() === 'menu' && (
+        <PresetManager
+          panelId={props.panel.id}
+          presets={presets()}
+          activePresetId={activePresetId()}
+        />
+      )}
 
       <button
         ref={copyButtonRef}
         class="dialkit-toolbar-add dialkit-toolbar-primary"
+        data-wide={versions() !== 'menu' ? 'true' : undefined}
         onClick={handleCopy}
         onPointerDown={handleCopyTapStart}
         onPointerUp={handleCopyTapEnd}
@@ -144,6 +152,7 @@ export function Panel(props: PanelProps) {
             </svg>
           </span>
         </span>
+        {versions() !== 'menu' && <span>{copied() ? 'Copied' : 'Copy parameters'}</span>}
       </button>
 
       {props.toolbarExtra}
@@ -151,10 +160,19 @@ export function Panel(props: PanelProps) {
     </>
   );
 
+  const content = () => (
+    <>
+      {versions() !== 'menu' && (
+        <VersionGallery panelId={props.panel.id} theme={props.theme} />
+      )}
+      <ControlRenderer panelId={props.panel.id} controls={props.panel.controls} values={values()} />
+    </>
+  );
+
   if (props.variant === 'section') {
     return (
       <Folder title={props.panel.name} open={isOpen()} onOpenChange={handleOpenChange} toolbar={toolbar}>
-        <ControlRenderer panelId={props.panel.id} controls={props.panel.controls} values={values()} />
+        {content()}
       </Folder>
     );
   }
@@ -162,7 +180,7 @@ export function Panel(props: PanelProps) {
   return (
     <div class="dialkit-panel-wrapper">
       <RootPanel title={props.panel.name} open={isOpen()} inline={props.inline ?? false} onOpenChange={handleOpenChange} toolbar={toolbar}>
-        <ControlRenderer panelId={props.panel.id} controls={props.panel.controls} values={values()} />
+        {content()}
       </RootPanel>
     </div>
   );

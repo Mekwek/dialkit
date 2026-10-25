@@ -44,7 +44,7 @@ fs.writeFileSync(
 );
 fs.writeFileSync(
   path.join(out, "Fixture.svelte"),
-  `<script>import {DialRoot,createDialKit} from 'dialkit/svelte';createDialKit('Fixture',${config});</script><DialRoot defaultOpen={true} theme={new URLSearchParams(location.search).get('theme') || 'light'} />`,
+  `<script>import {DialRoot,createDialKit} from 'dialkit/svelte';createDialKit('Fixture',${config});</script><DialRoot defaultOpen={true} theme={new URLSearchParams(location.search).get('theme') || 'light'} versions={new URLSearchParams(location.search).get('versions') || 'menu'} />`,
 );
 const sveltePlugin = {
   name: "svelte",
@@ -70,7 +70,7 @@ const sveltePlugin = {
 for (const [name, entry] of Object.entries(entries)) {
   const contents = entry.replaceAll(
     "theme:'light'",
-    "theme: new URLSearchParams(location.search).get('theme') || 'light'",
+    "theme: new URLSearchParams(location.search).get('theme') || 'light', versions: new URLSearchParams(location.search).get('versions') || 'menu'",
   );
   await build({
     stdin: { contents, resolveDir: out, sourcefile: name + "-entry.js" },

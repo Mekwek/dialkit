@@ -21,6 +21,7 @@ export type { DialKitDirectiveOptions, DialKitDirectiveValue } from './directive
 
 export { DialRoot } from './components/DialRoot';
 export type { DialPosition, DialMode, DialTheme } from './components/DialRoot';
+export type { DialVersions } from '../versions/gallery';
 export { DialTimeline } from './components/Timeline/DialTimeline';
 
 export { ShortcutListener, useShortcutContext, ShortcutKey } from './components/ShortcutListener';
@@ -41,6 +42,7 @@ export { ColorControl } from './components/ColorControl';
 export { ImageControl } from './components/ImageControl';
 export { DialPad } from './components/DialPad';
 export { PresetManager } from './components/PresetManager';
+export { VersionGallery } from './components/VersionGallery';
 export { ControlRenderer } from './components/ControlRenderer';
 
 export { DialStore } from '../store/DialStore';

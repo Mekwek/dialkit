@@ -49,7 +49,7 @@
       if (action === 'actions.replay') timeline.replay();
       if (action === 'actions.reset') kit.resetValues();
     } });
-    const root = createDialRoot({ theme: params.get('theme') || 'dark', position: params.get('position') || 'top-right', mode: params.has('inline') ? 'inline' : 'popover', target: params.has('inline') ? document.querySelector('main') : undefined });
+    const root = createDialRoot({ theme: params.get('theme') || 'dark', position: params.get('position') || 'top-right', mode: params.has('inline') ? 'inline' : 'popover', versions: params.get('versions') || undefined, target: params.has('inline') ? document.querySelector('main') : undefined });
     const timeline = createDialTimeline('Card movement', {
       duration: 4,
       card: { move: { at: .5, duration: 2, from: { x: -80 }, to: { x: 80 }, transition: { type: 'easing', duration: 2, ease: [.25, .1, .25, 1] } },

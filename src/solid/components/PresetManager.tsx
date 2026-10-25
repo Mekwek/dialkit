@@ -101,7 +101,7 @@ export function PresetManager(props: PresetManagerProps) {
         aria-label="Versions" onKeyDown={(e) => openDropdownOnKey(e, openDropdown)}
       >
         <span class="dialkit-preset-label">
-          {activePreset() ? activePreset()!.name : 'Version 1'}
+          {activePreset() ? activePreset()!.name : DialStore.getBaseName(props.panelId)}
         </span>
         <svg
           ref={chevronRef}
@@ -145,7 +145,7 @@ export function PresetManager(props: PresetManagerProps) {
                 onClick={() => handleSelect(null)}
               >
                 <svg class="dialkit-preset-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><Show when={!props.activePresetId}><path d={ICON_CHECK} /></Show></svg>
-                <button type="button" class="dialkit-preset-name">Version 1</button>
+                <button type="button" class="dialkit-preset-name">{DialStore.getBaseName(props.panelId)}</button>
               </div>
 
               <For each={props.presets}>

@@ -7,6 +7,7 @@ import { Folder } from './Folder';
 import { Panel } from './Panel';
 import { ShortcutListener } from './ShortcutListener';
 import { TimelineToggleButton } from './Timeline/TimelineToggleButton';
+import type { DialVersions } from '../../versions/gallery';
 import {
   blockPanelDragClick,
   capturePanelPointer,
@@ -56,6 +57,11 @@ export const DialRoot = defineComponent({
     productionEnabled: {
       type: Boolean,
       default: isDevDefault,
+    },
+    /** How saved versions appear: captured thumbnails (default), or a menu. */
+    versions: {
+      type: String as () => DialVersions,
+      default: 'thumbnails',
     },
   },
   emits: ['openChange'],
@@ -246,6 +252,8 @@ export const DialRoot = defineComponent({
               panel,
               defaultOpen: true,
               variant: 'section',
+              versions: props.versions,
+              theme: props.theme,
             })),
           }),
         ])];
@@ -256,6 +264,8 @@ export const DialRoot = defineComponent({
         defaultOpen: props.mode === 'inline' || props.defaultOpen,
         inline: props.mode === 'inline',
         toolbarExtra: timelineToggle,
+        versions: props.versions,
+        theme: props.theme,
         onOpenChange: (open: boolean) => handlePanelOpenChange(panel.id, open),
       }));
     };

@@ -10,7 +10,8 @@ const errors = [];
 const remoteRequests = [];
 page.on('request', request => { if (/^https?:/.test(request.url())) remoteRequests.push(request.url()); });
 page.on('pageerror', error => errors.push(error.message));
-const url = pathToFileURL(resolve('examples/vanilla/index.html')).href;
+// This suite drives the classic version menu.
+const url = pathToFileURL(resolve('examples/vanilla/index.html')).href + '?versions=menu';
 try {
   await page.goto(url);
   await page.waitForFunction(() => window.demo);
@@ -64,10 +65,10 @@ try {
   await page.getByRole('menuitem', { name: 'New version', exact: true }).click();
   await page.evaluate(() => window.demo.kit.setValue('radius', 50));
   await page.getByRole('button', { name: 'Versions', exact: true }).first().click();
-  await page.getByRole('menuitemradio', { name: 'Version 1', exact: true }).click();
+  await page.getByRole('menuitemradio', { name: 'V1', exact: true }).click();
   assert.equal((await values()).radius, 42);
   await page.getByRole('button', { name: 'Versions', exact: true }).first().click();
-  await page.getByRole('menuitemradio', { name: 'Version 2', exact: true }).click();
+  await page.getByRole('menuitemradio', { name: 'V2', exact: true }).click();
   assert.equal((await values()).radius, 50);
   await page.getByRole('button', { name: 'Close panel', exact: true }).click();
   assert.equal(await page.locator('.dialkit-panel-inner').getAttribute('data-collapsed'), 'true');
@@ -76,7 +77,7 @@ try {
   await page.keyboard.down('r'); await page.keyboard.press('ArrowRight'); await page.keyboard.up('r');
   assert.equal((await values()).radius, 51);
   // No double keyboard handling with two roots.
-  await page.evaluate(() => { window.extraRoot = DialKit.createDialRoot({ position: 'top-left' }); });
+  await page.evaluate(() => { window.extraRoot = DialKit.createDialRoot({ position: 'top-left', versions: 'menu' }); });
   await page.keyboard.down('r'); await page.keyboard.press('ArrowRight'); await page.keyboard.up('r');
   assert.equal((await values()).radius, 52);
   await page.evaluate(() => window.extraRoot.destroy());
@@ -94,7 +95,7 @@ try {
   await page.getByRole('button', { name: 'Close panel', exact: true }).click();
   await page.getByRole('button', { name: 'Open panel', exact: true }).click();
   // Return the panel to its original corner before using the canvas.
-  await page.evaluate(() => { window.demo.root.destroy(); window.demo.root = DialKit.createDialRoot({ theme: 'dark' }); });
+  await page.evaluate(() => { window.demo.root.destroy(); window.demo.root = DialKit.createDialRoot({ theme: 'dark', versions: 'menu' }); });
   // Timeline transport, clip editing, dragging, and resizing use the same store.
   const ruler = await page.locator('.dialkit-timeline-ruler').boundingBox();
   await page.mouse.click(ruler.x + ruler.width / 2, ruler.y + ruler.height / 2);
@@ -147,7 +148,7 @@ try {
   assert.equal(await page.evaluate(() => DialKit.DialStore.getPanels().length + DialKit.TimelineStore.getTimelines().length), 0);
   await page.keyboard.down('r'); await page.mouse.wheel(0, -100); await page.keyboard.up('r');
   // Root membership and inline/light rendering tolerate dynamic registration.
-  await page.goto(url + '?inline&theme=light'); await page.waitForFunction(() => window.demo);
+  await page.goto(url + '&inline&theme=light'); await page.waitForFunction(() => window.demo);
   await page.evaluate(() => { window.second = DialKit.createDialKit('Second', { speed: 1 }); });
   assert.equal(await page.locator('.dialkit-panel').getAttribute('data-multiple'), 'true');
   await page.getByRole('button', { name: 'Second', exact: true }).click();
