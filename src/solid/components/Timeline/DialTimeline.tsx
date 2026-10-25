@@ -60,7 +60,9 @@ const SECOND_TICK_STEPS = [
   1, 2, 5, 10, 15, 30, 60, 120, 300, 600,
 ];
 const MIN_TIMELINE_MAX_ZOOM = 8;
-const PLAYHEAD_FLAG_WIDTH = 52;
+// The flag hugs its digits; the edge clamp keeps its widest (five
+// characters) inside the lane.
+const PLAYHEAD_FLAG_WIDTH = 38;
 const PLAYHEAD_FLAG_EDGE_OVERHANG = 1;
 const POPOVER_WIDTH = 280;
 const ZOOM_DRAG_DISTANCE = 180;
@@ -856,10 +858,12 @@ function TimelineSection(props: {
   };
 
   return (
-    <div class="dialkit-timeline-section" data-track={singleTrack() ? 'single' : undefined}>
+    <div class="dialkit-timeline-section" role="group" aria-label={props.meta.name} data-track={singleTrack() ? 'single' : undefined}>
       <div class="dialkit-timeline-header" data-open={open() || undefined}>
-        <div class="dialkit-timeline-identity">
-          <span class="dialkit-timeline-title">{props.meta.name}</span>
+        <div class="dialkit-timeline-transport">
+          <PlayPauseButton id={props.meta.id} />
+          <ReplayButton onReplay={handleReplay} />
+          <LoopButton id={props.meta.id} loop={props.meta.loop} />
         </div>
         <Show when={!open()}>
           <TimelineOverview
@@ -871,17 +875,13 @@ function TimelineSection(props: {
           />
         </Show>
         <div class="dialkit-timeline-actions">
-          <PlayPauseButton id={props.meta.id} />
-          <ReplayButton onReplay={handleReplay} />
-          <LoopButton id={props.meta.id} loop={props.meta.loop} />
-
           <PresetManager
             panelId={props.meta.id}
             presets={presets()}
             activePresetId={activePresetId()}
           />
           <button
-            class="dialkit-toolbar-add dialkit-toolbar-primary"
+            class="dialkit-toolbar-add"
             onClick={handleCopy}
             title="Copy parameters"
             aria-label={copied() ? 'Copied parameters' : 'Copy parameters'}
@@ -890,13 +890,13 @@ function TimelineSection(props: {
               <Show
                 when={copied()}
                 fallback={
-                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ ...iconStyle, color: 'inherit' }}>
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" style={iconStyle}>
                     <path d={ICON_CLIPBOARD_PLAIN.board} stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
                     <path d={ICON_CLIPBOARD_PLAIN.body} stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                   </svg>
                 }
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style={{ ...iconStyle, color: 'inherit' }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style={iconStyle}>
                   <path d={ICON_CHECK} />
                 </svg>
               </Show>

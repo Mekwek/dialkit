@@ -61,7 +61,9 @@ const SECOND_TICK_STEPS = [
   1, 2, 5, 10, 15, 30, 60, 120, 300, 600,
 ];
 const MIN_TIMELINE_MAX_ZOOM = 8;
-const PLAYHEAD_FLAG_WIDTH = 52;
+// The flag hugs its digits; the edge clamp keeps its widest (five
+// characters) inside the lane.
+const PLAYHEAD_FLAG_WIDTH = 38;
 const PLAYHEAD_FLAG_EDGE_OVERHANG = 1;
 const POPOVER_WIDTH = 280;
 const ZOOM_DRAG_DISTANCE = 180;
@@ -799,10 +801,12 @@ const TimelineSection = defineComponent({
       return rows;
     };
 
-    return () => h('div', { class: 'dialkit-timeline-section', 'data-track': singleTrack() ? 'single' : undefined }, [
+    return () => h('div', { class: 'dialkit-timeline-section', role: 'group', 'aria-label': props.meta.name, 'data-track': singleTrack() ? 'single' : undefined }, [
       h('div', { class: 'dialkit-timeline-header', 'data-open': open.value || undefined }, [
-        h('div', { class: 'dialkit-timeline-identity' }, [
-          h('span', { class: 'dialkit-timeline-title' }, props.meta.name),
+        h('div', { class: 'dialkit-timeline-transport' }, [
+          h(PlayPauseButton, { id: props.meta.id }),
+          h(ReplayButton, { onReplay: handleReplay }),
+          h(LoopButton, { id: props.meta.id, loop: props.meta.loop }),
         ]),
         !open.value ? h(TimelineOverview, {
           id: props.meta.id,
@@ -812,19 +816,16 @@ const TimelineSection = defineComponent({
           onNavigate: centerViewAt,
         }) : null,
         h('div', { class: 'dialkit-timeline-actions' }, [
-          h(PlayPauseButton, { id: props.meta.id }),
-          h(ReplayButton, { onReplay: handleReplay }),
-          h(LoopButton, { id: props.meta.id, loop: props.meta.loop }),
           h(PresetManager, { panelId: props.meta.id, presets: presets.value, activePresetId: activePresetId.value }),
           h('button', {
-            class: 'dialkit-toolbar-add dialkit-toolbar-primary',
+            class: 'dialkit-toolbar-add',
             title: 'Copy parameters',
             'aria-label': copied.value ? 'Copied parameters' : 'Copy parameters',
             onClick: handleCopy,
           }, [h('span', { style: { position: 'relative', width: '16px', height: '16px' } }, [
             copied.value
-              ? h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', style: { ...iconStyle, color: 'inherit' } }, [h('path', { d: ICON_CHECK })])
-              : h('svg', { viewBox: '0 0 24 24', fill: 'none', style: { ...iconStyle, color: 'inherit' } }, [
+              ? h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', style: iconStyle }, [h('path', { d: ICON_CHECK })])
+              : h('svg', { viewBox: '0 0 24 24', fill: 'none', style: iconStyle }, [
                 h('path', { d: ICON_CLIPBOARD_PLAIN.board, stroke: 'currentColor', 'stroke-width': '2', 'stroke-linejoin': 'round' }),
                 h('path', { d: ICON_CLIPBOARD_PLAIN.body, stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }),
               ]),

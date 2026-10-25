@@ -19,6 +19,11 @@ const drag = async (page, bar, dx, snap = false) => {
   await page.mouse.up();
   if (snap) await page.keyboard.up("Control");
 };
+const near = (actual, expected, label) =>
+  assert.ok(
+    Math.abs(actual - expected) < 3,
+    `${label}: expected ${actual} ≈ ${expected}`,
+  );
 try {
   for (const framework of ["react", "solid", "vue", "svelte", "vanilla"]) {
     for (const kind of ["", "-timeline"]) {
@@ -112,12 +117,84 @@ try {
       );
     }
 
-    // Loop toggle and drags, on three clips.
+    // Header, ruler, Loop toggle and drags, on three clips.
     const page = await browser.newPage();
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.goto(`${base}/${framework}-clips.html`);
     const id = await page.evaluate(() => window.DialStore.getPanels("timeline")[0].id);
+
+    // The header shows no name, so the section carries it for assistive tech.
+    const name = await page.evaluate(() => window.DialStore.getPanels("timeline")[0].name);
+    assert.equal(await page.getByRole("group", { name, exact: true }).count(), 1);
+
+    // Play, replay and loop sit at the header's left edge; versions, Copy
+    // and collapse at its right edge.
+    const header = await page.locator(".dialkit-timeline-header").boundingBox();
+    const transport = page.locator(".dialkit-timeline-transport");
+    const actions = page.locator(".dialkit-timeline-actions");
+    assert.equal(await transport.getByRole("button").count(), 3);
+    assert.equal(await transport.getByRole("button", { name: "Loop", exact: true }).count(), 1);
+    assert.equal(await actions.getByRole("button", { name: "Versions", exact: true }).count(), 1);
+    assert.equal(await actions.getByRole("button", { name: "Copy parameters", exact: true }).count(), 1);
+    near((await transport.boundingBox()).x, header.x, "Transport starts at the header's left edge");
+    const actionsBox = await actions.boundingBox();
+    near(actionsBox.x + actionsBox.width, header.x + header.width, "Actions end at the header's right edge");
+
+    // Copy is drawn like play, and collapse is as square as both.
+    const look = (locator) =>
+      locator.evaluate((node) => {
+        const rect = node.getBoundingClientRect();
+        const style = getComputedStyle(node);
+        return { width: rect.width, height: rect.height, background: style.backgroundColor, ink: getComputedStyle(node.querySelector("svg")).color };
+      });
+    const play = await look(transport.getByRole("button").first());
+    const copy = await look(actions.getByRole("button", { name: "Copy parameters", exact: true }));
+    const collapse = await look(actions.locator(".dialkit-timeline-chevron"));
+    assert.deepEqual(copy, play, "Copy looks like play");
+    near(collapse.width, play.width, "Collapse is as wide as play");
+    near(collapse.height, play.height, "Collapse is as tall as play");
+
+    // Ticks hang from the ruler's foot, a tenth of a major step apart, and
+    // each label sits above its tick.
+    const rulerBox = await page.locator(".dialkit-timeline-ruler").boundingBox();
+    const ticks = await page.locator(".dialkit-timeline-tick").evaluateAll((nodes) =>
+      nodes
+        .map((node) => {
+          const rect = node.getBoundingClientRect();
+          return { x: rect.x, bottom: rect.bottom, major: !/medium|fine/.test(node.className) };
+        })
+        .sort((a, b) => a.x - b.x),
+    );
+    const majors = ticks.filter((tick) => tick.major);
+    assert.ok(majors.length >= 2, `expected major ticks, got ${majors.length}`);
+    const fineStep = (majors[1].x - majors[0].x) / 10;
+    ticks.forEach((tick, index) => {
+      near(tick.bottom, rulerBox.y + rulerBox.height, `Tick ${index} hangs from the ruler's foot`);
+      if (index > 0) near(tick.x - ticks[index - 1].x, fineStep, `Tick ${index} is a tenth of a step on`);
+    });
+    const labels = await page.locator(".dialkit-timeline-tick-label").evaluateAll((nodes) =>
+      nodes.map((node) => {
+        const label = node.getBoundingClientRect();
+        const tick = node.parentElement.getBoundingClientRect();
+        return { top: label.top, bottom: label.bottom, left: label.left, tickTop: tick.top, tickX: tick.x };
+      }),
+    );
+    assert.equal(labels.length, majors.length);
+    for (const label of labels) {
+      assert.ok(label.top >= rulerBox.y - 1 && label.bottom <= label.tickTop, "Label sits above its tick");
+      near(label.left, label.tickX, "Label starts at its tick");
+    }
+    // The playhead's flag hugs its digits and centres on a hairline stem.
+    const scale = rulerBox.width / 3.5;
+    await page.mouse.click(rulerBox.x + 1.75 * scale, rulerBox.y + rulerBox.height / 2);
+    const flag = await page.locator(".dialkit-timeline-playhead-flag").boundingBox();
+    const stem = await page.locator(".dialkit-timeline-playhead-stem").boundingBox();
+    assert.ok(flag.width <= 38, `Flag is ${flag.width}px wide, expected at most 38`);
+    assert.equal(stem.width, 1);
+    near(flag.x + flag.width / 2, stem.x + stem.width / 2, "Flag centres on the stem");
+    near(stem.x, rulerBox.x + 1.75 * scale, "Stem stands at the playhead");
+
     const loop = page.getByRole("button", { name: "Loop", exact: true });
     assert.equal(await loop.getAttribute("aria-pressed"), "false");
     await loop.click();
@@ -135,7 +212,7 @@ try {
 
     assert.deepEqual(errors, []);
     await page.close();
-    console.log(`${framework}-clips: loop and drag checks passed`);
+    console.log(`${framework}-clips: header, ruler, loop and drag checks passed`);
 
     // Single track: every clip on one lane, no overlap, snapping drags.
     const trackPage = await browser.newPage();
@@ -152,11 +229,6 @@ try {
     const trackPx = ruler.width / 3.5;
     const bar = (name) => section.locator(".dialkit-timeline-clip", { hasText: name });
     const box = (name) => bar(name).boundingBox();
-    const near = (actual, expected, label) =>
-      assert.ok(
-        Math.abs(actual - expected) < 3,
-        `${label}: expected ${actual} ≈ ${expected}`,
-      );
 
     // No label column: the lane and the ruler start at the body's edge.
     const body = await section.locator(".dialkit-timeline-body").boundingBox();

@@ -160,17 +160,16 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
   let zoom = 1, viewStart = 0;
   const groups = new Set<string>(), tracks = new Set<string>();
   const section = element('div', 'dialkit-timeline-section');
+  section.setAttribute('role', 'group');
   const header = element('div', 'dialkit-timeline-header');
-  const identity = element('div', 'dialkit-timeline-identity');
-  const title = element('span', 'dialkit-timeline-title');
-  identity.append(title);
+  const playback = element('div', 'dialkit-timeline-transport');
   const overview = element('div', 'dialkit-timeline-overview');
   const viewport = element('div', 'dialkit-timeline-overview-viewport');
   const progress = element('div', 'dialkit-timeline-overview-progress');
   const marker = element('div', 'dialkit-timeline-overview-playhead');
   overview.append(viewport, progress, marker);
   const actions = element('div', 'dialkit-timeline-actions');
-  header.append(identity, overview, actions);
+  header.append(playback, overview, actions);
   const play = button('Play timeline', ICON_PLAY, () => {
     if (TimelineStore.getTransport(meta.id).playing)
       TimelineStore.pause(meta.id);
@@ -185,7 +184,7 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
   });
   const loop = button('Loop', ICON_LOOP, () => TimelineStore.setLoop(meta.id, !meta.loop));
   loop.classList.add('dialkit-timeline-toolbar-toggle', 'dialkit-timeline-loop');
-  actions.append(play, replay, loop);
+  playback.append(play, replay, loop);
   const presetProps = () => ({ panelId: meta.id, presets: DialStore.getPresets(meta.id), activePresetId: DialStore.getActivePresetId(meta.id) });
   const presets = mountPresetManager(actions, presetProps());
   let copyTimer: ReturnType<typeof setTimeout> | undefined;
@@ -203,7 +202,6 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
     clearTimeout(copyTimer);
     copyTimer = setTimeout(() => copy.replaceChildren(icon([ICON_CLIPBOARD_PLAIN.board, ICON_CLIPBOARD_PLAIN.body])), 1500);
   });
-  copy.classList.add('dialkit-toolbar-primary');
   actions.append(copy);
   const collapse = element('button', 'dialkit-timeline-chevron');
   collapse.append(icon(ICON_CHEVRON));
@@ -285,7 +283,8 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
     else
       delete viewport.dataset.zoomed;
     const x = clamp((state.time - viewStart) * scale(), 0, width());
-    const flagOffset = clamp(x, 25, Math.max(25, width() - 25)) - x;
+    // The flag's widest (five characters, 38px) stays inside the lane.
+    const flagOffset = clamp(x, 18, Math.max(18, width() - 18)) - x;
     playhead.style.display = state.time < viewStart || state.time > viewStart + visibleDuration() || !width() ? 'none' : '';
     playhead.style.left = `calc(var(--dial-timeline-label-w) + ${x}px)`;
     playhead.style.setProperty('--dial-timeline-playhead-flag-offset', `${flagOffset}px`);
@@ -390,7 +389,7 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
   function render() {
     if (destroyed)
       return;
-    title.textContent = meta.name;
+    section.setAttribute('aria-label', meta.name);
     body.style.display = open ? '' : 'none';
     overview.style.display = open ? 'none' : '';
     if (open)

@@ -201,7 +201,7 @@ The dock sits at the bottom of the viewport and works independently of the param
 | `defaultOpen` | `true` | Start timeline sections expanded |
 | `productionEnabled` | Development only; always enabled in vanilla | Render the editor |
 
-The toolbar includes play/pause, replay, loop, presets, Copy, and collapse. When `DialRoot` is also mounted, its timeline button shows or hides the dock. Visibility does not affect playback. In vanilla, use `dock.setVisible(boolean)` or controlled `dock.update({ visible, onVisibilityChange })`.
+Play/pause, replay, and loop sit at the left of the toolbar; presets, Copy, and collapse sit at the right. When `DialRoot` is also mounted, its timeline button shows or hides the dock. Visibility does not affect playback. In vanilla, use `dock.setVisible(boolean)` or controlled `dock.update({ visible, onVisibilityChange })`.
 
 | Gesture | Effect |
 | --- | --- |

@@ -44,7 +44,9 @@ const SECOND_TICK_STEPS = [
   1, 2, 5, 10, 15, 30, 60, 120, 300, 600,
 ];
 const MIN_TIMELINE_MAX_ZOOM = 8;
-const PLAYHEAD_FLAG_WIDTH = 52;
+// The flag hugs its digits; the edge clamp keeps its widest (five
+// characters) inside the lane.
+const PLAYHEAD_FLAG_WIDTH = 38;
 const PLAYHEAD_FLAG_EDGE_OVERHANG = 1;
 const POPOVER_WIDTH = 280;
 const ZOOM_DRAG_DISTANCE = 180;
@@ -1055,10 +1057,12 @@ const TimelineSection = memo(function TimelineSection({
   }
 
   return (
-    <div className="dialkit-timeline-section" data-track={singleTrack ? 'single' : undefined}>
+    <div className="dialkit-timeline-section" role="group" aria-label={meta.name} data-track={singleTrack ? 'single' : undefined}>
       <div className="dialkit-timeline-header" data-open={open || undefined}>
-        <div className="dialkit-timeline-identity">
-          <span className="dialkit-timeline-title">{meta.name}</span>
+        <div className="dialkit-timeline-transport">
+          <PlayPauseButton id={meta.id} />
+          <ReplayButton onReplay={handleReplay} />
+          <LoopButton id={meta.id} loop={meta.loop} />
         </div>
         {!open && (
           <TimelineOverview
@@ -1070,17 +1074,13 @@ const TimelineSection = memo(function TimelineSection({
           />
         )}
         <div className="dialkit-timeline-actions">
-          <PlayPauseButton id={meta.id} />
-          <ReplayButton onReplay={handleReplay} />
-          <LoopButton id={meta.id} loop={meta.loop} />
-
           <PresetManager
             panelId={meta.id}
             presets={presets}
             activePresetId={activePresetId}
           />
           <motion.button
-            className="dialkit-toolbar-add dialkit-toolbar-primary"
+            className="dialkit-toolbar-add"
             onClick={handleCopy}
             title="Copy parameters"
             aria-label={copied ? 'Copied parameters' : 'Copy parameters'}
@@ -1099,7 +1099,7 @@ const TimelineSection = memo(function TimelineSection({
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     aria-hidden="true"
-                    style={{ position: 'absolute', inset: 0, width: 16, height: 16, color: 'inherit' }}
+                    style={{ position: 'absolute', inset: 0, width: 16, height: 16 }}
                     initial={{ scale: 0.8, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0.8, opacity: 0 }}
@@ -1113,7 +1113,7 @@ const TimelineSection = memo(function TimelineSection({
                     viewBox="0 0 24 24"
                     fill="none"
                     aria-hidden="true"
-                    style={{ position: 'absolute', inset: 0, width: 16, height: 16, color: 'inherit' }}
+                    style={{ position: 'absolute', inset: 0, width: 16, height: 16 }}
                     initial={{ scale: 0.8, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0.8, opacity: 0 }}

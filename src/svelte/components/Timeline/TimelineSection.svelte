@@ -45,7 +45,9 @@
     1, 2, 5, 10, 15, 30, 60, 120, 300, 600,
   ];
   const MIN_TIMELINE_MAX_ZOOM = 8;
-  const PLAYHEAD_FLAG_WIDTH = 52;
+  // The flag hugs its digits; the edge clamp keeps its widest (five
+  // characters) inside the lane.
+  const PLAYHEAD_FLAG_WIDTH = 38;
   const PLAYHEAD_FLAG_EDGE_OVERHANG = 1;
   const ZOOM_DRAG_DISTANCE = 180;
 
@@ -552,40 +554,9 @@
   }
 </script>
 
-<div class="dialkit-timeline-section" data-track={singleTrack ? 'single' : undefined}>
+<div class="dialkit-timeline-section" role="group" aria-label={meta.name} data-track={singleTrack ? 'single' : undefined}>
   <div class="dialkit-timeline-header" data-open={open || undefined}>
-    <div class="dialkit-timeline-identity">
-      <span class="dialkit-timeline-title">{meta.name}</span>
-    </div>
-
-    {#if !open}
-      <div
-        class="dialkit-timeline-overview"
-        onpointerdown={handleOverviewPointerDown}
-        onpointermove={(event) => overviewScrub && seekOverview(event.clientX)}
-        onpointerup={finishOverview}
-        onpointercancel={finishOverview}
-        onlostpointercapture={finishOverview}
-        title="Drag to scrub the full timeline"
-        role="slider"
-        tabindex="0"
-        aria-label="Timeline overview"
-        aria-valuemin={0}
-        aria-valuemax={meta.duration}
-        aria-valuenow={transport.time}
-      >
-        <div
-          class="dialkit-timeline-overview-viewport"
-          data-zoomed={overviewViewportWidth < 99.999 || undefined}
-          style:left={`${meta.duration > 0 ? (safeViewStart / meta.duration) * 100 : 0}%`}
-          style:width={`${overviewViewportWidth}%`}
-        ></div>
-        <div class="dialkit-timeline-overview-progress" style:width={`${overviewPlayheadPercent}%`}></div>
-        <div class="dialkit-timeline-overview-playhead" style:left={`${overviewPlayheadPercent}%`}></div>
-      </div>
-    {/if}
-
-    <div class="dialkit-timeline-actions">
+    <div class="dialkit-timeline-transport">
       <button
         class="dialkit-toolbar-add"
         onclick={() => transport.playing ? TimelineStore.pause(meta.id) : TimelineStore.play(meta.id)}
@@ -621,20 +592,50 @@
           {#each ICON_LOOP as path}<path d={path} />{/each}
         </svg>
       </button>
+    </div>
+
+    {#if !open}
+      <div
+        class="dialkit-timeline-overview"
+        onpointerdown={handleOverviewPointerDown}
+        onpointermove={(event) => overviewScrub && seekOverview(event.clientX)}
+        onpointerup={finishOverview}
+        onpointercancel={finishOverview}
+        onlostpointercapture={finishOverview}
+        title="Drag to scrub the full timeline"
+        role="slider"
+        tabindex="0"
+        aria-label="Timeline overview"
+        aria-valuemin={0}
+        aria-valuemax={meta.duration}
+        aria-valuenow={transport.time}
+      >
+        <div
+          class="dialkit-timeline-overview-viewport"
+          data-zoomed={overviewViewportWidth < 99.999 || undefined}
+          style:left={`${meta.duration > 0 ? (safeViewStart / meta.duration) * 100 : 0}%`}
+          style:width={`${overviewViewportWidth}%`}
+        ></div>
+        <div class="dialkit-timeline-overview-progress" style:width={`${overviewPlayheadPercent}%`}></div>
+        <div class="dialkit-timeline-overview-playhead" style:left={`${overviewPlayheadPercent}%`}></div>
+      </div>
+    {/if}
+
+    <div class="dialkit-timeline-actions">
       <PresetManager panelId={meta.id} {presets} {activePresetId} />
       <button
-        class="dialkit-toolbar-add dialkit-toolbar-primary"
+        class="dialkit-toolbar-add"
         onclick={handleCopy}
         title="Copy parameters"
         aria-label={copied ? 'Copied parameters' : 'Copy parameters'}
       >
         <span style="position:relative;width:16px;height:16px;">
           {#if copied}
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="position:absolute;inset:0;width:16px;height:16px;color:inherit;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="position:absolute;inset:0;width:16px;height:16px;">
               <path d={ICON_CHECK} />
             </svg>
           {:else}
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" style="position:absolute;inset:0;width:16px;height:16px;color:inherit;">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" style="position:absolute;inset:0;width:16px;height:16px;">
               <path d={ICON_CLIPBOARD_PLAIN.board} stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
               <path d={ICON_CLIPBOARD_PLAIN.body} stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
