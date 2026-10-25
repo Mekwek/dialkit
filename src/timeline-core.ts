@@ -86,6 +86,8 @@ type TimelineClipBase = {
   duration?: number;
   transition?: TransitionConfig;
   loop?: boolean | TimelineClipLoop;
+  /** The name shown in the dock. Defaults to the config key, formatted. */
+  label?: string;
 };
 
 // The three clip shapes are mutually exclusive, encoded with optional-never
@@ -592,7 +594,7 @@ export function parseTimelineConfig(config: TimelineConfig): ParsedTimeline {
 
     clips.push({
       key: path,
-      label: formatLabel(childKey),
+      label: typeof clip.label === 'string' && clip.label ? clip.label : formatLabel(childKey),
       color: TIMELINE_CLIP_COLORS[index % TIMELINE_CLIP_COLORS.length],
       loop: normalizeLoopMode(clip.loop),
       group,

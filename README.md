@@ -306,6 +306,8 @@ Bind `clip.current` while tuning so your UI follows the playhead. Timelines supp
 | Vue | `useDialTimeline` | `timeline.value.enter.current` in script |
 | Vanilla | `createDialTimeline` | `timeline.values.enter.current` or `subscribe(callback)` |
 
+The Loop button turns looping on and off.
+
 Mount `<DialTimeline />` once, or `createDialTimelineRoot()` in vanilla. The dock works independently of `DialRoot` and follows the same production visibility defaults. Use `play()`, `pause()`, `replay()`, and `seek(seconds)` to control playback.
 
 After tuning, use **Copy** to apply the settings to your production animation. Replace the sampled `current` bindings before removing the timeline; hiding the dock alone leaves them running. The [timeline guide](https://github.com/joshpuckett/dialkit/blob/main/docs/timeline.md) covers timing, interpolation, loops, and the dock API.

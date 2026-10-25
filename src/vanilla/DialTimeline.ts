@@ -6,7 +6,7 @@ import { clamp } from '../transition-math';
 import { findControl } from '../shortcut-utils';
 import { getDropdownPosition } from '../dropdown-position';
 import { buildCopyInstruction } from '../copy-instruction';
-import { ICON_CHEVRON, ICON_PLAY, ICON_PAUSE, ICON_REPLAY, ICON_CLIPBOARD_PLAIN, ICON_CHECK } from '../icons';
+import { ICON_CHEVRON, ICON_PLAY, ICON_PAUSE, ICON_REPLAY, ICON_LOOP, ICON_CLIPBOARD_PLAIN, ICON_CHECK } from '../icons';
 import { mountControlRenderer } from './ControlRenderer';
 import { mountPresetManager } from './menus';
 import { element, icon, button } from './dom';
@@ -183,7 +183,9 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
     render();
     TimelineStore.replay(meta.id);
   });
-  actions.append(play, replay);
+  const loop = button('Loop', ICON_LOOP, () => TimelineStore.setLoop(meta.id, !meta.loop));
+  loop.classList.add('dialkit-timeline-toolbar-toggle', 'dialkit-timeline-loop');
+  actions.append(play, replay, loop);
   const presetProps = () => ({ panelId: meta.id, presets: DialStore.getPresets(meta.id), activePresetId: DialStore.getActivePresetId(meta.id) });
   const presets = mountPresetManager(actions, presetProps());
   let copyTimer: ReturnType<typeof setTimeout> | undefined;
@@ -382,6 +384,12 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
     collapse.setAttribute('aria-expanded', String(open));
     collapse.title = open ? 'Collapse timeline' : 'Expand timeline';
     collapse.setAttribute('aria-label', collapse.title);
+    loop.setAttribute('aria-pressed', String(meta.loop));
+    loop.title = meta.loop ? 'Stop looping' : 'Loop';
+    if (meta.loop)
+      loop.dataset.active = '';
+    else
+      delete loop.dataset.active;
     viewStart = clamp(viewStart, 0, Math.max(0, meta.duration - visibleDuration()));
     const px = scale();
     ruler.replaceChildren();

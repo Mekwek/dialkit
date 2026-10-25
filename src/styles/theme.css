@@ -945,6 +945,11 @@
   color: var(--dial-text-root);
 }
 
+/* The loop icon stays dim until looping is on. */
+.dialkit-timeline-loop:not([data-active]) svg {
+  opacity: 0.45;
+}
+
 .dialkit-toolbar-add svg {
   width: 16px;
   height: 16px;

@@ -25,7 +25,7 @@ import type { TimelineClipLoop, TimelineStepStatic } from '../../timeline-core';
 import { clamp } from '../../transition-math';
 import { buildCopyInstruction } from '../../copy-instruction';
 import { isDevDefault } from '../../env';
-import { ICON_CHEVRON, ICON_CHECK, ICON_CLIPBOARD_PLAIN, ICON_PAUSE, ICON_PLAY, ICON_REPLAY } from '../../icons';
+import { ICON_CHEVRON, ICON_CHECK, ICON_CLIPBOARD_PLAIN, ICON_LOOP, ICON_PAUSE, ICON_PLAY, ICON_REPLAY } from '../../icons';
 import { findControl } from '../../shortcut-utils';
 import { ControlRenderer } from '../ControlRenderer';
 import { PresetManager } from '../PresetManager';
@@ -268,6 +268,25 @@ function ReplayButton({ onReplay }: { onReplay: () => void }) {
     >
       <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
         {ICON_REPLAY.map((d, i) => <path key={i} d={d} fill="currentColor" />)}
+      </svg>
+    </motion.button>
+  );
+}
+
+function LoopButton({ id, loop }: { id: string; loop: boolean }) {
+  return (
+    <motion.button
+      className="dialkit-toolbar-add dialkit-timeline-toolbar-toggle dialkit-timeline-loop"
+      data-active={loop || undefined}
+      aria-pressed={loop}
+      aria-label="Loop"
+      title={loop ? 'Stop looping' : 'Loop'}
+      onClick={() => TimelineStore.setLoop(id, !loop)}
+      whileTap={{ scale: 0.9 }}
+      transition={{ type: 'spring', visualDuration: 0.15, bounce: 0.3 }}
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        {ICON_LOOP.map((d, i) => <path key={i} d={d} />)}
       </svg>
     </motion.button>
   );
@@ -986,6 +1005,7 @@ const TimelineSection = memo(function TimelineSection({
         <div className="dialkit-timeline-actions">
           <PlayPauseButton id={meta.id} />
           <ReplayButton onReplay={handleReplay} />
+          <LoopButton id={meta.id} loop={meta.loop} />
 
           <PresetManager
             panelId={meta.id}

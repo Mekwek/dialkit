@@ -21,6 +21,7 @@
     ICON_CHEVRON,
     ICON_CHECK,
     ICON_CLIPBOARD_PLAIN,
+    ICON_LOOP,
     ICON_PAUSE,
     ICON_PLAY,
     ICON_REPLAY,
@@ -580,6 +581,18 @@
       <button class="dialkit-toolbar-add" onclick={handleReplay} title="Replay" aria-label="Replay">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" style="width:16px;height:16px;color:var(--dial-text-label);">
           {#each ICON_REPLAY as path}<path d={path} fill="currentColor" />{/each}
+        </svg>
+      </button>
+      <button
+        class="dialkit-toolbar-add dialkit-timeline-toolbar-toggle dialkit-timeline-loop"
+        data-active={meta.loop || undefined}
+        aria-pressed={meta.loop}
+        aria-label="Loop"
+        title={meta.loop ? 'Stop looping' : 'Loop'}
+        onclick={() => TimelineStore.setLoop(meta.id, !meta.loop)}
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          {#each ICON_LOOP as path}<path d={path} />{/each}
         </svg>
       </button>
       <PresetManager panelId={meta.id} {presets} {activePresetId} />

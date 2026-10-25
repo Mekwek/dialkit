@@ -110,12 +110,20 @@ try {
       );
     }
 
-    // Every move of a drag edits the clip; the bar keeps the pointer to the end.
+    // Loop toggle and drags, on three clips.
     const page = await browser.newPage();
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.goto(`${base}/${framework}-clips.html`);
     const id = await page.evaluate(() => window.DialStore.getPanels("timeline")[0].id);
+    const loop = page.getByRole("button", { name: "Loop", exact: true });
+    assert.equal(await loop.getAttribute("aria-pressed"), "false");
+    await loop.click();
+    assert.equal(await loop.getAttribute("aria-pressed"), "true");
+    await loop.click();
+    assert.equal(await loop.getAttribute("aria-pressed"), "false");
+
+    // Every move of a drag edits the clip; the bar keeps the pointer to the end.
     const px = (await page.locator(".dialkit-timeline-ruler").boundingBox()).width / 3.5;
     const rowBar = (name) =>
       page.locator(".dialkit-timeline-row", { hasText: name }).locator(".dialkit-timeline-clip");
@@ -125,7 +133,7 @@ try {
 
     assert.deepEqual(errors, []);
     await page.close();
-    console.log(`${framework}-clips: drag checks passed`);
+    console.log(`${framework}-clips: loop and drag checks passed`);
   }
 } finally {
   await browser.close();

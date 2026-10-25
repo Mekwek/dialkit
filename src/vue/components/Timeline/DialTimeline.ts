@@ -38,6 +38,7 @@ import {
   ICON_CHEVRON,
   ICON_CHECK,
   ICON_CLIPBOARD_PLAIN,
+  ICON_LOOP,
   ICON_PAUSE,
   ICON_PLAY,
   ICON_REPLAY,
@@ -217,6 +218,26 @@ const ReplayButton = defineComponent({
     }, [
       h('svg', { viewBox: '0 0 24 24', fill: 'none', 'aria-hidden': 'true' },
         ICON_REPLAY.map((path) => h('path', { d: path, fill: 'currentColor' }))),
+    ]);
+  },
+});
+
+const LoopButton = defineComponent({
+  props: {
+    id: { type: String, required: true },
+    loop: { type: Boolean, required: true },
+  },
+  setup(props) {
+    return () => h('button', {
+      class: 'dialkit-toolbar-add dialkit-timeline-toolbar-toggle dialkit-timeline-loop',
+      'data-active': props.loop || undefined,
+      'aria-pressed': props.loop,
+      'aria-label': 'Loop',
+      title: props.loop ? 'Stop looping' : 'Loop',
+      onClick: () => TimelineStore.setLoop(props.id, !props.loop),
+    }, [
+      h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' },
+        ICON_LOOP.map((path) => h('path', { d: path }))),
     ]);
   },
 });
@@ -715,6 +736,7 @@ const TimelineSection = defineComponent({
         h('div', { class: 'dialkit-timeline-actions' }, [
           h(PlayPauseButton, { id: props.meta.id }),
           h(ReplayButton, { onReplay: handleReplay }),
+          h(LoopButton, { id: props.meta.id, loop: props.meta.loop }),
           h(PresetManager, { panelId: props.meta.id, presets: presets.value, activePresetId: activePresetId.value }),
           h('button', {
             class: 'dialkit-toolbar-add dialkit-toolbar-primary',
