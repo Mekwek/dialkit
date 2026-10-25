@@ -1,6 +1,7 @@
 import { sliderKeyValue } from './control-keyboard';
 import { ICON_LINK, ICON_RESET } from './icons';
 import { decimalsForStep, roundValue } from './numeric';
+import { setHint } from './hints';
 import type { ControlMeta, DialValue } from './store/DialStore';
 
 export type FieldsProps = {
@@ -322,14 +323,16 @@ export function mountFields(host: HTMLElement, initial: FieldsProps) {
     signature = next;
     endScrub();
     fieldLock.reset();
-    fields.forEach(({ field }) => field.remove());
+    fields.forEach(({ field }) => {
+      setHint(field, undefined);
+      field.remove();
+    });
     fields = axes().map((_, index) => createField(index));
   }
 
   function render() {
     root.setAttribute('aria-label', props.label);
-    if (props.hint) root.dataset.hint = props.hint;
-    else delete root.dataset.hint;
+    setHint(root, props.hint);
     label.textContent = props.label;
     label.title = props.label;
     reset.setAttribute('aria-label', `Reset ${props.label}`);
@@ -356,8 +359,7 @@ export function mountFields(host: HTMLElement, initial: FieldsProps) {
       const text = format(control);
       axis.textContent = control.label;
       // A field's own hint, from the row's `_hints`, wins over the row's.
-      if (control.hint) field.dataset.hint = control.hint;
-      else delete field.dataset.hint;
+      setHint(field, control.hint);
       value.textContent = text;
       value.setAttribute('aria-label', `${props.label} ${control.label}: ${text}`);
       // A value changed elsewhere, such as by a scrub, shows in an input with nothing typed yet.
@@ -383,6 +385,11 @@ export function mountFields(host: HTMLElement, initial: FieldsProps) {
       }
       render();
     },
-    destroy() { endScrub(); root.remove(); },
+    destroy() {
+      endScrub();
+      fields.forEach(({ field }) => setHint(field, undefined));
+      setHint(root, undefined);
+      root.remove();
+    },
   };
 }
