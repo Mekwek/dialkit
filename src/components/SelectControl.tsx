@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition, type DropdownPosition } from '../dropdown-position';
-import { ICON_CHEVRON } from '../icons';
+import { ICON_CHEVRON, ICON_PLUS } from '../icons';
 import { SegmentedControl } from './SegmentedControl';
 import { useHint } from './Hint';
 
@@ -16,6 +16,25 @@ interface SelectControlProps {
   options: SelectOption[];
   onChange: (value: string) => void;
   hint?: string;
+}
+
+interface SelectAdd {
+  label: string;
+  hint?: string;
+  onClick: () => void;
+}
+
+/** The + button after a dropdown (SelectConfig.add), as tall as the
+ *  dropdown, like flip and rotate after the gradient type. */
+function SelectAddButton({ label, hint, onClick }: SelectAdd) {
+  const { hintRow } = useHint(hint);
+  return (
+    <button type="button" className="dialkit-bg-icon-button dialkit-select-add" aria-label={label} onClick={onClick} {...hintRow}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        {ICON_PLUS.map((d) => <path key={d} d={d} />)}
+      </svg>
+    </button>
+  );
 }
 
 function toTitleCase(s: string): string {
@@ -51,13 +70,16 @@ export function SelectPills({ label, value, options, onChange, hideLabel = false
   );
 }
 
-export function SelectControl({ label, value, options, onChange, hint }: SelectControlProps) {
+export function SelectControl({ label, value, options, onChange, hint, add }: SelectControlProps & { add?: SelectAdd }) {
   const { hintRow } = useHint(hint);
   const [isOpen, setIsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   const [pos, setPos] = useState<DropdownPosition | null>(null);
+  // --dial-select-add-style picks where `add` sits: 1, a + button after the
+  // dropdown; 2, the dropdown's first row. Read on each open.
+  const [addInMenu, setAddInMenu] = useState(false);
   const normalized = normalizeOptions(options);
   const selectedOption = normalized.find((o) => o.value === value);
 
@@ -65,9 +87,10 @@ export function SelectControl({ label, value, options, onChange, hint }: SelectC
     const el = triggerRef.current;
     if (!el || !portalTarget) return;
     // Estimate dropdown height: 8px padding + 36px per option
-    const dropdownHeight = dropdownRef.current ? dropdownRef.current.scrollHeight + 2 : 10 + normalized.length * 36;
+    const rows = normalized.length + (addInMenu ? 1 : 0);
+    const dropdownHeight = dropdownRef.current ? dropdownRef.current.scrollHeight + 2 : 10 + rows * 36;
     setPos(getDropdownPosition(el, portalTarget, { dropdownHeight, fixed: true }));
-  }, [normalized.length, portalTarget]);
+  }, [normalized.length, addInMenu, portalTarget]);
 
   // Resolve portal target (closest .dialkit-root)
   useEffect(() => {
@@ -102,14 +125,23 @@ export function SelectControl({ label, value, options, onChange, hint }: SelectC
   }, [isOpen]);
 
   return (
-    <div className="dialkit-select-row" {...hintRow}>
+    // With a + button the dropdown and the button each carry their own
+    // hint, as the gradient type and its buttons do.
+    <div className="dialkit-select-row" data-add={add ? '' : undefined} {...(add ? {} : hintRow)}>
       <button
+        {...(add ? hintRow : {})}
         ref={triggerRef}
         className="dialkit-select-trigger"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          if (!isOpen && add) setAddInMenu(getComputedStyle(triggerRef.current!).getPropertyValue('--dial-select-add-style').trim() === '2');
+          setIsOpen(!isOpen);
+        }}
         data-open={String(isOpen)}
         type="button" aria-haspopup="listbox" aria-expanded={isOpen} disabled={!options.length}
-        onKeyDown={(e) => openDropdownOnKey(e, () => setIsOpen(true))}
+        onKeyDown={(e) => openDropdownOnKey(e, () => {
+          if (add) setAddInMenu(getComputedStyle(triggerRef.current!).getPropertyValue('--dial-select-add-style').trim() === '2');
+          setIsOpen(true);
+        })}
       >
         <span className="dialkit-select-label">{label}</span>
         <div className="dialkit-select-right">
@@ -129,6 +161,7 @@ export function SelectControl({ label, value, options, onChange, hint }: SelectC
           </motion.svg>
         </div>
       </button>
+      {add && <SelectAddButton {...add} />}
 
       {portalTarget && createPortal(
         <AnimatePresence>
@@ -149,6 +182,21 @@ export function SelectControl({ label, value, options, onChange, hint }: SelectC
                 transformOrigin: pos.above ? 'bottom' : 'top',
               }}
             >
+              {add && addInMenu && (
+                <button
+                  type="button"
+                  className="dialkit-select-option dialkit-select-add-option"
+                  onClick={() => {
+                    setIsOpen(false);
+                    add.onClick();
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    {ICON_PLUS.map((d) => <path key={d} d={d} />)}
+                  </svg>
+                  {add.label}
+                </button>
+              )}
               {normalized.map((option) => (
                 <button
                   key={option.value}

@@ -68,7 +68,13 @@ export type SelectConfig = {
   /** Pills only: no row label; the pills fill the row and the label
    *  becomes the group's accessible name. */
   hideLabel?: boolean;
+  /** Dropdown only: a + button after the dropdown, like flip and rotate
+   *  after the gradient type. `label` names it, `hint` is its H hint. A
+   *  click runs the action `<path>.add`. */
+  add?: SelectAddConfig;
 };
+
+export type SelectAddConfig = { label: string; hint?: string };
 
 export type ColorConfig = {
   type: 'color';
@@ -143,6 +149,26 @@ export type PadGroupConfig = Pick<DialPadConfig, 'labels' | 'mapping' | 'hideLab
  */
 export type AnchorGridConfig = Record<string, never>;
 
+/**
+ * A row: set `_row: true` on a folder with two controls. The folder shows
+ * no header; its two controls sit side by side, each with its label above
+ * it, like Weight and Size in a type tool. Each value keeps its own path.
+ */
+export type RowConfig = Record<string, never>;
+
+/**
+ * The names a row's controls show when its labels sit inside the controls
+ * (`--dial-row-label-style: 2`): set `_inlineLabels` on the `_row` folder,
+ * from a child key to a shorter name, or `''` to show only the value. The
+ * title above each control keeps the full name.
+ */
+export type InlineLabelsConfig = Record<string, string>;
+
+function inlineLabelsOf(value: unknown): InlineLabelsConfig | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  return Object.fromEntries(Object.entries(value).filter(([, name]) => typeof name === 'string'));
+}
+
 function anchorConfigOf(value: unknown): AnchorGridConfig | undefined {
   return value === true || (typeof value === 'object' && value !== null && !Array.isArray(value)) ? {} : undefined;
 }
@@ -190,7 +216,7 @@ function textMapOf(value: unknown): Record<string, string> | undefined {
 export type LabelsConfig = Record<string, string>;
 
 /** Folder keys that configure the folder instead of adding a control. */
-const FOLDER_META_KEYS = ['_anchor', '_collapsed', '_fields', '_hints', '_labels', '_pad', '_reset'] as const;
+const FOLDER_META_KEYS = ['_anchor', '_collapsed', '_fields', '_hints', '_inlineLabels', '_labels', '_pad', '_reset', '_row'] as const;
 type FolderMetaKey = (typeof FOLDER_META_KEYS)[number];
 
 export function isFolderMetaKey(key: string): boolean {
@@ -331,6 +357,12 @@ export type ControlMeta = {
   padGroup?: PadGroupConfig;
   /** Folder only: `_anchor` shows the folder's two selects as one grid. See {@link AnchorGridConfig}. */
   anchor?: AnchorGridConfig;
+  /** Folder only: `_row` shows the folder's two controls side by side. See {@link RowConfig}. */
+  row?: RowConfig;
+  /** Row only: the names its controls show inside. See {@link InlineLabelsConfig}. */
+  inlineLabels?: InlineLabelsConfig;
+  /** Select only: a + button after the dropdown. See {@link SelectConfig.add}. */
+  add?: SelectAddConfig;
   /**
    * Folder only: `_reset` shows a reset icon in the folder's header. The
    * icon puts every value inside back to its default. With `_reset: 'key'`
@@ -358,6 +390,13 @@ export type ControlMeta = {
   /** A short sentence about the control, from its folder's `_hints`. It shows as the control's hint. */
   hint?: string;
 };
+
+/**
+ * First-level folder behavior. `'independent'` (default) keeps each top-level
+ * folder open state isolated. `'accordion'` allows only one top-level folder
+ * open at a time. Nested folders and anchor grids are unaffected.
+ */
+export type FolderMode = 'independent' | 'accordion';
 
 export type PanelConfig = {
   id: string;
@@ -395,6 +434,29 @@ export type PanelConfig = {
    * drops its section.
    */
   groupHeader?: boolean;
+  /**
+   * The name of a group, or of a panel with no group, this panel opens next
+   * to. It is not stacked with the other panels: it sits beside that panel,
+   * on the side toward the middle of the screen, with the same top edge.
+   * When that panel is not shown, this one shows as a panel of its own.
+   */
+  beside?: string;
+  /**
+   * Called by the X in the panel's header. With it, the X calls this instead
+   * of closing the panel to a small button, so the host can remove the
+   * panel (a selection panel clears the selection).
+   */
+  onClose?: () => void;
+  /**
+   * This panel's {@link FolderMode}. Without it, the panel takes the mode
+   * of its `DialRoot`.
+   */
+  folderMode?: FolderMode;
+  /**
+   * `false` drops the version toolbar (add, the version menu, copy) from
+   * the panel's header. Default `true`.
+   */
+  toolbar?: boolean;
 };
 
 type Listener = () => void;
@@ -449,6 +511,29 @@ export type DialStorePanelOptions = {
    * drops its section.
    */
   groupHeader?: boolean;
+  /**
+   * The name of a group, or of a panel with no group, this panel opens next
+   * to. It is not stacked with the other panels: it sits beside that panel,
+   * on the side toward the middle of the screen, with the same top edge.
+   * When that panel is not shown, this one shows as a panel of its own.
+   */
+  beside?: string;
+  /**
+   * Called by the X in the panel's header. With it, the X calls this instead
+   * of closing the panel to a small button, so the host can remove the
+   * panel (a selection panel clears the selection).
+   */
+  onClose?: () => void;
+  /**
+   * This panel's {@link FolderMode}. Without it, the panel takes the mode
+   * of its `DialRoot`.
+   */
+  folderMode?: FolderMode;
+  /**
+   * `false` drops the version toolbar (add, the version menu, copy) from
+   * the panel's header. Default `true`.
+   */
+  toolbar?: boolean;
 };
 
 type PersistConfig = {
@@ -777,6 +862,10 @@ class DialStoreClass {
       presetsLockable: options.presetsLockable,
       hint: options.hint,
       groupHeader: options.groupHeader,
+      beside: options.beside,
+      onClose: options.onClose,
+      folderMode: options.folderMode,
+      toolbar: options.toolbar,
     };
     this.panels.set(id, panel);
     this.controlsByPanel.set(panel, controlsByPath);
@@ -812,7 +901,11 @@ class DialStoreClass {
       (options.group ?? existing.group) === existing.group &&
       (options.presetsEditable ?? existing.presetsEditable) === existing.presetsEditable &&
       (options.presetsLockable ?? existing.presetsLockable) === existing.presetsLockable &&
-      (options.hint ?? existing.hint) === existing.hint;
+      (options.hint ?? existing.hint) === existing.hint &&
+      (options.beside ?? existing.beside) === existing.beside &&
+      (options.onClose ?? existing.onClose) === existing.onClose &&
+      (options.folderMode ?? existing.folderMode) === existing.folderMode &&
+      (options.toolbar ?? existing.toolbar) === existing.toolbar;
     this.configurePanelRetention(id, options);
     if (unchanged) {
       // Same config, same identity: nothing the panel renders can differ, so
@@ -840,6 +933,10 @@ class DialStoreClass {
       presetsLockable: options.presetsLockable ?? existing.presetsLockable,
       hint: options.hint ?? existing.hint,
       groupHeader: options.groupHeader ?? existing.groupHeader,
+      beside: options.beside ?? existing.beside,
+      onClose: options.onClose ?? existing.onClose,
+      folderMode: options.folderMode ?? existing.folderMode,
+      toolbar: options.toolbar ?? existing.toolbar,
     };
     this.panels.set(id, nextPanel);
     this.controlsByPanel.set(nextPanel, controlsByPath);
@@ -1638,7 +1735,7 @@ class DialStoreClass {
         } else if (isActionConfigValue(value)) {
           control = { type: 'action', path, label: value.label || label };
         } else if (isSelectConfigValue(value)) {
-          control = { type: 'select', path, label, options: value.options, display: value.display, hideLabel: value.hideLabel };
+          control = { type: 'select', path, label, options: value.options, display: value.display, hideLabel: value.hideLabel, ...(value.add ? { add: value.add } : {}) };
         } else if (isColorConfigValue(value)) {
           control = { type: 'color', path, label };
         } else if (isImageConfigValue(value)) {
@@ -1670,6 +1767,8 @@ class DialStoreClass {
             fields: fieldsConfigOf(folderConfig._fields),
             padGroup: padGroupConfigOf(folderConfig._pad),
             anchor: anchorConfigOf(folderConfig._anchor),
+            row: folderConfig._row === true ? {} : undefined,
+            inlineLabels: inlineLabelsOf(folderConfig._inlineLabels),
             reset: resetConfigOf(folderConfig._reset, path),
             children: visit(folderConfig, path),
           };

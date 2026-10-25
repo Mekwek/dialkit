@@ -1,4 +1,4 @@
-import { D as DialValue } from './DialStore-Dm39v3xN.js';
+import { D as DialValue } from './DialStore-Goi7KOoe.js';
 import './dial-pad.js';
 import './background.js';
 

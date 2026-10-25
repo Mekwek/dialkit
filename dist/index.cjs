@@ -1386,6 +1386,10 @@ function subscribeBackgroundHost(listener) {
 
 // src/store/DialStore.ts
 trackInputModality();
+function inlineLabelsOf(value) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return void 0;
+  return Object.fromEntries(Object.entries(value).filter(([, name]) => typeof name === "string"));
+}
 function anchorConfigOf(value) {
   return value === true || typeof value === "object" && value !== null && !Array.isArray(value) ? {} : void 0;
 }
@@ -1408,7 +1412,7 @@ function textMapOf(value) {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return void 0;
   return Object.fromEntries(Object.entries(value).filter(([, hint]) => typeof hint === "string" && hint));
 }
-var FOLDER_META_KEYS = ["_anchor", "_collapsed", "_fields", "_hints", "_labels", "_pad", "_reset"];
+var FOLDER_META_KEYS = ["_anchor", "_collapsed", "_fields", "_hints", "_inlineLabels", "_labels", "_pad", "_reset", "_row"];
 function isFolderMetaKey(key) {
   return FOLDER_META_KEYS.includes(key);
 }
@@ -1628,7 +1632,11 @@ var DialStoreClass = class {
       presetsEditable: options.presetsEditable,
       presetsLockable: options.presetsLockable,
       hint: options.hint,
-      groupHeader: options.groupHeader
+      groupHeader: options.groupHeader,
+      beside: options.beside,
+      onClose: options.onClose,
+      folderMode: options.folderMode,
+      toolbar: options.toolbar
     };
     this.panels.set(id, panel);
     this.controlsByPanel.set(panel, controlsByPath);
@@ -1653,7 +1661,7 @@ var DialStoreClass = class {
       return;
     }
     const { key, parsed: { controls: allControls, controlsByPath, defaultValues } } = this.parseCached(id, config, shortcuts ?? existing.shortcuts);
-    const unchanged = this.panelConfigKeys.get(id) === key && name === existing.name && (options.kind ?? existing.kind) === existing.kind && (options.group ?? existing.group) === existing.group && (options.presetsEditable ?? existing.presetsEditable) === existing.presetsEditable && (options.presetsLockable ?? existing.presetsLockable) === existing.presetsLockable && (options.hint ?? existing.hint) === existing.hint;
+    const unchanged = this.panelConfigKeys.get(id) === key && name === existing.name && (options.kind ?? existing.kind) === existing.kind && (options.group ?? existing.group) === existing.group && (options.presetsEditable ?? existing.presetsEditable) === existing.presetsEditable && (options.presetsLockable ?? existing.presetsLockable) === existing.presetsLockable && (options.hint ?? existing.hint) === existing.hint && (options.beside ?? existing.beside) === existing.beside && (options.onClose ?? existing.onClose) === existing.onClose && (options.folderMode ?? existing.folderMode) === existing.folderMode && (options.toolbar ?? existing.toolbar) === existing.toolbar;
     this.configurePanelRetention(id, options);
     if (unchanged) {
       this.persistPanel(id);
@@ -1674,7 +1682,11 @@ var DialStoreClass = class {
       presetsEditable: options.presetsEditable ?? existing.presetsEditable,
       presetsLockable: options.presetsLockable ?? existing.presetsLockable,
       hint: options.hint ?? existing.hint,
-      groupHeader: options.groupHeader ?? existing.groupHeader
+      groupHeader: options.groupHeader ?? existing.groupHeader,
+      beside: options.beside ?? existing.beside,
+      onClose: options.onClose ?? existing.onClose,
+      folderMode: options.folderMode ?? existing.folderMode,
+      toolbar: options.toolbar ?? existing.toolbar
     };
     this.panels.set(id, nextPanel);
     this.controlsByPanel.set(nextPanel, controlsByPath);
@@ -2295,7 +2307,7 @@ var DialStoreClass = class {
         } else if (isActionConfigValue(value)) {
           control = { type: "action", path, label: value.label || label };
         } else if (isSelectConfigValue(value)) {
-          control = { type: "select", path, label, options: value.options, display: value.display, hideLabel: value.hideLabel };
+          control = { type: "select", path, label, options: value.options, display: value.display, hideLabel: value.hideLabel, ...value.add ? { add: value.add } : {} };
         } else if (isColorConfigValue(value)) {
           control = { type: "color", path, label };
         } else if (isImageConfigValue(value)) {
@@ -2325,6 +2337,8 @@ var DialStoreClass = class {
             fields: fieldsConfigOf(folderConfig._fields),
             padGroup: padGroupConfigOf(folderConfig._pad),
             anchor: anchorConfigOf(folderConfig._anchor),
+            row: folderConfig._row === true ? {} : void 0,
+            inlineLabels: inlineLabelsOf(folderConfig._inlineLabels),
             reset: resetConfigOf(folderConfig._reset, path),
             children: visit(folderConfig, path)
           };
@@ -2503,6 +2517,8 @@ function useDialStorePanel(name, config, options = {}) {
   const serializedConfig = useSerialized(config);
   const serializedShortcuts = useSerialized(options.shortcuts);
   const serializedPersist = useSerialized(options.persist);
+  const hasOnClose = options.onClose !== void 0;
+  const handleClose = (0, import_react.useCallback)(() => optionsRef.current.onClose?.(), []);
   (0, import_react.useEffect)(() => {
     DialStore.registerPanel(panelId, name, configRef.current, optionsRef.current.shortcuts, {
       retainOnUnmount: hasStableId,
@@ -2513,10 +2529,14 @@ function useDialStorePanel(name, config, options = {}) {
       presetsEditable: optionsRef.current.presetsEditable,
       presetsLockable: optionsRef.current.presetsLockable,
       hint: optionsRef.current.hint,
-      groupHeader: optionsRef.current.groupHeader
+      groupHeader: optionsRef.current.groupHeader,
+      beside: optionsRef.current.beside,
+      onClose: optionsRef.current.onClose ? handleClose : void 0,
+      folderMode: optionsRef.current.folderMode,
+      toolbar: optionsRef.current.toolbar
     });
     return () => DialStore.unregisterPanel(panelId);
-  }, [hasStableId, panelId, name]);
+  }, [hasStableId, panelId, name, handleClose]);
   const mountedRef = (0, import_react.useRef)(false);
   (0, import_react.useEffect)(() => {
     if (!mountedRef.current) {
@@ -2532,9 +2552,13 @@ function useDialStorePanel(name, config, options = {}) {
       presetsEditable: optionsRef.current.presetsEditable,
       presetsLockable: optionsRef.current.presetsLockable,
       hint: optionsRef.current.hint,
-      groupHeader: optionsRef.current.groupHeader
+      groupHeader: optionsRef.current.groupHeader,
+      beside: optionsRef.current.beside,
+      onClose: optionsRef.current.onClose ? handleClose : void 0,
+      folderMode: optionsRef.current.folderMode,
+      toolbar: optionsRef.current.toolbar
     });
-  }, [hasStableId, panelId, name, serializedConfig, serializedShortcuts, serializedPersist, options.group, options.presetsEditable, options.presetsLockable, options.hint, options.groupHeader]);
+  }, [hasStableId, panelId, name, serializedConfig, serializedShortcuts, serializedPersist, options.group, options.presetsEditable, options.presetsLockable, options.hint, options.groupHeader, options.beside, hasOnClose, options.folderMode, options.toolbar]);
   const subscribe = (0, import_react.useCallback)(
     (callback) => DialStore.subscribe(panelId, callback),
     [panelId]
@@ -2558,7 +2582,11 @@ function useDialKitController(name, config, options) {
     presetsEditable: options?.presetsEditable,
     presetsLockable: options?.presetsLockable,
     hint: options?.hint,
-    groupHeader: options?.groupHeader
+    groupHeader: options?.groupHeader,
+    beside: options?.beside,
+    onClose: options?.onClose,
+    folderMode: options?.folderMode,
+    toolbar: options?.toolbar
   });
   const configRef = (0, import_react2.useRef)(config);
   configRef.current = config;
@@ -2852,6 +2880,27 @@ function partitionPanels(panels) {
     entry.panels.push(panel);
   }
   return entries;
+}
+function shellName(entry) {
+  return entry.kind === "group" ? entry.group : entry.panel.name;
+}
+function placeBesidePanels(entries) {
+  const isBeside = (entry) => entry.kind === "panel" && !!entry.panel.beside;
+  const targets = /* @__PURE__ */ new Map();
+  const slots = [];
+  for (const entry of entries) {
+    const slot = { entry, beside: [] };
+    slots.push(slot);
+    const name = shellName(entry);
+    if (!isBeside(entry) && !targets.has(name)) targets.set(name, slot);
+  }
+  return slots.filter((slot) => {
+    if (slot.entry.kind !== "panel" || !slot.entry.panel.beside) return true;
+    const target = targets.get(slot.entry.panel.beside);
+    if (!target) return true;
+    target.beside.push(slot.entry.panel);
+    return false;
+  });
 }
 
 // src/control-keyboard.ts
@@ -3624,9 +3673,10 @@ function HintTooltip() {
 // src/components/Folder.tsx
 var import_jsx_runtime2 = require("react/jsx-runtime");
 var PANEL_HEADER_HINT = "Closes the panel to a small button. Click the button to open it again.";
+var PANEL_CLOSE_HINT = "Closes the panel.";
 var SECTION_RESET_HINT = "Sets every control in this section back to its default.";
-function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, onReset, changed, meta, actions, hint }) {
-  const { hintRow } = useHint(hint ?? (isRoot && !inline ? PANEL_HEADER_HINT : void 0));
+function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, onReset, changed, meta, actions, hint, onClose }) {
+  const { hintRow } = useHint(hint ?? (isRoot && !inline ? onClose ? PANEL_CLOSE_HINT : PANEL_HEADER_HINT : void 0));
   const { hintRow: resetHintRow } = useHint(SECTION_RESET_HINT);
   const [localOpen, setIsOpen] = (0, import_react4.useState)(defaultOpen);
   const isOpen = open ?? localOpen;
@@ -3659,6 +3709,10 @@ function Folder({ title, children, open, defaultOpen = true, isRoot = false, inl
   }, [isRoot]);
   const handleToggle = () => {
     if (inline && isRoot) return;
+    if (isRoot && isOpen && onClose) {
+      onClose();
+      return;
+    }
     const next = !isOpen;
     setIsOpen(next);
     onOpenChange?.(next);
@@ -6302,6 +6356,10 @@ var import_react18 = require("react");
 var import_react_dom2 = require("react-dom");
 var import_react19 = require("motion/react");
 var import_jsx_runtime15 = require("react/jsx-runtime");
+function SelectAddButton({ label, hint, onClick }) {
+  const { hintRow } = useHint(hint);
+  return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("button", { type: "button", className: "dialkit-bg-icon-button dialkit-select-add", "aria-label": label, onClick, ...hintRow, children: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true", children: ICON_PLUS.map((d) => /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("path", { d }, d)) }) });
+}
 function toTitleCase(s) {
   return s.replace(/\b\w/g, (c) => c.toUpperCase());
 }
@@ -6320,21 +6378,23 @@ function SelectPills({ label, value, options, onChange, hideLabel = false, hint 
     /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(SegmentedControl, { options: normalizeOptions(options), value, onChange })
   ] });
 }
-function SelectControl({ label, value, options, onChange, hint }) {
+function SelectControl({ label, value, options, onChange, hint, add }) {
   const { hintRow } = useHint(hint);
   const [isOpen, setIsOpen] = (0, import_react18.useState)(false);
   const triggerRef = (0, import_react18.useRef)(null);
   const dropdownRef = (0, import_react18.useRef)(null);
   const [portalTarget, setPortalTarget] = (0, import_react18.useState)(null);
   const [pos, setPos] = (0, import_react18.useState)(null);
+  const [addInMenu, setAddInMenu] = (0, import_react18.useState)(false);
   const normalized = normalizeOptions(options);
   const selectedOption = normalized.find((o) => o.value === value);
   const updatePos = (0, import_react18.useCallback)(() => {
     const el = triggerRef.current;
     if (!el || !portalTarget) return;
-    const dropdownHeight = dropdownRef.current ? dropdownRef.current.scrollHeight + 2 : 10 + normalized.length * 36;
+    const rows = normalized.length + (addInMenu ? 1 : 0);
+    const dropdownHeight = dropdownRef.current ? dropdownRef.current.scrollHeight + 2 : 10 + rows * 36;
     setPos(getDropdownPosition(el, portalTarget, { dropdownHeight, fixed: true }));
-  }, [normalized.length, portalTarget]);
+  }, [normalized.length, addInMenu, portalTarget]);
   (0, import_react18.useEffect)(() => {
     setPortalTarget(getDialKitPortalRoot(triggerRef.current) ?? document.body);
   }, []);
@@ -6359,78 +6419,107 @@ function SelectControl({ label, value, options, onChange, hint }) {
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [isOpen]);
-  return /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "dialkit-select-row", ...hintRow, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
-      "button",
-      {
-        ref: triggerRef,
-        className: "dialkit-select-trigger",
-        onClick: () => setIsOpen(!isOpen),
-        "data-open": String(isOpen),
-        type: "button",
-        "aria-haspopup": "listbox",
-        "aria-expanded": isOpen,
-        disabled: !options.length,
-        onKeyDown: (e) => openDropdownOnKey(e, () => setIsOpen(true)),
-        children: [
-          /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { className: "dialkit-select-label", children: label }),
-          /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "dialkit-select-right", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { className: "dialkit-select-value", children: selectedOption?.label ?? value }),
-            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
-              import_react19.motion.svg,
-              {
-                className: "dialkit-select-chevron",
-                viewBox: "0 0 24 24",
-                fill: "none",
-                stroke: "currentColor",
-                strokeWidth: "2.5",
-                strokeLinecap: "round",
-                strokeLinejoin: "round",
-                animate: { rotate: isOpen ? 180 : 0 },
-                transition: { type: "spring", visualDuration: 0.2, bounce: 0.15 },
-                children: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("path", { d: ICON_CHEVRON })
-              }
-            )
-          ] })
-        ]
-      }
-    ),
-    portalTarget && (0, import_react_dom2.createPortal)(
-      /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(import_react19.AnimatePresence, { children: isOpen && pos && /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
-        import_react19.motion.div,
+  return (
+    // With a + button the dropdown and the button each carry their own
+    // hint, as the gradient type and its buttons do.
+    /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "dialkit-select-row", "data-add": add ? "" : void 0, ...add ? {} : hintRow, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
+        "button",
         {
-          ref: dropdownRef,
-          className: "dialkit-select-dropdown",
-          initial: { opacity: 0, y: pos.above ? 8 : -8, scale: 0.95 },
-          animate: { opacity: 1, y: 0, scale: 1 },
-          exit: { opacity: 0, y: pos.above ? 8 : -8, scale: 0.95 },
-          transition: { type: "spring", visualDuration: 0.15, bounce: 0 },
-          style: {
-            position: "fixed",
-            left: pos.left,
-            top: pos.top,
-            width: pos.width,
-            maxHeight: pos.maxHeight,
-            transformOrigin: pos.above ? "bottom" : "top"
+          ...add ? hintRow : {},
+          ref: triggerRef,
+          className: "dialkit-select-trigger",
+          onClick: () => {
+            if (!isOpen && add) setAddInMenu(getComputedStyle(triggerRef.current).getPropertyValue("--dial-select-add-style").trim() === "2");
+            setIsOpen(!isOpen);
           },
-          children: normalized.map((option) => /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
-            "button",
-            {
-              className: "dialkit-select-option",
-              "data-selected": String(option.value === value),
-              onClick: () => {
-                onChange(option.value);
-                setIsOpen(false);
-              },
-              children: option.label
-            },
-            option.value
-          ))
+          "data-open": String(isOpen),
+          type: "button",
+          "aria-haspopup": "listbox",
+          "aria-expanded": isOpen,
+          disabled: !options.length,
+          onKeyDown: (e) => openDropdownOnKey(e, () => {
+            if (add) setAddInMenu(getComputedStyle(triggerRef.current).getPropertyValue("--dial-select-add-style").trim() === "2");
+            setIsOpen(true);
+          }),
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { className: "dialkit-select-label", children: label }),
+            /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "dialkit-select-right", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { className: "dialkit-select-value", children: selectedOption?.label ?? value }),
+              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
+                import_react19.motion.svg,
+                {
+                  className: "dialkit-select-chevron",
+                  viewBox: "0 0 24 24",
+                  fill: "none",
+                  stroke: "currentColor",
+                  strokeWidth: "2.5",
+                  strokeLinecap: "round",
+                  strokeLinejoin: "round",
+                  animate: { rotate: isOpen ? 180 : 0 },
+                  transition: { type: "spring", visualDuration: 0.2, bounce: 0.15 },
+                  children: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("path", { d: ICON_CHEVRON })
+                }
+              )
+            ] })
+          ]
         }
-      ) }),
-      portalTarget
-    )
-  ] });
+      ),
+      add && /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(SelectAddButton, { ...add }),
+      portalTarget && (0, import_react_dom2.createPortal)(
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(import_react19.AnimatePresence, { children: isOpen && pos && /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
+          import_react19.motion.div,
+          {
+            ref: dropdownRef,
+            className: "dialkit-select-dropdown",
+            initial: { opacity: 0, y: pos.above ? 8 : -8, scale: 0.95 },
+            animate: { opacity: 1, y: 0, scale: 1 },
+            exit: { opacity: 0, y: pos.above ? 8 : -8, scale: 0.95 },
+            transition: { type: "spring", visualDuration: 0.15, bounce: 0 },
+            style: {
+              position: "fixed",
+              left: pos.left,
+              top: pos.top,
+              width: pos.width,
+              maxHeight: pos.maxHeight,
+              transformOrigin: pos.above ? "bottom" : "top"
+            },
+            children: [
+              add && addInMenu && /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
+                "button",
+                {
+                  type: "button",
+                  className: "dialkit-select-option dialkit-select-add-option",
+                  onClick: () => {
+                    setIsOpen(false);
+                    add.onClick();
+                  },
+                  children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true", children: ICON_PLUS.map((d) => /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("path", { d }, d)) }),
+                    add.label
+                  ]
+                }
+              ),
+              normalized.map((option) => /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
+                "button",
+                {
+                  className: "dialkit-select-option",
+                  "data-selected": String(option.value === value),
+                  onClick: () => {
+                    onChange(option.value);
+                    setIsOpen(false);
+                  },
+                  children: option.label
+                },
+                option.value
+              ))
+            ]
+          }
+        ) }),
+        portalTarget
+      )
+    ] })
+  );
 }
 
 // src/components/ColorControl.tsx
@@ -9823,7 +9912,8 @@ function mountLayerListControl(host, initial) {
     hint(eye, () => item()?.hidden ? LAYER_HINTS.show : LAYER_HINTS.hide);
     hint(duplicate, () => LAYER_HINTS.duplicate);
     hint(remove, () => LAYER_HINTS.delete);
-    eye.addEventListener("click", () => {
+    eye.addEventListener("click", (event) => {
+      event.stopPropagation();
       const at = indexOf(id);
       if (at === -1) return;
       const items = value.items.slice();
@@ -9831,8 +9921,14 @@ function mountLayerListControl(host, initial) {
       items[at] = it.hidden ? { id: it.id, label: it.label, ...it.offCanvas ? { offCanvas: it.offCanvas } : {} } : { ...it, hidden: true };
       emit({ items, selected: value.selected });
     });
-    duplicate.addEventListener("click", () => props.onAction("duplicate", id));
-    remove.addEventListener("click", () => props.onAction("delete", id));
+    duplicate.addEventListener("click", (event) => {
+      event.stopPropagation();
+      props.onAction("duplicate", id);
+    });
+    remove.addEventListener("click", (event) => {
+      event.stopPropagation();
+      props.onAction("delete", id);
+    });
     rowRoot.addEventListener("click", (event) => {
       if (suppressClick) {
         suppressClick = false;
@@ -10066,8 +10162,11 @@ function AnchorGrid({ panelId, label, columns, rows, values, hint }) {
   const { hintRow } = useHint(hint);
   const cols = optionsOf(columns);
   const rowOptions = optionsOf(rows);
-  const col = Math.max(0, cols.findIndex((option) => option.value === values[columns.path]));
-  const row = Math.max(0, rowOptions.findIndex((option) => option.value === values[rows.path]));
+  const pickedCol = cols.findIndex((option) => option.value === values[columns.path]);
+  const pickedRow = rowOptions.findIndex((option) => option.value === values[rows.path]);
+  const hasPick = pickedCol >= 0 && pickedRow >= 0;
+  const col = hasPick ? pickedCol : Math.floor((cols.length - 1) / 2);
+  const row = hasPick ? pickedRow : Math.floor((rowOptions.length - 1) / 2);
   const pick = (c, r) => {
     DialStore.updateValues(panelId, { [columns.path]: cols[c].value, [rows.path]: rowOptions[r].value });
   };
@@ -10077,14 +10176,14 @@ function AnchorGrid({ panelId, label, columns, rows, values, hint }) {
     if (!move) return;
     event.preventDefault();
     event.stopPropagation();
-    const c = Math.min(cols.length - 1, Math.max(0, col + move[0]));
-    const r = Math.min(rowOptions.length - 1, Math.max(0, row + move[1]));
+    const c = hasPick ? Math.min(cols.length - 1, Math.max(0, col + move[0])) : col;
+    const r = hasPick ? Math.min(rowOptions.length - 1, Math.max(0, row + move[1])) : row;
     pick(c, r);
     const target = event.currentTarget.querySelector(`[data-cell="${c}-${r}"]`);
     target?.focus();
   };
   const [hc, hr] = hovered ? hovered.split("-").map(Number) : [-1, -1];
-  const showHoverPill = hovered !== null && (hc !== col || hr !== row);
+  const showHoverPill = hovered !== null && (!hasPick || hc !== col || hr !== row);
   return /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(
     "div",
     {
@@ -10107,7 +10206,7 @@ function AnchorGrid({ panelId, label, columns, rows, values, hint }) {
             style: { transform: `translate(${hc * 100}%, ${hr * 100}%)` }
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+        hasPick && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
           import_react26.motion.span,
           {
             className: "dialkit-anchor-pill",
@@ -10119,7 +10218,8 @@ function AnchorGrid({ panelId, label, columns, rows, values, hint }) {
         ),
         rowOptions.map(
           (r, ri) => cols.map((c, ci) => {
-            const picked = ci === col && ri === row;
+            const picked = hasPick && ci === col && ri === row;
+            const tabStop = ci === col && ri === row;
             return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
               "button",
               {
@@ -10127,7 +10227,7 @@ function AnchorGrid({ panelId, label, columns, rows, values, hint }) {
                 role: "radio",
                 "aria-checked": picked,
                 "aria-label": `${r.label}, ${c.label}`,
-                tabIndex: picked ? 0 : -1,
+                tabIndex: tabStop ? 0 : -1,
                 "data-cell": `${ci}-${ri}`,
                 className: "dialkit-anchor-cell",
                 onPointerEnter: () => setHovered(`${ci}-${ri}`),
@@ -10230,7 +10330,18 @@ function ControlRenderer({
         if (control.padGroup) {
           return /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(PadGroup, { panelId, control, values }, control.path);
         }
-        const controlledProps = depth === 0 && onAccordionToggle ? {
+        if (control.row) {
+          const cells = (control.children ?? []).slice(0, 2);
+          return /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { className: "dialkit-row-group", children: cells.map((child) => {
+            const inline = control.inlineLabels?.[child.path.slice(control.path.length + 1)];
+            const shown = child.type === "select" && child.display === "pills" ? { ...child, hideLabel: true } : child;
+            return /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "dialkit-row-cell", "data-inline-label": inline === "" ? "none" : void 0, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("span", { className: "dialkit-row-label", children: child.label }),
+              renderControl(inline ? { ...shown, label: inline } : shown, depth + 1)
+            ] }, child.path);
+          }) }, control.path);
+        }
+        const controlledProps = depth === 0 && onAccordionToggle && !control.anchor ? {
           open: accordionOpenPath === control.path,
           onOpenChange: (next) => onAccordionToggle(control.path, next)
         } : {};
@@ -10297,7 +10408,8 @@ function ControlRenderer({
             value,
             options: control.options ?? [],
             onChange: (v) => DialStore.updateValue(panelId, control.path, v),
-            hint: control.hint
+            hint: control.hint,
+            add: control.add ? { ...control.add, onClick: () => DialStore.triggerAction(panelId, `${control.path}.add`) } : void 0
           },
           control.path
         );
@@ -10387,7 +10499,7 @@ function ControlRenderer({
   const renderControl = (control, depth = 0, bare = false) => {
     const inner = renderControlInner(control, depth, bare);
     if (inner === null || !animateControls) return inner;
-    const drawsFolder = control.type === "folder" && !control.fields && !control.padGroup;
+    const drawsFolder = control.type === "folder" && !control.fields && !control.padGroup && !control.row;
     const isFolder = drawsFolder || control.type === "spring" || control.type === "background" || control.type === "transition" && !bare;
     const wrapClassName = isFolder ? "dialkit-control-wrap dialkit-control-wrap-folder" : control.fields ? "dialkit-control-wrap dialkit-control-wrap-fields" : "dialkit-control-wrap";
     return /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(import_react28.motion.div, { className: wrapClassName, ...CONTROL_ANIM, children: inner }, control.path);
@@ -10898,7 +11010,8 @@ function PresetActions({ id, noun, locked, editable, lockable, onRename, onToggl
 var import_jsx_runtime25 = require("react/jsx-runtime");
 var ADD_VERSION_HINT = "Saves the current settings as a new version.";
 var COPY_HINT2 = "Copies the panel's values as text, ready to paste into code.";
-function Panel({ panel, defaultOpen = true, inline = false, folderMode = "independent", onOpenChange, variant = "root", toolbarExtra }) {
+function Panel({ panel, defaultOpen = true, inline = false, folderMode: rootFolderMode = "independent", onOpenChange, variant = "root", toolbarExtra, beside }) {
+  const folderMode = panel.folderMode ?? rootFolderMode;
   const [copied, setCopied] = (0, import_react31.useState)(false);
   const { hintRow: addHintRow } = useHint(ADD_VERSION_HINT);
   const { hintRow: copyHintRow } = useHint(COPY_HINT2);
@@ -10921,7 +11034,7 @@ function Panel({ panel, defaultOpen = true, inline = false, folderMode = "indepe
   const [openFolder, setOpenFolder] = (0, import_react31.useState)(() => {
     if (folderMode !== "accordion") return null;
     const first = topLevelControls.find(
-      (c) => c.type === "folder" && (c.defaultOpen ?? true)
+      (c) => c.type === "folder" && !c.anchor && (c.defaultOpen ?? true)
     );
     return first?.path ?? null;
   });
@@ -11040,7 +11153,7 @@ function Panel({ panel, defaultOpen = true, inline = false, folderMode = "indepe
   if (variant === "section") {
     return /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "dialkit-panel-section", "data-panel-name": panel.name, children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(Folder, { title: panel.name, open: isOpen, onOpenChange: handleOpenChange, hint: panel.hint, toolbar, children: renderControls() }) });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "dialkit-panel-wrapper", children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(Folder, { title: panel.name, open: isOpen, isRoot: true, inline, onOpenChange: handleOpenChange, toolbar, hint: panel.hint, children: renderControls() }) });
+  return /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "dialkit-panel-wrapper", "data-beside": beside, children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(Folder, { title: panel.name, open: isOpen, isRoot: true, inline, onOpenChange: handleOpenChange, onClose: panel.onClose, toolbar: panel.toolbar === false ? void 0 : toolbar, hint: panel.hint, children: renderControls() }) });
 }
 
 // src/components/Timeline/TimelineToggleButton.tsx
@@ -11367,7 +11480,7 @@ function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover"
   const originX = getPanelOriginX(activePosition, dragOffset);
   const originY = getPanelOriginY(activePosition, dragOffset);
   const timelineToggle = timelineCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(TimelineToggleButton, {}) : null;
-  const panelNodes = rootEntries.map((entry) => {
+  const renderEntry = (entry) => {
     if (entry.kind === "panel") {
       const panel = entry.panel;
       return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
@@ -11407,7 +11520,23 @@ function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover"
         ))
       }
     ) }, entry.key);
-  });
+  };
+  const besideSide = originX === "left" ? "right" : "left";
+  const slots = inline ? rootEntries.map((entry) => ({ entry, beside: [] })) : placeBesidePanels(rootEntries);
+  const panelNodes = slots.flatMap(({ entry, beside }) => [
+    renderEntry(entry),
+    ...beside.map((panel) => /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+      Panel,
+      {
+        panel,
+        beside: besideSide,
+        defaultOpen,
+        folderMode,
+        onOpenChange: (open) => handlePanelOpenChange(panel.id, open)
+      },
+      panel.id
+    ))
+  ]);
   const content = /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)(ShortcutListener, { children: [
     /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(HintTooltip, {}),
     /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { className: "dialkit-root", "data-mode": mode, "data-theme": theme, children: /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(

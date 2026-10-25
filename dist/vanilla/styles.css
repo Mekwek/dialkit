@@ -83,6 +83,18 @@
   --dial-layer-icon-size: 16px;
   --dial-layer-icon-gap: 2px;
   --dial-layer-delete-hover: #ff3b30;
+  /* A row of two controls (`_row`): the space between its two columns, and
+     between each label and its control. */
+  --dial-row-column-gap: var(--dial-row-gap);
+  --dial-row-label-gap: 6px;
+  /* Where a row's labels sit: 1 a title above each control, 2 inside the
+     controls. */
+  --dial-row-label-style: 2;
+  /* Where a dropdown's `add` sits: 1 a + button after the dropdown, 2 the
+     dropdown's first row. */
+  --dial-select-add-style: 2;
+  /* The space between a panel with `beside` and the panel it opens next to. */
+  --dial-panel-beside-gap: 8px;
   /* How the selected stop shows: 1 a row highlight, 2 only its fields, a
      step lighter (--dial-bg-stop-selected-field-fill, the hover surface). */
   --dial-bg-stop-selected-style: 2;
@@ -341,6 +353,31 @@
 .dialkit-panel[data-position="bottom-left"] {
   bottom: 16px;
   left: 16px;
+}
+
+/* A panel with `beside` comes right after the shell it names, out of the
+ * column: level with the root's top edge and past its side toward the
+ * middle of the screen, so the shells in the column keep their place and
+ * size. On a narrow screen it goes under that shell instead. */
+.dialkit-panel-wrapper[data-beside] {
+  position: absolute;
+  top: 0;
+}
+
+.dialkit-panel-wrapper[data-beside="left"] {
+  right: calc(100% + var(--dial-panel-beside-gap));
+}
+
+.dialkit-panel-wrapper[data-beside="right"] {
+  left: calc(100% + var(--dial-panel-beside-gap));
+}
+
+@media (max-width: 640px) {
+  .dialkit-panel-wrapper[data-beside] {
+    position: static;
+    display: flex;
+    margin-top: var(--dial-panel-beside-gap);
+  }
 }
 
 /* Folder */
@@ -985,6 +1022,34 @@
 .dialkit-fields-button svg { width: 100%; height: 100%; }
 .dialkit-fields-button:hover, .dialkit-fields-button:focus-visible { color: var(--dial-text-focus); background: var(--dial-surface-hover); }
 .dialkit-fields-lock[aria-pressed="true"] { color: var(--dial-text-focus); }
+
+/* A row (`_row`): two controls side by side. --dial-row-label-style picks
+ * where their labels sit:
+ *  1. A title above each control, like Weight and Size in a type tool. The
+ *     controls hide their own label; it stays their accessible name. The
+ *     space above the titles and the title line's height match the
+ *     X / Y / Z group's label (.dialkit-fields-group).
+ *  2. Inside the controls, as a full row has it, with the `_inlineLabels`
+ *     names: a cell named '' shows only its value. A value too long for
+ *     its half ends in an ellipsis. */
+.dialkit-row-group { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--dial-row-column-gap); }
+.dialkit-row-cell { display: flex; flex-direction: column; min-width: 0; }
+.dialkit-row-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 20px; color: var(--dial-text-label); font-size: 13px; font-weight: 500; }
+@container style(--dial-row-label-style: 1) {
+  .dialkit-row-group { padding-top: var(--dial-row-gap); }
+  .dialkit-row-cell { gap: var(--dial-row-label-gap); }
+  .dialkit-row-cell :is(.dialkit-select-label, .dialkit-slider-label, .dialkit-color-label, .dialkit-text-label, .dialkit-labeled-control-label) { display: none; }
+  .dialkit-row-cell .dialkit-select-right { flex: 1; min-width: 0; justify-content: space-between; }
+  .dialkit-row-cell .dialkit-slider-value { margin-left: auto; }
+}
+@container style(--dial-row-label-style: 2) {
+  .dialkit-row-label { display: none; }
+  .dialkit-row-cell .dialkit-select-trigger { gap: 8px; }
+  .dialkit-row-cell .dialkit-select-right { min-width: 0; }
+  .dialkit-row-cell .dialkit-select-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dialkit-row-cell[data-inline-label="none"] .dialkit-select-label { display: none; }
+  .dialkit-row-cell[data-inline-label="none"] .dialkit-select-right { flex: 1; justify-content: space-between; }
+}
 
 /* A reset next to a title shows only when its values changed. It comes in
    turning the way its arrow points (counter-clockwise, an undo), and
@@ -1919,7 +1984,20 @@
 .dialkit-bg-shape-row { display: flex; align-items: center; gap: var(--dial-field-gap); min-width: 0; margin-bottom: calc(var(--dial-bg-type-gap, 12px) - var(--dial-row-gap)); transition: margin-bottom 0.25s cubic-bezier(0.25, 1, 0.5, 1); }
 @media (prefers-reduced-motion: reduce) { .dialkit-bg-shape-row { transition: none; } }
 /* Flip and rotate are as tall as the type dropdown, their corners those of a field. */
-.dialkit-bg-shape-row .dialkit-bg-icon-button { height: var(--dial-row-height); padding: calc((var(--dial-row-height) - 16px) / 2) 6px; border-radius: var(--dial-radius); }
+.dialkit-bg-shape-row .dialkit-bg-icon-button,
+.dialkit-select-add.dialkit-bg-icon-button { height: var(--dial-row-height); padding: calc((var(--dial-row-height) - 16px) / 2) 6px; border-radius: var(--dial-radius); }
+/* A dropdown with a + button (SelectConfig.add): the dropdown takes the
+   room the button leaves, as the gradient type does. */
+.dialkit-select-row[data-add] { display: flex; align-items: center; gap: var(--dial-field-gap); min-width: 0; }
+.dialkit-select-row[data-add] .dialkit-select-trigger { flex: 1 1 auto; width: auto; min-width: 0; }
+@container style(--dial-select-add-style: 2) {
+  .dialkit-select-add.dialkit-bg-icon-button { display: none; }
+}
+/* The `add` row, first in the dropdown (--dial-select-add-style: 2): a +
+ * and the label, with a line under it before the options. */
+.dialkit-select-add-option { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; position: relative; }
+.dialkit-select-add-option svg { flex: none; width: 14px; height: 14px; }
+.dialkit-select-add-option::after { content: ''; position: absolute; left: 4px; right: 4px; bottom: -3px; height: 1px; background: var(--dial-border); }
 .dialkit-bg-shape-trigger.dialkit-select-trigger { flex: 1 1 auto; width: auto; min-width: 0; }
 .dialkit-bg-field { gap: 2px; box-sizing: border-box; }
 .dialkit-bg-field-grip { margin-right: auto; }
@@ -2177,8 +2255,19 @@
 .dialkit-layer[data-hidden][data-selected] { background: var(--dial-layer-selected-fill); }
 /* Reordering: the dragged row follows the pointer above the others, and the rows it passes slide aside. */
 .dialkit-layers-list[data-dragging] .dialkit-layer { cursor: grabbing; transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1), background 0.15s; }
-.dialkit-layers-list[data-dragging]:not([data-settling]) .dialkit-layer[data-dragging] { transition: background 0.15s; }
-.dialkit-layer[data-dragging] { z-index: 1; background: var(--dial-layer-selected-fill); }
+.dialkit-layers-list[data-dragging]:not([data-settling]) .dialkit-layer[data-dragging] { transition: none; }
+/* The dragged row is solid, as a dragged gradient stop is, so the rows it
+   passes never show through: its fill over the panel's own colour, as two
+   inner layers, with the same lift shadow. Solid from the first frame. */
+.dialkit-layer[data-dragging] {
+  z-index: 1;
+  background: var(--dial-glass-bg);
+  box-shadow:
+    inset 0 0 0 1px var(--dial-layer-selected-border),
+    inset 0 0 0 100vmax var(--dial-layer-selected-fill),
+    inset 0 0 0 100vmax var(--dial-glass-bg),
+    0 6px 16px rgba(0, 0, 0, 0.28);
+}
 @media (prefers-reduced-motion: reduce) { .dialkit-layers-list[data-dragging] .dialkit-layer { transition: none; } }
 
 /* Media: the drop zone, the preview (it opens the options), Replace and Remove. */

@@ -418,6 +418,14 @@ type SelectConfig = {
     /** Pills only: no row label; the pills fill the row and the label
      *  becomes the group's accessible name. */
     hideLabel?: boolean;
+    /** Dropdown only: a + button after the dropdown, like flip and rotate
+     *  after the gradient type. `label` names it, `hint` is its H hint. A
+     *  click runs the action `<path>.add`. */
+    add?: SelectAddConfig;
+};
+type SelectAddConfig = {
+    label: string;
+    hint?: string;
 };
 type ColorConfig = {
     type: 'color';
@@ -489,8 +497,21 @@ type PadGroupConfig = Pick<DialPadConfig, 'labels' | 'mapping' | 'hideLabel' | '
  * are the columns, the second's are the rows. Each value keeps its own path.
  */
 type AnchorGridConfig = Record<string, never>;
+/**
+ * A row: set `_row: true` on a folder with two controls. The folder shows
+ * no header; its two controls sit side by side, each with its label above
+ * it, like Weight and Size in a type tool. Each value keeps its own path.
+ */
+type RowConfig = Record<string, never>;
+/**
+ * The names a row's controls show when its labels sit inside the controls
+ * (`--dial-row-label-style: 2`): set `_inlineLabels` on the `_row` folder,
+ * from a child key to a shorter name, or `''` to show only the value. The
+ * title above each control keeps the full name.
+ */
+type InlineLabelsConfig = Record<string, string>;
 /** Folder keys that configure the folder instead of adding a control. */
-declare const FOLDER_META_KEYS: readonly ["_anchor", "_collapsed", "_fields", "_hints", "_labels", "_pad", "_reset"];
+declare const FOLDER_META_KEYS: readonly ["_anchor", "_collapsed", "_fields", "_hints", "_inlineLabels", "_labels", "_pad", "_reset", "_row"];
 type FolderMetaKey = (typeof FOLDER_META_KEYS)[number];
 /**
  * Wraps a control with a visibility rule. The control is only added to the
@@ -564,6 +585,12 @@ type ControlMeta = {
     padGroup?: PadGroupConfig;
     /** Folder only: `_anchor` shows the folder's two selects as one grid. See {@link AnchorGridConfig}. */
     anchor?: AnchorGridConfig;
+    /** Folder only: `_row` shows the folder's two controls side by side. See {@link RowConfig}. */
+    row?: RowConfig;
+    /** Row only: the names its controls show inside. See {@link InlineLabelsConfig}. */
+    inlineLabels?: InlineLabelsConfig;
+    /** Select only: a + button after the dropdown. See {@link SelectConfig.add}. */
+    add?: SelectAddConfig;
     /**
      * Folder only: `_reset` shows a reset icon in the folder's header. The
      * icon puts every value inside back to its default. With `_reset: 'key'`
@@ -595,6 +622,12 @@ type ControlMeta = {
     /** A short sentence about the control, from its folder's `_hints`. It shows as the control's hint. */
     hint?: string;
 };
+/**
+ * First-level folder behavior. `'independent'` (default) keeps each top-level
+ * folder open state isolated. `'accordion'` allows only one top-level folder
+ * open at a time. Nested folders and anchor grids are unaffected.
+ */
+type FolderMode = 'independent' | 'accordion';
 type PanelConfig = {
     id: string;
     name: string;
@@ -631,6 +664,29 @@ type PanelConfig = {
      * drops its section.
      */
     groupHeader?: boolean;
+    /**
+     * The name of a group, or of a panel with no group, this panel opens next
+     * to. It is not stacked with the other panels: it sits beside that panel,
+     * on the side toward the middle of the screen, with the same top edge.
+     * When that panel is not shown, this one shows as a panel of its own.
+     */
+    beside?: string;
+    /**
+     * Called by the X in the panel's header. With it, the X calls this instead
+     * of closing the panel to a small button, so the host can remove the
+     * panel (a selection panel clears the selection).
+     */
+    onClose?: () => void;
+    /**
+     * This panel's {@link FolderMode}. Without it, the panel takes the mode
+     * of its `DialRoot`.
+     */
+    folderMode?: FolderMode;
+    /**
+     * `false` drops the version toolbar (add, the version menu, copy) from
+     * the panel's header. Default `true`.
+     */
+    toolbar?: boolean;
 };
 type Listener = () => void;
 type ActionListener = (action: string) => void;
@@ -681,6 +737,29 @@ type DialStorePanelOptions = {
      * drops its section.
      */
     groupHeader?: boolean;
+    /**
+     * The name of a group, or of a panel with no group, this panel opens next
+     * to. It is not stacked with the other panels: it sits beside that panel,
+     * on the side toward the middle of the screen, with the same top edge.
+     * When that panel is not shown, this one shows as a panel of its own.
+     */
+    beside?: string;
+    /**
+     * Called by the X in the panel's header. With it, the X calls this instead
+     * of closing the panel to a small button, so the host can remove the
+     * panel (a selection panel clears the selection).
+     */
+    onClose?: () => void;
+    /**
+     * This panel's {@link FolderMode}. Without it, the panel takes the mode
+     * of its `DialRoot`.
+     */
+    folderMode?: FolderMode;
+    /**
+     * `false` drops the version toolbar (add, the version menu, copy) from
+     * the panel's header. Default `true`.
+     */
+    toolbar?: boolean;
 };
 declare class DialStoreClass {
     private panelOpenListeners;
@@ -1432,8 +1511,8 @@ declare const Folder: vue.DefineComponent<vue.ExtractPropTypes<{
 }>> & Readonly<{
     onOpenChange?: ((...args: any[]) => any) | undefined;
 }>, {
-    defaultOpen: boolean;
     toolbar: (() => VNodeChild) | null;
+    defaultOpen: boolean;
     open: boolean;
     isRoot: boolean;
     inline: boolean;

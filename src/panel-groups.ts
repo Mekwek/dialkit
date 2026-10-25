@@ -38,3 +38,40 @@ export function partitionPanels(panels: PanelConfig[]): PanelRootEntry[] {
 
   return entries;
 }
+
+/**
+ * A root shell and the panels that open beside it (the `beside` option).
+ */
+export type PanelRootSlot = { entry: PanelRootEntry; beside: PanelConfig[] };
+
+/** The name a `beside` option uses for a shell: its group, or its panel's name. */
+function shellName(entry: PanelRootEntry): string {
+  return entry.kind === 'group' ? entry.group : entry.panel.name;
+}
+
+/**
+ * Attach each panel with `beside` to the shell it names. Such a panel leaves
+ * the column and rides with that shell. A panel whose shell is missing, or
+ * names another `beside` panel, stays a shell of its own, in place. A panel
+ * with a `group` belongs to its group, so its `beside` is ignored (it never
+ * reaches here as a standalone entry).
+ */
+export function placeBesidePanels(entries: PanelRootEntry[]): PanelRootSlot[] {
+  const isBeside = (entry: PanelRootEntry) => entry.kind === 'panel' && !!entry.panel.beside;
+  const targets = new Map<string, PanelRootSlot>();
+  const slots: PanelRootSlot[] = [];
+  for (const entry of entries) {
+    const slot = { entry, beside: [] };
+    slots.push(slot);
+    const name = shellName(entry);
+    if (!isBeside(entry) && !targets.has(name)) targets.set(name, slot);
+  }
+
+  return slots.filter((slot) => {
+    if (slot.entry.kind !== 'panel' || !slot.entry.panel.beside) return true;
+    const target = targets.get(slot.entry.panel.beside);
+    if (!target) return true;
+    target.beside.push(slot.entry.panel);
+    return false;
+  });
+}

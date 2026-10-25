@@ -76,6 +76,14 @@ type SelectConfig = {
     /** Pills only: no row label; the pills fill the row and the label
      *  becomes the group's accessible name. */
     hideLabel?: boolean;
+    /** Dropdown only: a + button after the dropdown, like flip and rotate
+     *  after the gradient type. `label` names it, `hint` is its H hint. A
+     *  click runs the action `<path>.add`. */
+    add?: SelectAddConfig;
+};
+type SelectAddConfig = {
+    label: string;
+    hint?: string;
 };
 type ColorConfig = {
     type: 'color';
@@ -142,6 +150,19 @@ type PadGroupConfig = Pick<DialPadConfig, 'labels' | 'mapping' | 'hideLabel' | '
  * are the columns, the second's are the rows. Each value keeps its own path.
  */
 type AnchorGridConfig = Record<string, never>;
+/**
+ * A row: set `_row: true` on a folder with two controls. The folder shows
+ * no header; its two controls sit side by side, each with its label above
+ * it, like Weight and Size in a type tool. Each value keeps its own path.
+ */
+type RowConfig = Record<string, never>;
+/**
+ * The names a row's controls show when its labels sit inside the controls
+ * (`--dial-row-label-style: 2`): set `_inlineLabels` on the `_row` folder,
+ * from a child key to a shorter name, or `''` to show only the value. The
+ * title above each control keeps the full name.
+ */
+type InlineLabelsConfig = Record<string, string>;
 type ShortcutMode = 'fine' | 'normal' | 'coarse';
 type ShortcutInteraction = 'scroll' | 'drag' | 'move' | 'scroll-only';
 type ShortcutConfig = {
@@ -169,6 +190,12 @@ type ControlMeta = {
     padGroup?: PadGroupConfig;
     /** Folder only: `_anchor` shows the folder's two selects as one grid. See {@link AnchorGridConfig}. */
     anchor?: AnchorGridConfig;
+    /** Folder only: `_row` shows the folder's two controls side by side. See {@link RowConfig}. */
+    row?: RowConfig;
+    /** Row only: the names its controls show inside. See {@link InlineLabelsConfig}. */
+    inlineLabels?: InlineLabelsConfig;
+    /** Select only: a + button after the dropdown. See {@link SelectConfig.add}. */
+    add?: SelectAddConfig;
     /**
      * Folder only: `_reset` shows a reset icon in the folder's header. The
      * icon puts every value inside back to its default. With `_reset: 'key'`

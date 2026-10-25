@@ -1,9 +1,11 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { DialStore, PanelConfig } from '../store/DialStore';
+import type { FolderMode } from '../store/DialStore';
 import { TimelineStore } from '../store/TimelineStore';
 import { isDevDefault } from '../env';
-import { groupRootKey, partitionPanels } from '../panel-groups';
+import { groupRootKey, partitionPanels, placeBesidePanels } from '../panel-groups';
+import type { PanelRootEntry, PanelRootSlot } from '../panel-groups';
 import { Folder } from './Folder';
 import { Panel } from './Panel';
 import { HintTooltip } from './Hint';
@@ -15,12 +17,7 @@ export type DialPosition = 'top-right' | 'top-left' | 'bottom-right' | 'bottom-l
 export type DialMode = 'popover' | 'inline';
 export type DialTheme = 'light' | 'dark' | 'system';
 
-/**
- * First-level folder behavior. `'independent'` (default) keeps each top-level
- * folder open state isolated. `'accordion'` allows only one top-level folder
- * open at a time. Nested folders are unaffected.
- */
-export type FolderMode = 'independent' | 'accordion';
+export type { FolderMode };
 
 interface DialRootProps {
   position?: DialPosition;
@@ -233,7 +230,7 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
   // first panel so DOM order tracks registration order. Group shells do NOT
   // get the timeline toggle (grouped-shell + timeline coexistence is a
   // documented follow-up, not exercised here).
-  const panelNodes = rootEntries.map((entry) => {
+  const renderEntry = (entry: PanelRootEntry) => {
     if (entry.kind === 'panel') {
       const panel = entry.panel;
       return (
@@ -275,7 +272,28 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
         </Folder>
       </div>
     );
-  });
+  };
+
+  // A panel with `beside` renders right after the shell it names, out of
+  // the column, toward the middle of the screen: left of a root docked on
+  // the right, right of one docked on the left. It keeps its key, so it
+  // keeps its state when its shell comes and goes. An inline root has no
+  // side to put it on, so there every panel stays in the column.
+  const besideSide = originX === 'left' ? 'right' : 'left';
+  const slots: PanelRootSlot[] = inline ? rootEntries.map((entry) => ({ entry, beside: [] })) : placeBesidePanels(rootEntries);
+  const panelNodes = slots.flatMap(({ entry, beside }) => [
+    renderEntry(entry),
+    ...beside.map((panel) => (
+      <Panel
+        key={panel.id}
+        panel={panel}
+        beside={besideSide}
+        defaultOpen={defaultOpen}
+        folderMode={folderMode}
+        onOpenChange={(open) => handlePanelOpenChange(panel.id, open)}
+      />
+    )),
+  ]);
 
   const content = (
   <ShortcutListener>

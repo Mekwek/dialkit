@@ -419,6 +419,14 @@ type SelectConfig = {
     /** Pills only: no row label; the pills fill the row and the label
      *  becomes the group's accessible name. */
     hideLabel?: boolean;
+    /** Dropdown only: a + button after the dropdown, like flip and rotate
+     *  after the gradient type. `label` names it, `hint` is its H hint. A
+     *  click runs the action `<path>.add`. */
+    add?: SelectAddConfig;
+};
+type SelectAddConfig = {
+    label: string;
+    hint?: string;
 };
 type ColorConfig = {
     type: 'color';
@@ -491,6 +499,19 @@ type PadGroupConfig = Pick<DialPadConfig, 'labels' | 'mapping' | 'hideLabel' | '
  */
 type AnchorGridConfig = Record<string, never>;
 /**
+ * A row: set `_row: true` on a folder with two controls. The folder shows
+ * no header; its two controls sit side by side, each with its label above
+ * it, like Weight and Size in a type tool. Each value keeps its own path.
+ */
+type RowConfig = Record<string, never>;
+/**
+ * The names a row's controls show when its labels sit inside the controls
+ * (`--dial-row-label-style: 2`): set `_inlineLabels` on the `_row` folder,
+ * from a child key to a shorter name, or `''` to show only the value. The
+ * title above each control keeps the full name.
+ */
+type InlineLabelsConfig = Record<string, string>;
+/**
  * Hints: set `_hints` on a folder (or the panel's root config) to a map from
  * a child key to a short sentence about that control. See
  * {@link ControlMeta.hint}.
@@ -503,7 +524,7 @@ type HintsConfig = Record<string, string>;
  */
 type LabelsConfig = Record<string, string>;
 /** Folder keys that configure the folder instead of adding a control. */
-declare const FOLDER_META_KEYS: readonly ["_anchor", "_collapsed", "_fields", "_hints", "_labels", "_pad", "_reset"];
+declare const FOLDER_META_KEYS: readonly ["_anchor", "_collapsed", "_fields", "_hints", "_inlineLabels", "_labels", "_pad", "_reset", "_row"];
 type FolderMetaKey = (typeof FOLDER_META_KEYS)[number];
 /**
  * Wraps a control with a visibility rule. The control is only added to the
@@ -577,6 +598,12 @@ type ControlMeta = {
     padGroup?: PadGroupConfig;
     /** Folder only: `_anchor` shows the folder's two selects as one grid. See {@link AnchorGridConfig}. */
     anchor?: AnchorGridConfig;
+    /** Folder only: `_row` shows the folder's two controls side by side. See {@link RowConfig}. */
+    row?: RowConfig;
+    /** Row only: the names its controls show inside. See {@link InlineLabelsConfig}. */
+    inlineLabels?: InlineLabelsConfig;
+    /** Select only: a + button after the dropdown. See {@link SelectConfig.add}. */
+    add?: SelectAddConfig;
     /**
      * Folder only: `_reset` shows a reset icon in the folder's header. The
      * icon puts every value inside back to its default. With `_reset: 'key'`
@@ -608,6 +635,12 @@ type ControlMeta = {
     /** A short sentence about the control, from its folder's `_hints`. It shows as the control's hint. */
     hint?: string;
 };
+/**
+ * First-level folder behavior. `'independent'` (default) keeps each top-level
+ * folder open state isolated. `'accordion'` allows only one top-level folder
+ * open at a time. Nested folders and anchor grids are unaffected.
+ */
+type FolderMode = 'independent' | 'accordion';
 type PanelConfig = {
     id: string;
     name: string;
@@ -644,6 +677,29 @@ type PanelConfig = {
      * drops its section.
      */
     groupHeader?: boolean;
+    /**
+     * The name of a group, or of a panel with no group, this panel opens next
+     * to. It is not stacked with the other panels: it sits beside that panel,
+     * on the side toward the middle of the screen, with the same top edge.
+     * When that panel is not shown, this one shows as a panel of its own.
+     */
+    beside?: string;
+    /**
+     * Called by the X in the panel's header. With it, the X calls this instead
+     * of closing the panel to a small button, so the host can remove the
+     * panel (a selection panel clears the selection).
+     */
+    onClose?: () => void;
+    /**
+     * This panel's {@link FolderMode}. Without it, the panel takes the mode
+     * of its `DialRoot`.
+     */
+    folderMode?: FolderMode;
+    /**
+     * `false` drops the version toolbar (add, the version menu, copy) from
+     * the panel's header. Default `true`.
+     */
+    toolbar?: boolean;
 };
 type Listener$3 = () => void;
 type ActionListener = (action: string) => void;
@@ -694,6 +750,29 @@ type DialStorePanelOptions = {
      * drops its section.
      */
     groupHeader?: boolean;
+    /**
+     * The name of a group, or of a panel with no group, this panel opens next
+     * to. It is not stacked with the other panels: it sits beside that panel,
+     * on the side toward the middle of the screen, with the same top edge.
+     * When that panel is not shown, this one shows as a panel of its own.
+     */
+    beside?: string;
+    /**
+     * Called by the X in the panel's header. With it, the X calls this instead
+     * of closing the panel to a small button, so the host can remove the
+     * panel (a selection panel clears the selection).
+     */
+    onClose?: () => void;
+    /**
+     * This panel's {@link FolderMode}. Without it, the panel takes the mode
+     * of its `DialRoot`.
+     */
+    folderMode?: FolderMode;
+    /**
+     * `false` drops the version toolbar (add, the version menu, copy) from
+     * the panel's header. Default `true`.
+     */
+    toolbar?: boolean;
 };
 declare class DialStoreClass {
     private panelOpenListeners;
@@ -897,6 +976,28 @@ interface UseDialOptions {
      * drops its section.
      */
     groupHeader?: boolean;
+    /**
+     * The name of a group, or of a panel with no group, this panel opens next
+     * to. It sits beside that panel, toward the middle of the screen, with
+     * the same top edge, instead of in the column. See `PanelConfig.beside`.
+     */
+    beside?: string;
+    /**
+     * Called by the X in the panel's header, instead of closing the panel to
+     * a small button. The host removes the panel (and, for a selection
+     * panel, clears the selection).
+     */
+    onClose?: () => void;
+    /**
+     * This panel's own folder mode. Without it, the panel takes the
+     * `folderMode` of its `DialRoot`.
+     */
+    folderMode?: FolderMode;
+    /**
+     * `false` drops the version toolbar (add, the version menu, copy) from
+     * the panel's header. Default `true`.
+     */
+    toolbar?: boolean;
 }
 interface DialKitController<T extends DialConfig> {
     values: ResolvedValues<T>;
@@ -913,12 +1014,7 @@ declare function useDialKitController<T extends DialConfig>(name: string, config
 type DialPosition = 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
 type DialMode = 'popover' | 'inline';
 type DialTheme = 'light' | 'dark' | 'system';
-/**
- * First-level folder behavior. `'independent'` (default) keeps each top-level
- * folder open state isolated. `'accordion'` allows only one top-level folder
- * open at a time. Nested folders are unaffected.
- */
-type FolderMode = 'independent' | 'accordion';
+
 interface DialRootProps {
     position?: DialPosition;
     defaultOpen?: boolean;
@@ -1395,8 +1491,13 @@ interface FolderProps {
      * by default.
      */
     hint?: string;
+    /**
+     * On a panel's own header: the X calls this instead of closing the panel
+     * to a small button.
+     */
+    onClose?: () => void;
 }
-declare function Folder({ title, children, open, defaultOpen, isRoot, inline, onOpenChange, toolbar, onReset, changed, meta, actions, hint }: FolderProps): react_jsx_runtime.JSX.Element;
+declare function Folder({ title, children, open, defaultOpen, isRoot, inline, onOpenChange, toolbar, onReset, changed, meta, actions, hint, onClose }: FolderProps): react_jsx_runtime.JSX.Element;
 
 interface ButtonGroupProps {
     buttons: Array<{
@@ -1500,7 +1601,14 @@ interface SelectControlProps {
     onChange: (value: string) => void;
     hint?: string;
 }
-declare function SelectControl({ label, value, options, onChange, hint }: SelectControlProps): react_jsx_runtime.JSX.Element;
+interface SelectAdd {
+    label: string;
+    hint?: string;
+    onClick: () => void;
+}
+declare function SelectControl({ label, value, options, onChange, hint, add }: SelectControlProps & {
+    add?: SelectAdd;
+}): react_jsx_runtime.JSX.Element;
 
 type ColorControlProps = {
     label: string;
@@ -1551,7 +1659,9 @@ interface AnchorGridProps {
  * Two selects as one grid of dots: one dot per pair of options. A click on a
  * dot sets both selects. The picked cell holds a pill that slides to the
  * next pick, and a hover shows a faint pill and a brighter dot. Arrow keys
- * move the pick.
+ * move the pick. A value that matches no option (an empty string, say)
+ * picks no cell: the grid shows no pill, and the arrow keys start from the
+ * middle cell.
  */
 declare function AnchorGrid({ panelId, label, columns, rows, values, hint }: AnchorGridProps): react_jsx_runtime.JSX.Element;
 
@@ -1770,4 +1880,4 @@ declare function HintTip({ always }: {
     always?: boolean;
 }): react_jsx_runtime.JSX.Element | null;
 
-export { type ActionConfig, AnchorGrid, type AnchorGridConfig, type BackgroundConfig, BackgroundControl, type BackgroundControlProps, type BackgroundGradient, type BackgroundHost, type BackgroundMedia, type BackgroundMediaDisplay, type BackgroundStop, type BackgroundValue, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type CopiedTransition, type CustomSpring, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, EASING_CURVES, type EasingConfig, type EasingCurve, EasingVisualization, FieldRow, type FieldsConfig, Folder, type FolderMode, GRADIENT_SHAPES, type GizmoBox, type GradientFrame, type GradientGizmoCallbacks, type GradientGizmoProps, type GradientHandles, type GradientPoint, type GradientShape, HintStore, HintTip, type HintsConfig, type ImageConfig, ImageControl, type ImageOption, type LabelsConfig, type LayerActionKind, type LayerItem, LayerListControl, type LayerListControlProps, type LayersConfig, type LayersValue, type PadGroupConfig, type PanelConfig, type Preset, PresetManager, type RangeConfig, type ResolvedValues, SPRING_PRESETS, type SavedGradient, type SelectConfig, SelectControl, type SelectOption$1 as SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, type SpringMode, type SpringPreset, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipMeta, type TimelineClipTrackMeta, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelineMeta, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, TimelineStore, type TimelineTransport, Toggle, type TransitionConfig, TransitionControl, TransitionLibrary, type UseDialOptions, type UseDialTimelineOptions, type VisibleWhen, type VisibleWhenValue, backgroundGradientCss, defaultBackgroundValue, defaultGradientHandles, dragGradientCentre, dragGradientEnd, dragGradientWidth, formatClock, formatGizmoAngle, getBackgroundHost, getSavedGradients, gizmoAngle, gizmoPoints, gradientFrame, gradientParamAt, layerAction, legacyGradientHandles, mountGradientGizmo, normalizeBackgroundValue, normalizeLayersValue, paintBackgroundPreview, parseLayerAction, rotateGradientHandles, setBackgroundHost, setSavedGradients, stopPlacement, stopPositionAt, subscribeBackgroundHost, switchGradientShape, unwrapVisibility, useDialKit, useDialKitController, useDialTimeline, withVisibility };
+export { type ActionConfig, AnchorGrid, type AnchorGridConfig, type BackgroundConfig, BackgroundControl, type BackgroundControlProps, type BackgroundGradient, type BackgroundHost, type BackgroundMedia, type BackgroundMediaDisplay, type BackgroundStop, type BackgroundValue, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type CopiedTransition, type CustomSpring, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, EASING_CURVES, type EasingConfig, type EasingCurve, EasingVisualization, FieldRow, type FieldsConfig, Folder, type FolderMode, GRADIENT_SHAPES, type GizmoBox, type GradientFrame, type GradientGizmoCallbacks, type GradientGizmoProps, type GradientHandles, type GradientPoint, type GradientShape, HintStore, HintTip, type HintsConfig, type ImageConfig, ImageControl, type ImageOption, type InlineLabelsConfig, type LabelsConfig, type LayerActionKind, type LayerItem, LayerListControl, type LayerListControlProps, type LayersConfig, type LayersValue, type PadGroupConfig, type PanelConfig, type Preset, PresetManager, type RangeConfig, type ResolvedValues, type RowConfig, SPRING_PRESETS, type SavedGradient, type SelectAddConfig, type SelectConfig, SelectControl, type SelectOption$1 as SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, type SpringMode, type SpringPreset, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipMeta, type TimelineClipTrackMeta, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelineMeta, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, TimelineStore, type TimelineTransport, Toggle, type TransitionConfig, TransitionControl, TransitionLibrary, type UseDialOptions, type UseDialTimelineOptions, type VisibleWhen, type VisibleWhenValue, backgroundGradientCss, defaultBackgroundValue, defaultGradientHandles, dragGradientCentre, dragGradientEnd, dragGradientWidth, formatClock, formatGizmoAngle, getBackgroundHost, getSavedGradients, gizmoAngle, gizmoPoints, gradientFrame, gradientParamAt, layerAction, legacyGradientHandles, mountGradientGizmo, normalizeBackgroundValue, normalizeLayersValue, paintBackgroundPreview, parseLayerAction, rotateGradientHandles, setBackgroundHost, setSavedGradients, stopPlacement, stopPositionAt, subscribeBackgroundHost, switchGradientShape, unwrapVisibility, useDialKit, useDialKitController, useDialTimeline, withVisibility };

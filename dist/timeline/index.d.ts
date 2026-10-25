@@ -172,6 +172,14 @@ type SelectConfig = {
     /** Pills only: no row label; the pills fill the row and the label
      *  becomes the group's accessible name. */
     hideLabel?: boolean;
+    /** Dropdown only: a + button after the dropdown, like flip and rotate
+     *  after the gradient type. `label` names it, `hint` is its H hint. A
+     *  click runs the action `<path>.add`. */
+    add?: SelectAddConfig;
+};
+type SelectAddConfig = {
+    label: string;
+    hint?: string;
 };
 type ColorConfig = {
     type: 'color';

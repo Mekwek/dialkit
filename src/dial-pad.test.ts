@@ -186,6 +186,47 @@ describe('DialPad', () => {
     }
   });
 
+  it('keeps a _row folder with its two controls and their own paths', () => {
+    const id = 'row-test';
+    try {
+      DialStore.registerPanel(id, 'Row', {
+        type: {
+          _row: true,
+          weight: { type: 'select', options: ['regular', 'bold'], default: 'regular' },
+          size: [40, 1, 1000, 1],
+        },
+      });
+      const folder = DialStore.getPanel(id)!.controls[0];
+      assert.deepEqual(folder.row, {});
+      assert.deepEqual(folder.children!.map((child) => `${child.type} ${child.path}`), ['select type.weight', 'slider type.size']);
+      DialStore.updateValues(id, { 'type.weight': 'bold', 'type.size': 120 });
+      assert.deepEqual([DialStore.getValue(id, 'type.weight'), DialStore.getValue(id, 'type.size')], ['bold', 120]);
+      assert.equal(DialStore.getValue(id, 'type._row'), undefined);
+    } finally {
+      DialStore.unregisterPanel(id);
+    }
+  });
+
+  it('gives a dropdown its + button, and runs its action as <path>.add', () => {
+    const id = 'select-add-test';
+    const heard: string[] = [];
+    try {
+      DialStore.registerPanel(id, 'Add', {
+        font: { type: 'select', options: ['geist'], default: 'geist', add: { label: 'Upload font', hint: 'Adds a font file.' } },
+        plain: { type: 'select', options: ['a'], default: 'a' },
+      });
+      const stop = DialStore.subscribeActions(id, (path) => heard.push(path));
+      const [font, plain] = DialStore.getPanel(id)!.controls;
+      assert.deepEqual(font.add, { label: 'Upload font', hint: 'Adds a font file.' });
+      assert.equal(plain.add, undefined);
+      DialStore.triggerAction(id, 'font.add');
+      assert.deepEqual(heard, ['font.add']);
+      stop();
+    } finally {
+      DialStore.unregisterPanel(id);
+    }
+  });
+
   it('gives each control the hint its folder lists in _hints', () => {
     const id = 'hints-test';
     try {
@@ -221,6 +262,54 @@ describe('DialPad', () => {
       assert.deepEqual([texScale.path, texScale.label], ['texScale', 'Tex Scale']);
     } finally {
       DialStore.unregisterPanel(id);
+    }
+  });
+});
+
+describe('Panel options: beside, onClose, folderMode', () => {
+  it('keeps beside and folderMode per panel, and through an update', () => {
+    const text = 'beside-text-test';
+    const os = 'beside-os-test';
+    try {
+      DialStore.registerPanel(os, 'OS', { a: 1 }, undefined, { group: 'Theca OS' });
+      DialStore.registerPanel(text, 'Text', { transform: { x: 0 }, animation: { y: 0 } }, undefined, { beside: 'Theca OS', folderMode: 'accordion' });
+      assert.equal(DialStore.getPanel(text)!.beside, 'Theca OS');
+      assert.equal(DialStore.getPanel(text)!.folderMode, 'accordion');
+      assert.equal(DialStore.getPanel(os)!.beside, undefined);
+      assert.equal(DialStore.getPanel(os)!.folderMode, undefined);
+
+      DialStore.updatePanel(text, 'Text', { transform: { x: 1 }, animation: { y: 0 } });
+      assert.equal(DialStore.getPanel(text)!.beside, 'Theca OS');
+      assert.equal(DialStore.getPanel(text)!.folderMode, 'accordion');
+
+      DialStore.updatePanel(text, 'Text', { transform: { x: 1 }, animation: { y: 0 } }, undefined, { folderMode: 'independent' });
+      assert.equal(DialStore.getPanel(text)!.folderMode, 'independent');
+    } finally {
+      DialStore.unregisterPanel(text);
+      DialStore.unregisterPanel(os);
+    }
+  });
+
+  it('registers without onClose, and keeps onClose when given', () => {
+    const plain = 'close-plain-test';
+    const closable = 'close-given-test';
+    let closed = 0;
+    const onClose = () => { closed += 1; };
+    try {
+      DialStore.registerPanel(plain, 'Plain', { a: 1 });
+      assert.equal(DialStore.getPanel(plain)!.onClose, undefined);
+
+      DialStore.registerPanel(closable, 'Closable', { a: 1 }, undefined, { onClose });
+      DialStore.getPanel(closable)!.onClose!();
+      assert.equal(closed, 1);
+
+      // The same handler is no change, so the store does not rebuild the panel.
+      const before = DialStore.getPanel(closable);
+      DialStore.updatePanel(closable, 'Closable', { a: 1 }, undefined, { onClose });
+      assert.equal(DialStore.getPanel(closable), before);
+    } finally {
+      DialStore.unregisterPanel(plain);
+      DialStore.unregisterPanel(closable);
     }
   });
 });

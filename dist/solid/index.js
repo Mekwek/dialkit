@@ -1291,6 +1291,10 @@ function subscribeBackgroundHost(listener) {
 
 // src/store/DialStore.ts
 trackInputModality();
+function inlineLabelsOf(value) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return void 0;
+  return Object.fromEntries(Object.entries(value).filter(([, name]) => typeof name === "string"));
+}
 function anchorConfigOf(value) {
   return value === true || typeof value === "object" && value !== null && !Array.isArray(value) ? {} : void 0;
 }
@@ -1313,7 +1317,7 @@ function textMapOf(value) {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return void 0;
   return Object.fromEntries(Object.entries(value).filter(([, hint]) => typeof hint === "string" && hint));
 }
-var FOLDER_META_KEYS = ["_anchor", "_collapsed", "_fields", "_hints", "_labels", "_pad", "_reset"];
+var FOLDER_META_KEYS = ["_anchor", "_collapsed", "_fields", "_hints", "_inlineLabels", "_labels", "_pad", "_reset", "_row"];
 function isFolderMetaKey(key) {
   return FOLDER_META_KEYS.includes(key);
 }
@@ -1533,7 +1537,11 @@ var DialStoreClass = class {
       presetsEditable: options.presetsEditable,
       presetsLockable: options.presetsLockable,
       hint: options.hint,
-      groupHeader: options.groupHeader
+      groupHeader: options.groupHeader,
+      beside: options.beside,
+      onClose: options.onClose,
+      folderMode: options.folderMode,
+      toolbar: options.toolbar
     };
     this.panels.set(id, panel);
     this.controlsByPanel.set(panel, controlsByPath);
@@ -1558,7 +1566,7 @@ var DialStoreClass = class {
       return;
     }
     const { key, parsed: { controls: allControls, controlsByPath, defaultValues } } = this.parseCached(id, config, shortcuts ?? existing.shortcuts);
-    const unchanged = this.panelConfigKeys.get(id) === key && name === existing.name && (options.kind ?? existing.kind) === existing.kind && (options.group ?? existing.group) === existing.group && (options.presetsEditable ?? existing.presetsEditable) === existing.presetsEditable && (options.presetsLockable ?? existing.presetsLockable) === existing.presetsLockable && (options.hint ?? existing.hint) === existing.hint;
+    const unchanged = this.panelConfigKeys.get(id) === key && name === existing.name && (options.kind ?? existing.kind) === existing.kind && (options.group ?? existing.group) === existing.group && (options.presetsEditable ?? existing.presetsEditable) === existing.presetsEditable && (options.presetsLockable ?? existing.presetsLockable) === existing.presetsLockable && (options.hint ?? existing.hint) === existing.hint && (options.beside ?? existing.beside) === existing.beside && (options.onClose ?? existing.onClose) === existing.onClose && (options.folderMode ?? existing.folderMode) === existing.folderMode && (options.toolbar ?? existing.toolbar) === existing.toolbar;
     this.configurePanelRetention(id, options);
     if (unchanged) {
       this.persistPanel(id);
@@ -1579,7 +1587,11 @@ var DialStoreClass = class {
       presetsEditable: options.presetsEditable ?? existing.presetsEditable,
       presetsLockable: options.presetsLockable ?? existing.presetsLockable,
       hint: options.hint ?? existing.hint,
-      groupHeader: options.groupHeader ?? existing.groupHeader
+      groupHeader: options.groupHeader ?? existing.groupHeader,
+      beside: options.beside ?? existing.beside,
+      onClose: options.onClose ?? existing.onClose,
+      folderMode: options.folderMode ?? existing.folderMode,
+      toolbar: options.toolbar ?? existing.toolbar
     };
     this.panels.set(id, nextPanel);
     this.controlsByPanel.set(nextPanel, controlsByPath);
@@ -2200,7 +2212,7 @@ var DialStoreClass = class {
         } else if (isActionConfigValue(value)) {
           control = { type: "action", path, label: value.label || label };
         } else if (isSelectConfigValue(value)) {
-          control = { type: "select", path, label, options: value.options, display: value.display, hideLabel: value.hideLabel };
+          control = { type: "select", path, label, options: value.options, display: value.display, hideLabel: value.hideLabel, ...value.add ? { add: value.add } : {} };
         } else if (isColorConfigValue(value)) {
           control = { type: "color", path, label };
         } else if (isImageConfigValue(value)) {
@@ -2230,6 +2242,8 @@ var DialStoreClass = class {
             fields: fieldsConfigOf(folderConfig._fields),
             padGroup: padGroupConfigOf(folderConfig._pad),
             anchor: anchorConfigOf(folderConfig._anchor),
+            row: folderConfig._row === true ? {} : void 0,
+            inlineLabels: inlineLabelsOf(folderConfig._inlineLabels),
             reset: resetConfigOf(folderConfig._reset, path),
             children: visit(folderConfig, path)
           };
@@ -8574,7 +8588,8 @@ function mountLayerListControl(host, initial) {
     hint(eye, () => item()?.hidden ? LAYER_HINTS.show : LAYER_HINTS.hide);
     hint(duplicate, () => LAYER_HINTS.duplicate);
     hint(remove, () => LAYER_HINTS.delete);
-    eye.addEventListener("click", () => {
+    eye.addEventListener("click", (event) => {
+      event.stopPropagation();
       const at = indexOf(id);
       if (at === -1) return;
       const items = value.items.slice();
@@ -8582,8 +8597,14 @@ function mountLayerListControl(host, initial) {
       items[at] = it.hidden ? { id: it.id, label: it.label, ...it.offCanvas ? { offCanvas: it.offCanvas } : {} } : { ...it, hidden: true };
       emit({ items, selected: value.selected });
     });
-    duplicate.addEventListener("click", () => props.onAction("duplicate", id));
-    remove.addEventListener("click", () => props.onAction("delete", id));
+    duplicate.addEventListener("click", (event) => {
+      event.stopPropagation();
+      props.onAction("duplicate", id);
+    });
+    remove.addEventListener("click", (event) => {
+      event.stopPropagation();
+      props.onAction("delete", id);
+    });
     rowRoot.addEventListener("click", (event) => {
       if (suppressClick) {
         suppressClick = false;

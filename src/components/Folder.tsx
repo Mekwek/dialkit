@@ -29,16 +29,24 @@ interface FolderProps {
    * by default.
    */
   hint?: string;
+  /**
+   * On a panel's own header: the X calls this instead of closing the panel
+   * to a small button.
+   */
+  onClose?: () => void;
 }
 
 /** The hint of a panel's own header: clicking it closes the panel. */
 const PANEL_HEADER_HINT = 'Closes the panel to a small button. Click the button to open it again.';
 
+/** The hint of a panel's own header when the host closes the panel (onClose). */
+const PANEL_CLOSE_HINT = 'Closes the panel.';
+
 /** The hint of a section's reset button. */
 const SECTION_RESET_HINT = 'Sets every control in this section back to its default.';
 
-export function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, onReset, changed, meta, actions, hint }: FolderProps) {
-  const { hintRow } = useHint(hint ?? (isRoot && !inline ? PANEL_HEADER_HINT : undefined));
+export function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, onReset, changed, meta, actions, hint, onClose }: FolderProps) {
+  const { hintRow } = useHint(hint ?? (isRoot && !inline ? (onClose ? PANEL_CLOSE_HINT : PANEL_HEADER_HINT) : undefined));
   const { hintRow: resetHintRow } = useHint(SECTION_RESET_HINT);
   const [localOpen, setIsOpen] = useState(defaultOpen);
   const isOpen = open ?? localOpen;
@@ -77,6 +85,11 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
 
   const handleToggle = () => {
     if (inline && isRoot) return;
+    // An open panel's header shows the X. With onClose, the host closes it.
+    if (isRoot && isOpen && onClose) {
+      onClose();
+      return;
+    }
     const next = !isOpen;
     setIsOpen(next);
     onOpenChange?.(next);

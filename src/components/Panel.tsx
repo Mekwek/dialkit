@@ -23,7 +23,8 @@ interface PanelProps {
    * How first-level (top-level) folders behave. `'independent'` (default) keeps
    * each folder's open state isolated — the historical behavior. `'accordion'`
    * allows only one top-level folder open at a time; opening one closes the
-   * other. Nested folders (depth > 0) are unaffected in either mode.
+   * other. Nested folders (depth > 0) are unaffected in either mode. The
+   * panel's own `folderMode` option wins over this one.
    */
   folderMode?: 'independent' | 'accordion';
   onOpenChange?: (open: boolean) => void;
@@ -37,9 +38,16 @@ interface PanelProps {
    */
   variant?: 'root' | 'section' | 'toolbar';
   toolbarExtra?: ReactNode;
+  /**
+   * For a root panel with the `beside` option, placed next to the shell it
+   * names: the side of that shell it sits on. The CSS takes it out of the
+   * column there.
+   */
+  beside?: 'left' | 'right';
 }
 
-export function Panel({ panel, defaultOpen = true, inline = false, folderMode = 'independent', onOpenChange, variant = 'root', toolbarExtra }: PanelProps) {
+export function Panel({ panel, defaultOpen = true, inline = false, folderMode: rootFolderMode = 'independent', onOpenChange, variant = 'root', toolbarExtra, beside }: PanelProps) {
+  const folderMode = panel.folderMode ?? rootFolderMode;
   const [copied, setCopied] = useState(false);
   const { hintRow: addHintRow } = useHint(ADD_VERSION_HINT);
   const { hintRow: copyHintRow } = useHint(COPY_HINT);
@@ -78,7 +86,7 @@ export function Panel({ panel, defaultOpen = true, inline = false, folderMode = 
   const [openFolder, setOpenFolder] = useState<string | null>(() => {
     if (folderMode !== 'accordion') return null;
     const first = topLevelControls.find(
-      (c) => c.type === 'folder' && (c.defaultOpen ?? true)
+      (c) => c.type === 'folder' && !c.anchor && (c.defaultOpen ?? true)
     );
     return first?.path ?? null;
   });
@@ -227,8 +235,8 @@ export function Panel({ panel, defaultOpen = true, inline = false, folderMode = 
   }
 
   return (
-    <div className="dialkit-panel-wrapper">
-      <Folder title={panel.name} open={isOpen} isRoot={true} inline={inline} onOpenChange={handleOpenChange} toolbar={toolbar} hint={panel.hint}>
+    <div className="dialkit-panel-wrapper" data-beside={beside}>
+      <Folder title={panel.name} open={isOpen} isRoot={true} inline={inline} onOpenChange={handleOpenChange} onClose={panel.onClose} toolbar={panel.toolbar === false ? undefined : toolbar} hint={panel.hint}>
         {renderControls()}
       </Folder>
     </div>

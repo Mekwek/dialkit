@@ -168,7 +168,11 @@ export function mountLayerListControl(host: HTMLElement, initial: LayerListContr
     hint(duplicate, () => LAYER_HINTS.duplicate);
     hint(remove, () => LAYER_HINTS.delete);
 
-    eye.addEventListener('click', () => {
+    // A button's click ends at the button. The eye swaps its icon while the
+    // click runs, so by the time it reached the row its target would be out
+    // of the page, and the row would take it as a click that selects.
+    eye.addEventListener('click', event => {
+      event.stopPropagation();
       const at = indexOf(id);
       if (at === -1) return;
       const items = value.items.slice();
@@ -176,8 +180,8 @@ export function mountLayerListControl(host: HTMLElement, initial: LayerListContr
       items[at] = it.hidden ? { id: it.id, label: it.label, ...(it.offCanvas ? { offCanvas: it.offCanvas } : {}) } : { ...it, hidden: true };
       emit({ items, selected: value.selected });
     });
-    duplicate.addEventListener('click', () => props.onAction('duplicate', id));
-    remove.addEventListener('click', () => props.onAction('delete', id));
+    duplicate.addEventListener('click', event => { event.stopPropagation(); props.onAction('duplicate', id); });
+    remove.addEventListener('click', event => { event.stopPropagation(); props.onAction('delete', id); });
     rowRoot.addEventListener('click', event => {
       if (suppressClick) { suppressClick = false; return; }
       if ((event.target as Element).closest(ROW_DRAG_EXCLUDE)) return;

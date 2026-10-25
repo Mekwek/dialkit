@@ -5,6 +5,7 @@ import type {
   DialKitPersistOptions,
   DialKitValueUpdates,
   DialValue,
+  FolderMode,
   ResolvedValues,
   ShortcutConfig,
 } from '../store/DialStore';
@@ -44,6 +45,28 @@ export interface UseDialOptions {
    * drops its section.
    */
   groupHeader?: boolean;
+  /**
+   * The name of a group, or of a panel with no group, this panel opens next
+   * to. It sits beside that panel, toward the middle of the screen, with
+   * the same top edge, instead of in the column. See `PanelConfig.beside`.
+   */
+  beside?: string;
+  /**
+   * Called by the X in the panel's header, instead of closing the panel to
+   * a small button. The host removes the panel (and, for a selection
+   * panel, clears the selection).
+   */
+  onClose?: () => void;
+  /**
+   * This panel's own folder mode. Without it, the panel takes the
+   * `folderMode` of its `DialRoot`.
+   */
+  folderMode?: FolderMode;
+  /**
+   * `false` drops the version toolbar (add, the version menu, copy) from
+   * the panel's header. Default `true`.
+   */
+  toolbar?: boolean;
 }
 
 export interface DialKitController<T extends DialConfig> {
@@ -79,6 +102,10 @@ export function useDialKitController<T extends DialConfig>(
     presetsLockable: options?.presetsLockable,
     hint: options?.hint,
     groupHeader: options?.groupHeader,
+    beside: options?.beside,
+    onClose: options?.onClose,
+    folderMode: options?.folderMode,
+    toolbar: options?.toolbar,
   });
 
   const configRef = useRef(config);

@@ -2,7 +2,7 @@
 // Run with `npm test` (node:test via tsx).
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { groupRootKey, partitionPanels } from './panel-groups';
+import { groupRootKey, partitionPanels, placeBesidePanels } from './panel-groups';
 import type { PanelConfig } from './store/DialStore';
 
 function panel(id: string, group?: string): PanelConfig {
@@ -41,5 +41,44 @@ describe('partitionPanels', () => {
       panel('four', ''),
     ]);
     assert.deepEqual(entries.map((entry) => entry.key), [groupRootKey('A'), groupRootKey('B'), 'four']);
+  });
+});
+
+describe('placeBesidePanels', () => {
+  function besidePanel(id: string, beside: string, group?: string): PanelConfig {
+    return { ...panel(id, group), beside };
+  }
+
+  it('attaches a beside panel to the group it names and takes it out of the column', () => {
+    const slots = placeBesidePanels(partitionPanels([
+      besidePanel('text', 'Theca OS'),
+      panel('layout', 'Theca OS'),
+      panel('solo'),
+    ]));
+    assert.deepEqual(slots.map((slot) => slot.entry.key), [groupRootKey('Theca OS'), 'solo']);
+    assert.deepEqual(slots[0].beside.map((p) => p.id), ['text']);
+    assert.deepEqual(slots[1].beside, []);
+  });
+
+  it('attaches to an ungrouped panel by its name', () => {
+    const slots = placeBesidePanels(partitionPanels([panel('main'), besidePanel('side', 'main')]));
+    assert.deepEqual(slots.map((slot) => slot.entry.key), ['main']);
+    assert.deepEqual(slots[0].beside.map((p) => p.id), ['side']);
+  });
+
+  it('keeps a beside panel as its own shell when its target is missing or is itself beside', () => {
+    const slots = placeBesidePanels(partitionPanels([
+      besidePanel('lost', 'Nowhere'),
+      besidePanel('a', 'b'),
+      besidePanel('b', 'lost'),
+    ]));
+    assert.deepEqual(slots.map((slot) => slot.entry.key), ['lost', 'a', 'b']);
+    assert.ok(slots.every((slot) => slot.beside.length === 0));
+  });
+
+  it('leaves a grouped panel in its group even with beside', () => {
+    const slots = placeBesidePanels(partitionPanels([panel('main'), besidePanel('member', 'main', 'G')]));
+    assert.deepEqual(slots.map((slot) => slot.entry.key), ['main', groupRootKey('G')]);
+    assert.deepEqual(slots[0].beside, []);
   });
 });

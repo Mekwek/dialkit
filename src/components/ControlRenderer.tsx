@@ -154,12 +154,34 @@ export function ControlRenderer({
         if (control.padGroup) {
           return <PadGroup key={control.path} panelId={panelId} control={control} values={values} />;
         }
+        // A row draws its two controls side by side. --dial-row-label-style
+        // picks where the labels sit (theme.css): 1, a title above each
+        // control; 2, inside the controls, with `_inlineLabels` names.
+        if (control.row) {
+          const cells = (control.children ?? []).slice(0, 2);
+          return (
+            <div key={control.path} className="dialkit-row-group">
+              {cells.map((child) => {
+                const inline = control.inlineLabels?.[child.path.slice(control.path.length + 1)];
+                // Pills fill their cell, as a row of their own does.
+                const shown = child.type === 'select' && child.display === 'pills' ? { ...child, hideLabel: true } : child;
+                return (
+                  <div key={child.path} className="dialkit-row-cell" data-inline-label={inline === '' ? 'none' : undefined}>
+                    <span className="dialkit-row-label">{child.label}</span>
+                    {renderControl(inline ? { ...shown, label: inline } : shown, depth + 1)}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        }
         // Controlled accordion open state only applies to depth-0 folders
         // when the caller opted into accordion mode by passing
         // onAccordionToggle. Nested folders always stay independent
-        // (uncontrolled) regardless of mode.
+        // (uncontrolled) regardless of mode, and so does an anchor grid:
+        // it is one control, not a section.
         const controlledProps =
-          depth === 0 && onAccordionToggle
+          depth === 0 && onAccordionToggle && !control.anchor
             ? {
                 open: accordionOpenPath === control.path,
                 onOpenChange: (next: boolean) => onAccordionToggle(control.path, next),
@@ -246,6 +268,7 @@ export function ControlRenderer({
             options={control.options ?? []}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
             hint={control.hint}
+            add={control.add ? { ...control.add, onClick: () => DialStore.triggerAction(panelId, `${control.path}.add`) } : undefined}
           />
         );
 
@@ -349,9 +372,9 @@ export function ControlRenderer({
     // adjacent-divider collapse rule) without needing :has(). Spring and
     // transition controls render as Folder internally; a background control
     // renders inside one.
-    // An X / Y / Z group or a pad group is a folder in the store, but draws
-    // no Folder: it is a plain row and keeps the row gap.
-    const drawsFolder = control.type === 'folder' && !control.fields && !control.padGroup;
+    // An X / Y / Z group, a pad group or a row is a folder in the store,
+    // but draws no Folder: it is a plain row and keeps the row gap.
+    const drawsFolder = control.type === 'folder' && !control.fields && !control.padGroup && !control.row;
     const isFolder = drawsFolder || control.type === 'spring' || control.type === 'background' || (control.type === 'transition' && !bare);
     const wrapClassName = isFolder
       ? 'dialkit-control-wrap dialkit-control-wrap-folder'
