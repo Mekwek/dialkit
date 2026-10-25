@@ -159,6 +159,8 @@ function mountSegmentedSelect(host: HTMLElement, initial: SelectControlProps): S
   const segmented = mountSegmentedControl(row, segmentProps());
   function render() {
     label.textContent = props.label;
+    if (props.hint) row.dataset.hint = props.hint;
+    else delete row.dataset.hint;
     if (props.hideLabel) {
       row.dataset.hideLabel = 'true';
       label.remove();

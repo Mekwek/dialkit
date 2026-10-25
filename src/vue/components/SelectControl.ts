@@ -178,12 +178,13 @@ export const SelectControl = defineComponent({
     },
     display: { type: String as PropType<SelectConfig['display']>, default: undefined },
     hideLabel: { type: Boolean, default: false },
+    hint: { type: String, required: false },
   },
   emits: ['change'],
   setup(props, { emit }) {
     const onChange = (value: string) => emit('change', value);
     return () => props.display === 'segmented'
-      ? h('div', { class: 'dialkit-labeled-control', 'data-hide-label': props.hideLabel ? 'true' : undefined }, [
+      ? h('div', { class: 'dialkit-labeled-control', 'data-hide-label': props.hideLabel ? 'true' : undefined, 'data-hint': props.hint }, [
         props.hideLabel ? null : h('span', { class: 'dialkit-labeled-control-label' }, props.label),
         h(SegmentedControl, {
           options: normalizeOptions(props.options),
@@ -192,6 +193,6 @@ export const SelectControl = defineComponent({
           onChange,
         }),
       ])
-      : h(SelectDropdown, { label: props.label, value: props.value, options: props.options, onChange });
+      : h(SelectDropdown, { label: props.label, value: props.value, options: props.options, hint: props.hint, onChange });
   },
 });

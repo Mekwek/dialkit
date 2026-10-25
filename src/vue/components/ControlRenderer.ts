@@ -126,6 +126,7 @@ export const ControlRenderer = defineComponent({
               controls: control.children ?? [],
               values: props.values,
               defaults: DialStore.getDefaultValues(props.panelId),
+              hint: control.hint,
               onChange: (next: Record<string, DialValue>) => DialStore.updateValues(props.panelId, next),
             });
           }
@@ -196,6 +197,7 @@ export const ControlRenderer = defineComponent({
             key: control.path,
             title: control.label,
             defaultOpen: true,
+            hint: control.hint,
           }, {
             default: () => h(BackgroundControl, {
               panelId: props.panelId,
@@ -209,6 +211,7 @@ export const ControlRenderer = defineComponent({
           return h(AnchorControl, {
             key: control.path,
             label: control.label,
+            hint: control.hint,
             value: value as AnchorValue,
             onChange: (next: AnchorValue) => DialStore.updateValue(props.panelId, control.path, next),
           });

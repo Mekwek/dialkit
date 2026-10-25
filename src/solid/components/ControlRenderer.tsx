@@ -189,6 +189,7 @@ export function ControlRenderer(props: ControlRendererProps) {
               controls={control.children ?? []}
               values={props.values}
               defaults={DialStore.getDefaultValues(props.panelId)}
+              hint={control.hint}
               onChange={(next) => DialStore.updateValues(props.panelId, next)}
             />
           );
@@ -267,13 +268,14 @@ export function ControlRenderer(props: ControlRendererProps) {
         return (
           <AnchorControl
             label={control.label}
+            hint={control.hint}
             value={value() as AnchorValue}
             onChange={(next) => DialStore.updateValue(props.panelId, control.path, next)}
           />
         );
       case 'background':
         return (
-          <Folder title={control.label} defaultOpen={true}>
+          <Folder title={control.label} defaultOpen={true} hint={control.hint}>
             <BackgroundControl
               panelId={props.panelId}
               label={control.label}

@@ -7,12 +7,13 @@ export const AnchorControl = defineComponent({
   props: {
     label: { type: String, required: true },
     value: { type: Object as PropType<AnchorValue>, required: true },
+    hint: String,
   },
   emits: ['change'],
   setup(props, { emit }) {
     const host = ref<HTMLElement>();
     let control: ReturnType<typeof mountAnchorControl> | undefined;
-    const options = () => ({ label: props.label, value: props.value, onChange: (value: AnchorValue) => emit('change', value) });
+    const options = () => ({ label: props.label, value: props.value, hint: props.hint, onChange: (value: AnchorValue) => emit('change', value) });
     onMounted(() => { control = mountAnchorControl(host.value!, options()); });
     watchEffect(() => { const next = options(); control?.update(next); });
     onUnmounted(() => control?.destroy());

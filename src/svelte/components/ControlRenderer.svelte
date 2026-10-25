@@ -113,6 +113,7 @@
     controls={control.children ?? []}
     {values}
     defaults={DialStore.getDefaultValues(panelId)}
+    hint={control.hint}
     onChange={(v) => DialStore.updateValues(panelId, v)}
   />
 {:else if control.type === 'folder'}
@@ -185,11 +186,12 @@
 {:else if control.type === 'anchor'}
   <AnchorControl
     label={control.label}
+    hint={control.hint}
     value={controlValue as AnchorValue}
     onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
   />
 {:else if control.type === 'background'}
-  <Folder title={control.label} defaultOpen={true}>
+  <Folder title={control.label} defaultOpen={true} hint={control.hint}>
     <BackgroundControl
       {panelId}
       label={control.label}

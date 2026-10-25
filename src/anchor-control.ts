@@ -5,6 +5,8 @@ export type AnchorControlProps = {
   label: string;
   value: AnchorValue;
   onChange: (value: AnchorValue) => void;
+  /** A short sentence shown while H is held over the control. */
+  hint?: string;
 };
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {
@@ -85,6 +87,8 @@ export function mountAnchorControl(host: HTMLElement, initial: AnchorControlProp
   }
 
   function render() {
+    if (props.hint) grid.dataset.hint = props.hint;
+    else delete grid.dataset.hint;
     grid.setAttribute('aria-label', props.label);
     move([ANCHOR_COLUMNS.indexOf(value.x), ANCHOR_ROWS.indexOf(value.y)]);
     for (const { cell, option } of cells) {

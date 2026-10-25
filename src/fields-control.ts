@@ -12,6 +12,8 @@ export type FieldsProps = {
   defaults: Record<string, DialValue>;
   /** Receives every path that changed, so a locked edit is saved as one update. */
   onChange: (values: Record<string, DialValue>) => void;
+  /** A short sentence shown while H is held over the row. */
+  hint?: string;
 };
 
 type FieldRange = { min: number; max: number; step: number };
@@ -326,6 +328,8 @@ export function mountFields(host: HTMLElement, initial: FieldsProps) {
 
   function render() {
     root.setAttribute('aria-label', props.label);
+    if (props.hint) root.dataset.hint = props.hint;
+    else delete root.dataset.hint;
     label.textContent = props.label;
     label.title = props.label;
     reset.setAttribute('aria-label', `Reset ${props.label}`);
@@ -348,9 +352,12 @@ export function mountFields(host: HTMLElement, initial: FieldsProps) {
       lock.remove();
     }
     axes().forEach((control, index) => {
-      const { axis, value, input } = fields[index];
+      const { field, axis, value, input } = fields[index];
       const text = format(control);
       axis.textContent = control.label;
+      // A field's own hint, from the row's `_hints`, wins over the row's.
+      if (control.hint) field.dataset.hint = control.hint;
+      else delete field.dataset.hint;
       value.textContent = text;
       value.setAttribute('aria-label', `${props.label} ${control.label}: ${text}`);
       // A value changed elsewhere, such as by a scrub, shows in an input with nothing typed yet.

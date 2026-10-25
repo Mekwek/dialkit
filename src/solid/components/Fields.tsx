@@ -6,7 +6,7 @@ export function Fields(props: FieldsProps) {
   let control: ReturnType<typeof mountFields> | undefined;
   onMount(() => {
     control = mountFields(host, { ...props });
-    createEffect(() => control?.update({ label: props.label, controls: props.controls, values: props.values, defaults: props.defaults, onChange: props.onChange }));
+    createEffect(() => control?.update({ label: props.label, controls: props.controls, values: props.values, defaults: props.defaults, onChange: props.onChange, hint: props.hint }));
   });
   onCleanup(() => control?.destroy());
   return <div ref={host} class="dialkit-fields-host" />;

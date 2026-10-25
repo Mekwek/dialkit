@@ -173,6 +173,7 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration,
               controls={control.children ?? []}
               values={values}
               defaults={DialStore.getDefaultValues(panelId)}
+              hint={control.hint}
               onChange={(v) => DialStore.updateValues(panelId, v)}
             />
           );
@@ -264,6 +265,7 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration,
           <AnchorControl
             key={control.path}
             label={control.label}
+            hint={control.hint}
             value={value as AnchorValue}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
           />
@@ -271,7 +273,7 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration,
 
       case 'background':
         return (
-          <Folder key={control.path} title={control.label} defaultOpen={true}>
+          <Folder key={control.path} title={control.label} defaultOpen={true} hint={control.hint}>
             <BackgroundControl
               panelId={panelId}
               label={control.label}

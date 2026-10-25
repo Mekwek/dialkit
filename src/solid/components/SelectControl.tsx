@@ -40,7 +40,7 @@ export function SelectControl(props: SelectControlProps) {
 
 function SegmentedSelect(props: SelectControlProps) {
   return (
-    <div class="dialkit-labeled-control" data-hide-label={props.hideLabel ? 'true' : undefined}>
+    <div class="dialkit-labeled-control" data-hide-label={props.hideLabel ? 'true' : undefined} data-hint={props.hint}>
       <Show when={!props.hideLabel}>
         <span class="dialkit-labeled-control-label">{props.label}</span>
       </Show>
