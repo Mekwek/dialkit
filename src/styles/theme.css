@@ -4039,7 +4039,8 @@
 .dialkit-slider:has(.dialkit-slider-input:focus-visible:not([data-pointer-focus])),
 .dialkit-color-control:has(.dialkit-color-value:focus-visible:not([data-pointer-focus])),
 .dialkit-text-control:has(.dialkit-text-input:focus-visible:not([data-pointer-focus])),
-.dialkit-labeled-control:has(.dialkit-text-input:focus-visible:not([data-pointer-focus])) {
+.dialkit-labeled-control:has(.dialkit-text-input:focus-visible:not([data-pointer-focus])),
+.dialkit-fields-field:has(.dialkit-fields-value:focus-visible:not([data-pointer-focus])) {
   outline: 2px solid var(--dial-focus-ring);
   outline-offset: -2px;
 }
@@ -4047,7 +4048,8 @@
 .dialkit-color-control:hover .dialkit-color-value:not([aria-invalid="true"]),
 .dialkit-text-control:hover .dialkit-text-input,
 .dialkit-labeled-control:hover .dialkit-text-input,
-.dialkit-pad-field:hover .dialkit-pad-value { color: var(--dial-text-focus); }
+.dialkit-pad-field:hover .dialkit-pad-value,
+.dialkit-fields-field:hover .dialkit-fields-value { color: var(--dial-text-focus); }
 .dialkit-color-css-input:focus-visible { outline: none; }
 .dialkit-shortcuts-dropdown { margin: 0; inset: auto; overflow-y: auto; }
 @media (forced-colors: active) {
