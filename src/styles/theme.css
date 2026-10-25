@@ -2366,6 +2366,190 @@
   pointer-events: none;
 }
 
+/* ── Single track ──
+   Every clip shares one lane, so each bar carries its own name and the
+   body drops the label column. The collapsed header keeps it for the title. */
+
+.dialkit-timeline-section[data-track="single"] .dialkit-timeline-body {
+  --dial-timeline-label-w: 0px;
+  /* The light theme darkens row bars with an overlay. A single-track bar
+     sets its own greys, so it has none. */
+  --dial-timeline-clip-overlay: transparent;
+}
+
+/* Bars draw in greys, not a hue per clip: they rest dim, the part the
+   playhead has crossed is brighter, and each steps up again on hover. A
+   selected or dragged bar is light, with dark text. Light themes mirror
+   the relationships: bars sit below the ground and go dark when selected.
+   The grips are washes, one step above whichever grey they sit on. */
+.dialkit-timeline-section {
+  --dial-timeline-bar-rest: #2c2c2c;
+  --dial-timeline-bar-played: #484848;
+  --dial-timeline-bar-rest-hover: #3a3a3a;
+  --dial-timeline-bar-played-hover: #575757;
+  --dial-timeline-bar-text: rgba(255, 255, 255, 0.92);
+  --dial-timeline-bar-grip: rgba(255, 255, 255, 0.11);
+  --dial-timeline-bar-grip-hover: rgba(255, 255, 255, 0.22);
+  --dial-timeline-sel-bar: #b9b9b9;
+  --dial-timeline-sel-bar-hover: #cacaca;
+  --dial-timeline-sel-played: #ffffff;
+  --dial-timeline-sel-text: rgba(0, 0, 0, 0.78);
+  --dial-timeline-sel-dur: rgba(0, 0, 0, 0.55);
+  --dial-timeline-sel-grip: rgba(0, 0, 0, 0.16);
+  --dial-timeline-sel-grip-hover: rgba(0, 0, 0, 0.3);
+}
+
+.dialkit-root[data-theme="light"] .dialkit-timeline-section {
+  --dial-timeline-bar-rest: #d1d1d1;
+  --dial-timeline-bar-played: #b3b3b3;
+  --dial-timeline-bar-rest-hover: #c2c2c2;
+  --dial-timeline-bar-played-hover: #a4a4a4;
+  --dial-timeline-bar-text: rgba(0, 0, 0, 0.85);
+  --dial-timeline-bar-grip: rgba(0, 0, 0, 0.13);
+  --dial-timeline-bar-grip-hover: rgba(0, 0, 0, 0.26);
+  --dial-timeline-sel-bar: #6b6b6b;
+  --dial-timeline-sel-bar-hover: #5a5a5a;
+  --dial-timeline-sel-played: #2c2c2c;
+  --dial-timeline-sel-text: rgba(255, 255, 255, 0.92);
+  --dial-timeline-sel-dur: rgba(255, 255, 255, 0.7);
+  --dial-timeline-sel-grip: rgba(255, 255, 255, 0.3);
+  --dial-timeline-sel-grip-hover: rgba(255, 255, 255, 0.5);
+}
+
+@media (prefers-color-scheme: light) {
+  .dialkit-root[data-theme="system"] .dialkit-timeline-section {
+    --dial-timeline-bar-rest: #d1d1d1;
+    --dial-timeline-bar-played: #b3b3b3;
+    --dial-timeline-bar-rest-hover: #c2c2c2;
+    --dial-timeline-bar-played-hover: #a4a4a4;
+    --dial-timeline-bar-text: rgba(0, 0, 0, 0.85);
+    --dial-timeline-bar-grip: rgba(0, 0, 0, 0.13);
+    --dial-timeline-bar-grip-hover: rgba(0, 0, 0, 0.26);
+    --dial-timeline-sel-bar: #6b6b6b;
+    --dial-timeline-sel-bar-hover: #5a5a5a;
+    --dial-timeline-sel-played: #2c2c2c;
+    --dial-timeline-sel-text: rgba(255, 255, 255, 0.92);
+    --dial-timeline-sel-dur: rgba(255, 255, 255, 0.7);
+    --dial-timeline-sel-grip: rgba(255, 255, 255, 0.3);
+    --dial-timeline-sel-grip-hover: rgba(255, 255, 255, 0.5);
+  }
+}
+
+/* The lane is 34px, so a bar is 28px. Each adapter draws a bar 1px short
+   of its span on each side, which leaves a hairline of lane between butted
+   bars; its clear border keeps the fill, grips and labels 1px inside. */
+.dialkit-timeline-section[data-track="single"] .dialkit-timeline-row:not(.dialkit-timeline-ruler-row) {
+  height: 34px;
+}
+
+.dialkit-timeline-section[data-track="single"] .dialkit-timeline-clip {
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background-color: var(--dial-timeline-bar-rest);
+  transition: background-color 0.15s;
+}
+
+.dialkit-timeline-section[data-track="single"] .dialkit-timeline-clip:hover {
+  background-color: var(--dial-timeline-bar-rest-hover);
+}
+
+.dialkit-timeline-section[data-track="single"] .dialkit-timeline-clip:is([data-selected], [data-dragging]) {
+  background-color: var(--dial-timeline-sel-bar);
+  /* The light bar says "selected" on its own: no ring. */
+  box-shadow: none;
+}
+
+.dialkit-timeline-section[data-track="single"] .dialkit-timeline-clip[data-selected]:hover {
+  background-color: var(--dial-timeline-sel-bar-hover);
+}
+
+.dialkit-timeline-clip-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  background: var(--dial-timeline-bar-played);
+  transition: background 0.15s;
+  pointer-events: none;
+}
+
+.dialkit-timeline-clip:hover .dialkit-timeline-clip-fill {
+  background: var(--dial-timeline-bar-played-hover);
+}
+
+.dialkit-timeline-clip:is([data-selected], [data-dragging]) .dialkit-timeline-clip-fill {
+  background: var(--dial-timeline-sel-played);
+}
+
+.dialkit-timeline-clip-name {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--dial-timeline-bar-text);
+  pointer-events: none;
+}
+
+.dialkit-timeline-section[data-track="single"] .dialkit-timeline-clip-duration {
+  position: relative;
+  font-size: 10.5px;
+  color: var(--dial-timeline-bar-text);
+}
+
+.dialkit-timeline-section[data-track="single"] .dialkit-timeline-clip:is([data-selected], [data-dragging]) .dialkit-timeline-clip-name {
+  color: var(--dial-timeline-sel-text);
+}
+
+.dialkit-timeline-section[data-track="single"] .dialkit-timeline-clip:is([data-selected], [data-dragging]) .dialkit-timeline-clip-duration {
+  color: var(--dial-timeline-sel-dur);
+}
+
+/* Each edge keeps a grip in sight. Under the pointer it brightens and grows
+   a little taller, so the mark and the resize cursor agree. */
+.dialkit-timeline-section[data-track="single"] .dialkit-timeline-clip-handle::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--dial-timeline-bar-grip);
+  transition: background 0.15s, transform 0.15s;
+}
+
+.dialkit-timeline-section[data-track="single"] .dialkit-timeline-clip-handle:hover::after {
+  background: var(--dial-timeline-bar-grip-hover);
+  transform: scaleY(1.25);
+}
+
+.dialkit-timeline-section[data-track="single"] .dialkit-timeline-clip:is([data-selected], [data-dragging]) .dialkit-timeline-clip-handle::after {
+  background: var(--dial-timeline-sel-grip);
+}
+
+.dialkit-timeline-section[data-track="single"] .dialkit-timeline-clip:is([data-selected], [data-dragging]) .dialkit-timeline-clip-handle:hover::after {
+  background: var(--dial-timeline-sel-grip-hover);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialkit-timeline-section[data-track="single"] .dialkit-timeline-clip-handle::after { transition: background 0.15s; }
+  .dialkit-timeline-section[data-track="single"] .dialkit-timeline-clip-handle:hover::after { transform: none; }
+}
+
+.dialkit-timeline-clip-handle[data-edge="start"]::after {
+  left: 3px;
+}
+
+.dialkit-timeline-clip-handle[data-edge="end"]::after {
+  right: 3px;
+}
+
 /* ── Sequence segments ──
    A steps clip is one bar sliced into legs; boundaries between legs are
    drag handles that retime the leg to their left. */

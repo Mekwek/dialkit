@@ -16,19 +16,22 @@ import type { TimelineClipMeta, TimelineMeta } from '../../../store/TimelineStor
 import { TimelineUiStore } from '../../../store/TimelineUiStore';
 import {
   TIMELINE_MIN_CLIP_DURATION,
-  clampClipMove,
   clampClipResizeEnd,
   clampClipResizeStart,
   clampStepResize,
   clampTrackDelay,
   computeClipStaticFromValues,
+  dragTimelineClip,
   formatClock,
   formatSeconds,
   formatStepLabel,
   normalizeTimelineValuesForCopy,
+  timelineClipDragBounds,
+  timelineClipProgress,
+  timelineClipSpans,
   timelinePopoverDisplayValues,
 } from '../../../timeline-core';
-import type { TimelineClipLoop, TimelineStepStatic } from '../../../timeline-core';
+import type { TimelineClipDragBounds, TimelineClipLoop, TimelineStepStatic } from '../../../timeline-core';
 import { clamp } from '../../../transition-math';
 import { buildCopyInstruction } from '../../../copy-instruction';
 import { isDevDefault } from '../../../env';
@@ -244,6 +247,16 @@ function LoopButton(props: { id: string; loop: boolean }) {
   );
 }
 
+// The part of a single-track bar the playhead has crossed.
+function ClipFill(props: { id: string; at: number; duration: number }) {
+  const time = fromStore(
+    () => TimelineStore.getTransport(props.id).time,
+    (notify) => TimelineStore.subscribe(props.id, notify)
+  );
+  const progress = () => timelineClipProgress(time(), props.at, props.duration);
+  return <span class="dialkit-timeline-clip-fill" style={{ width: `${progress() * 100}%` }} aria-hidden="true" />;
+}
+
 const iconStyle = {
   position: 'absolute',
   inset: '0',
@@ -448,6 +461,8 @@ function TimelineSection(props: {
   const [open, setOpen] = createSignal(props.defaultOpen);
   const [copied, setCopied] = createSignal(false);
   const [popover, setPopover] = createSignal<PopoverState | null>(null);
+  // Single track: the bar last pressed stays selected until the empty lane is pressed.
+  const [selectedKey, setSelectedKey] = createSignal<string | null>(null);
   const [collapsedGroups, setCollapsedGroups] = createSignal(new Set<string>());
   const [expandedTracks, setExpandedTracks] = createSignal(new Set<string>());
   const [zoom, setZoom] = createSignal(1);
@@ -470,8 +485,10 @@ function TimelineSection(props: {
 
   createEffect(() => {
     if (!open() || !laneAreaRef) return;
-    const measure = () => {
-      if (laneAreaRef) setLaneWidth(laneAreaRef.getBoundingClientRect().width);
+    // Layout sizes, which a host's zoom (a scale on a parent) leaves alone:
+    // a scaled screen width would place every clip as far out as the zoom.
+    const measure = (entries?: ResizeObserverEntry[]) => {
+      if (laneAreaRef) setLaneWidth(entries?.[0]?.borderBoxSize?.[0]?.inlineSize ?? laneAreaRef.offsetWidth);
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -622,6 +639,7 @@ function TimelineSection(props: {
     const target = event.target as HTMLElement;
     if (target.closest('.dialkit-timeline-label, button')) return;
     if (!event.shiftKey && target.closest('.dialkit-timeline-clip')) return;
+    setSelectedKey(null);
     const rect = laneAreaRef?.getBoundingClientRect();
     if (!rect) return;
     event.preventDefault();
@@ -682,6 +700,19 @@ function TimelineSection(props: {
   const handleBarClick = (clip: TimelineClipMeta, rect: DOMRect, stepKey?: string) => {
     if (!stepKey && clip.tracks?.length) toggleTracks(clip.key);
     else openClipPopover(clip, rect, stepKey);
+  };
+
+  // Where a dragged bar may go: the whole timeline, or the gap between its
+  // neighbors on a single track. The playhead is a snap target while paused.
+  const singleTrack = () => props.meta.track === 'single';
+  const getDragBounds = (clipKey: string) => {
+    const transport = TimelineStore.getTransport(props.meta.id);
+    return timelineClipDragBounds(
+      timelineClipSpans(DialStore.getValues(props.meta.id), props.meta.clips, props.meta.duration),
+      clipKey,
+      props.meta.duration,
+      { singleTrack: singleTrack(), playhead: transport.playing ? undefined : transport.time }
+    );
   };
 
   const ticks = createMemo(() => {
@@ -768,6 +799,7 @@ function TimelineSection(props: {
                 timelineDuration={props.meta.duration}
                 selected={selected()}
                 selectedStepKey={selected() ? popover()?.stepKey : undefined}
+                getDragBounds={getDragBounds}
                 onClick={handleBarClick}
                 onDrag={closePopover}
               />
@@ -807,6 +839,7 @@ function TimelineSection(props: {
                           timelineDuration={props.meta.duration}
                           selected={trackSelected()}
                           selectedStepKey={trackSelected() ? popover()?.stepKey : undefined}
+                          getDragBounds={getDragBounds}
                           onClick={openClipPopover}
                           onDrag={closePopover}
                         />
@@ -823,7 +856,7 @@ function TimelineSection(props: {
   };
 
   return (
-    <div class="dialkit-timeline-section">
+    <div class="dialkit-timeline-section" data-track={singleTrack() ? 'single' : undefined}>
       <div class="dialkit-timeline-header" data-open={open() || undefined}>
         <div class="dialkit-timeline-identity">
           <span class="dialkit-timeline-title">{props.meta.name}</span>
@@ -913,7 +946,40 @@ function TimelineSection(props: {
                 )}</For>
               </div>
             </div>
-            <For each={props.meta.clips}>{renderClipRows}</For>
+            {/* A single track puts every clip on one lane, named inside its
+                bar. Each bar outlives value edits, so a drag keeps its pointer. */}
+            <Show when={singleTrack()}>
+              <div class="dialkit-timeline-row">
+                <div class="dialkit-timeline-label" />
+                <div class="dialkit-timeline-lane">
+                  <For each={props.meta.clips}>{(clip) => {
+                    const stat = createMemo(() => computeClipStaticFromValues(values(), clip, props.meta.duration));
+                    return (
+                      <TimelineClip
+                        timelineId={props.meta.id}
+                        clip={clip}
+                        at={stat().at}
+                        duration={stat().duration}
+                        loop={stat().loop}
+                        fixedDuration={stat().isPhysics}
+                        single
+                        pxPerSecond={pxPerSecond()}
+                        viewStart={safeViewStart()}
+                        timelineDuration={props.meta.duration}
+                        selected={selectedKey() === clip.key || popover()?.clip.key === clip.key}
+                        getDragBounds={getDragBounds}
+                        onSelect={setSelectedKey}
+                        onClick={handleBarClick}
+                        onDrag={closePopover}
+                      />
+                    );
+                  }}</For>
+                </div>
+              </div>
+            </Show>
+            <Show when={!singleTrack()}>
+              <For each={props.meta.clips}>{renderClipRows}</For>
+            </Show>
             <Show when={pxPerSecond() > 0}>
               <TimelinePlayheadFlag
                 id={props.meta.id}
@@ -950,6 +1016,9 @@ function TimelineSection(props: {
             popover={current()}
             values={values()}
             theme={props.theme}
+            maxDuration={singleTrack() && !current().stepKey
+              ? getDragBounds(current().clip.key).end - computeClipStaticFromValues(values(), current().clip, props.meta.duration).at
+              : undefined}
             onClose={closePopover}
           />
         )}
@@ -971,6 +1040,8 @@ function ClipPopover(props: {
   popover: PopoverState;
   values: Record<string, DialValue>;
   theme: DialTheme;
+  /** On a single track a clip grows only up to the next one. */
+  maxDuration?: number;
   onClose: () => void;
 }) {
   let ref: HTMLDivElement | undefined;
@@ -1030,12 +1101,21 @@ function ClipPopover(props: {
     const targetPath = stepKey ? `${clip.key}.${stepKey}` : clip.key;
     const durationMeta = getControlAt(props.panelId, `${targetPath}.duration`);
     const durationValue = durationMeta ? props.values[durationMeta.path] : undefined;
+    const durationMin = Math.max(TIMELINE_MIN_CLIP_DURATION, durationMeta?.min ?? 0);
+    const maxDuration = props.maxDuration;
+    const durationMax = maxDuration === undefined
+      ? durationMeta?.max
+      : Math.max(durationMin, Math.min(durationMeta?.max ?? maxDuration, maxDuration));
     const transitionDuration = durationMeta?.type === 'slider' && typeof durationValue === 'number'
       ? {
           value: durationValue,
-          onChange: (next: number) => DialStore.updateValue(props.panelId, durationMeta.path, next),
-          min: Math.max(TIMELINE_MIN_CLIP_DURATION, durationMeta.min ?? 0),
-          max: durationMeta.max,
+          onChange: (next: number) => DialStore.updateValue(
+            props.panelId,
+            durationMeta.path,
+            durationMax === undefined ? next : Math.min(next, durationMax)
+          ),
+          min: durationMin,
+          max: durationMax,
           step: durationMeta.step,
         }
       : undefined;
@@ -1151,6 +1231,7 @@ type DragState = {
   pointerX: number;
   at: number;
   duration: number;
+  bounds: TimelineClipDragBounds;
   stepDurations?: number[];
   clickEl: HTMLElement | null;
   moved: boolean;
@@ -1165,6 +1246,8 @@ function TimelineClip(props: {
   steps?: TimelineStepStatic[];
   fixedDuration: boolean;
   composite?: boolean;
+  /** Single track: the bar carries its name and fills as the playhead crosses it. */
+  single?: boolean;
   baseAt?: number;
   delayMode?: boolean;
   pxPerSecond: number;
@@ -1172,6 +1255,9 @@ function TimelineClip(props: {
   timelineDuration: number;
   selected: boolean;
   selectedStepKey?: string;
+  getDragBounds: (clipKey: string) => TimelineClipDragBounds;
+  /** Single track: pressing the bar, not an edge, selects it. */
+  onSelect?: (clipKey: string) => void;
   onClick: (clip: TimelineClipMeta, rect: DOMRect, stepKey?: string) => void;
   onDrag: () => void;
 }) {
@@ -1192,12 +1278,14 @@ function TimelineClip(props: {
       const edge = target.dataset.edge as 'start' | 'end' | undefined;
       if (edge) mode = edge;
     }
+    if (mode === 'move') props.onSelect?.(props.clip.key);
     drag = {
       mode,
       boundaryIndex,
       pointerX: event.clientX,
       at: props.at,
       duration: props.duration,
+      bounds: props.getDragBounds(props.clip.key),
       stepDurations: props.steps?.map((step) => step.duration),
       clickEl: target.closest?.('[data-step]'),
       moved: false,
@@ -1224,16 +1312,20 @@ function TimelineClip(props: {
         `${props.clip.key}.${props.steps[index].key ?? ''}.duration`,
         clampStepResize(drag.stepDurations[index] + dt, drag.at, others, props.timelineDuration)
       );
-    } else if (drag.mode === 'move') {
-      if (props.delayMode) {
-        DialStore.updateValue(
-          props.timelineId,
-          `${props.clip.key}.delay`,
-          clampTrackDelay(drag.at + dt - baseAt, baseAt, drag.duration, props.timelineDuration)
-        );
-      } else {
-        DialStore.updateValue(props.timelineId, `${props.clip.key}.at`, clampClipMove(drag.at + dt, drag.duration, props.timelineDuration));
-      }
+    } else if (!props.delayMode && drag.mode !== 'boundary' && !(drag.mode === 'start' && props.steps)) {
+      // Clip bars. Cmd (Ctrl elsewhere) snaps to other clips and the playhead.
+      const next = dragTimelineClip(drag.mode, drag, dt, drag.bounds, event.metaKey || event.ctrlKey);
+      DialStore.updateValues(props.timelineId, {
+        ...(drag.mode !== 'end' && { [`${props.clip.key}.at`]: next.at }),
+        ...(drag.mode !== 'move' && { [`${props.clip.key}.duration`]: next.duration }),
+      });
+    } else if (drag.mode === 'move' && props.delayMode) {
+      // Track rows: moving the bar shifts the property's phase.
+      DialStore.updateValue(
+        props.timelineId,
+        `${props.clip.key}.delay`,
+        clampTrackDelay(drag.at + dt - baseAt, baseAt, drag.duration, props.timelineDuration)
+      );
     } else if (drag.mode === 'end') {
       DialStore.updateValue(
         props.timelineId,
@@ -1312,9 +1404,10 @@ function TimelineClip(props: {
         data-selected={props.selected || undefined}
         data-dragging={dragging() || undefined}
         style={{
-          left: `${(props.at - props.viewStart) * props.pxPerSecond}px`,
-          width: `${width()}px`,
-          background: props.composite ? `${props.clip.color}80` : props.clip.color,
+          // A single-track bar draws 1px short of its span on each side, so butted bars keep a hairline of lane between them.
+          left: `${(props.at - props.viewStart) * props.pxPerSecond + (props.single ? 1 : 0)}px`,
+          width: `${props.single ? Math.max(width() - 2, 12) : width()}px`,
+          background: props.single ? undefined : props.composite ? `${props.clip.color}80` : props.clip.color,
         }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -1331,7 +1424,9 @@ function TimelineClip(props: {
             when={isSteps()}
             fallback={
               <>
+                <Show when={props.single}><ClipFill id={props.timelineId} at={props.at} duration={props.duration} /></Show>
                 <Show when={resizable()}><div class="dialkit-timeline-clip-handle" data-edge="start" /></Show>
+                <Show when={props.single}><span class="dialkit-timeline-clip-name">{props.clip.label}</span></Show>
                 <Show when={width() > 56}><span class="dialkit-timeline-clip-duration">{durationText()}</span></Show>
                 <Show when={resizable()}><div class="dialkit-timeline-clip-handle" data-edge="end" /></Show>
               </>

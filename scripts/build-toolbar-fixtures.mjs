@@ -42,11 +42,13 @@ fs.writeFileSync(
   path.join(out, "TimelineFixture.svelte"),
   `<script>import {DialTimeline,createDialTimeline} from 'dialkit/svelte';createDialTimeline('Fixture',${timelineConfig});</script><DialTimeline defaultOpen={true} theme={new URLSearchParams(location.search).get('theme') || 'light'} />`,
 );
-// Three plain clips. The store is exposed so checks can read and edit values.
+// Three plain clips, on rows and on a single track. The store is exposed
+// so checks can read and edit values.
 const clipsConfig = `{ duration: 3.5, intro: { at: 0, duration: 0.5 }, title: { at: 1, duration: 0.5 }, outro: { at: 2.5, duration: 0.5 } }`;
 const adapterEntry = { react: "dialkit", solid: "dialkit/solid", vue: "dialkit/vue", vanilla: "dialkit/vanilla" };
 const clipFixtures = {
   clips: `{ autoplay: false }`,
+  track: `{ track: 'single', autoplay: false }`,
 };
 for (const [kind, options] of Object.entries(clipFixtures)) {
   for (const [name, entry] of Object.entries(adapterEntry)) {

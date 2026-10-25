@@ -306,7 +306,16 @@ Bind `clip.current` while tuning so your UI follows the playhead. Timelines supp
 | Vue | `useDialTimeline` | `timeline.value.enter.current` in script |
 | Vanilla | `createDialTimeline` | `timeline.values.enter.current` or `subscribe(callback)` |
 
-The Loop button turns looping on and off.
+For clips that play one after another, put them on a single track. Each bar shows its name (`label`, or the formatted key) and fills in as the playhead crosses it, and a dragged clip stops at its neighbors:
+
+```tsx
+const timeline = useDialTimeline("Story", {
+  intro: { at: 0, duration: 0.6 },
+  s42: { at: 0.6, duration: 1.2, label: "Title card" },
+}, { track: "single" });
+```
+
+Hold Cmd (Ctrl on Windows and Linux) while dragging a plain clip or its edges to snap to other clips' edges and the paused playhead. The Loop button turns looping on and off.
 
 Mount `<DialTimeline />` once, or `createDialTimelineRoot()` in vanilla. The dock works independently of `DialRoot` and follows the same production visibility defaults. Use `play()`, `pause()`, `replay()`, and `seek(seconds)` to control playback.
 

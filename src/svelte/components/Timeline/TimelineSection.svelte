@@ -9,6 +9,8 @@
     computeClipStaticFromValues,
     formatClock,
     normalizeTimelineValuesForCopy,
+    timelineClipDragBounds,
+    timelineClipSpans,
   } from 'dialkit/timeline';
   import type {
     TimelineClipMeta,
@@ -100,6 +102,8 @@
   let open = $state(untrack(() => defaultOpen));
   let copied = $state(false);
   let popover = $state<PopoverState | null>(null);
+  // Single track: the bar last pressed stays selected until the empty lane is pressed.
+  let selectedKey = $state<string | null>(null);
   let collapsedGroups = $state(new Set<string>());
   let expandedTracks = $state(new Set<string>());
   let zoom = $state(1);
@@ -178,8 +182,15 @@
     return { major, medium, fine, majorStep };
   });
 
+  // A single track puts every clip on one lane, named inside its bar.
+  const singleTrack = $derived(meta.track === 'single');
+  const singleClips = $derived(singleTrack
+    ? meta.clips.map((clip: TimelineClipMeta) => ({ clip, stat: computeClipStaticFromValues(values, clip, meta.duration) }))
+    : []);
+
   const rows = $derived.by(() => {
     const result: Array<GroupRow | ClipRow | TrackRow> = [];
+    if (singleTrack) return result;
     let lastGroup: string | undefined;
     for (const clip of meta.clips) {
       if (clip.group !== lastGroup) {
@@ -247,8 +258,10 @@
 
   $effect(() => {
     if (!open || !laneArea) return;
-    const measure = () => {
-      if (laneArea) laneWidth = laneArea.getBoundingClientRect().width;
+    // Layout sizes, which a host's zoom (a scale on a parent) leaves alone:
+    // a scaled screen width would place every clip as far out as the zoom.
+    const measure = (entries?: ResizeObserverEntry[]) => {
+      if (laneArea) laneWidth = entries?.[0]?.borderBoxSize?.[0]?.inlineSize ?? laneArea.offsetWidth;
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -382,6 +395,7 @@
     const target = event.target as HTMLElement;
     if (target.closest('.dialkit-timeline-label, button')) return;
     if (!event.shiftKey && target.closest('.dialkit-timeline-clip')) return;
+    selectedKey = null;
     const rect = laneArea?.getBoundingClientRect();
     if (!rect) return;
     event.preventDefault();
@@ -515,6 +529,18 @@
     else openClipPopover(clip, rect, stepKey);
   }
 
+  // Where a dragged bar may go: the whole timeline, or the gap between its
+  // neighbors on a single track. The playhead is a snap target while paused.
+  function getDragBounds(clipKey: string) {
+    const current = TimelineStore.getTransport(meta.id);
+    return timelineClipDragBounds(
+      timelineClipSpans(DialStore.getValues(meta.id), meta.clips, meta.duration),
+      clipKey,
+      meta.duration,
+      { singleTrack, playhead: current.playing ? undefined : current.time }
+    );
+  }
+
   function formatRulerSeconds(time: number, step: number): string {
     if (step >= 1 && Number.isInteger(time)) return formatClock(time);
     const decimals = Math.min(3, Math.max(1, Math.ceil(-Math.log10(step))));
@@ -526,7 +552,7 @@
   }
 </script>
 
-<div class="dialkit-timeline-section">
+<div class="dialkit-timeline-section" data-track={singleTrack ? 'single' : undefined}>
   <div class="dialkit-timeline-header" data-open={open || undefined}>
     <div class="dialkit-timeline-identity">
       <span class="dialkit-timeline-title">{meta.name}</span>
@@ -673,6 +699,33 @@
           </div>
         </div>
 
+        {#if singleTrack}
+          <div class="dialkit-timeline-row">
+            <div class="dialkit-timeline-label"></div>
+            <div class="dialkit-timeline-lane">
+              {#each singleClips as { clip, stat } (clip.key)}
+                <TimelineClip
+                  timelineId={meta.id}
+                  {clip}
+                  at={stat.at}
+                  duration={stat.duration}
+                  loop={stat.loop}
+                  fixedDuration={stat.isPhysics}
+                  single
+                  {pxPerSecond}
+                  viewStart={safeViewStart}
+                  timelineDuration={meta.duration}
+                  selected={selectedKey === clip.key || popover?.clip.key === clip.key}
+                  {getDragBounds}
+                  onSelect={(key: string) => { selectedKey = key; }}
+                  onClick={handleBarClick}
+                  onDrag={() => { popover = null; }}
+                />
+              {/each}
+            </div>
+          </div>
+        {/if}
+
         {#each rows as row (row.key)}
           {#if row.kind === 'group'}
             <div class="dialkit-timeline-row dialkit-timeline-group-row">
@@ -726,6 +779,7 @@
                   timelineDuration={meta.duration}
                   selected={row.selected}
                   selectedStepKey={row.selected ? popover?.stepKey : undefined}
+                  {getDragBounds}
                   onClick={handleBarClick}
                   onDrag={() => { popover = null; }}
                 />
@@ -750,6 +804,7 @@
                   timelineDuration={meta.duration}
                   selected={row.selected}
                   selectedStepKey={row.selected ? popover?.stepKey : undefined}
+                  {getDragBounds}
                   onClick={openClipPopover}
                   onDrag={() => { popover = null; }}
                 />
@@ -800,6 +855,15 @@
   {/if}
 
   {#if popover}
-    <ClipPopover panelId={meta.id} {popover} {values} {theme} onClose={() => { popover = null; }} />
+    <ClipPopover
+      panelId={meta.id}
+      {popover}
+      {values}
+      {theme}
+      maxDuration={singleTrack && !popover.stepKey
+        ? getDragBounds(popover.clip.key).end - computeClipStaticFromValues(values, popover.clip, meta.duration).at
+        : undefined}
+      onClose={() => { popover = null; }}
+    />
   {/if}
 </div>

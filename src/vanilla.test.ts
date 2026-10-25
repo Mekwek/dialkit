@@ -65,10 +65,11 @@ describe('vanilla adapter', () => {
   });
 
   it('exposes scrubbable timeline values and updates metadata after edits', () => {
-    const timeline = createDialTimeline('Timeline', { duration: 2, clip: { at: 0.2, duration: 1, from: { x: 0 }, to: { x: 100 }, transition: { type: 'easing', duration: 1, ease: [0, 0, 1, 1] } } }, { autoplay: false });
+    const timeline = createDialTimeline('Timeline', { duration: 2, clip: { at: 0.2, duration: 1, from: { x: 0 }, to: { x: 100 }, transition: { type: 'easing', duration: 1, ease: [0, 0, 1, 1] } } }, { autoplay: false, track: 'single' });
     let calls = 0;
     timeline.subscribe(() => calls++, false);
     assert.equal(DialStore.getPanel(timeline.id)?.kind, 'timeline');
+    assert.equal(TimelineStore.getTimeline(timeline.id)?.track, 'single');
     timeline.seek(0.7); assert.ok(Math.abs(Number(timeline.values.clip.current.x) - 50) < 0.01);
     DialStore.updateValue(timeline.id, 'clip.duration', 0.5);
     assert.equal(timeline.values.clip.duration, 0.5); assert.ok(calls >= 2);

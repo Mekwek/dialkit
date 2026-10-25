@@ -31,7 +31,10 @@ export type TimelineMeta = {
   /** Loop wraps back to this time, not 0 — clips before it play once
    * (intro-then-idle). 0 loops the whole timeline. */
   loopStart: number;
-  clips: TimelineClipMeta[]; // one row each
+  /** `rows` (the default) gives each clip a row; `single` lines every
+   * clip up on one track, one after another. */
+  track?: 'rows' | 'single';
+  clips: TimelineClipMeta[];
 };
 
 export type TimelineTransport = {

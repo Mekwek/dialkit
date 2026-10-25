@@ -21,11 +21,13 @@
     anchor: { left: number; top: number; right: number; bottom: number; width: number; height: number };
   };
 
-  let { panelId, popover, values, theme, onClose } = $props<{
+  let { panelId, popover, values, theme, maxDuration, onClose } = $props<{
     panelId: string;
     popover: PopoverState;
     values: Record<string, DialValue>;
     theme: DialTheme;
+    /** On a single track a clip grows only up to the next one. */
+    maxDuration?: number;
     onClose: () => void;
   }>();
 
@@ -56,12 +58,20 @@
     const target = stepKey ? `${clip.key}.${stepKey}` : clip.key;
     const durationMeta = getControlAt(panelId, `${target}.duration`);
     const durationValue = durationMeta ? values[durationMeta.path] : undefined;
+    const durationMin = Math.max(TIMELINE_MIN_CLIP_DURATION, durationMeta?.min ?? 0);
+    const durationMax = maxDuration === undefined
+      ? durationMeta?.max
+      : Math.max(durationMin, Math.min(durationMeta?.max ?? maxDuration, maxDuration));
     const transitionDuration = durationMeta?.type === 'slider' && typeof durationValue === 'number'
       ? {
           value: durationValue,
-          onChange: (next: number) => DialStore.updateValue(panelId, durationMeta.path, next),
-          min: Math.max(TIMELINE_MIN_CLIP_DURATION, durationMeta.min ?? 0),
-          max: durationMeta.max,
+          onChange: (next: number) => DialStore.updateValue(
+            panelId,
+            durationMeta.path,
+            durationMax === undefined ? next : Math.min(next, durationMax)
+          ),
+          min: durationMin,
+          max: durationMax,
           step: durationMeta.step,
         }
       : undefined;

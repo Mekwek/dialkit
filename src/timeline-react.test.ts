@@ -43,6 +43,7 @@ describe('useDialTimeline (React)', () => {
         id,
         autoplay: false,
         loop: { from: 0.1 },
+        track: 'single',
       });
       return null;
     }
@@ -54,6 +55,8 @@ describe('useDialTimeline (React)', () => {
 
       assert.equal(TimelineStore.getTimeline(id)?.loop, true);
       assert.equal(TimelineStore.getTimeline(id)?.loopStart, 0.1);
+      // A looping clip needs its own row, so a single track falls back.
+      assert.equal(TimelineStore.getTimeline(id)?.track, 'rows');
     } finally {
       act(() => renderer?.unmount());
     }

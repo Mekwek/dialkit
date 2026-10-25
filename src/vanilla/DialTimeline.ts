@@ -1,7 +1,7 @@
 import { DialStore, formatLabel } from '../store/DialStore';
 import { TimelineStore, type TimelineMeta, type TimelineClipMeta } from '../store/TimelineStore';
 import { TimelineUiStore } from '../store/TimelineUiStore';
-import { clampClipMove, clampClipResizeEnd, clampClipResizeStart, clampStepResize, clampTrackDelay, computeClipStaticFromValues, formatSeconds, formatStepLabel, normalizeTimelineValuesForCopy, TIMELINE_MIN_CLIP_DURATION, timelinePopoverDisplayValues, type TimelineStepStatic } from '../timeline-core';
+import { clampClipResizeEnd, clampClipResizeStart, clampStepResize, clampTrackDelay, computeClipStaticFromValues, dragTimelineClip, formatSeconds, formatStepLabel, normalizeTimelineValuesForCopy, TIMELINE_MIN_CLIP_DURATION, timelineClipDragBounds, timelineClipProgress, timelineClipSpans, timelinePopoverDisplayValues, type TimelineStepStatic } from '../timeline-core';
 import { clamp } from '../transition-math';
 import { findControl } from '../shortcut-utils';
 import { getDropdownPosition } from '../dropdown-position';
@@ -241,16 +241,29 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
   host.append(section);
   const gesture = pointerGesture();
   let rowElements: HTMLElement[] = [];
+  // Single track: each bar's played part, refilled as the playhead moves.
+  let fills: Array<{ node: HTMLElement; at: number; duration: number }> = [];
   let editor: {
     destroy(): void;
     update(): void;
   } | undefined;
   let selected = '';
+  // Single track: the bar last pressed stays selected until the empty lane is pressed.
+  let picked = '';
+  let pickedNode: HTMLElement | undefined;
   function closeEditor() {
     editor?.destroy();
     editor = undefined;
     selected = '';
     section.querySelectorAll<HTMLElement>('.dialkit-timeline-clip[data-selected]').forEach(node => delete node.dataset.selected);
+    pickedNode?.setAttribute('data-selected', '');
+  }
+  function pick(key: string, node?: HTMLElement) {
+    if (pickedNode && pickedNode !== node && selected !== picked)
+      delete pickedNode.dataset.selected;
+    picked = key;
+    pickedNode = node;
+    node?.setAttribute('data-selected', '');
   }
   const width = () => ruler.clientWidth;
   const visibleDuration = () => meta.duration / zoom;
@@ -278,6 +291,8 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
     playhead.style.setProperty('--dial-timeline-playhead-flag-offset', `${flagOffset}px`);
     playhead.dataset.edge = flagOffset > 0.5 ? 'start' : flagOffset < -0.5 ? 'end' : 'center';
     flag.textContent = state.time.toFixed(2);
+    for (const fill of fills)
+      fill.node.style.width = `${timelineClipProgress(state.time, fill.at, fill.duration) * 100}%`;
     playhead.setAttribute('aria-valuemin', '0');
     playhead.setAttribute('aria-valuemax', String(meta.duration));
     playhead.setAttribute('aria-valuenow', String(state.time));
@@ -330,8 +345,10 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
     }
   });
   body.addEventListener('pointerdown', event => {
-    if ((event.target as Element).closest('.dialkit-timeline-lane') && (!(event.target as Element).closest('.dialkit-timeline-clip') || event.shiftKey))
+    if ((event.target as Element).closest('.dialkit-timeline-lane') && (!(event.target as Element).closest('.dialkit-timeline-clip') || event.shiftKey)) {
+      pick('');
       scrub(event);
+    }
   });
   scroll.addEventListener('scroll', () => {
     if (!scale())
@@ -406,9 +423,24 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
     }
     rowElements.forEach(r => r.remove());
     rowElements = [];
+    fills = [];
+    pickedNode = undefined;
     const values = DialStore.getValues(meta.id);
+    // A single track puts every clip on one lane, named inside its bar.
+    const singleTrack = meta.track === 'single';
+    if (singleTrack)
+      section.dataset.track = 'single';
+    else
+      delete section.dataset.track;
     let lastGroup: string | undefined;
-    for (const clip of meta.clips) {
+    if (singleTrack) {
+      const lane = row('').lane;
+      for (const clip of meta.clips) {
+        const stat = computeClipStaticFromValues(values, clip, meta.duration);
+        bar(lane, clip, stat.at, stat.duration, undefined, stat.isPhysics, false, 0, false, true);
+      }
+    }
+    else for (const clip of meta.clips) {
       if (clip.group && clip.group !== lastGroup) {
         const group = clip.group;
         const r = row(formatLabel(group), 'dialkit-timeline-group-row');
@@ -450,7 +482,13 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
     presets.update(presetProps());
     editor?.update();
   }
-  function bar(lane: HTMLElement, clip: TimelineClipMeta, at: number, duration: number, steps: TimelineStepStatic[] | undefined, physics: boolean, composite = false, baseAt = 0, delayMode = false) {
+  // Where a dragged bar may go: the whole timeline, or the gap between its
+  // neighbors on a single track. The playhead is a snap target while paused.
+  function dragBounds(clipKey: string) {
+    const state = TimelineStore.getTransport(meta.id);
+    return timelineClipDragBounds(timelineClipSpans(DialStore.getValues(meta.id), meta.clips, meta.duration), clipKey, meta.duration, { singleTrack: meta.track === 'single', playhead: state.playing ? undefined : state.time });
+  }
+  function bar(lane: HTMLElement, clip: TimelineClipMeta, at: number, duration: number, steps: TimelineStepStatic[] | undefined, physics: boolean, composite = false, baseAt = 0, delayMode = false, single = false) {
     const px = scale();
     if (clip.loop === 'repeat' && duration > 0)
       for (let index = Math.max(1, Math.floor((viewStart - at) / duration)), count = 0; at + duration * index < meta.duration && count < 256; index++, count++) {
@@ -463,12 +501,15 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
     node.tabIndex = 0;
     node.setAttribute('role', 'button');
     node.setAttribute('aria-label', `Edit ${clip.label}`);
-    Object.assign(node.style, { left: `${(at - viewStart) * px}px`, width: `${Math.max(duration * px, 14)}px`, background: composite ? `${clip.color}80` : clip.color });
+    // A single-track bar draws 1px short of its span on each side, so butted bars keep a hairline of lane between them.
+    Object.assign(node.style, { left: `${(at - viewStart) * px + (single ? 1 : 0)}px`, width: `${Math.max(duration * px, 14) - (single ? 2 : 0)}px`, background: single ? '' : composite ? `${clip.color}80` : clip.color });
     if (steps?.length)
       node.dataset.steps = '';
     if (composite)
       node.dataset.composite = '';
-    if (selected === clip.key)
+    if (single && picked === clip.key)
+      pickedNode = node;
+    if (selected === clip.key || pickedNode === node)
       node.dataset.selected = '';
     node.title = `${clip.label} — ${formatSeconds(at)} for ${physics ? '~' : ''}${formatSeconds(duration)}${physics ? ' (duration set by spring physics)' : ''}${delayMode ? ' · drag to phase-shift' : ''}`;
     const edge = (side: string) => {
@@ -497,8 +538,16 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
         edge('start');
     }
     else {
+      if (single) {
+        const fill = element('span', 'dialkit-timeline-clip-fill');
+        fill.setAttribute('aria-hidden', 'true');
+        node.append(fill);
+        fills.push({ node: fill, at, duration });
+      }
       if (!physics && !composite && duration > 0)
         edge('start');
+      if (single)
+        node.append(element('span', 'dialkit-timeline-clip-name', clip.label));
       if (duration * px > 56)
         node.append(element('span', 'dialkit-timeline-clip-duration', `${physics && !composite ? '~' : ''}${formatSeconds(duration)}`));
       if (!physics && !composite && duration > 0)
@@ -528,7 +577,10 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
       const target = event.target as HTMLElement;
       const boundary = target.dataset.boundary;
       const mode = boundary !== undefined ? 'boundary' : target.dataset.edge ?? 'move';
+      if (single && mode === 'move')
+        pick(clip.key, node);
       const durations = steps?.map(s => s.duration);
+      const bounds = dragBounds(clip.key);
       let moved = false;
       gesture.start(event, next => {
         const dx = next.clientX - event.clientX;
@@ -541,8 +593,14 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
           const index = Number(boundary);
           DialStore.updateValue(meta.id, `${clip.key}.${steps[index].key}.duration`, clampStepResize(durations[index] + dt, at, durations.reduce((sum, d, i) => sum + (i === index ? 0 : d), 0), meta.duration));
         }
-        else if (mode === 'move') {
-          DialStore.updateValue(meta.id, `${clip.key}.${delayMode ? 'delay' : 'at'}`, delayMode ? clampTrackDelay(at + dt - baseAt, baseAt, duration, meta.duration) : clampClipMove(at + dt, duration, meta.duration));
+        else if (!delayMode && (mode === 'move' || mode === 'end' || (mode === 'start' && !steps))) {
+          // Clip bars. Cmd (Ctrl elsewhere) snaps to other clips and the playhead.
+          const result = dragTimelineClip(mode, { at, duration }, dt, bounds, next.metaKey || next.ctrlKey);
+          DialStore.updateValues(meta.id, { ...(mode !== 'end' && { [`${clip.key}.at`]: result.at }), ...(mode !== 'move' && { [`${clip.key}.duration`]: result.duration }) });
+        }
+        else if (mode === 'move' && delayMode) {
+          // Track rows: moving the bar shifts the property's phase.
+          DialStore.updateValue(meta.id, `${clip.key}.delay`, clampTrackDelay(at + dt - baseAt, baseAt, duration, meta.duration));
         }
         else if (mode === 'end')
           DialStore.updateValue(meta.id, `${clip.key}.duration`, clampClipResizeEnd(duration + dt, at, meta.duration));
@@ -596,7 +654,11 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
       const values = DialStore.getValues(meta.id);
       const durationMeta = getControl(`${path}.duration`);
       const duration = values[`${path}.duration`];
-      return { panelId: meta.id, controls, values: timelinePopoverDisplayValues(values, clip.key, clip.stepKeys, stepKey), transitionDuration: durationMeta?.type === 'slider' && typeof duration === 'number' ? { value: duration, onChange: (v: number) => DialStore.updateValue(meta.id, `${path}.duration`, v), min: Math.max(TIMELINE_MIN_CLIP_DURATION, durationMeta.min ?? 0), max: durationMeta.max, step: durationMeta.step } : undefined };
+      // On a single track a clip grows only up to the next one.
+      const min = Math.max(TIMELINE_MIN_CLIP_DURATION, durationMeta?.min ?? 0);
+      const room = meta.track === 'single' && !stepKey ? dragBounds(clip.key).end - computeClipStaticFromValues(values, clip, meta.duration).at : undefined;
+      const max = room === undefined ? durationMeta?.max : Math.max(min, Math.min(durationMeta?.max ?? room, room));
+      return { panelId: meta.id, controls, values: timelinePopoverDisplayValues(values, clip.key, clip.stepKeys, stepKey), transitionDuration: durationMeta?.type === 'slider' && typeof duration === 'number' ? { value: duration, onChange: (v: number) => DialStore.updateValue(meta.id, `${path}.duration`, max === undefined ? v : Math.min(v, max)), min, max, step: durationMeta.step } : undefined };
     };
     const renderer = mountControlRenderer(content, rendererProps());
     const rect = target.getBoundingClientRect();
