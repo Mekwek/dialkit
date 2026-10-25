@@ -2060,10 +2060,10 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 /* The stop rows' drag handle (and the selected row's box) stand left of the
    rows, in the panel's padding. A folder clips its contents
    (overflow-y: clip), and that cuts off what sits past its left edge too,
-   so a folder that holds a stops list reaches 12px into the panel's padding,
-   with the same padding inside it: nothing moves, and the handle shows and
-   takes the pointer. */
-.dialkit-folder:has(.dialkit-bg-stops),
+   so the contents of a folder that holds a stops list reach 12px into the
+   panel's padding, with the same padding inside them: nothing moves, and
+   the handle shows and takes the pointer. The folder itself stays put, so
+   its divider starts where the rows start, as every other folder's does. */
 .dialkit-folder-content:has(.dialkit-bg-stops) { margin-left: -12px; padding-left: 12px; }
 /* A nested folder's content is indented (--dial-nested-indent): keep it. */
 .dialkit-folder:not(.dialkit-folder-root) .dialkit-folder > .dialkit-folder-content:has(.dialkit-bg-stops) { padding-left: calc(var(--dial-nested-indent) + 12px); }
