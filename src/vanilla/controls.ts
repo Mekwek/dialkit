@@ -172,11 +172,11 @@ export function mountFolder(host: HTMLElement, initial: FolderProps) {
   const stopFades = props.isRoot ? observeScrollFades(folder) : undefined;
   return {
     element: node, body, toolbar, actions, update(next: FolderProps) {
-      const title = props.title;
+      const previous = props;
       props = next;
       renderReset();
       // Value changes only touch the reset button; a full render reads layout.
-      if ((next.open ?? open) === open && next.title === title)
+      if ((next.open ?? open) === open && next.title === previous.title && next.meta === previous.meta && next.hint === previous.hint)
         return;
       open = next.open ?? open;
       render();
