@@ -2842,6 +2842,7 @@ span.dialkit-version-thumb-label {
 }
 
 .dialkit-version-thumb-input {
+  box-sizing: border-box;
   width: 100%;
   min-width: 0;
   height: 15px;
@@ -2853,7 +2854,8 @@ span.dialkit-version-thumb-label {
   background: var(--dial-surface-hover);
   color: var(--dial-text-primary);
   font-family: inherit;
-  box-shadow: 0 0 0 1px var(--dial-focus-ring);
+  /* Inset, so the strip's scroll clip can't cut it at any edge. */
+  box-shadow: inset 0 0 0 1px var(--dial-focus-ring);
 }
 
 .dialkit-version-thumb-delete {
@@ -2907,7 +2909,12 @@ span.dialkit-version-thumb-label {
   cursor: pointer;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+}
+
+.dialkit-versions-button:disabled {
+  opacity: 0.35;
+  pointer-events: none;
 }
 
 .dialkit-versions-button:hover {

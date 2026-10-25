@@ -7,7 +7,7 @@ import { BASE_VERSION, captureViewport, ThumbnailStore, versionKey } from './thu
 
 export type VersionEntry = GridVersion & { presetId: string | null };
 
-const REFRESH_DELAY_MS = 900;
+const SETTLE_DELAY_MS = 900;
 
 /** All versions of a panel, oldest first, starting with the base version. */
 export function listVersions(panelId: string): VersionEntry[] {
@@ -39,57 +39,78 @@ export function deleteVersion(panelId: string, key: string): void {
   ThumbnailStore.delete(panelId, key);
 }
 
-/**
- * Keep the active version's thumbnail current: recapture shortly after its
- * values stop changing, and whenever a version without a thumbnail is shown.
- */
-export function watchVersionThumbnails(panelId: string): () => void {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let lastValues = JSON.stringify(DialStore.getValues(panelId));
-  let lastKey = versionKey(DialStore.getActivePresetId(panelId));
-  let busy = false;
+export type ThumbnailWatcher = {
+  /** Recapture the active version now if its thumbnail is missing or stale. */
+  flush: () => Promise<void>;
+  stop: () => void;
+};
 
-  const refresh = async () => {
-    if (busy) { schedule(); return; }
-    busy = true;
-    const key = versionKey(DialStore.getActivePresetId(panelId));
-    const capture = await captureViewport();
-    busy = false;
-    // Discard if the version changed while capturing.
-    if (capture && key === versionKey(DialStore.getActivePresetId(panelId))) {
-      ThumbnailStore.set(panelId, key, capture.thumbnail);
-    }
+/**
+ * Track which thumbnails are out of date. Editing a version only marks its
+ * thumbnail stale; the gallery flushes before leaving the version or opening
+ * the grid, so the page isn't captured on every change. A version shown
+ * without a thumbnail gets one once there are versions to compare.
+ */
+export function watchVersionThumbnails(panelId: string): ThumbnailWatcher {
+  const activeKey = () => versionKey(DialStore.getActivePresetId(panelId));
+  const valuesOf = () => JSON.stringify(DialStore.getValues(panelId));
+  // Thumbnails only show once there's more than one version.
+  const comparing = () => DialStore.getPresets(panelId).length > 0;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let lastValues = valuesOf();
+  let lastKey = activeKey();
+  let capturing: Promise<void> | null = null;
+  let stopped = false;
+
+  const capture = (): Promise<void> => {
+    capturing ??= (async () => {
+      const key = activeKey();
+      const values = valuesOf();
+      const result = await captureViewport();
+      // Discard if the version changed while capturing.
+      if (!result || stopped || key !== activeKey()) return;
+      ThumbnailStore.set(panelId, key, result.thumbnail);
+      // Edits made mid-capture aren't in it.
+      if (valuesOf() !== values) ThumbnailStore.markStale(panelId, key);
+    })().finally(() => { capturing = null; });
+    return capturing;
   };
 
-  const schedule = () => {
+  const flush = async () => {
+    await capturing;
+    const key = activeKey();
+    if (!ThumbnailStore.get(panelId, key) || ThumbnailStore.isStale(panelId, key)) await capture();
+  };
+
+  // Wait for the page to settle on the version (transitions, layout) first.
+  const captureMissingSoon = () => {
     clearTimeout(timer);
     timer = setTimeout(() => {
-      if (document.querySelector('.dialkit-version-overlay, .dialkit-appshot')) { schedule(); return; }
-      void refresh();
-    }, REFRESH_DELAY_MS);
+      if (stopped || !comparing() || ThumbnailStore.get(panelId, activeKey())) return;
+      if (document.querySelector('.dialkit-version-overlay, .dialkit-appshot')) { captureMissingSoon(); return; }
+      void capture();
+    }, SETTLE_DELAY_MS);
   };
 
   const unsubscribe = DialStore.subscribe(panelId, () => {
     // Compare contents: renames and saves hand out new snapshot objects too.
-    const values = JSON.stringify(DialStore.getValues(panelId));
-    const key = versionKey(DialStore.getActivePresetId(panelId));
-    const switched = key !== lastKey;
-    const edited = !switched && values !== lastValues;
+    const values = valuesOf();
+    const key = activeKey();
+    if (key !== lastKey) captureMissingSoon();
+    else if (values !== lastValues) ThumbnailStore.markStale(panelId, key);
     lastValues = values;
     lastKey = key;
-    if (edited) schedule();
-    // A version shown without a thumbnail gets one, unless something (like a
-    // save) supplies it in the meantime.
-    else if (switched) setTimeout(() => {
-      if (!ThumbnailStore.get(panelId, key)) schedule();
-    });
   });
 
   ThumbnailStore.prune(panelId, [BASE_VERSION, ...DialStore.getPresets(panelId).map((p) => p.id)]);
-  // A stored thumbnail can predate this page load's values; always refresh.
-  schedule();
+  // A stored thumbnail can predate this page load's values.
+  ThumbnailStore.markStale(panelId, lastKey);
+  captureMissingSoon();
 
-  return () => { clearTimeout(timer); unsubscribe(); };
+  return {
+    flush,
+    stop: () => { stopped = true; clearTimeout(timer); unsubscribe(); },
+  };
 }
 
 /**

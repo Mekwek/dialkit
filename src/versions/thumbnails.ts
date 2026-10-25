@@ -32,6 +32,7 @@ type Listener = () => void;
 
 class ThumbnailStoreImpl {
   private cache = new Map<string, Record<string, Thumbnail>>();
+  private stale = new Map<string, Set<string>>();
   private listeners = new Set<Listener>();
 
   get(panelId: string, key: string): Thumbnail | undefined {
@@ -43,11 +44,24 @@ class ThumbnailStoreImpl {
   }
 
   set(panelId: string, key: string, thumbnail: Thumbnail): void {
+    this.stale.get(panelId)?.delete(key);
     const next = { ...this.read(panelId), [key]: thumbnail };
     this.write(panelId, next);
   }
 
+  /** The version's values changed since its thumbnail was captured. */
+  markStale(panelId: string, key: string): void {
+    let keys = this.stale.get(panelId);
+    if (!keys) this.stale.set(panelId, keys = new Set());
+    keys.add(key);
+  }
+
+  isStale(panelId: string, key: string): boolean {
+    return this.stale.get(panelId)?.has(key) ?? false;
+  }
+
   delete(panelId: string, key: string): void {
+    this.stale.get(panelId)?.delete(key);
     const current = this.read(panelId);
     if (!(key in current)) return;
     const next = { ...current };

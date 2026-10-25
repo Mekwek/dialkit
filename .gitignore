@@ -40,6 +40,7 @@ example/src/vite-env.d.ts
 
 # Claude notes
 .claude-plan.md
+.claude/launch.json
 CLAUDE.md
 AGENTS.md
 

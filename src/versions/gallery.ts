@@ -21,8 +21,11 @@ export interface VersionGalleryProps {
 export function mountVersionGallery(host: HTMLElement, initial: VersionGalleryProps): Mounted<VersionGalleryProps> {
   let props = initial;
   let overview: VersionGridHandle | null = null;
+  let opening = false;
   let saving = false;
   let editing: string | null = null;
+  let switchingTo: string | null = null;
+  let destroyed = false;
 
   const root = element('div', 'dialkit-versions');
   const actions = element('div', 'dialkit-versions-actions');
@@ -61,9 +64,11 @@ export function mountVersionGallery(host: HTMLElement, initial: VersionGalleryPr
 
     root.dataset.panel = panelId;
     toggle.hidden = !many;
-    toggle.setAttribute('aria-pressed', String(!!overview));
+    toggle.setAttribute('aria-pressed', String(!!overview || opening));
     root.toggleAttribute('data-overview', !!overview);
     syncCopy(!!overview);
+    // The grid only shows the versions it opened with, so saving waits for it to close.
+    save.disabled = !!overview || opening;
     toggle.setAttribute('aria-label', `All versions (${versions.length})`);
     toggle.title = `All versions (${versions.length})`;
     // Thumbnails appear once there's something to compare.
@@ -107,7 +112,7 @@ export function mountVersionGallery(host: HTMLElement, initial: VersionGalleryPr
     // With the grid open, picking a thumbnail zooms into that version.
     frame.addEventListener('click', () => {
       if (overview) overview.select(key);
-      else selectVersion(props.panelId, key);
+      else void switchTo(key);
     });
     const label = element('span', 'dialkit-version-thumb-label');
     label.title = 'Double-click to rename';
@@ -150,8 +155,20 @@ export function mountVersionGallery(host: HTMLElement, initial: VersionGalleryPr
     input.select();
   };
 
+  // Bring the outgoing version's thumbnail up to date before leaving it. While
+  // that capture runs, the latest pick wins.
+  const switchTo = async (key: string) => {
+    if (switchingTo !== null) { switchingTo = key; return; }
+    if (key === versionKey(DialStore.getActivePresetId(props.panelId))) return;
+    switchingTo = key;
+    await watcher.flush();
+    const next = switchingTo;
+    switchingTo = null;
+    if (!destroyed) selectVersion(props.panelId, next);
+  };
+
   save.addEventListener('click', async () => {
-    if (saving) return;
+    if (saving || overview || opening) return;
     saving = true;
     try {
       await saveVersionWithAppshot(props.panelId, async (key) => {
@@ -166,11 +183,18 @@ export function mountVersionGallery(host: HTMLElement, initial: VersionGalleryPr
     }
   });
 
-  toggle.addEventListener('click', () => {
+  toggle.addEventListener('click', async () => {
     if (overview) {
       overview.dismiss();
       return;
     }
+    if (opening) return;
+    // The grid zooms out of the live page, so the active card must match it.
+    opening = true;
+    render();
+    await watcher.flush();
+    opening = false;
+    if (destroyed) return;
     overview = openVersionsOverview(props.panelId, props.theme, () => {
       overview = null;
       render();
@@ -182,7 +206,7 @@ export function mountVersionGallery(host: HTMLElement, initial: VersionGalleryPr
   syncAspect();
   window.addEventListener('resize', syncAspect);
 
-  let stopWatching = watchVersionThumbnails(props.panelId);
+  let watcher = watchVersionThumbnails(props.panelId);
   let stopStore = DialStore.subscribe(props.panelId, render);
   const stopThumbnails = ThumbnailStore.subscribe(render);
   const stopArrivals = ArrivalStore.subscribe(render);
@@ -191,20 +215,21 @@ export function mountVersionGallery(host: HTMLElement, initial: VersionGalleryPr
   return {
     update(next) {
       if (next.panelId !== props.panelId) {
-        stopWatching();
+        watcher.stop();
         stopStore();
         thumbs.forEach((node) => node.remove());
         thumbs.clear();
-        stopWatching = watchVersionThumbnails(next.panelId);
+        watcher = watchVersionThumbnails(next.panelId);
         stopStore = DialStore.subscribe(next.panelId, render);
       }
       props = next;
       render();
     },
     destroy() {
+      destroyed = true;
       overview?.close();
       syncCopy(false);
-      stopWatching();
+      watcher.stop();
       stopStore();
       stopThumbnails();
       stopArrivals();

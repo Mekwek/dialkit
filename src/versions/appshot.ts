@@ -222,7 +222,9 @@ export async function saveVersionWithAppshot(
   if (capture) {
     ThumbnailStore.set(panelId, id, capture.thumbnail);
     // The new version starts identical to the one it was saved from.
-    if (!ThumbnailStore.get(panelId, previousKey)) ThumbnailStore.set(panelId, previousKey, capture.thumbnail);
+    if (!ThumbnailStore.get(panelId, previousKey) || ThumbnailStore.isStale(panelId, previousKey)) {
+      ThumbnailStore.set(panelId, previousKey, capture.thumbnail);
+    }
   }
   if (!appshot || !capture) {
     appshot?.cancel();
