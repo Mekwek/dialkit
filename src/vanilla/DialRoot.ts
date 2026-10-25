@@ -9,6 +9,7 @@ import { mountFolder } from './controls';
 import { mountPresetManager } from './menus';
 import { mountShortcutListener } from './shortcuts';
 import { button, element, icon } from './dom';
+import { mountVersionGallery, type DialVersions } from '../versions/gallery';
 export type DialPosition = 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
 export type DialMode = 'popover' | 'inline';
 export type DialTheme = 'light' | 'dark' | 'system';
@@ -20,13 +21,21 @@ export interface DialRootOptions {
   theme?: DialTheme;
   /** Plain HTML has no build-mode detection; enabled by default. */
   productionEnabled?: boolean;
+  /** How saved versions appear: captured thumbnails (default), or a menu. */
+  versions?: DialVersions;
   onOpenChange?: (open: boolean) => void;
 }
-export function mountPanelToolbar(host: HTMLElement, id: string, hookName = 'createDialKit') {
+export function mountPanelToolbar(host: HTMLElement, id: string, hookName = 'createDialKit', versions: DialVersions = 'menu') {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let destroyed = false;
+  const gallery = versions !== 'menu';
   const presetProps = () => ({ panelId: id, presets: DialStore.getPresets(id), activePresetId: DialStore.getActivePresetId(id) });
-  const presets = mountPresetManager(host, presetProps());
+  const presets = gallery ? null : mountPresetManager(host, presetProps());
+  // With a version gallery the copy button spans the toolbar and gets a label.
+  const copyContent = (copied: boolean) => {
+    const glyph = icon(copied ? ICON_CHECK : [ICON_CLIPBOARD_PLAIN.board, ICON_CLIPBOARD_PLAIN.body]);
+    return gallery ? [glyph, element('span', '', copied ? 'Copied' : 'Copy parameters')] : [glyph];
+  };
   const copy = button('Copy parameters', [ICON_CLIPBOARD_PLAIN.board, ICON_CLIPBOARD_PLAIN.body], async () => {
     try {
       await navigator.clipboard.writeText(buildCopyInstruction(hookName, DialStore.getPanel(id)?.name ?? '', DialStore.getValues(id)));
@@ -36,19 +45,23 @@ export function mountPanelToolbar(host: HTMLElement, id: string, hookName = 'cre
     }
     if (destroyed)
       return;
-    copy.replaceChildren(icon(ICON_CHECK));
+    copy.replaceChildren(...copyContent(true));
     clearTimeout(timer);
-    timer = setTimeout(() => copy.replaceChildren(icon([ICON_CLIPBOARD_PLAIN.board, ICON_CLIPBOARD_PLAIN.body])), 1500);
+    timer = setTimeout(() => copy.replaceChildren(...copyContent(false)), 1500);
   });
   copy.classList.add('dialkit-toolbar-primary');
+  if (gallery) {
+    copy.dataset.wide = 'true';
+    copy.replaceChildren(...copyContent(false));
+  }
   host.append(copy);
-  const stop = DialStore.subscribe(id, () => presets.update(presetProps()));
+  const stop = DialStore.subscribe(id, () => presets?.update(presetProps()));
   return {
     destroy() {
       destroyed = true;
       clearTimeout(timer);
       stop();
-      presets.destroy();
+      presets?.destroy();
       copy.remove();
     }
   };
@@ -119,11 +132,13 @@ export function createDialRoot(options: DialRootOptions = {}) {
     });
     const folder = mountFolder(host, folderProps());
     const toolbar = folder.toolbar;
-    const toolbarView = mountPanelToolbar(toolbar, panel.id);
+    const versions = options.versions ?? 'thumbnails';
+    const toolbarView = mountPanelToolbar(toolbar, panel.id, 'createDialKit', versions);
     if (isRoot)
       timelineToggle(toolbar);
     const rendererProps = () => ({ panelId: panel.id, controls: DialStore.getPanel(panel.id)?.controls ?? [], values: DialStore.getValues(panel.id) });
     const renderer = mountControlRenderer(folder.body, rendererProps());
+    const gallery = versions === 'menu' ? null : mountVersionGallery(folder.body, { panelId: panel.id, theme: options.theme });
     const update = () => {
       folder.update(folderProps());
       renderer.update(rendererProps());
@@ -133,6 +148,7 @@ export function createDialRoot(options: DialRootOptions = {}) {
       destroy() {
         stop();
         toolbarView.destroy();
+        gallery?.destroy();
         renderer.destroy();
         folder.destroy();
       }

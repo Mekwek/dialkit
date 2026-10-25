@@ -104,7 +104,7 @@ export const PresetManager = defineComponent({
         type: 'button', 'aria-haspopup': 'menu', 'aria-expanded': isOpen.value,
         'aria-label': 'Versions', onKeydown: (e: KeyboardEvent) => openDropdownOnKey(e, open),
       }, [
-        h('span', { class: 'dialkit-preset-label' }, activePreset()?.name ?? 'Version 1'),
+        h('span', { class: 'dialkit-preset-label' }, activePreset()?.name ?? DialStore.getBaseName(props.panelId)),
         h(motion.svg, {
           class: 'dialkit-select-chevron',
           viewBox: '0 0 24 24',
@@ -140,7 +140,7 @@ export const PresetManager = defineComponent({
                 class: 'dialkit-preset-item',
                 'data-active': String(!props.activePresetId),
                 onClick: () => handleSelect(null),
-              }, [glyph(!props.activePresetId ? ICON_CHECK : null), h('button', { type: 'button', class: 'dialkit-preset-name' }, 'Version 1')]),
+              }, [glyph(!props.activePresetId ? ICON_CHECK : null), h('button', { type: 'button', class: 'dialkit-preset-name' }, DialStore.getBaseName(props.panelId))]),
 
               ...props.presets.map((preset) => h('div', {
                 key: preset.id,

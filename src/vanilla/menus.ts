@@ -132,7 +132,7 @@ export function mountPresetManager(host: HTMLElement, initial: PresetManagerProp
   row.append(trigger);
   host.append(row);
   const menu = popupMenu(trigger, 'dialkit-preset-dropdown', 'presets', popup => {
-    const versions = [{ id: null, name: 'Version 1' }, ...props.presets];
+    const versions = [{ id: null, name: DialStore.getBaseName(props.panelId) }, ...props.presets];
     popup.replaceChildren(...versions.map(preset => {
       const item = element('div', 'dialkit-preset-item');
       item.dataset.active = String(preset.id === props.activePresetId);
@@ -168,7 +168,7 @@ export function mountPresetManager(host: HTMLElement, initial: PresetManagerProp
   });
   function render() {
     const active = props.presets.find(p => p.id === props.activePresetId);
-    label.textContent = active?.name ?? 'Version 1';
+    label.textContent = active?.name ?? DialStore.getBaseName(props.panelId);
     trigger.dataset.hasPreset = String(!!active);
     menu.refresh();
   }

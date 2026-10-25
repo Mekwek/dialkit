@@ -4,7 +4,7 @@ import { solidPlugin } from 'esbuild-plugin-solid';
 const externalPackageStorePlugin = {
   name: 'external-package-store',
   setup(build: { onResolve: (options: { filter: RegExp }, callback: () => { path: string; external: boolean }) => void }) {
-    build.onResolve({ filter: /^\.\/store\/DialStore$/ }, () => ({
+    build.onResolve({ filter: /^(\.\.?\/)+store\/DialStore$/ }, () => ({
       path: 'dialkit/store',
       external: true,
     }));
@@ -50,6 +50,7 @@ export default defineConfig([
       'dropdown-keyboard': 'src/dropdown-keyboard.ts',
       'text-autosize': 'src/text-autosize.ts',
       'shortcut-utils': 'src/shortcut-utils.ts',
+      'version-gallery': 'src/version-gallery.ts',
     },
     format: ['esm'],
     dts: true,

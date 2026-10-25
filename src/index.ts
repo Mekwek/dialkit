@@ -5,6 +5,7 @@ export type { DialKitController, UseDialOptions } from './hooks/useDialKit';
 // Root component (user mounts once)
 export { DialRoot } from './components/DialRoot';
 export type { DialPosition, DialMode, DialTheme } from './components/DialRoot';
+export type { DialVersions } from './versions/gallery';
 
 // Timeline (prototype)
 export { useDialTimeline } from './hooks/useDialTimeline';
@@ -51,6 +52,7 @@ export { ImageControl } from './components/ImageControl';
 export { DialPad } from './components/DialPad';
 export type { DialPadProps } from './dial-pad-control';
 export { PresetManager } from './components/PresetManager';
+export { VersionGallery } from './components/VersionGallery';
 export { ShortcutsMenu } from './components/ShortcutsMenu';
 
 // Store (for advanced usage)

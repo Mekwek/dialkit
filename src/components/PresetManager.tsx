@@ -80,7 +80,7 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd }: Prese
         aria-label="Versions" onKeyDown={(e) => openDropdownOnKey(e, open)}
       >
         <span className="dialkit-preset-label">
-          {activePreset ? activePreset.name : 'Version 1'}
+          {activePreset ? activePreset.name : DialStore.getBaseName(panelId)}
         </span>
         <motion.svg
           className="dialkit-select-chevron"
@@ -115,7 +115,7 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd }: Prese
                 onClick={() => handleSelect(null)}
               >
                 <svg className="dialkit-preset-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">{!activePresetId && <path d={ICON_CHECK} />}</svg>
-                <button type="button" className="dialkit-preset-name">Version 1</button>
+                <button type="button" className="dialkit-preset-name">{DialStore.getBaseName(panelId)}</button>
               </div>
 
               {presets.map((preset) => (

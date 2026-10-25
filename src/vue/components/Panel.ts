@@ -7,6 +7,8 @@ import type { DialValue, PanelConfig } from '../../store/DialStore';
 import { Folder } from './Folder';
 import { ControlRenderer } from './ControlRenderer';
 import { PresetManager } from './PresetManager';
+import { VersionGallery } from './VersionGallery';
+import type { DialVersions } from '../../versions/gallery';
 
 export const Panel = defineComponent({
   name: 'DialKitPanel',
@@ -28,6 +30,11 @@ export const Panel = defineComponent({
       default: 'root',
     },
     toolbarExtra: Function as PropType<() => VNodeChild>,
+    versions: {
+      type: String as PropType<DialVersions>,
+      default: 'thumbnails',
+    },
+    theme: String as PropType<'light' | 'dark' | 'system'>,
   },
   emits: ['openChange'],
   setup(props, { emit }) {
@@ -80,14 +87,16 @@ export const Panel = defineComponent({
     };
 
     return () => {
+      const gallery = props.versions !== 'menu';
       const toolbarNode = h(Fragment, null, [
-        h(PresetManager, {
+        gallery ? null : h(PresetManager, {
           panelId: props.panel.id,
           presets: presets.value,
           activePresetId: activePresetId.value,
         }),
         h(motion.button, {
           class: 'dialkit-toolbar-add dialkit-toolbar-primary',
+          'data-wide': gallery ? 'true' : undefined,
           onClick: handleCopy,
           title: 'Copy parameters', 'aria-label': 'Copy parameters',
           whilePress: { scale: 0.95 },
@@ -143,9 +152,15 @@ export const Panel = defineComponent({
                 : [],
             }),
           ]),
+          gallery ? h('span', null, copied.value ? 'Copied' : 'Copy parameters') : null,
         ]),
         props.toolbarExtra?.(),
       ]);
+
+      const content = () => [
+        gallery ? h(VersionGallery, { panelId: props.panel.id, theme: props.theme }) : null,
+        h(ControlRenderer, { panelId: props.panel.id, controls: props.panel.controls, values: values.value }),
+      ];
 
       if (props.variant === 'section') {
         return h(Folder, {
@@ -154,9 +169,7 @@ export const Panel = defineComponent({
           onOpenChange: handleOpenChange,
           toolbar: () => toolbarNode,
         }, {
-          default: () => [
-            h(ControlRenderer, { panelId: props.panel.id, controls: props.panel.controls, values: values.value }),
-          ],
+          default: content,
         });
       }
 
@@ -169,7 +182,7 @@ export const Panel = defineComponent({
           toolbar: () => toolbarNode,
           onOpenChange: handleOpenChange,
         }, {
-          default: () => h(ControlRenderer, { panelId: props.panel.id, controls: props.panel.controls, values: values.value }),
+          default: content,
         }),
       ]);
     };

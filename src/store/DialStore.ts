@@ -164,6 +164,7 @@ type PersistedPanelState = {
   baseValues?: Record<string, DialValue>;
   presets?: Preset[];
   activePresetId?: string | null;
+  baseName?: string;
 };
 
 // Stable empty object for unregistered panels (React 19 useSyncExternalStore requirement)
@@ -358,6 +359,7 @@ class DialStoreClass {
   private presets: Map<string, Preset[]> = new Map();
   private activePreset: Map<string, string | null> = new Map();
   private baseValues: Map<string, Record<string, DialValue>> = new Map();
+  private baseNames: Map<string, string> = new Map();
   private defaultValues: Map<string, Record<string, DialValue>> = new Map();
   private registrationCounts: Map<string, number> = new Map();
   private retainedPanels: Set<string> = new Set();
@@ -398,6 +400,9 @@ class DialStoreClass {
     }
     if (!this.activePreset.has(id) && persisted?.activePresetId !== undefined) {
       this.activePreset.set(id, persisted.activePresetId);
+    }
+    if (!this.baseNames.has(id) && persisted?.baseName) {
+      this.baseNames.set(id, persisted.baseName);
     }
 
     this.persistPanel(id);
@@ -458,6 +463,7 @@ class DialStoreClass {
       this.panelOpenStates.delete(id);
       this.snapshots.delete(id);
       this.baseValues.delete(id);
+      this.baseNames.delete(id);
       this.defaultValues.delete(id);
       this.presets.delete(id);
       this.activePreset.delete(id);
@@ -652,10 +658,11 @@ class DialStoreClass {
 
   saveNewPreset(panelId: string): string {
     const highest = this.getPresets(panelId).reduce((max, preset) => {
-      const match = /^Version (\d+)$/.exec(preset.name);
+      // Older saves used "Version N"; both count toward the next number.
+      const match = /^(?:V|Version )(\d+)$/.exec(preset.name);
       return match ? Math.max(max, Number(match[1])) : max;
     }, 1);
-    return this.savePreset(panelId, `Version ${highest + 1}`);
+    return this.savePreset(panelId, `V${highest + 1}`);
   }
 
   savePreset(panelId: string, name: string): string {
@@ -713,6 +720,34 @@ class DialStoreClass {
     }
     this.persistPanel(panelId);
     this.notify(panelId);
+  }
+
+  /** Rename a saved version. A null presetId renames the base version. */
+  renamePreset(panelId: string, presetId: string | null, name: string): void {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    if (presetId === null) {
+      this.baseNames.set(panelId, trimmed);
+    } else {
+      const presets = this.presets.get(panelId) ?? [];
+      if (!presets.some(p => p.id === presetId)) return;
+      this.presets.set(panelId, presets.map(p => p.id === presetId ? { ...p, name: trimmed } : p));
+    }
+    const panel = this.panels.get(panelId);
+    if (panel) this.snapshots.set(panelId, { ...panel.values });
+    this.persistPanel(panelId);
+    this.notify(panelId);
+  }
+
+  /** Where a panel's saved versions persist, if they do. */
+  getPresetStorage(panelId: string): { key: string; storage: 'localStorage' | 'sessionStorage' } | null {
+    const config = this.persistConfigs.get(panelId);
+    return config?.presets ? { key: config.key, storage: config.storage } : null;
+  }
+
+  /** Display name of the base version (the values before any saved preset). */
+  getBaseName(panelId: string): string {
+    return this.baseNames.get(panelId) ?? 'V1';
   }
 
   getPresets(panelId: string): Preset[] {
@@ -861,6 +896,7 @@ class DialStoreClass {
         baseValues: config.presets && isRecord(parsed.baseValues) ? parsed.baseValues as Record<string, DialValue> : values,
         presets,
         activePresetId: presets.some(preset => preset.id === parsed.activePresetId) ? parsed.activePresetId as string : null,
+        baseName: config.presets && typeof parsed.baseName === 'string' ? parsed.baseName : undefined,
       };
     } catch {
       return null;
@@ -882,6 +918,8 @@ class DialStoreClass {
       state.baseValues = this.baseValues.get(id) ?? values;
       state.presets = this.presets.get(id) ?? [];
       state.activePresetId = this.activePreset.get(id) ?? null;
+      const baseName = this.baseNames.get(id);
+      if (baseName) state.baseName = baseName;
     }
 
     try {

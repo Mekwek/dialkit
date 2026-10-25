@@ -6,16 +6,20 @@
   import type { DialValue, PanelConfig, Preset } from 'dialkit/store';
   import Folder from './Folder.svelte';
   import PresetManager from './PresetManager.svelte';
+  import VersionGallery from './VersionGallery.svelte';
+  import type { DialVersions } from '../../version-gallery';
   import ControlRenderer from './ControlRenderer.svelte';
   import { ICON_CLIPBOARD_PLAIN, ICON_CHECK } from '../../icons';
 
-  let { panel, defaultOpen = true, inline = false, onOpenChange, variant = 'root', toolbarExtra } = $props<{
+  let { panel, defaultOpen = true, inline = false, onOpenChange, variant = 'root', toolbarExtra, versions = 'thumbnails', theme } = $props<{
     panel: PanelConfig;
     defaultOpen?: boolean;
     inline?: boolean;
     onOpenChange?: (open: boolean) => void;
     variant?: 'root' | 'section';
     toolbarExtra?: Snippet;
+    versions?: DialVersions;
+    theme?: 'light' | 'dark' | 'system';
   }>();
 
   let copied = $state(false);
@@ -84,10 +88,13 @@
 </script>
 
 {#snippet panelToolbar()}
-  <PresetManager panelId={panel.id} {presets} {activePresetId} />
+  {#if versions === 'menu'}
+    <PresetManager panelId={panel.id} {presets} {activePresetId} />
+  {/if}
 
   <button
     class="dialkit-toolbar-add dialkit-toolbar-primary"
+    data-wide={versions !== 'menu' ? 'true' : undefined}
     onclick={handleCopy}
     onpointerdown={() => copyScale.set(0.95)}
     onpointerup={() => copyScale.set(1)}
@@ -124,6 +131,9 @@
         <path d={ICON_CHECK} />
       </svg>
     </span>
+    {#if versions !== 'menu'}
+      <span>{copied ? 'Copied' : 'Copy parameters'}</span>
+    {/if}
   </button>
 
   {#if toolbarExtra}
@@ -132,6 +142,9 @@
 {/snippet}
 
 {#snippet panelControls()}
+  {#if versions !== 'menu'}
+    <VersionGallery panelId={panel.id} {theme} />
+  {/if}
   {#each panel.controls as control (control.path)}
     <ControlRenderer panelId={panel.id} {control} {values} />
   {/each}

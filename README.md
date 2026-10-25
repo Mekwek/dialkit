@@ -200,11 +200,11 @@ dial.setOpen(false);
 
 Read `dial.values` in React, Svelte, and vanilla; `dial.values()` in Solid; or `dial.values.value` in Vue. `getValues()` reads the latest snapshot, and `getOpen()` reads panel state. `resetValues()` restores the config defaults and clears the active preset.
 
-### Presets and persistence
+### Versions and persistence
 
-Open the version menu and choose **New version** to save and select a version. Edits update the selected version automatically; **Version 1** holds the editable base values. **Copy** puts the current values and an instruction for applying them to your config on the clipboard.
+**Save version** captures your page, flies the capture into the panel as a thumbnail, and selects the new version. Edits update the selected version automatically; **V1** holds the editable base values. Click a thumbnail to switch versions, double-click its name to rename it, or hover it to delete. The grid button zooms the page out to every version; pick one to zoom back into it. **Copy** puts the current values and an instruction for applying them to your config on the clipboard.
 
-The version menu is always available, including before any versions are saved. A checkmark identifies the current version, and saved versions can be deleted from the menu. Panels and timelines share this behavior across React, Solid, Svelte, Vue, and vanilla JavaScript.
+Captures are made in the browser with no dependencies and never leave it. WebGL canvases are supported; web fonts render with system fallbacks. For the classic version menu instead, set `versions="menu"` on the root (`createDialRoot({ versions: "menu" })` in vanilla). Timelines always use the menu. Behavior is the same across React, Solid, Svelte, Vue, and vanilla JavaScript.
 
 Use a stable `id` to retain values across unmounts. Add `persist: true` to retain them across page reloads:
 
@@ -214,7 +214,7 @@ const values = useDialKit("Card", {
 }, { id: "card", persist: true });
 ```
 
-Persistence includes values, saved versions, and the active version. It uses `localStorage` with the key `dialkit:card` in this example. Panel open state stays in memory and is not persisted. See [storage options](https://github.com/joshpuckett/dialkit/blob/main/docs/reference.md#persistence) for custom keys, session storage, and saving values without presets.
+Persistence includes values, saved versions, their thumbnails, and the active version. It uses `localStorage` with the key `dialkit:card` in this example. Panel open state stays in memory and is not persisted. See [storage options](https://github.com/joshpuckett/dialkit/blob/main/docs/reference.md#persistence) for custom keys, session storage, and saving values without presets.
 
 ## Panel layout
 
@@ -237,6 +237,7 @@ In vanilla, use `createDialRoot({ mode: "inline", target: container })`.
 | `position` | `"top-right"` | `"top-right"`, `"top-left"`, `"bottom-right"`, `"bottom-left"` |
 | `theme` | `"system"` | `"system"`, `"light"`, `"dark"` |
 | `mode` | `"popover"` | `"popover"`, `"inline"` |
+| `versions` | `"thumbnails"` | `"thumbnails"`, `"menu"` |
 | `defaultOpen` | `true` | Initial root state; a panel's `defaultCollapsed` takes precedence |
 | `onOpenChange` | — | Callback for root open state; `@open-change` in Vue |
 

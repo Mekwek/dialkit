@@ -23,6 +23,7 @@ export type {
 // Root component
 export { DialRoot } from './components/DialRoot';
 export type { DialPosition, DialMode, DialTheme } from './components/DialRoot';
+export type { DialVersions } from '../versions/gallery';
 export { DialTimeline } from './components/Timeline/DialTimeline';
 export type { DialTimelineProps } from './components/Timeline/DialTimeline';
 
@@ -43,6 +44,7 @@ export { ImageControl } from './components/ImageControl';
 export { DialPad } from './components/DialPad';
 export type { DialPadProps } from '../dial-pad-control';
 export { PresetManager } from './components/PresetManager';
+export { VersionGallery } from './components/VersionGallery';
 export { ShortcutsMenu } from './components/ShortcutsMenu';
 export { ControlRenderer } from './components/ControlRenderer';
 

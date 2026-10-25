@@ -36,7 +36,7 @@ try {
         0,
       );
       await create();
-      assert.equal((await trigger.innerText()).trim(), "Version 2");
+      assert.equal((await trigger.innerText()).trim(), "V2");
       assert.equal(await trigger.getAttribute("aria-expanded"), "false");
       if (!kind) {
         await page
@@ -44,7 +44,7 @@ try {
           .fill("Saved");
         await open();
         await page
-          .getByRole("menuitemradio", { name: "Version 1", exact: true })
+          .getByRole("menuitemradio", { name: "V1", exact: true })
           .press("Enter");
         assert.equal(
           await page
@@ -54,7 +54,7 @@ try {
         );
         await open();
         await page
-          .getByRole("menuitemradio", { name: "Version 2", exact: true })
+          .getByRole("menuitemradio", { name: "V2", exact: true })
           .press("Enter");
         assert.equal(
           await page
@@ -64,17 +64,17 @@ try {
         );
       }
       await create();
-      assert.equal((await trigger.innerText()).trim(), "Version 3");
+      assert.equal((await trigger.innerText()).trim(), "V3");
       await open();
       await page
-        .getByRole("menuitem", { name: "Delete Version 2", exact: true })
+        .getByRole("menuitem", { name: "Delete V2", exact: true })
         .press("Enter");
       await page
         .getByRole("menuitem", { name: "New version", exact: true })
         .press("Enter");
-      assert.equal((await trigger.innerText()).trim(), "Version 4");
+      assert.equal((await trigger.innerText()).trim(), "V4");
       await open();
-      for (const name of ["Version 3", "Version 4"]) {
+      for (const name of ["V3", "V4"]) {
         await page
           .getByRole("menuitem", { name: `Delete ${name}`, exact: true })
           .press("Enter");
@@ -83,10 +83,10 @@ try {
       await page
         .getByRole("menuitem", { name: "New version", exact: true })
         .press("Enter");
-      assert.equal((await trigger.innerText()).trim(), "Version 2");
+      assert.equal((await trigger.innerText()).trim(), "V2");
       await open();
       await page
-        .getByRole("menuitemradio", { name: "Version 2", exact: true })
+        .getByRole("menuitemradio", { name: "V2", exact: true })
         .press("Escape");
       assert.equal(await trigger.getAttribute("aria-expanded"), "false");
       assert.equal(

@@ -5,6 +5,7 @@
   import { TimelineStore } from 'dialkit/timeline';
   import type { TimelineMeta } from 'dialkit/timeline';
   import { themeCSS } from '../theme-css';
+  import type { DialVersions } from '../../version-gallery';
   import Portal from '../Portal.svelte';
   import Folder from './Folder.svelte';
   import Panel from './Panel.svelte';
@@ -37,12 +38,14 @@
       ? viteMode !== 'production'
       : true;
 
-  let { position = 'top-right', defaultOpen = true, mode = 'popover', theme = 'system' as DialTheme, productionEnabled = isDevDefault, onOpenChange } = $props<{
+  let { position = 'top-right', defaultOpen = true, mode = 'popover', theme = 'system' as DialTheme, productionEnabled = isDevDefault, versions = 'thumbnails', onOpenChange } = $props<{
     position?: DialPosition;
     defaultOpen?: boolean;
     mode?: DialMode;
     theme?: DialTheme;
     productionEnabled?: boolean;
+    /** How saved versions appear: captured thumbnails (default), or a menu. */
+    versions?: DialVersions;
     onOpenChange?: (open: boolean) => void;
   }>();
 
@@ -265,6 +268,8 @@
                     {panel}
                     defaultOpen={true}
                     variant="section"
+                    {versions}
+                    {theme}
                   />
                 {/each}
               </Folder>
@@ -276,6 +281,8 @@
                 defaultOpen={inline || defaultOpen}
                 {inline}
                 toolbarExtra={timelineToolbar}
+                {versions}
+                {theme}
                 onOpenChange={(open) => handlePanelOpenChange(panel.id, open)}
               />
             {/each}

@@ -7,6 +7,8 @@ import { ICON_CLIPBOARD_PLAIN, ICON_CHECK } from '../icons';
 import { ControlRenderer } from './ControlRenderer';
 import { Folder } from './Folder';
 import { PresetManager } from './PresetManager';
+import { VersionGallery } from './VersionGallery';
+import type { DialVersions } from '../versions/gallery';
 
 interface PanelProps {
   panel: PanelConfig;
@@ -15,9 +17,11 @@ interface PanelProps {
   onOpenChange?: (open: boolean) => void;
   variant?: 'root' | 'section';
   toolbarExtra?: ReactNode;
+  versions?: DialVersions;
+  theme?: 'light' | 'dark' | 'system';
 }
 
-export function Panel({ panel, defaultOpen = true, inline = false, onOpenChange, variant = 'root', toolbarExtra }: PanelProps) {
+export function Panel({ panel, defaultOpen = true, inline = false, onOpenChange, variant = 'root', toolbarExtra, versions = 'thumbnails', theme }: PanelProps) {
   const [copied, setCopied] = useState(false);
   const copyTimeout = useRef<ReturnType<typeof setTimeout>>();
   useEffect(() => () => clearTimeout(copyTimeout.current), []);
@@ -63,24 +67,32 @@ export function Panel({ panel, defaultOpen = true, inline = false, onOpenChange,
   }, [onOpenChange, panel.id]);
 
   const renderControls = () => (
-    <ControlRenderer panelId={panel.id} controls={panel.controls} values={values} />
+    <>
+      {versions !== 'menu' && (
+        <VersionGallery panelId={panel.id} theme={theme} />
+      )}
+      <ControlRenderer panelId={panel.id} controls={panel.controls} values={values} />
+    </>
   );
 
   const iconTransition = { type: 'spring' as const, visualDuration: 0.4, bounce: 0.1 };
 
   const toolbar = (
     <>
-      <PresetManager
-        panelId={panel.id}
-        presets={presets}
-        activePresetId={activePresetId}
-      />
+      {versions === 'menu' && (
+        <PresetManager
+          panelId={panel.id}
+          presets={presets}
+          activePresetId={activePresetId}
+        />
+      )}
 
       <motion.button
         className="dialkit-toolbar-add dialkit-toolbar-primary"
+        data-wide={versions !== 'menu' ? 'true' : undefined}
         onClick={handleCopy}
         title="Copy parameters"
-        whileTap={{ scale: 0.9 }}
+        whileTap={{ scale: versions !== 'menu' ? 0.98 : 0.9 }}
         transition={{ type: 'spring', visualDuration: 0.15, bounce: 0.3 }}
       >
         <span style={{ position: 'relative', width: 16, height: 16 }}>
@@ -119,6 +131,7 @@ export function Panel({ panel, defaultOpen = true, inline = false, onOpenChange,
             )}
           </AnimatePresence>
         </span>
+        {versions !== 'menu' && <span>{copied ? 'Copied' : 'Copy parameters'}</span>}
       </motion.button>
 
       {toolbarExtra}

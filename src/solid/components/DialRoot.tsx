@@ -7,6 +7,7 @@ import { ShortcutListener } from './ShortcutListener';
 import { RootPanel } from './RootPanel';
 import { Panel } from './Panel';
 import { TimelineToggleButton } from './Timeline/TimelineToggleButton';
+import type { DialVersions } from '../../versions/gallery';
 import {
   blockPanelDragClick,
   capturePanelPointer,
@@ -40,6 +41,8 @@ interface DialRootProps {
   mode?: DialMode;
   theme?: DialTheme;
   productionEnabled?: boolean;
+  /** How saved versions appear: captured thumbnails (default), or a menu. */
+  versions?: DialVersions;
   onOpenChange?: (open: boolean) => void;
 }
 
@@ -255,6 +258,8 @@ function DialRootInner(props: DialRootProps) {
                     defaultOpen={fallbackOpen()}
                     inline={inline()}
                     toolbarExtra={timelineToggle()}
+                    versions={props.versions}
+                    theme={props.theme}
                     onOpenChange={(open) => handlePanelOpenChange(panel.id, open)}
                   />
                 )}
@@ -276,6 +281,8 @@ function DialRootInner(props: DialRootProps) {
                         panel={panel}
                         defaultOpen={true}
                         variant="section"
+                        versions={props.versions}
+                        theme={props.theme}
                       />
                     )}
                   </For>

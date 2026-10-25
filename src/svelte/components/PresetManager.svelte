@@ -98,7 +98,7 @@
     aria-label="Versions" onkeydown={(e) => openDropdownOnKey(e, openDropdown)}
   >
     <span class="dialkit-preset-label">
-      {activePreset ? activePreset.name : 'Version 1'}
+      {activePreset ? activePreset.name : DialStore.getBaseName(panelId)}
     </span>
     <svg
       class="dialkit-select-chevron"
@@ -130,7 +130,7 @@
             onclick={() => handleSelect(null)}
           >
             <svg class="dialkit-preset-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">{#if !activePresetId}<path d={ICON_CHECK} />{/if}</svg>
-            <button type="button" class="dialkit-preset-name">Version 1</button>
+            <button type="button" class="dialkit-preset-name">{DialStore.getBaseName(panelId)}</button>
           </div>
 
           {#each presets as preset (preset.id)}

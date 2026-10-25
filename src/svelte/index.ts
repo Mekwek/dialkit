@@ -23,6 +23,7 @@ export type {
 // Root component
 export { default as DialRoot } from './components/DialRoot.svelte';
 export type { DialPosition, DialMode, DialTheme } from './components/DialRoot.svelte';
+export type { DialVersions } from '../version-gallery';
 
 // Shortcut components
 export { default as ShortcutListener } from './components/ShortcutListener.svelte';
@@ -46,6 +47,7 @@ export { default as ImageControl } from './components/ImageControl.svelte';
 export { default as DialPad } from './components/DialPad.svelte';
 export type { DialPadProps } from '../dial-pad-control';
 export { default as PresetManager } from './components/PresetManager.svelte';
+export { default as VersionGallery } from './components/VersionGallery.svelte';
 export { default as DialTimeline } from './components/Timeline/DialTimeline.svelte';
 
 // Store exports (via dialkit/store subpath — svelte-package doesn't bundle, so relative paths to src/store would break in dist)

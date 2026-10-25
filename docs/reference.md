@@ -170,7 +170,7 @@ Use `useDialKitController` in React and Vue, or `createDialKitController` in Sol
 | `setOpen(open)` | Open or close this panel; opening also reveals its containing root |
 | `getOpen()` | Read open state; `undefined` means the root default has not been initialized |
 
-Programmatic edits update the active preset, or the base values when Version 1 is selected. `setValues` does not trigger actions. Update an XY pad as a pair: `setValue("position", { x: 0.5, y: -0.25 })`.
+Programmatic edits update the active preset, or the base values when V1 is selected. `setValues` does not trigger actions. Update an XY pad as a pair: `setValue("position", { x: 0.5, y: -0.25 })`.
 
 ### Vanilla lifecycle
 
@@ -204,9 +204,15 @@ const values = useDialKit("Card", { radius: [24, 0, 64] }, {
 
 `storage` defaults to `"localStorage"`; `presets` defaults to `true`. With `presets: false`, only values are persisted. Open state is retained in memory for stable IDs but is never written to storage.
 
-The toolbar's **+** saves and selects a new version. Selecting **Version 1** restores the editable base values. The version menu can also delete saved versions. **Copy** places the values and a configuration-update instruction on the clipboard.
+**Save version** saves and selects a new version. Selecting **V1** restores the editable base values. Hover a thumbnail to delete it. **Copy** places the values and a configuration-update instruction on the clipboard. With `versions="menu"` on the root, the toolbar shows the classic version menu instead.
 
-For custom preset interfaces, use `DialStore.savePreset`, `loadPreset`, `deletePreset`, `getPresets`, `getActivePresetId`, and `clearActivePreset`.
+For custom preset interfaces, use `DialStore.savePreset`, `loadPreset`, `deletePreset`, `renamePreset`, `getPresets`, `getActivePresetId`, and `clearActivePreset`. `renamePreset(id, null, name)` renames V1.
+
+### Version thumbnails
+
+By default, panels show versions as captured thumbnails with a **Save version** button and a toggle for the all-versions grid. With `persist`, thumbnails are stored under `${key}:thumbnails` in the same storage; otherwise they last for the session. Elements with `data-dialkit-ignore` are left out of captures. Reduced motion skips the capture flight and the grid zoom.
+
+To place the gallery yourself, render `VersionGallery` with a `panelId`, or `mountVersionGallery(host, { panelId })` in vanilla.
 
 ## Panel state
 
