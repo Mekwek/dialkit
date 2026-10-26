@@ -250,7 +250,7 @@
 }
 
 /* A panel that starts with a folder shares the header's divider. */
-.dialkit-folder-root > .dialkit-panel-header:has(+ .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder:first-child) {
+.dialkit-folder-root > .dialkit-panel-header:has(+ .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder:first-child, + .dialkit-folder-content > .dialkit-folder-inner > .dialkit-control-wrapper:first-child > .dialkit-folder) {
   margin-bottom: 0;
 }
 
