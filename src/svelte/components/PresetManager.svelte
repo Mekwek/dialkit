@@ -9,12 +9,16 @@
   import { dropdownTransition } from './transitions';
   import { getDialKitPortalRoot, getDropdownPosition } from '../../dropdown-position';
   import { ICON_CHEVRON, ICON_TRASH, ICON_PLUS, ICON_CHECK } from '../../icons';
+  import { HINTS } from '../../hints';
+  import { createHints } from '../hints.svelte.js';
 
   let { panelId, presets, activePresetId } = $props<{
     panelId: string;
     presets: Preset[];
     activePresetId: string | null;
   }>();
+
+  createHints(() => true);
 
   let isOpen = $state(false);
   let pos = $state({ top: 0, left: 0, width: 0 });
@@ -95,7 +99,7 @@
     data-open={String(isOpen)}
     data-has-preset={String(!!activePreset)}
     type="button" aria-haspopup="menu" aria-expanded={isOpen}
-    aria-label="Versions" onkeydown={(e) => openDropdownOnKey(e, openDropdown)}
+    aria-label="Versions" data-hint={HINTS.versions} onkeydown={(e) => openDropdownOnKey(e, openDropdown)}
   >
     <span class="dialkit-preset-label">
       {activePreset ? activePreset.name : DialStore.getBaseName(panelId)}

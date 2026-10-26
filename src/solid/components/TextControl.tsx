@@ -1,14 +1,17 @@
 import { createEffect, createUniqueId, onCleanup, onMount } from 'solid-js';
 import { observeTextSize } from '../../text-autosize';
+import { createHints } from '../primitives';
 
 interface TextControlProps {
   label: string;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  hint?: string;
 }
 
 export function TextControl(props: TextControlProps) {
+  createHints(() => !!props.hint);
   const inputId = createUniqueId();
   let inputRef!: HTMLTextAreaElement;
   let size: ReturnType<typeof observeTextSize> | undefined;
@@ -17,7 +20,7 @@ export function TextControl(props: TextControlProps) {
   createEffect(() => { props.value; props.placeholder; size?.update(); });
 
   return (
-    <div class="dialkit-text-control">
+    <div class="dialkit-text-control" data-hint={props.hint}>
       <label class="dialkit-text-label" for={inputId}>{props.label}</label>
       <textarea
         ref={inputRef}

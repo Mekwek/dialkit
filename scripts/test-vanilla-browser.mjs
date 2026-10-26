@@ -12,6 +12,8 @@ page.on('request', request => { if (/^https?:/.test(request.url())) remoteReques
 page.on('pageerror', error => errors.push(error.message));
 // This suite drives the classic version menu.
 const url = pathToFileURL(resolve('examples/vanilla/index.html')).href + '?versions=menu';
+// The hint tip lengthens the panel until H is first held; here it would reach over the timeline's chevron.
+await page.addInitScript(() => localStorage.setItem('dialkit-hint-tip-seen', '1'));
 try {
   await page.goto(url);
   await page.waitForFunction(() => window.demo);

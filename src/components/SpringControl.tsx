@@ -4,6 +4,7 @@ import { Slider } from './Slider';
 import { SegmentedControl } from './SegmentedControl';
 import { SpringVisualization } from './SpringVisualization';
 import { useCallback, useRef, useSyncExternalStore } from 'react';
+import { HINTS } from '../hints';
 
 interface SpringControlProps {
   panelId: string;
@@ -11,9 +12,10 @@ interface SpringControlProps {
   label: string;
   spring: SpringConfig;
   onChange: (spring: SpringConfig) => void;
+  hint?: string;
 }
 
-export function SpringControl({ panelId, path, label, spring, onChange }: SpringControlProps) {
+export function SpringControl({ panelId, path, label, spring, onChange, hint }: SpringControlProps) {
   const subscribe = useCallback(
     (callback: () => void) => DialStore.subscribe(panelId, callback),
     [panelId]
@@ -64,7 +66,7 @@ export function SpringControl({ panelId, path, label, spring, onChange }: Spring
   };
 
   return (
-    <Folder title={label} defaultOpen={true}>
+    <Folder title={label} defaultOpen={true} hint={hint}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <SpringVisualization spring={spring} isSimpleMode={isSimpleMode} />
 
@@ -90,6 +92,7 @@ export function SpringControl({ panelId, path, label, spring, onChange }: Spring
               max={1}
               step={0.05}
               unit="s"
+              hint={HINTS.springDuration}
             />
             <Slider
               label="Bounce"
@@ -98,6 +101,7 @@ export function SpringControl({ panelId, path, label, spring, onChange }: Spring
               min={0}
               max={1}
               step={0.05}
+              hint={HINTS.bounce}
             />
           </>
         ) : (
@@ -109,6 +113,7 @@ export function SpringControl({ panelId, path, label, spring, onChange }: Spring
               min={1}
               max={1000}
               step={10}
+              hint={HINTS.stiffness}
             />
             <Slider
               label="Damping"
@@ -117,6 +122,7 @@ export function SpringControl({ panelId, path, label, spring, onChange }: Spring
               min={1}
               max={100}
               step={1}
+              hint={HINTS.damping}
             />
             <Slider
               label="Mass"
@@ -125,6 +131,7 @@ export function SpringControl({ panelId, path, label, spring, onChange }: Spring
               min={0.1}
               max={10}
               step={0.1}
+              hint={HINTS.mass}
             />
           </>
         )}

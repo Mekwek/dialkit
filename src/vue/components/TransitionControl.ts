@@ -2,6 +2,8 @@ import { formatEase, parseEase } from '../../easing-geometry';
 import { defineComponent, h, onMounted, onUnmounted, ref, type PropType } from 'vue';
 import { DialStore } from '../../store/DialStore';
 import type { EasingConfig, SpringConfig, TransitionConfig } from '../../store/DialStore';
+import { HINTS } from '../../hints';
+import { useHints } from '../useHints';
 import { Folder } from './Folder';
 import { Slider } from './Slider';
 import { SegmentedControl } from './SegmentedControl';
@@ -82,9 +84,11 @@ export const TransitionControl = defineComponent({
     },
     hideDuration: { type: Boolean, default: false },
     durationControl: Object as PropType<TransitionDurationControl>,
+    hint: { type: String, required: false },
   },
   emits: ['change'],
   setup(props, { emit }) {
+    useHints(() => true);
     const mode = ref<CurveMode>(DialStore.getTransitionMode(props.panelId, props.path));
     let unsub: (() => void) | undefined;
 
@@ -156,6 +160,7 @@ export const TransitionControl = defineComponent({
           max: props.durationControl?.max ?? (isEasing ? 2 : 1),
           step: props.durationControl?.step ?? 0.05,
           unit: 's',
+          hint: isEasing ? HINTS.easingDuration : HINTS.springDuration,
           onChange: props.durationControl?.onChange ?? ((next: number) => {
             if (isEasing) emit('change', { ...currentEasing, duration: next });
             else handleSpringUpdate('visualDuration', next);
@@ -163,13 +168,13 @@ export const TransitionControl = defineComponent({
         })
         : null;
 
-      return h(Folder, { title: props.label, defaultOpen: true }, {
+      return h(Folder, { title: props.label, defaultOpen: true, hint: props.hint }, {
         default: () => [
           h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } }, [
             isEasing
               ? h(EasingVisualization, { easing: currentEasing, onChange: (ease: EasingConfig['ease']) => emit('change', { ...currentEasing, ease }) })
               : h(SpringVisualization, { spring: currentSpring, isSimpleMode: isSimpleSpring }),
-            h('div', { class: 'dialkit-labeled-control' }, [
+            h('div', { class: 'dialkit-labeled-control', 'data-hint': HINTS.transitionType }, [
               h('span', { class: 'dialkit-labeled-control-label' }, 'Type'),
               h(SegmentedControl, {
                 options: [
@@ -197,6 +202,7 @@ export const TransitionControl = defineComponent({
                     max: 1,
                     step: 0.05,
                     onChange: (next: number) => handleSpringUpdate('bounce', next),
+                    hint: HINTS.bounce,
                   }),
                 ]
                 : [
@@ -207,6 +213,7 @@ export const TransitionControl = defineComponent({
                     max: 1000,
                     step: 10,
                     onChange: (next: number) => handleSpringUpdate('stiffness', next),
+                    hint: HINTS.stiffness,
                   }),
                   h(Slider, {
                     label: 'Damping',
@@ -215,6 +222,7 @@ export const TransitionControl = defineComponent({
                     max: 100,
                     step: 1,
                     onChange: (next: number) => handleSpringUpdate('damping', next),
+                    hint: HINTS.damping,
                   }),
                   h(Slider, {
                     label: 'Mass',
@@ -223,6 +231,7 @@ export const TransitionControl = defineComponent({
                     max: 10,
                     step: 0.1,
                     onChange: (next: number) => handleSpringUpdate('mass', next),
+                    hint: HINTS.mass,
                   }),
                 ]),
             durationSlider,

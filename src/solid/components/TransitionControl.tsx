@@ -2,7 +2,8 @@ import { formatEase, parseEase } from '../../easing-geometry';
 import { createSignal, Show } from 'solid-js';
 import { DialStore } from '../../store/DialStore';
 import type { EasingConfig, SpringConfig, TransitionConfig } from '../../store/DialStore';
-import { fromStore } from '../primitives';
+import { HINTS } from '../../hints';
+import { createHints, fromStore } from '../primitives';
 import { EasingVisualization } from './EasingVisualization';
 import { Folder } from './Folder';
 import { SegmentedControl } from './SegmentedControl';
@@ -25,6 +26,7 @@ interface TransitionControlProps {
   onChange: (value: TransitionConfig) => void;
   hideDuration?: boolean;
   durationControl?: TransitionDurationControl;
+  hint?: string;
 }
 
 type CurveMode = 'easing' | 'simple' | 'advanced';
@@ -34,6 +36,7 @@ export function TransitionControl(props: TransitionControlProps) {
     () => DialStore.getTransitionMode(props.panelId, props.path),
     (notify) => DialStore.subscribe(props.panelId, notify)
   );
+  createHints(() => true);
   const [editingEase, setEditingEase] = createSignal(false);
   const [easeDraft, setEaseDraft] = createSignal('');
   const cache: { easing: EasingConfig; simple: SpringConfig; advanced: SpringConfig } = {
@@ -105,18 +108,19 @@ export function TransitionControl(props: TransitionControlProps) {
         max={external?.max ?? (isEasing() ? 2 : 1)}
         step={external?.step ?? 0.05}
         unit="s"
+        hint={isEasing() ? HINTS.easingDuration : HINTS.springDuration}
       />
     );
   };
 
   return (
-    <Folder title={props.label} defaultOpen={true}>
+    <Folder title={props.label} defaultOpen={true} hint={props.hint}>
       <div style={{ display: 'flex', 'flex-direction': 'column', gap: '6px' }}>
         <Show when={isEasing()} fallback={<SpringVisualization spring={spring()} isSimpleMode={isSimple()} />}>
           <EasingVisualization easing={easing()} onChange={(ease) => props.onChange({ ...easing(), ease })} />
         </Show>
 
-        <div class="dialkit-labeled-control">
+        <div class="dialkit-labeled-control" data-hint={HINTS.transitionType}>
           <span class="dialkit-labeled-control-label">Type</span>
           <SegmentedControl
             options={[
@@ -152,12 +156,12 @@ export function TransitionControl(props: TransitionControlProps) {
         </Show>
 
         <Show when={isSimple()}>
-          <Slider label="Bounce" value={spring().bounce ?? 0.2} onChange={(value) => handleSpringUpdate('bounce', value)} min={0} max={1} step={0.05} />
+          <Slider label="Bounce" value={spring().bounce ?? 0.2} onChange={(value) => handleSpringUpdate('bounce', value)} min={0} max={1} step={0.05} hint={HINTS.bounce} />
         </Show>
         <Show when={!isEasing() && !isSimple()}>
-          <Slider label="Stiffness" value={spring().stiffness ?? 400} onChange={(value) => handleSpringUpdate('stiffness', value)} min={1} max={1000} step={10} />
-          <Slider label="Damping" value={spring().damping ?? 17} onChange={(value) => handleSpringUpdate('damping', value)} min={1} max={100} step={1} />
-          <Slider label="Mass" value={spring().mass ?? 1} onChange={(value) => handleSpringUpdate('mass', value)} min={0.1} max={10} step={0.1} />
+          <Slider label="Stiffness" value={spring().stiffness ?? 400} onChange={(value) => handleSpringUpdate('stiffness', value)} min={1} max={1000} step={10} hint={HINTS.stiffness} />
+          <Slider label="Damping" value={spring().damping ?? 17} onChange={(value) => handleSpringUpdate('damping', value)} min={1} max={100} step={1} hint={HINTS.damping} />
+          <Slider label="Mass" value={spring().mass ?? 1} onChange={(value) => handleSpringUpdate('mass', value)} min={0.1} max={10} step={0.1} hint={HINTS.mass} />
         </Show>
         {durationSlider()}
       </div>

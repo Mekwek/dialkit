@@ -1,5 +1,6 @@
 import { defineComponent, h, onMounted, onUnmounted, ref, watch } from 'vue';
 import { observeTextSize } from '../../text-autosize';
+import { useHints } from '../useHints';
 
 let textControlInstance = 0;
 
@@ -9,9 +10,11 @@ export const TextControl = defineComponent({
     label: { type: String, required: true },
     value: { type: String, required: true },
     placeholder: { type: String, required: false },
+    hint: { type: String, required: false },
   },
   emits: ['change'],
   setup(props, { emit }) {
+    useHints(() => !!props.hint);
     const inputId = ref(`dialkit-text-${++textControlInstance}`);
     const inputRef = ref<HTMLTextAreaElement>();
     let size: ReturnType<typeof observeTextSize> | undefined;
@@ -19,7 +22,7 @@ export const TextControl = defineComponent({
     onUnmounted(() => size?.destroy());
     watch(() => [props.value, props.placeholder], () => size?.update(), { flush: 'post' });
 
-    return () => h('div', { class: 'dialkit-text-control' }, [
+    return () => h('div', { class: 'dialkit-text-control', 'data-hint': props.hint }, [
       h('label', { class: 'dialkit-text-label', for: inputId.value }, props.label),
       h('textarea', {
         ref: inputRef,

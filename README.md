@@ -158,7 +158,7 @@ Define controls with an object. Keys become labels; returned values keep the sam
 | Action | `replay: { type: "action" }` | Calls `onAction(path)` |
 | Folder | `shadow: { blur: [12, 0, 40] }` | Nested values |
 
-Slider tuples use `[default, min, max, step?]`. Add `_collapsed: true` inside a folder to start it closed. Folder metadata is omitted from returned values.
+Slider tuples use `[default, min, max, step?]`. Add `_collapsed: true` inside a folder to start it closed, and `_hints` to [explain its controls](#hints). Folder metadata is omitted from returned values.
 
 Spring and easing controls share an editor with **Easing**, **Time**, and **Physics** modes. Color controls accept hex, RGB, HSL, OKLCH, and Display P3. Image controls support local uploads up to 10 MB; files stay in the browser.
 
@@ -262,6 +262,26 @@ const values = useDialKit("Card", {
 Hold **R** and scroll to adjust the radius; press **V** to toggle visibility. Sliders also support holding a key while dragging or moving the pointer, and scrolling without a key. Shortcuts pause while inputs, buttons, or keyboard controls have focus.
 
 Controls support keyboard navigation without assigned shortcuts. Tab to a slider and use arrow keys to adjust it, or press Enter to edit its number. See the [keyboard reference](https://github.com/joshpuckett/dialkit/blob/main/docs/reference.md#keyboard) for the full key map and shortcut options.
+
+## Hints
+
+Add `_hints` inside a folder, or at the top of the config, to explain its controls. Hold **H** over a control to read its hint while the rest of the panel dims:
+
+```tsx
+const values = useDialKit("Card", {
+  _hints: {
+    radius: "Rounds the corners of the card.",
+    shadow: "The shadow under the card.",
+  },
+  radius: [24, 0, 64],
+  shadow: {
+    _hints: { blur: "Softens the edge of the shadow." },
+    blur: [12, 0, 40],
+  },
+});
+```
+
+Holding **H** also explains the focused control, and the hint describes that control for screen readers. The key is ignored while typing in a field or with a modifier held, and a shortcut assigned to **H** takes precedence. DialKit's own parts, such as the version gallery, the copy button, and the transition editor, have hints with no setup. Until a hint first shows, panels with hints end with a line that points to the key.
 
 ## Timeline
 

@@ -2,6 +2,8 @@
   import { formatEase, parseEase } from '../../easing-geometry';
   import { DialStore } from 'dialkit/store';
   import type { EasingConfig, SpringConfig, TransitionConfig } from 'dialkit/store';
+  import { HINTS } from '../../hints';
+  import { createHints } from '../hints.svelte.js';
   import Folder from './Folder.svelte';
   import Slider from './Slider.svelte';
   import SegmentedControl from './SegmentedControl.svelte';
@@ -18,7 +20,7 @@
     step?: number;
   };
 
-  let { panelId, path, label, value, onChange, hideDuration = false, durationControl } = $props<{
+  let { panelId, path, label, value, onChange, hideDuration = false, durationControl, hint } = $props<{
     panelId: string;
     path: string;
     label: string;
@@ -26,7 +28,9 @@
     onChange: (value: TransitionConfig) => void;
     hideDuration?: boolean;
     durationControl?: TransitionDurationControl;
+    hint?: string;
   }>();
+  createHints(() => true);
 
   let mode = $state<CurveMode>(DialStore.getTransitionMode(panelId, path));
   let editingEase = $state(false);
@@ -106,7 +110,7 @@
   };
 </script>
 
-<Folder title={label} defaultOpen={true}>
+<Folder title={label} defaultOpen={true} {hint}>
   <div style="display: flex; flex-direction: column; gap: 6px;">
     {#if isEasing}
       <EasingVisualization {easing} onChange={(ease) => onChange({ ...easing, ease })} />
@@ -114,7 +118,7 @@
       <SpringVisualization spring={spring} isSimpleMode={isSimpleSpring} />
     {/if}
 
-    <div class="dialkit-labeled-control">
+    <div class="dialkit-labeled-control" data-hint={HINTS.transitionType}>
       <span class="dialkit-labeled-control-label">Type</span>
       <SegmentedControl
         options={[
@@ -155,6 +159,7 @@
         min={0}
         max={1}
         step={0.05}
+        hint={HINTS.bounce}
       />
     {:else}
       <Slider
@@ -164,6 +169,7 @@
         min={1}
         max={1000}
         step={10}
+        hint={HINTS.stiffness}
       />
       <Slider
         label="Damping"
@@ -172,6 +178,7 @@
         min={1}
         max={100}
         step={1}
+        hint={HINTS.damping}
       />
       <Slider
         label="Mass"
@@ -180,6 +187,7 @@
         min={0.1}
         max={10}
         step={0.1}
+        hint={HINTS.mass}
       />
     {/if}
 
@@ -195,6 +203,7 @@
         max={durationControl?.max ?? (isEasing ? 2 : 1)}
         step={durationControl?.step ?? 0.05}
         unit="s"
+        hint={isEasing ? HINTS.easingDuration : HINTS.springDuration}
       />
     {/if}
   </div>

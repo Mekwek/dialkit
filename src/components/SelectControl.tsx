@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition, type DropdownPosition } from '../dropdown-position';
 import { ICON_CHEVRON } from '../icons';
+import { useHints } from '../hooks/useHints';
 
 type SelectOption = string | { value: string; label: string };
 
@@ -13,6 +14,7 @@ interface SelectControlProps {
   value: string;
   options: SelectOption[];
   onChange: (value: string) => void;
+  hint?: string;
 }
 
 function toTitleCase(s: string): string {
@@ -25,7 +27,8 @@ function normalizeOptions(options: SelectOption[]): { value: string; label: stri
   );
 }
 
-export function SelectControl({ label, value, options, onChange }: SelectControlProps) {
+export function SelectControl({ label, value, options, onChange, hint }: SelectControlProps) {
+  useHints(!!hint);
   const [isOpen, setIsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -75,7 +78,7 @@ export function SelectControl({ label, value, options, onChange }: SelectControl
   }, [isOpen]);
 
   return (
-    <div className="dialkit-select-row">
+    <div className="dialkit-select-row" data-hint={hint}>
       <button
         ref={triggerRef}
         className="dialkit-select-trigger"

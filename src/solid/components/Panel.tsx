@@ -1,10 +1,11 @@
 import { buildCopyInstruction } from '../../copy-instruction';
-import { batch, createSignal, createEffect, on, onMount, onCleanup, type JSX } from 'solid-js';
+import { batch, createSignal, createEffect, on, onMount, onCleanup, Show, type JSX } from 'solid-js';
 import { animate } from 'motion';
 import { ICON_CLIPBOARD_PLAIN, ICON_CHECK } from '../../icons';
 import { DialStore } from '../../store/DialStore';
 import type { PanelConfig, DialValue } from '../../store/DialStore';
-import type { AnimationHandle } from '../primitives';
+import { HINTS, HintStore } from '../../hints';
+import { createHints, fromStore, type AnimationHandle } from '../primitives';
 import { Folder } from './Folder';
 import { RootPanel } from './RootPanel';
 import { ControlRenderer } from './ControlRenderer';
@@ -35,6 +36,8 @@ export function Panel(props: PanelProps) {
   const [storeOpen, setStoreOpen] = createSignal(DialStore.getPanelOpen(props.panel.id));
   const isOpen = () => storeOpen() ?? props.defaultOpen ?? true;
   const versions = () => props.versions ?? 'thumbnails';
+  const hintTipSeen = fromStore(() => HintStore.isTipSeen(), (notify) => HintStore.subscribe(notify));
+  createHints(() => true);
   let copyButtonRef!: HTMLButtonElement;
   let copyClipboardIconRef!: HTMLSpanElement;
   let copyCheckIconRef!: HTMLSpanElement;
@@ -129,7 +132,7 @@ export function Panel(props: PanelProps) {
         onPointerUp={handleCopyTapEnd}
         onPointerCancel={handleCopyTapEnd}
         onPointerLeave={handleCopyTapEnd}
-        title="Copy parameters" aria-label="Copy parameters"
+        aria-label="Copy parameters" data-hint={HINTS.copy}
       >
         <span class="dialkit-toolbar-copy-icon-wrap">
           <span
@@ -160,12 +163,21 @@ export function Panel(props: PanelProps) {
     </>
   );
 
+  const hintTip = () => (
+    <Show when={!hintTipSeen()}>
+      <p class="dialkit-hint-tip">
+        Hold <kbd class="dialkit-hint-tip-key">H</kbd> over a control to see what it does.
+      </p>
+    </Show>
+  );
+
   const content = () => (
     <>
       {versions() !== 'menu' && (
         <VersionGallery panelId={props.panel.id} theme={props.theme} />
       )}
       <ControlRenderer panelId={props.panel.id} controls={props.panel.controls} values={values()} />
+      {hintTip()}
     </>
   );
 

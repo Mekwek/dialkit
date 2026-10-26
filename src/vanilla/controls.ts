@@ -3,6 +3,7 @@ import { decimalsForStep, roundValue, snapToDecile, formatSliderShortcut, format
 import { observeTextSize } from '../text-autosize';
 import { createPanelSectionTransition, observePanelHeader } from '../panel-size';
 import { ICON_CLOSE, ICON_CHEVRON, ICON_PANEL } from '../icons';
+import { HINTS, setHint } from '../hints';
 import type { ShortcutConfig } from '../store/DialStore';
 import { element, icon, svg, type Mounted } from './dom';
 import { animateSpring } from './animation';
@@ -14,6 +15,7 @@ export interface FolderProps {
   isSection?: boolean;
   inline?: boolean;
   onOpenChange?: (open: boolean) => void;
+  hint?: string;
 }
 export function mountFolder(host: HTMLElement, initial: FolderProps) {
   let props = initial;
@@ -60,6 +62,8 @@ export function mountFolder(host: HTMLElement, initial: FolderProps) {
     folder.dataset.open = String(open);
     title.textContent = props.title;
     top.setAttribute('aria-label', props.title);
+    // A panel's own header, which closes the panel, has a hint by default.
+    setHint(top, props.hint ?? (props.isRoot && !props.inline ? HINTS.panel : undefined));
     top.setAttribute('aria-expanded', String(open));
     if (!(props.inline && props.isRoot)) {
       top.setAttribute('role', 'button');
@@ -142,6 +146,7 @@ export function mountFolder(host: HTMLElement, initial: FolderProps) {
       animation?.cancel();
       stopHeader?.();
       sectionTransition?.destroy();
+      setHint(top, undefined);
       node.remove();
     }
   };
@@ -210,6 +215,7 @@ export interface ToggleProps {
   onChange: (value: boolean) => void;
   shortcut?: ShortcutConfig;
   shortcutActive?: boolean;
+  hint?: string;
 }
 export function mountToggle(host: HTMLElement, initial: ToggleProps): Mounted<ToggleProps> {
   let props = initial;
@@ -221,6 +227,7 @@ export function mountToggle(host: HTMLElement, initial: ToggleProps): Mounted<To
   const segmented = mountSegmentedControl(row, segmentProps());
   function render() {
     label.textContent = props.label;
+    setHint(row, props.hint);
     appendShortcut(label, props.shortcut, props.shortcutActive, true);
     segmented.update(segmentProps());
   }
@@ -231,6 +238,7 @@ export function mountToggle(host: HTMLElement, initial: ToggleProps): Mounted<To
       render();
     }, destroy() {
       segmented.destroy();
+      setHint(row, undefined);
       row.remove();
     }
   };
@@ -250,6 +258,7 @@ export interface SliderProps {
   unit?: string;
   shortcut?: ShortcutConfig;
   shortcutActive?: boolean;
+  hint?: string;
 }
 export function mountSlider(host: HTMLElement, initial: SliderProps): Mounted<SliderProps> {
   let props = initial;
@@ -291,6 +300,7 @@ export function mountSlider(host: HTMLElement, initial: SliderProps): Mounted<Sl
   };
   function render() {
     const { min, max, step } = range();
+    setHint(wrapper, props.hint);
     const pct = max > min ? Math.max(0, Math.min(100, (props.value - min) / (max - min) * 100)) : 0;
     fill.style.width = `${pct}%`;
     handle.style.left = `max(5px, calc(${pct}% - 9px))`;
@@ -462,6 +472,7 @@ export function mountSlider(host: HTMLElement, initial: SliderProps): Mounted<Sl
       clearTimeout(timer);
       cancelClick();
       endDrag();
+      setHint(wrapper, undefined);
       wrapper.remove();
     }
   };
@@ -471,6 +482,7 @@ export interface TextControlProps {
   value: string;
   placeholder?: string;
   onChange: (value: string) => void;
+  hint?: string;
 }
 export function mountTextControl(host: HTMLElement, initial: TextControlProps): Mounted<TextControlProps> {
   let props = initial;
@@ -483,6 +495,7 @@ export function mountTextControl(host: HTMLElement, initial: TextControlProps): 
   const size = observeTextSize(input);
   function render() {
     label.textContent = props.label;
+    setHint(row, props.hint);
     if (input.value !== props.value)
       input.value = props.value;
     input.placeholder = props.placeholder ?? '';
@@ -500,6 +513,7 @@ export function mountTextControl(host: HTMLElement, initial: TextControlProps): 
       render();
     }, destroy() {
       size.destroy();
+      setHint(row, undefined);
       row.remove();
     }
   };

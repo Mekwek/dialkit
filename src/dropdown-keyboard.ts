@@ -1,5 +1,6 @@
 import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition } from './dropdown-position';
 import { adjacentTabStop, optionKeyIndex } from './control-keyboard';
+import { isHintKey } from './hints';
 
 let dropdownId = 0;
 
@@ -77,7 +78,8 @@ export function observeDropdownKeyboard(trigger: HTMLElement, getPopup: () => HT
       if (['Enter', ' '].includes(event.key) && index >= 0) {
         event.preventDefault(); event.stopPropagation(); options[index].click(); return;
       }
-      if (event.key.length === 1 && event.key !== ' ') {
+      // The hint key goes on to the hint listeners rather than finding an item.
+      if (event.key.length === 1 && event.key !== ' ' && !isHintKey(event)) {
         const now = Date.now();
         query = now - typedAt < 700 ? query + event.key.toLocaleLowerCase() : event.key.toLocaleLowerCase();
         typedAt = now;

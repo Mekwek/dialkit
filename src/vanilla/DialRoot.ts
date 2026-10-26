@@ -3,6 +3,7 @@ import { TimelineStore } from '../store/TimelineStore';
 import { TimelineUiStore } from '../store/TimelineUiStore';
 import { blockPanelDragClick, capturePanelPointer, releasePanelPointer, getPanelCorner, getPanelDragHandle, getPanelDragOffset, getPanelDragStart, getPanelOriginX, getPanelOriginY, hasPanelDragMoved, type PanelDragStart, type PanelDragOffset } from '../panel-drag';
 import { buildCopyInstruction } from '../copy-instruction';
+import { HINTS, HintStore, setHint } from '../hints';
 import { ICON_CLIPBOARD_PLAIN, ICON_CHECK } from '../icons';
 import { mountControlRenderer } from './ControlRenderer';
 import { mountFolder } from './controls';
@@ -54,6 +55,7 @@ export function mountPanelToolbar(host: HTMLElement, id: string, hookName = 'cre
     copy.dataset.wide = 'true';
     copy.replaceChildren(...copyContent(false));
   }
+  setHint(copy, HINTS.copy);
   host.append(copy);
   const stop = DialStore.subscribe(id, () => presets?.update(presetProps()));
   return {
@@ -62,6 +64,7 @@ export function mountPanelToolbar(host: HTMLElement, id: string, hookName = 'cre
       clearTimeout(timer);
       stop();
       presets?.destroy();
+      setHint(copy, undefined);
       copy.remove();
     }
   };
@@ -139,14 +142,27 @@ export function createDialRoot(options: DialRootOptions = {}) {
     const rendererProps = () => ({ panelId: panel.id, controls: DialStore.getPanel(panel.id)?.controls ?? [], values: DialStore.getValues(panel.id) });
     const renderer = mountControlRenderer(folder.body, rendererProps());
     const gallery = versions === 'menu' ? null : mountVersionGallery(folder.body, { panelId: panel.id, theme: options.theme });
+    const tip = element('p', 'dialkit-hint-tip');
+    tip.append('Hold ', element('kbd', 'dialkit-hint-tip-key', 'H'), ' over a control to see what it does.');
+    const renderTip = () => {
+      if (!HintStore.isTipSeen())
+        folder.body.append(tip);
+      else
+        tip.remove();
+    };
+    renderTip();
     const update = () => {
       folder.update(folderProps());
       renderer.update(rendererProps());
+      renderTip();
     };
     const stop = DialStore.subscribe(panel.id, update);
+    const stopHints = HintStore.subscribe(renderTip);
     children.push({
       destroy() {
         stop();
+        stopHints();
+        tip.remove();
         toolbarView.destroy();
         gallery?.destroy();
         renderer.destroy();

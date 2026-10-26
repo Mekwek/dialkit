@@ -3,12 +3,12 @@ import { mountColorControl } from '../../color-control';
 
 export const ColorControl = defineComponent({
   name: 'DialKitColorControl',
-  props: { label: { type: String, required: true }, value: { type: String, required: true } },
+  props: { label: { type: String, required: true }, value: { type: String, required: true }, hint: String },
   emits: ['change'],
   setup(props, { emit }) {
     const host = ref<HTMLElement>();
     let control: ReturnType<typeof mountColorControl> | undefined;
-    const options = () => ({ label: props.label, value: props.value, onChange: (value: string) => emit('change', value) });
+    const options = () => ({ label: props.label, value: props.value, hint: props.hint, onChange: (value: string) => emit('change', value) });
     onMounted(() => {
       control = mountColorControl(host.value!, options());
     });
