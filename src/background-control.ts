@@ -13,7 +13,7 @@ import { observeDropdownKeyboard } from './dropdown-keyboard';
 import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition } from './dropdown-position';
 import { ICON_CHEVRON, ICON_CLOSE, ICON_PLUS } from './icons';
 import { decimalsForStep, roundValue } from './numeric';
-import { mountHints } from './hints';
+import { isHintKey, mountHints } from './hints';
 import { DialStore } from './store/DialStore';
 import { mountSlider } from './vanilla/controls';
 
@@ -941,7 +941,8 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
           return;
         }
       }
-      event.stopPropagation();
+      // The hint key reaches the panel, so help mode works over the options.
+      if (!isHintKey(event)) event.stopPropagation();
     });
     portal.append(shell);
     syncOptions();

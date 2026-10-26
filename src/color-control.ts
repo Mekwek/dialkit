@@ -13,7 +13,7 @@ const FORMATS: SegmentedOption<ColorFormat>[] = [
 ];
 /** The hints of the picker's format tabs, fields and eyedropper, shown while the hint key (H) is held. */
 const PICKER_HINTS = {
-  format: 'Shows the color as hex, RGB, HSL or OKLCH.',
+  format: 'Shows the color as hex, RGB, HSL, OKLCH or P3.',
   fields: 'Type a value, or drag a letter or the % to change it.',
   eyedropper: 'Picks a color from anywhere on the screen.',
 };
