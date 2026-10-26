@@ -1365,6 +1365,25 @@
   padding: 0 2px 0 var(--dial-row-gap);
 }
 
+/* With a reset button too, the title and reset sit on the left, and the
+   actions and chevron on the right. */
+.dialkit-folder-header:has(> .dialkit-folder-reset):has(> .dialkit-folder-actions) {
+  grid-template-columns: minmax(0, max-content) auto 1fr auto auto;
+  column-gap: 0;
+}
+
+.dialkit-folder-header:has(> .dialkit-folder-reset):has(> .dialkit-folder-actions) > .dialkit-folder-reset {
+  margin-left: 4px;
+}
+
+.dialkit-folder-header:has(> .dialkit-folder-reset):has(> .dialkit-folder-actions) > .dialkit-folder-actions {
+  grid-area: 1 / 4;
+}
+
+.dialkit-folder-header:has(> .dialkit-folder-reset):has(> .dialkit-folder-actions) > .dialkit-folder-header-top > .dialkit-folder-icon {
+  grid-column: 5;
+}
+
 .dialkit-copy-actions {
   display: flex;
   align-items: center;
