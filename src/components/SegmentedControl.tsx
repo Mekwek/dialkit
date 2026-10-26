@@ -84,7 +84,6 @@ export function SegmentedControl<T extends string>({
             className="dialkit-segmented-button"
             data-active={String(isActive)}
             type="button" role="radio" aria-checked={isActive} tabIndex={isActive ? 0 : -1}
-            title={option.icon ? option.label : undefined}
             aria-label={option.icon ? option.label : undefined}
           >
             {option.icon ? (

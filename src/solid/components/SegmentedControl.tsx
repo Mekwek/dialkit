@@ -78,7 +78,6 @@ export function SegmentedControl<T extends string>(props: SegmentedControlProps<
             class="dialkit-segmented-button"
             data-active={String(props.value === option.value)}
             type="button" role="radio" aria-checked={props.value === option.value} tabIndex={props.value === option.value ? 0 : -1}
-            title={option.icon ? option.label : undefined}
             aria-label={option.icon ? option.label : undefined}
           >
             <Show when={option.icon} fallback={option.label}>

@@ -235,7 +235,6 @@ export function mountSegmentedControl<T extends string>(host: HTMLElement, initi
       buttons = props.options.map(option => {
         const b = element('button', 'dialkit-segmented-button', option.icon ? undefined : option.label);
         if (option.icon) {
-          b.title = option.label;
           b.setAttribute('aria-label', option.label);
           b.append(icon(option.icon, 'dialkit-segmented-icon'));
         }

@@ -5,7 +5,7 @@ import { openDropdownOnKey } from '../control-keyboard';
 import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition } from '../dropdown-position';
 import { findControl, formatToggleShortcut } from '../shortcut-utils';
 import { ICON_CHEVRON, ICON_TRASH, ICON_PLUS, ICON_CHECK, ICON_MORE, ICON_PENCIL, ICON_LOCK, ICON_LOCK_OPEN } from '../icons';
-import { HINTS, setHint } from '../hints';
+import { setHint, versionHints } from '../hints';
 import { element, icon, type Mounted } from './dom';
 import { mountSegmentedControl } from './controls';
 export function popupMenu(trigger: HTMLButtonElement, className: string, kind: 'select' | 'presets' | 'help', populate: (popup: HTMLElement) => void, onOpen?: (popup: HTMLElement) => () => void) {
@@ -196,7 +196,7 @@ export function mountPresetManager(host: HTMLElement, initial: PresetManagerProp
   const trigger = element('button', 'dialkit-preset-trigger');
   const label = element('span', 'dialkit-preset-label');
   trigger.setAttribute('aria-label', 'Versions');
-  setHint(trigger, HINTS.versions);
+  setHint(trigger, versionHints(props.noun).versions);
   trigger.append(label, icon(ICON_CHEVRON, 'dialkit-select-chevron'));
   row.append(trigger);
   host.append(row);
@@ -206,10 +206,9 @@ export function mountPresetManager(host: HTMLElement, initial: PresetManagerProp
     if (name !== undefined) DialStore.renamePreset(props.panelId, presetId, name);
     menu.refresh();
   };
-  const action = (className: string, title: string, paths: readonly string[], onClick: () => void) => {
+  const action = (className: string, label: string, paths: readonly string[], onClick: () => void) => {
     const node = element('button', className);
-    node.title = title;
-    node.setAttribute('aria-label', title);
+    node.setAttribute('aria-label', label);
     node.append(icon(paths));
     node.addEventListener('click', onClick);
     return node;
@@ -261,7 +260,7 @@ export function mountPresetManager(host: HTMLElement, initial: PresetManagerProp
         const more = element('button', 'dialkit-preset-more');
         more.type = 'button';
         more.setAttribute('aria-label', `More actions for ${preset.name}`);
-        more.dataset.hint = HINTS.versionActions;
+        more.dataset.hint = versionHints(props.noun).versionActions;
         more.append(icon(ICON_MORE));
         actions.append(more, rename, lock, action('dialkit-preset-delete', `Delete ${preset.name}`, ICON_TRASH, () => DialStore.deletePreset(props.panelId, id)));
       }

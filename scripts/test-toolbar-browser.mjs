@@ -262,13 +262,15 @@ try {
           "rgb(239, 119, 119)",
         );
         await page.keyboard.press("Escape");
-        // The transition editor's Bézier field follows the same rule.
-        const bezier = page.getByRole("textbox", {
-          name: "Bézier coordinates",
+        // The transition editor's Bézier fields draw no ring, from the
+        // keyboard either: the field lights up and its text is selected.
+        const bezier = page.getByRole("spinbutton", {
+          name: "X1",
           exact: true,
         });
-        const easeRow = ".dialkit-labeled-control:has(.dialkit-text-input)";
+        const easeRow = ".dialkit-ease-field:focus";
         await bezier.click();
+        await page.waitForTimeout(200);
         assert.equal(await style(easeRow, "outlineStyle"), "none");
         assert.equal(
           await style(easeRow, "backgroundColor"),
@@ -277,7 +279,7 @@ try {
         await page.keyboard.press("Shift+Tab");
         await page.keyboard.press("Tab");
         assert.equal(await bezier.getAttribute("data-pointer-focus"), null);
-        assert.equal(await style(easeRow, "outlineStyle"), "solid");
+        assert.equal(await style(easeRow, "outlineStyle"), "none");
         // A folder header clicked with the mouse keeps no focus.
         const group = page.getByRole("button", { name: "Group", exact: true });
         for (const expanded of ["false", "true"]) {
@@ -318,7 +320,7 @@ try {
     const transport = page.locator(".dialkit-timeline-transport");
     const actions = page.locator(".dialkit-timeline-actions");
     assert.equal(await transport.getByRole("button").count(), 3);
-    assert.equal(await transport.getByRole("button", { name: "Loop", exact: true }).count(), 1);
+    assert.equal(await transport.getByRole("button", { name: "Toggle loop", exact: true }).count(), 1);
     assert.equal(await actions.getByRole("button", { name: "Versions", exact: true }).count(), 1);
     assert.equal(await actions.getByRole("button", { name: "Copy parameters", exact: true }).count(), 1);
     near((await transport.boundingBox()).x, header.x, "Transport starts at the header's left edge");
@@ -379,7 +381,7 @@ try {
     near(flag.x + flag.width / 2, stem.x + stem.width / 2, "Flag centres on the stem");
     near(stem.x, rulerBox.x + 1.75 * scale, "Stem stands at the playhead");
 
-    const loop = page.getByRole("button", { name: "Loop", exact: true });
+    const loop = page.getByRole("button", { name: "Toggle loop", exact: true });
     assert.equal(await loop.getAttribute("aria-pressed"), "false");
     await loop.click();
     assert.equal(await loop.getAttribute("aria-pressed"), "true");

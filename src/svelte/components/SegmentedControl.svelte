@@ -76,7 +76,6 @@
       class="dialkit-segmented-button"
       data-active={String(value === option.value)}
       type="button" role="radio" aria-checked={value === option.value} tabindex={value === option.value ? 0 : -1}
-      title={option.icon ? option.label : undefined}
       aria-label={option.icon ? option.label : undefined}
     >
       {#if option.icon}

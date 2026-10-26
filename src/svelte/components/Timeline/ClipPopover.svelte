@@ -195,7 +195,7 @@
       >
         <div class="dialkit-timeline-popover-header">
           <span class="dialkit-timeline-popover-title">{presentation.title}</span>
-          <button class="dialkit-timeline-popover-close" onclick={onClose} title="Close editor" aria-label="Close editor" data-hint={TIMELINE_HINTS.closeEditor}>
+          <button class="dialkit-timeline-popover-close" onclick={onClose} aria-label="Close editor" data-hint={TIMELINE_HINTS.closeEditor}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
               <path d="M6 6L18 18M18 6L6 18" />
             </svg>

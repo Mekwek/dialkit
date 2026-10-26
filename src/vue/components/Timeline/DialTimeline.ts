@@ -171,7 +171,6 @@ export const DialTimeline = defineComponent({
             'aria-label': 'Resize timeline height',
             'data-hint': TIMELINE_HINTS.resize,
             'aria-orientation': 'horizontal',
-            title: 'Drag to resize timeline',
             onPointerdown: handleResizePointerDown,
           }),
           h('div', {
@@ -212,7 +211,6 @@ const PlayPauseButton = defineComponent({
         ]);
       return h('button', {
         class: 'dialkit-toolbar-add',
-        title: label,
         'aria-label': label,
         'data-hint': TIMELINE_HINTS.play,
         onClick: () => playing.value ? TimelineStore.pause(props.id) : TimelineStore.play(props.id),
@@ -226,7 +224,6 @@ const ReplayButton = defineComponent({
   setup(props) {
     return () => h('button', {
       class: 'dialkit-toolbar-add',
-      title: 'Replay',
       'aria-label': 'Replay',
       'data-hint': TIMELINE_HINTS.replay,
       onClick: props.onReplay,
@@ -247,8 +244,7 @@ const LoopButton = defineComponent({
       class: 'dialkit-toolbar-add dialkit-timeline-toolbar-toggle dialkit-timeline-loop',
       'data-active': props.loop || undefined,
       'aria-pressed': props.loop,
-      'aria-label': 'Loop',
-      title: props.loop ? 'Stop looping' : 'Loop',
+      'aria-label': 'Toggle loop',
       'data-hint': TIMELINE_HINTS.loop,
       onClick: () => TimelineStore.setLoop(props.id, !props.loop),
     }, [
@@ -324,7 +320,6 @@ const TimelineOverview = defineComponent({
       const playhead = props.duration > 0 ? (time.value / props.duration) * 100 : 0;
       return h('div', {
         class: 'dialkit-timeline-overview',
-        title: 'Drag to scrub the full timeline',
         'data-hint': TIMELINE_HINTS.overview,
         onPointerdown: (event: PointerEvent) => {
           event.preventDefault();
@@ -409,7 +404,6 @@ const TimelinePlayheadFlag = defineComponent({
         'aria-valuemin': 0,
         'aria-valuemax': props.duration,
         'aria-valuenow': time.value,
-        title: 'Drag to scrub the timeline',
         onPointerdown: (event: PointerEvent) => {
           const rect = props.ruler?.getBoundingClientRect();
           if (!rect) return;
@@ -727,7 +721,7 @@ const TimelineSection = defineComponent({
                 h('button', {
                   class: 'dialkit-timeline-group-toggle',
                   'data-open': !collapsed,
-                  title: collapsed ? 'Expand layer' : 'Collapse layer',
+                  'aria-label': collapsed ? 'Expand layer' : 'Collapse layer',
                   onClick: () => toggleGroup(group),
                 }, [chevronIcon()]),
                 h('span', formatLabel(group)),
@@ -746,7 +740,7 @@ const TimelineSection = defineComponent({
             isProps ? h('button', {
               class: 'dialkit-timeline-group-toggle',
               'data-open': tracksOpen,
-              title: tracksOpen ? 'Collapse properties' : 'Expand properties',
+              'aria-label': tracksOpen ? 'Collapse properties' : 'Expand properties',
               onClick: (event: Event) => {
                 event.stopPropagation();
                 toggleTracks(clip.key);
@@ -832,7 +826,6 @@ const TimelineSection = defineComponent({
           h(PresetManager, { panelId: props.meta.id, presets: presets.value, activePresetId: activePresetId.value, noun: 'sequence' }),
           h('button', {
             class: 'dialkit-toolbar-add',
-            title: 'Copy parameters',
             'aria-label': copied.value ? 'Copied parameters' : 'Copy parameters',
             'data-hint': TIMELINE_HINTS.copy,
             onClick: handleCopy,
@@ -848,7 +841,7 @@ const TimelineSection = defineComponent({
             class: 'dialkit-timeline-chevron',
             'data-open': open.value,
             'aria-expanded': open.value,
-            title: open.value ? 'Collapse timeline' : 'Expand timeline',
+            'aria-label': open.value ? 'Collapse timeline' : 'Expand timeline',
             'data-hint': TIMELINE_HINTS.toggle,
             onClick: () => { open.value = !open.value; },
           }, [chevronIcon()]),
@@ -888,7 +881,6 @@ const TimelineSection = defineComponent({
           h('div', {
             ref: laneAreaRef,
             class: 'dialkit-timeline-ruler',
-            title: 'Drag to seek · Option-drag to zoom · Shift-drag to reset zoom',
             'data-hint': TIMELINE_HINTS.ruler,
             onPointerdown: (event: PointerEvent) => {
               event.preventDefault();
@@ -1093,7 +1085,7 @@ const ClipPopover = defineComponent({
         }, [
           h('div', { class: 'dialkit-timeline-popover-header' }, [
             h('span', { class: 'dialkit-timeline-popover-title' }, title),
-            h('button', { class: 'dialkit-timeline-popover-close', title: 'Close editor', 'aria-label': 'Close editor', 'data-hint': TIMELINE_HINTS.closeEditor, onClick: props.onClose }, [
+            h('button', { class: 'dialkit-timeline-popover-close', 'aria-label': 'Close editor', 'data-hint': TIMELINE_HINTS.closeEditor, onClick: props.onClose }, [
               h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round' }, [h('path', { d: 'M6 6L18 18M18 6L6 18' })]),
             ]),
           ]),
@@ -1236,9 +1228,6 @@ const TimelineClip = defineComponent({
         if (width > 56) children.push(h('span', { class: 'dialkit-timeline-clip-duration' }, durationText));
         if (resizable) children.push(h('div', { class: 'dialkit-timeline-clip-handle', 'data-edge': 'end' }));
       }
-      const title = props.composite
-        ? `${props.clip.label} — composite of its property tracks${looping ? ' · repeats through timeline' : ''} · click to expand`
-        : `${props.clip.label} — ${formatSeconds(props.at)} for ${durationText}${props.fixedDuration ? ' (duration set by spring physics)' : ''}${looping ? ' · repeats through timeline' : ''}${props.delayMode ? ' · drag to phase-shift' : ''}`;
       return [...ghosts, h('div', {
         class: 'dialkit-timeline-clip',
         'data-steps': isSteps || undefined,
@@ -1247,7 +1236,6 @@ const TimelineClip = defineComponent({
         'data-dragging': dragging.value || undefined,
         // A single-track bar draws 1px short of its span on each side, so butted bars keep a hairline of lane between them.
         style: { left: `${(props.at - props.viewStart) * props.pxPerSecond + (props.single ? 1 : 0)}px`, width: `${props.single ? Math.max(width - 2, 12) : width}px`, background: props.single ? undefined : props.composite ? `${props.clip.color}80` : props.clip.color },
-        title,
         onPointerdown: (event: PointerEvent) => {
           if (event.shiftKey) return;
           event.stopPropagation();
@@ -1318,7 +1306,7 @@ const TimelineClip = defineComponent({
         onPointerup: finish,
         onPointercancel: () => finish(),
         onLostpointercapture: () => finish(),
-      }, children), looping ? h('span', { class: 'dialkit-timeline-loop-infinity', 'aria-hidden': 'true', title: 'Repeats indefinitely' }, '∞') : null];
+      }, children), looping ? h('span', { class: 'dialkit-timeline-loop-infinity', 'aria-hidden': 'true' }, '∞') : null];
     };
   },
 });

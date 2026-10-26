@@ -10,7 +10,7 @@
   import { dropdownTransition } from './transitions';
   import { getDialKitPortalRoot, getDropdownPosition } from '../../dropdown-position';
   import { ICON_CHEVRON, ICON_TRASH, ICON_PLUS, ICON_CHECK, ICON_MORE, ICON_PENCIL, ICON_LOCK, ICON_LOCK_OPEN } from '../../icons';
-  import { HINTS } from '../../hints';
+  import { versionHints } from '../../hints';
   import { createHints } from '../hints.svelte.js';
 
   let { panelId, presets, activePresetId, noun = 'version' } = $props<{
@@ -33,6 +33,7 @@
   const chevronRotation = new Spring(0, { stiffness: 0.2, damping: 0.6 });
   const chevronOpacity = new Spring(0.6, { stiffness: 0.2, damping: 0.6 });
 
+  const hints = $derived(versionHints(noun));
   const activePreset = $derived(presets.find((p: Preset) => p.id === activePresetId));
 
   const updatePos = () => {
@@ -114,7 +115,7 @@
 {/snippet}
 
 {#snippet lockButton(preset: Preset)}
-  <button type="button" class="dialkit-preset-lock" title={`${preset.locked ? 'Unlock' : 'Lock'} ${preset.name}`} onclick={() => DialStore.setPresetLocked(panelId, preset.id, !preset.locked)}>
+  <button type="button" class="dialkit-preset-lock" aria-label={`${preset.locked ? 'Unlock' : 'Lock'} ${preset.name}`} onclick={() => DialStore.setPresetLocked(panelId, preset.id, !preset.locked)}>
     {@render icon(preset.locked ? ICON_LOCK : ICON_LOCK_OPEN)}
   </button>
 {/snippet}
@@ -127,7 +128,7 @@
     data-open={String(isOpen)}
     data-has-preset={String(!!activePreset)}
     type="button" aria-haspopup="menu" aria-expanded={isOpen}
-    aria-label="Versions" data-hint={HINTS.versions} onkeydown={(e) => openDropdownOnKey(e, openDropdown)}
+    aria-label="Versions" data-hint={hints.versions} onkeydown={(e) => openDropdownOnKey(e, openDropdown)}
   >
     <span class="dialkit-preset-label">
       {activePreset ? activePreset.name : DialStore.getBaseName(panelId)}
@@ -191,16 +192,16 @@
                   {#if preset.locked}
                     {@render lockButton(preset)}
                   {:else}
-                    <button type="button" class="dialkit-preset-more" aria-label={`More actions for ${preset.name}`} data-hint={HINTS.versionActions}>
+                    <button type="button" class="dialkit-preset-more" aria-label={`More actions for ${preset.name}`} data-hint={hints.versionActions}>
                       {@render icon(ICON_MORE)}
                     </button>
                   {/if}
-                  <button type="button" class="dialkit-preset-rename" title={`Rename ${preset.name}`} onclick={() => (editingId = preset.id)}>
+                  <button type="button" class="dialkit-preset-rename" aria-label={`Rename ${preset.name}`} onclick={() => (editingId = preset.id)}>
                     {@render icon(ICON_PENCIL)}
                   </button>
                   {#if !preset.locked}
                     {@render lockButton(preset)}
-                    <button type="button" class="dialkit-preset-delete" title={`Delete ${preset.name}`} onclick={() => DialStore.deletePreset(panelId, preset.id)}>
+                    <button type="button" class="dialkit-preset-delete" aria-label={`Delete ${preset.name}`} onclick={() => DialStore.deletePreset(panelId, preset.id)}>
                       {@render icon(ICON_TRASH)}
                     </button>
                   {/if}

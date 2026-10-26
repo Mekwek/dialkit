@@ -561,7 +561,6 @@
       <button
         class="dialkit-toolbar-add"
         onclick={() => transport.playing ? TimelineStore.pause(meta.id) : TimelineStore.play(meta.id)}
-        title={transport.playing ? 'Pause' : 'Play'}
         aria-label={transport.playing ? 'Pause' : 'Play'}
         data-hint={TIMELINE_HINTS.play}
       >
@@ -577,7 +576,7 @@
           {/if}
         </span>
       </button>
-      <button class="dialkit-toolbar-add" onclick={handleReplay} title="Replay" aria-label="Replay" data-hint={TIMELINE_HINTS.replay}>
+      <button class="dialkit-toolbar-add" onclick={handleReplay} aria-label="Replay" data-hint={TIMELINE_HINTS.replay}>
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" style="width:16px;height:16px;color:var(--dial-text-label);">
           {#each ICON_REPLAY as path}<path d={path} fill="currentColor" />{/each}
         </svg>
@@ -586,8 +585,7 @@
         class="dialkit-toolbar-add dialkit-timeline-toolbar-toggle dialkit-timeline-loop"
         data-active={meta.loop || undefined}
         aria-pressed={meta.loop}
-        aria-label="Loop"
-        title={meta.loop ? 'Stop looping' : 'Loop'}
+        aria-label="Toggle loop"
         data-hint={TIMELINE_HINTS.loop}
         onclick={() => TimelineStore.setLoop(meta.id, !meta.loop)}
       >
@@ -605,7 +603,6 @@
         onpointerup={finishOverview}
         onpointercancel={finishOverview}
         onlostpointercapture={finishOverview}
-        title="Drag to scrub the full timeline"
         data-hint={TIMELINE_HINTS.overview}
         role="slider"
         tabindex="0"
@@ -630,7 +627,6 @@
       <button
         class="dialkit-toolbar-add"
         onclick={handleCopy}
-        title="Copy parameters"
         aria-label={copied ? 'Copied parameters' : 'Copy parameters'}
         data-hint={TIMELINE_HINTS.copy}
       >
@@ -652,7 +648,7 @@
         data-open={open}
         aria-expanded={open}
         onclick={() => { open = !open; }}
-        title={open ? 'Collapse timeline' : 'Expand timeline'}
+        aria-label={open ? 'Collapse timeline' : 'Expand timeline'}
         data-hint={TIMELINE_HINTS.toggle}
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -684,7 +680,6 @@
             onpointerup={finishRuler}
             onpointercancel={finishRuler}
             onlostpointercapture={finishRuler}
-            title="Drag to seek · Option-drag to zoom · Shift-drag to reset zoom"
             data-hint={TIMELINE_HINTS.ruler}
             role="slider"
             tabindex="0"
@@ -742,7 +737,7 @@
                   class="dialkit-timeline-group-toggle"
                   data-open={!row.collapsed}
                   onclick={() => toggleGroup(row.group)}
-                  title={row.collapsed ? 'Expand layer' : 'Collapse layer'}
+                  aria-label={row.collapsed ? 'Expand layer' : 'Collapse layer'}
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                     <path d={ICON_CHEVRON} />
@@ -763,7 +758,7 @@
                       event.stopPropagation();
                       toggleTracks(row.clip.key);
                     }}
-                    title={row.tracksOpen ? 'Collapse properties' : 'Expand properties'}
+                    aria-label={row.tracksOpen ? 'Collapse properties' : 'Expand properties'}
                   >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                       <path d={ICON_CHEVRON} />
@@ -838,7 +833,6 @@
             aria-valuemin={0}
             aria-valuemax={meta.duration}
             aria-valuenow={transport.time}
-            title="Drag to scrub the timeline"
           >
             <div class="dialkit-timeline-playhead-stem"></div>
             <div class="dialkit-timeline-playhead-anchor">

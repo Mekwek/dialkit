@@ -334,9 +334,7 @@ export function mountFields(host: HTMLElement, initial: FieldsProps) {
     root.setAttribute('aria-label', props.label);
     setHint(root, props.hint);
     label.textContent = props.label;
-    label.title = props.label;
     reset.setAttribute('aria-label', `Reset ${props.label}`);
-    reset.title = 'Reset';
     if (Object.keys(resetFields(props.controls, values, props.defaults)).length > 0) {
       reset.dataset.changed = 'true';
     } else {
@@ -348,7 +346,6 @@ export function mountFields(host: HTMLElement, initial: FieldsProps) {
     if (lockMeta) {
       // Attach only once: moving a focused button would blur it.
       if (lock.parentNode !== caption) caption.append(lock);
-      lock.title = lockMeta.label;
       lock.setAttribute('aria-label', `${lockMeta.label} ${props.label}`);
       lock.setAttribute('aria-pressed', String(locked()));
     } else {

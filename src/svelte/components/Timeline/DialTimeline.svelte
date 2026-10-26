@@ -118,7 +118,6 @@
         aria-label="Resize timeline height"
         data-hint={TIMELINE_HINTS.resize}
         aria-orientation="horizontal"
-        title="Drag to resize timeline"
       ></div>
       <div
         bind:this={dockElement}

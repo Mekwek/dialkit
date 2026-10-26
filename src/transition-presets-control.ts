@@ -133,7 +133,6 @@ export function mountTransitionPresets(host: HTMLElement, initial: TransitionPre
         const id = option.id;
         const remove = element('button', 'dialkit-transition-preset-delete');
         remove.setAttribute('aria-label', `Delete ${option.name}`);
-        remove.title = remove.getAttribute('aria-label')!;
         setHint(remove, `Deletes this saved ${presetNoun()}.`);
         remove.append(svgIcon([ICON_CLOSE], ''));
         remove.addEventListener('click', () => DialStore.deleteTransitionPreset(id));
@@ -249,7 +248,6 @@ export function mountTransitionCopy(host: HTMLElement, initial: TransitionCopyPr
   const action = (label: string, paths: readonly string[], run: () => void) => {
     const button = element('button', 'dialkit-copy-action');
     button.setAttribute('aria-label', label);
-    button.title = label;
     button.append(svgIcon(paths, ''));
     button.addEventListener('click', () => { run(); finish(); });
     return button;

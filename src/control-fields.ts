@@ -32,10 +32,7 @@ export function segmentedControl<T extends string>(className: string, label: str
   const buttons = options.map(option => {
     const button = element('button', `dialkit-segmented-button ${buttonClassName}`.trim(), option.icon ? undefined : option.label);
     button.setAttribute('role', 'radio');
-    if (option.icon) {
-      button.title = option.label;
-      button.append(option.icon);
-    }
+    if (option.icon) button.append(option.icon);
     const name = option.ariaLabel ?? (option.icon && option.label);
     if (name) button.setAttribute('aria-label', name);
     button.addEventListener('click', () => pick(option.value));

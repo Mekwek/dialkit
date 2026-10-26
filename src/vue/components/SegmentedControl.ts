@@ -139,7 +139,6 @@ export const SegmentedControl = defineComponent({
         class: 'dialkit-segmented-button',
         'data-active': String(props.value === option.value),
         type: 'button', role: 'radio', 'aria-checked': props.value === option.value, tabindex: props.value === option.value ? 0 : -1,
-        title: option.icon ? option.label : undefined,
         'aria-label': option.icon ? option.label : undefined,
         onClick: () => emit('change', option.value),
       }, option.icon

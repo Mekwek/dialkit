@@ -167,7 +167,6 @@ function DialTimelineDock(props: DialTimelineProps) {
             aria-label="Resize timeline height"
             data-hint={TIMELINE_HINTS.resize}
             aria-orientation="horizontal"
-            title="Drag to resize timeline"
           />
           <div
             ref={dockRef}
@@ -201,7 +200,6 @@ function PlayPauseButton(props: { id: string }) {
     <button
       class="dialkit-toolbar-add"
       onClick={() => playing() ? TimelineStore.pause(props.id) : TimelineStore.play(props.id)}
-      title={label()}
       aria-label={label()}
       data-hint={TIMELINE_HINTS.play}
     >
@@ -228,7 +226,6 @@ function ReplayButton(props: { onReplay: () => void }) {
     <button
       class="dialkit-toolbar-add"
       onClick={props.onReplay}
-      title="Replay"
       aria-label="Replay"
       data-hint={TIMELINE_HINTS.replay}
     >
@@ -245,8 +242,7 @@ function LoopButton(props: { id: string; loop: boolean }) {
       class="dialkit-toolbar-add dialkit-timeline-toolbar-toggle dialkit-timeline-loop"
       data-active={props.loop || undefined}
       aria-pressed={props.loop}
-      aria-label="Loop"
-      title={props.loop ? 'Stop looping' : 'Loop'}
+      aria-label="Toggle loop"
       data-hint={TIMELINE_HINTS.loop}
       onClick={() => TimelineStore.setLoop(props.id, !props.loop)}
     >
@@ -316,7 +312,6 @@ function TimelineOverview(props: {
       onPointerUp={finish}
       onPointerCancel={finish}
       onLostPointerCapture={finish}
-      title="Drag to scrub the full timeline"
       data-hint={TIMELINE_HINTS.overview}
     >
       <div
@@ -427,7 +422,6 @@ function TimelinePlayheadFlag(props: {
         aria-valuemin={0}
         aria-valuemax={props.duration}
         aria-valuenow={time()}
-        title="Drag to scrub the timeline"
       >
         <div class="dialkit-timeline-playhead-stem" />
         <div class="dialkit-timeline-playhead-anchor">
@@ -769,7 +763,7 @@ function TimelineSection(props: {
                 class="dialkit-timeline-group-toggle"
                 data-open={!groupCollapsed()}
                 onClick={() => toggleGroup(clip.group!)}
-                title={groupCollapsed() ? 'Expand layer' : 'Collapse layer'}
+                aria-label={groupCollapsed() ? 'Expand layer' : 'Collapse layer'}
               >
                 <ChevronIcon />
               </button>
@@ -789,7 +783,7 @@ function TimelineSection(props: {
                     event.stopPropagation();
                     toggleTracks(clip.key);
                   }}
-                  title={tracksOpen() ? 'Collapse properties' : 'Expand properties'}
+                  aria-label={tracksOpen() ? 'Collapse properties' : 'Expand properties'}
                 >
                   <ChevronIcon />
                 </button>
@@ -894,7 +888,6 @@ function TimelineSection(props: {
           <button
             class="dialkit-toolbar-add"
             onClick={handleCopy}
-            title="Copy parameters"
             aria-label={copied() ? 'Copied parameters' : 'Copy parameters'}
             data-hint={TIMELINE_HINTS.copy}
           >
@@ -919,7 +912,7 @@ function TimelineSection(props: {
             data-open={open()}
             aria-expanded={open()}
             onClick={() => setOpen((current) => !current)}
-            title={open() ? 'Collapse timeline' : 'Expand timeline'}
+            aria-label={open() ? 'Collapse timeline' : 'Expand timeline'}
             data-hint={TIMELINE_HINTS.toggle}
           >
             <ChevronIcon />
@@ -948,7 +941,6 @@ function TimelineSection(props: {
                 onPointerUp={finishRuler}
                 onPointerCancel={finishRuler}
                 onLostPointerCapture={finishRuler}
-                title="Drag to seek · Option-drag to zoom · Shift-drag to reset zoom"
                 data-hint={TIMELINE_HINTS.ruler}
               >
                 <For each={ticks().fine}>{(time) => <div class="dialkit-timeline-tick dialkit-timeline-tick-fine" style={{ left: `${(time - safeViewStart()) * pxPerSecond()}px` }} />}</For>
@@ -1190,7 +1182,7 @@ function ClipPopover(props: {
           >
             <div class="dialkit-timeline-popover-header">
               <span class="dialkit-timeline-popover-title">{presentation().title}</span>
-              <button class="dialkit-timeline-popover-close" onClick={props.onClose} title="Close editor" aria-label="Close editor" data-hint={TIMELINE_HINTS.closeEditor}>
+              <button class="dialkit-timeline-popover-close" onClick={props.onClose} aria-label="Close editor" data-hint={TIMELINE_HINTS.closeEditor}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                   <path d="M6 6L18 18M18 6L6 18" />
                 </svg>
@@ -1391,9 +1383,6 @@ function TimelineClip(props: {
   const resizable = () => props.duration > 0 && !props.fixedDuration && !props.composite;
   const durationText = () => `${props.fixedDuration && !props.composite ? '~' : ''}${formatSeconds(props.duration)}`;
   const looping = () => props.loop === 'repeat' && props.duration > 0;
-  const title = () => props.composite
-    ? `${props.clip.label} — composite of its property tracks${looping() ? ' · repeats through timeline' : ''} · click to expand`
-    : `${props.clip.label} — ${formatSeconds(props.at)} for ${durationText()}${props.fixedDuration ? ' (duration set by spring physics)' : ''}${looping() ? ' · repeats through timeline' : ''}${props.delayMode ? ' · drag to phase-shift' : ''}`;
 
   return (
     <>
@@ -1428,7 +1417,6 @@ function TimelineClip(props: {
         onPointerUp={(event) => finish(event)}
         onPointerCancel={() => finish()}
         onLostPointerCapture={() => finish()}
-        title={title()}
       >
         <Show
           when={!props.composite}
@@ -1472,7 +1460,7 @@ function TimelineClip(props: {
           </Show>
         </Show>
       </div>
-      <Show when={looping()}><span class="dialkit-timeline-loop-infinity" aria-hidden="true" title="Repeats indefinitely">∞</span></Show>
+      <Show when={looping()}><span class="dialkit-timeline-loop-infinity" aria-hidden="true">∞</span></Show>
     </>
   );
 }

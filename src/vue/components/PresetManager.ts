@@ -1,12 +1,12 @@
 import { observeDropdownKeyboard } from '../../dropdown-keyboard';
 import { observePresetMenu, versionNamePrefix } from '../../preset-menu';
 import { openDropdownOnKey } from '../../control-keyboard';
-import { Teleport, defineComponent, h, ref, watch, type PropType, type VNode } from 'vue';
+import { Teleport, computed, defineComponent, h, ref, watch, type PropType, type VNode } from 'vue';
 import { AnimatePresence, motion } from 'motion-v';
 import { ICON_CHEVRON, ICON_TRASH, ICON_PLUS, ICON_CHECK, ICON_MORE, ICON_PENCIL, ICON_LOCK, ICON_LOCK_OPEN } from '../../icons';
 import { DialStore } from '../../store/DialStore';
 import type { Preset } from '../../store/DialStore';
-import { HINTS } from '../../hints';
+import { versionHints } from '../../hints';
 import { useHints } from '../useHints';
 
 export const PresetManager = defineComponent({
@@ -99,10 +99,12 @@ export const PresetManager = defineComponent({
       DialStore.renamePreset(props.panelId, presetId, input.value);
       editingId.value = null;
     };
-    const lockButton = (preset: Preset) => h('button', { type: 'button', class: 'dialkit-preset-lock', title: `${preset.locked ? 'Unlock' : 'Lock'} ${preset.name}`, onClick: () => DialStore.setPresetLocked(props.panelId, preset.id, !preset.locked) }, [icon(preset.locked ? ICON_LOCK : ICON_LOCK_OPEN)]);
+    const lockButton = (preset: Preset) => h('button', { type: 'button', class: 'dialkit-preset-lock', 'aria-label': `${preset.locked ? 'Unlock' : 'Lock'} ${preset.name}`, onClick: () => DialStore.setPresetLocked(props.panelId, preset.id, !preset.locked) }, [icon(preset.locked ? ICON_LOCK : ICON_LOCK_OPEN)]);
 
     const icon = (paths: readonly string[]) => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' }, paths.map((d) => h('path', { d })));
     const glyph = (path: string | null) => h('svg', { class: 'dialkit-preset-check', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': 2, 'stroke-linecap': 'round', 'aria-hidden': 'true' }, path ? [h('path', { d: path })] : []);
+
+    const hints = computed(() => versionHints(props.noun));
 
     return () => h('div', { class: 'dialkit-preset-manager' }, [
       h('button', {
@@ -112,7 +114,7 @@ export const PresetManager = defineComponent({
         'data-open': String(isOpen.value),
         'data-has-preset': String(!!activePreset()),
         type: 'button', 'aria-haspopup': 'menu', 'aria-expanded': isOpen.value,
-        'aria-label': 'Versions', 'data-hint': HINTS.versions, onKeydown: (e: KeyboardEvent) => openDropdownOnKey(e, open),
+        'aria-label': 'Versions', 'data-hint': hints.value.versions, onKeydown: (e: KeyboardEvent) => openDropdownOnKey(e, open),
       }, [
         h('span', { class: 'dialkit-preset-label' }, activePreset()?.name ?? DialStore.getBaseName(props.panelId)),
         h(motion.svg, {
@@ -177,11 +179,11 @@ export const PresetManager = defineComponent({
                   h('button', { type: 'button', class: 'dialkit-preset-name' }, preset.name),
                   // Keyboard order: the icon shown at rest (the menu icon, or a locked row's lock), then the actions it reveals.
                   h('div', { class: 'dialkit-preset-actions' }, [
-                    preset.locked ? lockButton(preset) : h('button', { type: 'button', class: 'dialkit-preset-more', 'aria-label': `More actions for ${preset.name}`, 'data-hint': HINTS.versionActions }, [icon(ICON_MORE)]),
-                    h('button', { type: 'button', class: 'dialkit-preset-rename', title: `Rename ${preset.name}`, onClick: () => { editingId.value = preset.id; } }, [icon(ICON_PENCIL)]),
+                    preset.locked ? lockButton(preset) : h('button', { type: 'button', class: 'dialkit-preset-more', 'aria-label': `More actions for ${preset.name}`, 'data-hint': hints.value.versionActions }, [icon(ICON_MORE)]),
+                    h('button', { type: 'button', class: 'dialkit-preset-rename', 'aria-label': `Rename ${preset.name}`, onClick: () => { editingId.value = preset.id; } }, [icon(ICON_PENCIL)]),
                     ...(preset.locked ? [] : [
                       lockButton(preset),
-                      h('button', { type: 'button', class: 'dialkit-preset-delete', title: `Delete ${preset.name}`, onClick: () => DialStore.deletePreset(props.panelId, preset.id) }, [icon(ICON_TRASH)]),
+                      h('button', { type: 'button', class: 'dialkit-preset-delete', 'aria-label': `Delete ${preset.name}`, onClick: () => DialStore.deletePreset(props.panelId, preset.id) }, [icon(ICON_TRASH)]),
                     ]),
                   ]),
                 ]),

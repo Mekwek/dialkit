@@ -5,7 +5,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { DialStore, Preset } from '../store/DialStore';
-import { HINTS } from '../hints';
+import { versionHints } from '../hints';
 import { useHints } from '../hooks/useHints';
 import { ICON_CHEVRON, ICON_TRASH, ICON_PLUS, ICON_CHECK, ICON_MORE, ICON_PENCIL, ICON_LOCK, ICON_LOCK_OPEN } from '../icons';
 
@@ -20,6 +20,7 @@ interface PresetManagerProps {
 
 export function PresetManager({ panelId, presets, activePresetId, onAdd, noun = 'version' }: PresetManagerProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const hints = versionHints(noun);
   useHints(true);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -78,7 +79,7 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, noun = 
   };
 
   const lockButton = (preset: Preset) => (
-    <button type="button" className="dialkit-preset-lock" title={`${preset.locked ? 'Unlock' : 'Lock'} ${preset.name}`} onClick={() => DialStore.setPresetLocked(panelId, preset.id, !preset.locked)}>
+    <button type="button" className="dialkit-preset-lock" aria-label={`${preset.locked ? 'Unlock' : 'Lock'} ${preset.name}`} onClick={() => DialStore.setPresetLocked(panelId, preset.id, !preset.locked)}>
       <Icon paths={preset.locked ? ICON_LOCK : ICON_LOCK_OPEN} />
     </button>
   );
@@ -92,7 +93,7 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, noun = 
         data-open={String(isOpen)}
         data-has-preset={String(!!activePreset)}
         type="button" aria-haspopup="menu" aria-expanded={isOpen}
-        aria-label="Versions" data-hint={HINTS.versions} onKeyDown={(e) => openDropdownOnKey(e, open)}
+        aria-label="Versions" data-hint={hints.versions} onKeyDown={(e) => openDropdownOnKey(e, open)}
       >
         <span className="dialkit-preset-label">
           {activePreset ? activePreset.name : DialStore.getBaseName(panelId)}
@@ -164,17 +165,17 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, noun = 
                       {/* Keyboard order: the icon shown at rest (the menu icon, or a locked row's lock), then the actions it reveals. */}
                       <div className="dialkit-preset-actions">
                         {preset.locked ? lockButton(preset) : (
-                          <button type="button" className="dialkit-preset-more" aria-label={`More actions for ${preset.name}`} data-hint={HINTS.versionActions}>
+                          <button type="button" className="dialkit-preset-more" aria-label={`More actions for ${preset.name}`} data-hint={hints.versionActions}>
                             <Icon paths={ICON_MORE} />
                           </button>
                         )}
-                        <button type="button" className="dialkit-preset-rename" title={`Rename ${preset.name}`} onClick={() => setEditingId(preset.id)}>
+                        <button type="button" className="dialkit-preset-rename" aria-label={`Rename ${preset.name}`} onClick={() => setEditingId(preset.id)}>
                           <Icon paths={ICON_PENCIL} />
                         </button>
                         {!preset.locked && (
                           <>
                             {lockButton(preset)}
-                            <button type="button" className="dialkit-preset-delete" title={`Delete ${preset.name}`} onClick={() => DialStore.deletePreset(panelId, preset.id)}>
+                            <button type="button" className="dialkit-preset-delete" aria-label={`Delete ${preset.name}`} onClick={() => DialStore.deletePreset(panelId, preset.id)}>
                               <Icon paths={ICON_TRASH} />
                             </button>
                           </>

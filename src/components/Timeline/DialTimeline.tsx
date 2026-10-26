@@ -185,7 +185,6 @@ function DialTimelineDock({
         aria-label="Resize timeline height"
         data-hint={TIMELINE_HINTS.resize}
         aria-orientation="horizontal"
-        title="Drag to resize timeline"
       />
       <div
         ref={dockRef}
@@ -226,7 +225,6 @@ function PlayPauseButton({ id }: { id: string }) {
     <motion.button
       className="dialkit-toolbar-add"
       onClick={() => (playing ? TimelineStore.pause(id) : TimelineStore.play(id))}
-      title={playing ? 'Pause' : 'Play'}
       aria-label={playing ? 'Pause' : 'Play'}
       data-hint={TIMELINE_HINTS.play}
       whileTap={{ scale: 0.9 }}
@@ -274,7 +272,6 @@ function ReplayButton({ onReplay }: { onReplay: () => void }) {
     <motion.button
       className="dialkit-toolbar-add"
       onClick={onReplay}
-      title="Replay"
       aria-label="Replay"
       data-hint={TIMELINE_HINTS.replay}
       whileTap={{ scale: 0.9 }}
@@ -293,8 +290,7 @@ function LoopButton({ id, loop }: { id: string; loop: boolean }) {
       className="dialkit-toolbar-add dialkit-timeline-toolbar-toggle dialkit-timeline-loop"
       data-active={loop || undefined}
       aria-pressed={loop}
-      aria-label="Loop"
-      title={loop ? 'Stop looping' : 'Loop'}
+      aria-label="Toggle loop"
       data-hint={TIMELINE_HINTS.loop}
       onClick={() => TimelineStore.setLoop(id, !loop)}
       whileTap={{ scale: 0.9 }}
@@ -430,7 +426,6 @@ function TimelinePlayheadFlag({
       aria-valuemin={0}
       aria-valuemax={duration}
       aria-valuenow={time}
-      title="Drag to scrub the timeline"
     >
       <div className="dialkit-timeline-playhead-stem" />
       <div className="dialkit-timeline-playhead-anchor">
@@ -498,7 +493,6 @@ function TimelineOverview({
       onPointerUp={finishScrub}
       onPointerCancel={finishScrub}
       onLostPointerCapture={finishScrub}
-      title="Drag to scrub the full timeline"
       data-hint={TIMELINE_HINTS.overview}
     >
       <div
@@ -956,7 +950,7 @@ const TimelineSection = memo(function TimelineSection({
                 className="dialkit-timeline-group-toggle"
                 data-open={!isCollapsed}
                 onClick={() => toggleGroup(group)}
-                title={isCollapsed ? 'Expand layer' : 'Collapse layer'}
+                aria-label={isCollapsed ? 'Expand layer' : 'Collapse layer'}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d={ICON_CHEVRON} />
@@ -986,7 +980,7 @@ const TimelineSection = memo(function TimelineSection({
                 e.stopPropagation();
                 toggleTracks(clip.key);
               }}
-              title={tracksOpen ? 'Collapse properties' : 'Expand properties'}
+              aria-label={tracksOpen ? 'Collapse properties' : 'Expand properties'}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d={ICON_CHEVRON} />
@@ -1095,7 +1089,6 @@ const TimelineSection = memo(function TimelineSection({
           <motion.button
             className="dialkit-toolbar-add"
             onClick={handleCopy}
-            title="Copy parameters"
             aria-label={copied ? 'Copied parameters' : 'Copy parameters'}
             data-hint={TIMELINE_HINTS.copy}
             whileTap={{ scale: 0.9 }}
@@ -1145,7 +1138,7 @@ const TimelineSection = memo(function TimelineSection({
             data-open={open}
             aria-expanded={open}
             onClick={() => setOpen(!open)}
-            title={open ? 'Collapse timeline' : 'Expand timeline'}
+            aria-label={open ? 'Collapse timeline' : 'Expand timeline'}
             data-hint={TIMELINE_HINTS.toggle}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -1176,7 +1169,6 @@ const TimelineSection = memo(function TimelineSection({
                 onPointerUp={handleRulerPointerUp}
                 onPointerCancel={handleRulerPointerCancel}
                 onLostPointerCapture={handleRulerPointerCancel}
-                title="Drag to seek · Option-drag to zoom · Shift-drag to reset zoom"
                 data-hint={TIMELINE_HINTS.ruler}
               >
                 {fineTicks.map((t) => (
@@ -1409,7 +1401,7 @@ function ClipPopover({
       >
         <div className="dialkit-timeline-popover-header">
           <span className="dialkit-timeline-popover-title">{title}</span>
-          <button className="dialkit-timeline-popover-close" onClick={onClose} title="Close editor" aria-label="Close editor" data-hint={TIMELINE_HINTS.closeEditor}>
+          <button className="dialkit-timeline-popover-close" onClick={onClose} aria-label="Close editor" data-hint={TIMELINE_HINTS.closeEditor}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M6 6L18 18M18 6L6 18" />
             </svg>
@@ -1671,10 +1663,6 @@ function TimelineClip({
     }
   }
 
-  const barTitle = composite
-    ? `${clip.label} — composite of its property tracks${looping ? ' · repeats through timeline' : ''} · click to expand`
-    : `${clip.label} — ${formatSeconds(at)} for ${durationText}${fixedDuration ? ' (duration set by spring physics)' : ''}${looping ? ' · repeats through timeline' : ''}${delayMode ? ' · drag to phase-shift' : ''}`;
-
   return (
     <>
       {ghostCycles.map((cycle) => {
@@ -1718,7 +1706,6 @@ function TimelineClip({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
         onLostPointerCapture={handlePointerCancel}
-        title={barTitle}
       >
         {composite ? (
           <>{width > 56 && <span className="dialkit-timeline-clip-duration">{durationText}</span>}</>
@@ -1763,7 +1750,7 @@ function TimelineClip({
         )}
       </div>
       {looping && (
-        <span className="dialkit-timeline-loop-infinity" aria-hidden="true" title="Repeats indefinitely">
+        <span className="dialkit-timeline-loop-infinity" aria-hidden="true">
           ∞
         </span>
       )}

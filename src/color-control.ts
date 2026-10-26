@@ -213,7 +213,6 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
     if (EyeDropper) {
       const eyedropper = element('button', 'dialkit-color-eyedropper');
       eyedropper.setAttribute('aria-label', 'Pick a color from the screen');
-      eyedropper.title = 'Pick a color from the screen';
       setHint(eyedropper, PICKER_HINTS.eyedropper);
       eyedropper.append(eyedropperIcon());
       eyedropper.addEventListener('click', async () => {

@@ -116,7 +116,6 @@ function icon(paths: string | readonly string[]) {
 function iconButton(className: string, label: string, paths: string | readonly string[]) {
   const button = element('button', `dialkit-background-icon-button ${className}`);
   button.setAttribute('aria-label', label);
-  button.title = label;
   button.append(icon(paths));
   return button;
 }
@@ -1099,7 +1098,6 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
       row.position.input.setAttribute('aria-label', `Stop ${i + 1} position`);
       row.position.sync();
       row.grip.setAttribute('aria-label', `Reorder stop ${i + 1}`);
-      row.grip.title = `Reorder stop ${i + 1}`;
       row.color.update({ label: `Stop ${i + 1}`, value: stops[i].color, onChange: next => updateStop(id, { color: next }) });
       row.opacity.input.setAttribute('aria-label', `Stop ${i + 1} opacity`);
       row.opacity.sync();

@@ -23,8 +23,6 @@ const ALIGN = '.dialkit-panel-toolbar, .dialkit-panel-section-toolbar';
  */
 export const HINTS = {
   panel: 'Closes the panel to a small button. Click the button to open it again.',
-  versions: 'Switches to another version. Rename, lock or delete a version from the list.',
-  versionActions: 'Shows rename, lock and delete for this version.',
   copy: "Copies the panel's values as text, ready to paste into code.",
   sectionReset: 'Sets every control in this section back to its default.',
   saveVersion: 'Saves the current values as a new version, with a picture of the page.',
@@ -44,6 +42,14 @@ export const HINTS = {
   imageUpload: 'Adds an image from your computer.',
   imageClear: 'Removes the image.',
 } as const;
+
+/** The version menu's hints, in the word its rows go by: versions, or a timeline's sequences. */
+export function versionHints(noun: 'version' | 'sequence' = 'version') {
+  return {
+    versions: `Switches to another ${noun}. Rename, lock or delete a ${noun} from the list.`,
+    versionActions: `Shows rename, lock and delete for this ${noun}.`,
+  };
+}
 
 /** The hints of the timeline bar's parts, shown while the hint key (H) is held. */
 export const TIMELINE_HINTS = {

@@ -191,7 +191,7 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
     render();
     TimelineStore.replay(meta.id);
   });
-  const loop = button('Loop', ICON_LOOP, () => TimelineStore.setLoop(meta.id, !meta.loop));
+  const loop = button('Toggle loop', ICON_LOOP, () => TimelineStore.setLoop(meta.id, !meta.loop));
   loop.classList.add('dialkit-timeline-toolbar-toggle', 'dialkit-timeline-loop');
   play.dataset.hint = TIMELINE_HINTS.play;
   replay.dataset.hint = TIMELINE_HINTS.replay;
@@ -232,7 +232,6 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
   const grid = element('div', 'dialkit-timeline-grid');
   const rulerRow = element('div', 'dialkit-timeline-row dialkit-timeline-ruler-row');
   const ruler = element('div', 'dialkit-timeline-ruler');
-  ruler.title = 'Drag to seek · Option-drag to zoom · Shift-drag to reset zoom';
   ruler.dataset.hint = TIMELINE_HINTS.ruler;
   rulerRow.append(element('div', 'dialkit-timeline-label'), ruler);
   grid.append(rulerRow);
@@ -288,7 +287,6 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
   function transport() {
     const state = TimelineStore.getTransport(meta.id);
     play.setAttribute('aria-label', state.playing ? 'Pause timeline' : 'Play timeline');
-    play.title = state.playing ? 'Pause timeline' : 'Play timeline';
     if (play.dataset.playing !== String(state.playing)) {
       play.dataset.playing = String(state.playing);
       play.replaceChildren(icon(state.playing ? ICON_PAUSE : ICON_PLAY));
@@ -397,7 +395,6 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
   }
   function disclosure(host: HTMLElement, isOpen: boolean, label: string, change: () => void) {
     const b = element('button', 'dialkit-timeline-group-toggle');
-    b.title = label;
     b.setAttribute('aria-label', label);
     b.setAttribute('aria-expanded', String(isOpen));
     b.dataset.open = String(isOpen);
@@ -417,10 +414,8 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
       delete header.dataset.open;
     collapse.dataset.open = String(open);
     collapse.setAttribute('aria-expanded', String(open));
-    collapse.title = open ? 'Collapse timeline' : 'Expand timeline';
-    collapse.setAttribute('aria-label', collapse.title);
+    collapse.setAttribute('aria-label', open ? 'Collapse timeline' : 'Expand timeline');
     loop.setAttribute('aria-pressed', String(meta.loop));
-    loop.title = meta.loop ? 'Stop looping' : 'Loop';
     if (meta.loop)
       loop.dataset.active = '';
     else
@@ -530,7 +525,6 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
       pickedNode = node;
     if (selected === clip.key || pickedNode === node)
       node.dataset.selected = '';
-    node.title = `${clip.label} — ${formatSeconds(at)} for ${physics ? '~' : ''}${formatSeconds(duration)}${physics ? ' (duration set by spring physics)' : ''}${delayMode ? ' · drag to phase-shift' : ''}`;
     const edge = (side: string) => {
       const handle = element('div', 'dialkit-timeline-clip-handle');
       handle.dataset.edge = side;
@@ -660,8 +654,7 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
     const heading = element('div', 'dialkit-timeline-popover-header');
     heading.append(element('span', 'dialkit-timeline-popover-title', `${clip.label}${stepKey ? ` · ${formatStepLabel(stepKey)}` : ''}`));
     const close = element('button', 'dialkit-timeline-popover-close');
-    close.title = 'Close editor';
-    close.setAttribute('aria-label', close.title);
+    close.setAttribute('aria-label', 'Close editor');
     close.dataset.hint = TIMELINE_HINTS.closeEditor;
     close.append(icon('M6 6l12 12M18 6 6 18'));
     close.addEventListener('click', closeEditor);

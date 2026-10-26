@@ -229,7 +229,6 @@
   onpointerup={finish}
   onpointercancel={() => finish()}
   onlostpointercapture={() => finish()}
-  title={barTitle}
   role="button"
   tabindex="0"
   aria-label={barTitle}
@@ -265,5 +264,5 @@
 </div>
 
 {#if looping}
-  <span class="dialkit-timeline-loop-infinity" aria-hidden="true" title="Repeats indefinitely">∞</span>
+  <span class="dialkit-timeline-loop-infinity" aria-hidden="true">∞</span>
 {/if}
