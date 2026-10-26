@@ -649,6 +649,12 @@
   pointer-events: none;
 }
 
+/* A nested folder's line is dashed, like its border. */
+.dialkit-panel :where(.dialkit-folder:not(.dialkit-folder-root):not(.dialkit-folder-section)) .dialkit-folder:not(.dialkit-folder-root) > .dialkit-folder-header::after {
+  border-top-style: dashed;
+  border-image: var(--dial-nested-line-image);
+}
+
 /* Keyboard navigation must reveal controls below both pinned header rows. */
 .dialkit-folder-inner :is(button, input, textarea, [tabindex]) {
   scroll-margin-top: calc(var(--dial-panel-header-height, 0px) + var(--dial-section-header-height, 0px) + var(--dial-row-gap));
