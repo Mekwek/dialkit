@@ -2,6 +2,7 @@ import { activateOnKey } from '../../control-keyboard';
 import { createSignal, createEffect, on, onCleanup, Show, JSX } from 'solid-js';
 import { animate } from 'motion';
 import { ICON_CHEVRON, ICON_RESET } from '../../icons';
+import { HINTS } from '../../hints';
 import { createHints, type AnimationHandle } from '../primitives';
 import { RootPanel } from './RootPanel';
 import { createPanelSectionTransition } from '../../panel-size';
@@ -34,7 +35,7 @@ const sectionTransition = { type: 'spring' as const, visualDuration: 0.35, bounc
 
 /** Collapsible section with animated height and rotating chevron. */
 export function Folder(props: FolderProps) {
-  createHints(() => !!props.hint);
+  createHints(() => !!props.hint || !!props.onReset);
   // Root panels are a different component; delegate for old call sites.
   if (props.isRoot) {
     return <RootPanel {...props} />;
@@ -159,6 +160,7 @@ export function Folder(props: FolderProps) {
             type="button"
             class="dialkit-folder-reset"
             aria-label={`Reset ${props.title}`}
+            data-hint={HINTS.sectionReset}
             data-changed={String(!!props.changed)}
             onClick={(e) => {
               e.stopPropagation();

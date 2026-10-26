@@ -179,7 +179,7 @@ export function PresetManager(props: PresetManagerProps) {
                         {/* Keyboard order: the icon shown at rest (the menu icon, or a locked row's lock), then the actions it reveals. */}
                         <div class="dialkit-preset-actions">
                           <Show when={!preset.locked} fallback={lockButton(preset)}>
-                            <button type="button" class="dialkit-preset-more" aria-label={`More actions for ${preset.name}`}>
+                            <button type="button" class="dialkit-preset-more" aria-label={`More actions for ${preset.name}`} data-hint={HINTS.versionActions}>
                               <Icon paths={ICON_MORE} />
                             </button>
                           </Show>

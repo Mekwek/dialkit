@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEaseIntensity } from '../../easing-geometry';
-  import { transitionPresetName } from '../../transition-presets';
+  import { TRANSITION_HINTS, transitionPresetName } from '../../transition-presets';
   import { DialStore } from 'dialkit/store';
   import type { CopiedTransition, EasingConfig, SpringConfig, TransitionConfig } from 'dialkit/store';
   import { HINTS } from '../../hints';
@@ -154,6 +154,7 @@
         max={100}
         step={1}
         unit="%"
+        hint={TRANSITION_HINTS.intensity}
       />
     {:else if isSimpleSpring}
       <Slider
@@ -211,7 +212,7 @@
       />
     {/if}
 
-    <Folder title="Presets" defaultOpen={false} meta={transitionPresetName(isEasing ? easing : spring, mode, savedPresets)}>
+    <Folder title="Presets" defaultOpen={false} hint={TRANSITION_HINTS.presets} meta={transitionPresetName(isEasing ? easing : spring, mode, savedPresets)}>
       <TransitionPresets {mode} value={isEasing ? easing : spring} {onChange} />
     </Folder>
   </div>

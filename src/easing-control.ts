@@ -1,4 +1,5 @@
 import type { EasingConfig } from './store/DialStore';
+import { setHint } from './hints';
 import { easingGuideEnd, easingHandleFromKey, fitEasingGraph, moveEasingHandle, normalizeEase, parseEase, type BezierPoints, type GraphPoint } from './easing-geometry';
 
 export interface EasingVisualizationProps {
@@ -223,6 +224,9 @@ const formatEasePart = (value: number) => String(Number(value.toFixed(2)) || 0);
  * (0.01 per pixel, Shift for 0.1), click it to type, or use the Up and Down arrows.
  * Typing or pasting all four values ("0.25, 0.1, 0.25, 1") into any field sets the whole curve.
  */
+/** The hint of the four Bézier fields, shown while the hint key (H) is held. */
+const EASE_FIELDS_HINT = 'The two handles of the curve: the start point (X, Y) and the end point (X, Y). Drag a field or click it to type.';
+
 export function mountEaseFields(host: HTMLElement, initial: EaseFieldsProps) {
   let props = initial;
   let value = normalizeEase(props.ease);
@@ -315,6 +319,7 @@ export function mountEaseFields(host: HTMLElement, initial: EaseFieldsProps) {
     return { input, draft: false };
   });
   host.append(root);
+  setHint(root, EASE_FIELDS_HINT);
 
   function endPress() {
     if (!press) return;
@@ -345,6 +350,6 @@ export function mountEaseFields(host: HTMLElement, initial: EaseFieldsProps) {
       value = normalizeEase(next.ease);
       render();
     },
-    destroy() { endPress(); root.remove(); },
+    destroy() { endPress(); setHint(root, undefined); root.remove(); },
   };
 }

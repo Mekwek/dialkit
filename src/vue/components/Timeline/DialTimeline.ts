@@ -50,6 +50,8 @@ import { findControl } from '../../../shortcut-utils';
 import { observePointerFocus } from '../../../pointer-focus';
 import { ControlRenderer } from '../ControlRenderer';
 import { PresetManager } from '../PresetManager';
+import { TIMELINE_HINTS } from '../../../hints';
+import { useHints } from '../../useHints';
 import type { DialTheme } from '../DialRoot';
 
 const DRAG_THRESHOLD_PX = 3;
@@ -85,6 +87,7 @@ export const DialTimeline = defineComponent({
     productionEnabled: { type: Boolean, default: isDevDefault },
   },
   setup(props) {
+    useHints(() => true);
     const timelines = ref<TimelineMeta[]>(TimelineStore.getTimelines());
     const dockVisible = ref(TimelineUiStore.getVisible());
     const mounted = ref(false);
@@ -166,6 +169,7 @@ export const DialTimeline = defineComponent({
             class: 'dialkit-timeline-resize-handle',
             role: 'separator',
             'aria-label': 'Resize timeline height',
+            'data-hint': TIMELINE_HINTS.resize,
             'aria-orientation': 'horizontal',
             title: 'Drag to resize timeline',
             onPointerdown: handleResizePointerDown,
@@ -210,6 +214,7 @@ const PlayPauseButton = defineComponent({
         class: 'dialkit-toolbar-add',
         title: label,
         'aria-label': label,
+        'data-hint': TIMELINE_HINTS.play,
         onClick: () => playing.value ? TimelineStore.pause(props.id) : TimelineStore.play(props.id),
       }, [h('span', { style: { position: 'relative', width: '16px', height: '16px' } }, [icon])]);
     };
@@ -223,6 +228,7 @@ const ReplayButton = defineComponent({
       class: 'dialkit-toolbar-add',
       title: 'Replay',
       'aria-label': 'Replay',
+      'data-hint': TIMELINE_HINTS.replay,
       onClick: props.onReplay,
     }, [
       h('svg', { viewBox: '0 0 24 24', fill: 'none', 'aria-hidden': 'true' },
@@ -243,6 +249,7 @@ const LoopButton = defineComponent({
       'aria-pressed': props.loop,
       'aria-label': 'Loop',
       title: props.loop ? 'Stop looping' : 'Loop',
+      'data-hint': TIMELINE_HINTS.loop,
       onClick: () => TimelineStore.setLoop(props.id, !props.loop),
     }, [
       h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' },
@@ -318,6 +325,7 @@ const TimelineOverview = defineComponent({
       return h('div', {
         class: 'dialkit-timeline-overview',
         title: 'Drag to scrub the full timeline',
+        'data-hint': TIMELINE_HINTS.overview,
         onPointerdown: (event: PointerEvent) => {
           event.preventDefault();
           (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
@@ -397,6 +405,7 @@ const TimelinePlayheadFlag = defineComponent({
         },
         role: 'slider',
         'aria-label': 'Timeline current time',
+        'data-hint': TIMELINE_HINTS.playhead,
         'aria-valuemin': 0,
         'aria-valuemax': props.duration,
         'aria-valuenow': time.value,
@@ -825,6 +834,7 @@ const TimelineSection = defineComponent({
             class: 'dialkit-toolbar-add',
             title: 'Copy parameters',
             'aria-label': copied.value ? 'Copied parameters' : 'Copy parameters',
+            'data-hint': TIMELINE_HINTS.copy,
             onClick: handleCopy,
           }, [h('span', { style: { position: 'relative', width: '16px', height: '16px' } }, [
             copied.value
@@ -839,6 +849,7 @@ const TimelineSection = defineComponent({
             'data-open': open.value,
             'aria-expanded': open.value,
             title: open.value ? 'Collapse timeline' : 'Expand timeline',
+            'data-hint': TIMELINE_HINTS.toggle,
             onClick: () => { open.value = !open.value; },
           }, [chevronIcon()]),
         ]),
@@ -878,6 +889,7 @@ const TimelineSection = defineComponent({
             ref: laneAreaRef,
             class: 'dialkit-timeline-ruler',
             title: 'Drag to seek · Option-drag to zoom · Shift-drag to reset zoom',
+            'data-hint': TIMELINE_HINTS.ruler,
             onPointerdown: (event: PointerEvent) => {
               event.preventDefault();
               event.stopPropagation();
@@ -1081,7 +1093,7 @@ const ClipPopover = defineComponent({
         }, [
           h('div', { class: 'dialkit-timeline-popover-header' }, [
             h('span', { class: 'dialkit-timeline-popover-title' }, title),
-            h('button', { class: 'dialkit-timeline-popover-close', title: 'Close editor', 'aria-label': 'Close editor', onClick: props.onClose }, [
+            h('button', { class: 'dialkit-timeline-popover-close', title: 'Close editor', 'aria-label': 'Close editor', 'data-hint': TIMELINE_HINTS.closeEditor, onClick: props.onClose }, [
               h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round' }, [h('path', { d: 'M6 6L18 18M18 6L6 18' })]),
             ]),
           ]),

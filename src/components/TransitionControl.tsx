@@ -1,7 +1,7 @@
 import { createEaseIntensity } from '../easing-geometry';
 import { mountEaseFields, type EaseFieldsProps } from '../easing-control';
 import { SpringConfig, EasingConfig, TransitionConfig, DialStore, type CopiedTransition } from '../store/DialStore';
-import { transitionPresetName } from '../transition-presets';
+import { TRANSITION_HINTS, transitionPresetName } from '../transition-presets';
 import { mountTransitionCopy, mountTransitionPresets, type TransitionCopyProps, type TransitionPresetsProps } from '../transition-presets-control';
 import { Folder } from './Folder';
 import { Slider } from './Slider';
@@ -168,6 +168,7 @@ export function TransitionControl({
               max={100}
               step={1}
               unit="%"
+              hint={TRANSITION_HINTS.intensity}
             />
           </>
         ) : isSimpleSpring ? (
@@ -181,7 +182,7 @@ export function TransitionControl({
         )}
         {durationSlider}
 
-        <Folder title="Presets" defaultOpen={false} meta={transitionPresetName(isEasing ? easing : spring, mode, savedPresets)}>
+        <Folder title="Presets" defaultOpen={false} hint={TRANSITION_HINTS.presets} meta={transitionPresetName(isEasing ? easing : spring, mode, savedPresets)}>
           <TransitionPresets mode={mode} value={isEasing ? easing : spring} onChange={onChange} />
         </Folder>
       </div>

@@ -29,7 +29,7 @@ interface FolderProps {
 export function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, meta, actions, panelHeightOffset = 0, onReset, changed = false, hint }: FolderProps) {
   // A panel's own header, which closes the panel, has a hint by default.
   const headerHint = hint ?? (isRoot && !inline ? HINTS.panel : undefined);
-  useHints(!!headerHint);
+  useHints(!!headerHint || (!isRoot && !!onReset));
   const [localOpen, setIsOpen] = useState(defaultOpen);
   const isOpen = open ?? localOpen;
   const isCollapsed = !isOpen;
@@ -141,6 +141,7 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
             type="button"
             className="dialkit-folder-reset"
             aria-label={`Reset ${title}`}
+            data-hint={HINTS.sectionReset}
             data-changed={String(changed)}
             onClick={(e) => {
               e.stopPropagation();

@@ -4,7 +4,7 @@ import { handleSegmentKey } from './control-keyboard';
 import { setHint } from './hints';
 import { ICON_CHECK, ICON_CLOSE, ICON_COPY, ICON_MORE, ICON_PASTE } from './icons';
 import { springParams, springProgress, springRestDuration, springSettleDuration } from './transition-math';
-import { applyTransitionPreset, defaultTransitionPresets, sameTransition, type TransitionPresetOption } from './transition-presets';
+import { applyTransitionPreset, defaultTransitionPresets, sameTransition, transitionPresetName, type TransitionPresetOption } from './transition-presets';
 
 export interface TransitionPresetsProps {
   mode: TransitionMode;
@@ -116,14 +116,17 @@ export function mountTransitionPresets(host: HTMLElement, initial: TransitionPre
   root.append(tabs, list, empty, save);
   host.append(root);
 
+  const presetNoun = () => props.mode === 'easing' ? 'curve' : 'spring';
+  const unhintItems = () => list.querySelectorAll<HTMLElement>('[data-hint]').forEach(part => setHint(part, undefined));
+
   function buildItems(options: (TransitionPresetOption & { id?: string })[]) {
-    items.forEach(item => setHint(item.pick, undefined));
+    unhintItems();
     items = options.map(option => {
       const item = element('div', 'dialkit-transition-preset');
       const pick = element('button', 'dialkit-transition-preset-pick');
       pick.append(thumbnail(option.value), element('span', 'dialkit-transition-preset-name', option.name));
       // Hold H over a built-in preset to read how it moves.
-      setHint(pick, option.description);
+      setHint(pick, option.description ?? `Uses this ${presetNoun()}.`);
       pick.addEventListener('click', () => props.onChange(applyTransitionPreset(props.value, option.value, props.mode)));
       item.append(pick);
       if (option.id) {
@@ -131,6 +134,7 @@ export function mountTransitionPresets(host: HTMLElement, initial: TransitionPre
         const remove = element('button', 'dialkit-transition-preset-delete');
         remove.setAttribute('aria-label', `Delete ${option.name}`);
         remove.title = remove.getAttribute('aria-label')!;
+        setHint(remove, `Deletes this saved ${presetNoun()}.`);
         remove.append(svgIcon([ICON_CLOSE], ''));
         remove.addEventListener('click', () => DialStore.deleteTransitionPreset(id));
         item.append(remove);
@@ -164,6 +168,7 @@ export function mountTransitionPresets(host: HTMLElement, initial: TransitionPre
       item.pick.setAttribute('aria-pressed', String(active));
     }
     const noun = props.mode === 'easing' ? 'curve' : 'spring';
+    setHint(tabs, `Defaults: the ready-made ${noun}s. Custom: the ${noun}s you saved.`);
     list.setAttribute('aria-label', `${tab === 'defaults' ? 'Default' : 'Custom'} ${noun}s`);
     list.hidden = !items.length;
     empty.hidden = tab === 'defaults' || items.length > 0;
@@ -185,7 +190,8 @@ export function mountTransitionPresets(host: HTMLElement, initial: TransitionPre
     destroy() {
       stop();
       resize?.disconnect();
-      items.forEach(item => setHint(item.pick, undefined));
+      unhintItems();
+      setHint(tabs, undefined);
       root.remove();
     },
   };
@@ -214,6 +220,14 @@ function playSpring(node: HTMLElement, frame: (progress: number) => Keyframe, sp
   const frames = Array.from({ length: count + 1 }, (_, index) => frame(index === count ? 1 : springProgress(index / count * duration, params)));
   return node.animate(frames, { duration: duration * 1000, delay, easing: 'linear', fill: 'backwards' });
 }
+
+/** The hints of the dots and of the two actions they open. */
+const COPY_HINTS = {
+  dots: 'Shows copy and paste for this transition.',
+  copy: 'Copies this transition and its tab (Easing, Time or Physics).',
+  paste: 'Pastes the transition you copied, with its tab.',
+};
+const TAB_NAMES: Record<TransitionMode, string> = { easing: 'Easing', simple: 'Time', advanced: 'Physics' };
 
 /**
  * The dots in a transition's header. Hovering, focusing or clicking them
@@ -247,6 +261,8 @@ export function mountTransitionCopy(host: HTMLElement, initial: TransitionCopyPr
   });
   const dots = element('button', 'dialkit-copy-button');
   dots.setAttribute('aria-label', 'Copy or paste');
+  setHint(dots, COPY_HINTS.dots);
+  setHint(copy, COPY_HINTS.copy);
   group.append(copy, paste);
   root.append(group, dots);
   host.append(root);
@@ -255,7 +271,12 @@ export function mountTransitionCopy(host: HTMLElement, initial: TransitionCopyPr
     root.dataset.open = String(open);
     group.inert = !open;
     dots.setAttribute('aria-expanded', String(open));
-    paste.disabled = !DialStore.getCopiedTransition();
+    const copied = DialStore.getCopiedTransition();
+    paste.disabled = !copied;
+    // "Now: Physics · Wobbly": the copied transition's tab and preset.
+    setHint(paste, copied
+      ? `${COPY_HINTS.paste} Now: ${TAB_NAMES[copied.mode]} · ${transitionPresetName(copied.value, copied.mode, DialStore.getTransitionPresets())}.`
+      : COPY_HINTS.paste);
   }
   // Opens or closes the group from wherever its last motion left it.
   function animateGroup() {
@@ -379,6 +400,7 @@ export function mountTransitionCopy(host: HTMLElement, initial: TransitionCopyPr
       clearTimeout(doneTimer);
       for (const animation of motion) animation.cancel();
       document.removeEventListener('pointerdown', pointerOutside, true);
+      [dots, copy, paste].forEach(part => setHint(part, undefined));
       root.remove();
     },
   };

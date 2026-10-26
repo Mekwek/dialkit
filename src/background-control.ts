@@ -13,6 +13,7 @@ import { observeDropdownKeyboard } from './dropdown-keyboard';
 import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition } from './dropdown-position';
 import { ICON_CHEVRON, ICON_CLOSE, ICON_PLUS } from './icons';
 import { decimalsForStep, roundValue } from './numeric';
+import { mountHints } from './hints';
 import { DialStore } from './store/DialStore';
 import { mountSlider } from './vanilla/controls';
 
@@ -45,6 +46,47 @@ const DRAG_THRESHOLD = 3;
 /** Where the strip centres a radial, angular or diamond gradient. */
 const STRIP_HANDLES = { start: { x: 0.5, y: 0.5 }, end: { x: 1, y: 0.5 }, width: { x: 0.5, y: 0 } };
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
+/** The hints of the control's parts, shown while the hint key (H) is held. */
+const BG_HINTS = {
+  mode: {
+    solid: 'Fills the background with one color.',
+    gradient: 'Fills the background with a gradient.',
+    media: 'Fills the background with an image or a video.',
+  } as Record<BackgroundMode, string>,
+  shapeTrigger: 'Changes how the colors spread.',
+  shape: {
+    linear: 'The colors run along a straight line.',
+    radial: 'The colors grow out from a point, in circles.',
+    angular: 'The colors turn around a point.',
+    diamond: 'The colors grow out from a point, as a diamond.',
+  } as Record<GradientShape, string>,
+  flip: 'Reverses the order of the stops.',
+  rotate: 'Turns the gradient a quarter turn clockwise.',
+  bar: 'Click to add a stop here.',
+  handle: 'Drag to move this stop. Drag it off the bar to remove it. Double-click to change its color.',
+  add: 'Adds a stop in the middle of the widest gap.',
+  grip: 'Drag to change the order of the stops.',
+  position: 'Where the stop sits along the gradient, from 0 to 100%.',
+  save: 'Keeps this gradient in your list.',
+  saved: 'Click to use this gradient.',
+  savedDelete: 'Deletes this saved gradient.',
+  drop: 'Drop an image or a video here, or click to pick one.',
+  preview: 'Opens the options for how the media fills the background.',
+  sizing: 'How the media fills the background.',
+  fit: {
+    fill: 'Covers the whole background. The media\'s edges may be cut off.',
+    fit: 'Shows all of the media inside the background.',
+    stretch: 'Fills the background and does not keep the media\'s shape.',
+    tile: 'Repeats the media across the background.',
+  } as Record<BackgroundMediaDisplay['fit'], string>,
+  ratioSection: 'The shape the media is cropped to.',
+  ratio: (ratio: string) => ratio === 'source' ? 'Keeps the media\'s own shape.' : `Crops the media to ${ratio}.`,
+  tileSize: 'How large each repeated tile is.',
+  zoom: 'Scales the media inside the background.',
+  pin: 'Which part of the media stays in view when it is cut off.',
+};
+/** Gives a part its hint; the control keeps the hint listeners mounted. */
+const hint = (part: HTMLElement, text: string) => { part.dataset.hint = text; };
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {
   const el = document.createElement(tag);
@@ -155,7 +197,10 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
   const setGradient = (gradient: BackgroundGradient) => emit({ ...value, gradient });
 
   const root = element('div', 'dialkit-background');
+  // Every hinted part below is the control's own, so one mount serves them all.
+  const hints = mountHints();
   const modes = segmentedControl('dialkit-background-modes', 'Background type', MODES, mode => emit({ ...value, mode }));
+  modes.buttons.forEach((button, i) => hint(button, BG_HINTS.mode[MODES[i].value]));
   root.append(modes.root);
 
   // Solid
@@ -179,6 +224,9 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
   const flipButton = iconButton('dialkit-background-flip', 'Flip stops', ICON_FLIP);
   const rotateButton = iconButton('dialkit-background-rotate', 'Rotate 90° clockwise', ICON_ROTATE);
   shapeRow.append(shapeTrigger, flipButton, rotateButton);
+  hint(shapeTrigger, BG_HINTS.shapeTrigger);
+  hint(flipButton, BG_HINTS.flip);
+  hint(rotateButton, BG_HINTS.rotate);
   flipButton.addEventListener('click', () => commitEntries(entries().map(({ id, stop }) => ({ id, stop: { ...stop, at: Number((100 - stop.at).toFixed(2)) } }))));
   rotateButton.addEventListener('click', () => setGradient(rotateGradient(value.gradient)));
 
@@ -204,6 +252,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
     for (const shape of GRADIENT_SHAPES) {
       const option = element('button', 'dialkit-select-option', SHAPE_LABELS[shape]);
       option.dataset.selected = String(shape === value.gradient.shape);
+      hint(option, BG_HINTS.shape[shape]);
       option.addEventListener('click', () => {
         closeShapeMenu();
         setGradient(switchGradientShape(value.gradient, shape));
@@ -239,6 +288,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
   const handleLayer = element('div', 'dialkit-background-handles');
   bar.append(track, handleLayer);
   let canvas: HTMLCanvasElement | undefined;
+  hint(bar, BG_HINTS.bar);
   let painted = '';
   const paintTrack = () => {
     const { shape, stops } = value.gradient;
@@ -267,8 +317,10 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
   const stopsHeader = element('div', 'dialkit-background-stops-header');
   const addButton = iconButton('dialkit-background-add', 'Add stop', ICON_PLUS);
   stopsHeader.append(element('span', 'dialkit-background-stops-title', 'Stops'), addButton);
+  hint(addButton, BG_HINTS.add);
   const stopList = element('div', 'dialkit-background-stops');
   const saveButton = element('button', 'dialkit-background-save', 'Save gradient');
+  hint(saveButton, BG_HINTS.save);
   const savedList = element('div', 'dialkit-background-saved');
   savedList.setAttribute('role', 'group');
   savedList.setAttribute('aria-label', 'Saved gradients');
@@ -389,6 +441,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
       handle.setAttribute('aria-valuemin', '0');
       handle.setAttribute('aria-valuemax', '100');
       handle.append(element('span', 'dialkit-background-handle-chip'));
+      hint(handle, BG_HINTS.handle);
       handle.addEventListener('focus', () => select(ids[handles.indexOf(handle)]));
       handle.addEventListener('keydown', event => {
         if (event.altKey || event.metaKey || event.ctrlKey) return;
@@ -431,6 +484,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
     // Just the dots, so the grip fits the margin left of the row.
     grip.firstElementChild!.setAttribute('viewBox', '9 0 6 24');
     grip.firstElementChild!.setAttribute('stroke-width', '3');
+    hint(grip, BG_HINTS.grip);
     const position = field({
       unit: '%',
       label: `Stop ${index() + 1} position`,
@@ -442,6 +496,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
       onScrub: active => { scrubbing = active ? id : undefined; },
     });
     position.root.classList.add('dialkit-background-stop-position');
+    hint(position.root, BG_HINTS.position);
     const colorHost = element('div', 'dialkit-color-host dialkit-background-stop-color');
     const color = mountColorControl(colorHost, { label: `Stop ${index() + 1}`, value: stop().color, onChange: next => updateStop(id, { color: next }) });
     // The color's own opacity, so this field and the picker's Opacity track stay one value.
@@ -621,7 +676,9 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
         swatch.setAttribute('aria-label', `Use saved gradient ${i + 1}`);
         swatch.style.setProperty('--dial-gradient', backgroundGradientCss(gradient));
         swatch.addEventListener('click', () => emit({ ...value, mode: 'gradient', gradient: cloneGradient(gradient) }));
+        hint(swatch, BG_HINTS.saved);
         const remove = iconButton('dialkit-background-saved-delete', `Delete saved gradient ${i + 1}`, ICON_CLOSE);
+        hint(remove, BG_HINTS.savedDelete);
         remove.addEventListener('click', () => DialStore.deleteGradient(props.panelId, id));
         item.append(swatch, remove);
         return item;
@@ -647,12 +704,14 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
   const drop = element('button', 'dialkit-background-drop');
   const dropText = element('span', '');
   drop.append(icon(ICON_UPLOAD), dropText);
+  hint(drop, BG_HINTS.drop);
   const preview = element('button', 'dialkit-background-media-preview');
   preview.setAttribute('aria-label', 'Media options');
   preview.setAttribute('aria-haspopup', 'dialog');
   preview.setAttribute('aria-expanded', 'false');
   // The media's crop, as large as the preview's 16:9 box holds at its ratio.
   const frame = element('span', 'dialkit-background-media-frame');
+  hint(preview, BG_HINTS.preview);
   const badge = element('span', 'dialkit-background-media-badge');
   badge.setAttribute('aria-hidden', 'true');
   preview.append(frame, badge);
@@ -805,7 +864,8 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
       return wrap;
     };
     const fits = segmentedControl('dialkit-background-fits', 'Sizing', MEDIA_FITS.map(fit => ({ value: fit, label: FIT_LABELS[fit] })), fit => setDisplay({ fit }));
-    section('Sizing', fits.root);
+    fits.buttons.forEach((button, i) => hint(button, BG_HINTS.fit[MEDIA_FITS[i]]));
+    hint(section('Sizing', fits.root), BG_HINTS.sizing);
     // Tile Size and Zoom are the panel's slider, as a range control draws it;
     // Tile Size reads as a percent of the box's height.
     const tileSizeWrap = element('div', 'dialkit-background-tile-size');
@@ -817,6 +877,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
       step: Math.round(MEDIA_TILE_SIZE.step * 100),
       value: Math.round(value.mediaDisplay.tileSize * 100),
       seekOnPress: true,
+      hint: BG_HINTS.tileSize,
       onChange: (size: number) => setDisplay({ tileSize: size / 100 }),
     });
     const tileSize = mountSlider(tileSizeWrap, tileSizeProps());
@@ -825,8 +886,9 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
     const ratios = segmentedControl('dialkit-background-ratios', 'Ratio', MEDIA_RATIOS.map(ratio => ratio === 'source'
       ? { value: ratio, label: 'Source', icon: icon(ICON_SOURCE) }
       : { value: ratio, label: ratio }), ratio => setDisplay({ ratio }));
-    section('Ratio', ratios.root);
-    const zoomProps = () => ({ label: 'Zoom', unit: '×', ...MEDIA_ZOOM, value: value.mediaDisplay.zoom, seekOnPress: true, onChange: (zoom: number) => setDisplay({ zoom }) });
+    ratios.buttons.forEach((button, i) => hint(button, BG_HINTS.ratio(MEDIA_RATIOS[i])));
+    hint(section('Ratio', ratios.root), BG_HINTS.ratioSection);
+    const zoomProps = () => ({ label: 'Zoom', unit: '×', ...MEDIA_ZOOM, value: value.mediaDisplay.zoom, seekOnPress: true, hint: BG_HINTS.zoom, onChange: (zoom: number) => setDisplay({ zoom }) });
     const zoom = mountSlider(shell, zoomProps());
     const grid = element('div', 'dialkit-background-position');
     grid.setAttribute('role', 'radiogroup');
@@ -854,7 +916,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
       setDisplay({ position: { x: COLUMNS[column], y: ROWS[row] } });
       cells[row * 3 + column].focus({ preventScroll: true });
     });
-    section('Pin', grid);
+    hint(section('Pin', grid), BG_HINTS.pin);
     syncOptions = () => {
       const display = value.mediaDisplay;
       fits.set(display.fit);
@@ -1097,6 +1159,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
       solid.destroy();
       rows.forEach(row => row.color.destroy());
       leaving.forEach((fade, row) => { fade.cancel(); dropRow(row); });
+      hints.destroy();
       root.remove();
     },
   };

@@ -3,7 +3,7 @@ import { mountEaseFields, type EaseFieldsProps } from '../../easing-control';
 import { createEffect, onCleanup, onMount, Show } from 'solid-js';
 import { DialStore } from '../../store/DialStore';
 import type { CopiedTransition, EasingConfig, SpringConfig, TransitionConfig } from '../../store/DialStore';
-import { transitionPresetName } from '../../transition-presets';
+import { TRANSITION_HINTS, transitionPresetName } from '../../transition-presets';
 import { mountTransitionCopy, mountTransitionPresets, type TransitionCopyProps, type TransitionPresetsProps } from '../../transition-presets-control';
 import { HINTS } from '../../hints';
 import { createHints, fromStore } from '../primitives';
@@ -157,6 +157,7 @@ export function TransitionControl(props: TransitionControlProps) {
             max={100}
             step={1}
             unit="%"
+            hint={TRANSITION_HINTS.intensity}
           />
         </Show>
 
@@ -170,7 +171,7 @@ export function TransitionControl(props: TransitionControlProps) {
         </Show>
         {durationSlider()}
 
-        <Folder title="Presets" defaultOpen={false} meta={transitionPresetName(isEasing() ? easing() : spring(), mode(), savedPresets())}>
+        <Folder title="Presets" defaultOpen={false} hint={TRANSITION_HINTS.presets} meta={transitionPresetName(isEasing() ? easing() : spring(), mode(), savedPresets())}>
           <TransitionPresets mode={mode()} value={isEasing() ? easing() : spring()} onChange={props.onChange} />
         </Folder>
       </div>

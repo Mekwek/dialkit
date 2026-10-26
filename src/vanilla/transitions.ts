@@ -2,7 +2,7 @@ import { DialStore, type SpringConfig, type EasingConfig, type TransitionConfig 
 import { mountEaseFields, mountEasingVisualization } from '../easing-control';
 import { createEaseIntensity } from '../easing-geometry';
 import { springParams, springProgress } from '../transition-math';
-import { transitionPresetName } from '../transition-presets';
+import { TRANSITION_HINTS, transitionPresetName } from '../transition-presets';
 import { mountTransitionCopy, mountTransitionPresets, type TransitionCopyProps, type TransitionPresetsProps } from '../transition-presets-control';
 import { mountFolder, mountSegmentedControl, mountSlider, type SliderProps } from './controls';
 import { element, svg, type Mounted } from './dom';
@@ -74,8 +74,8 @@ export function mountTransitionControl(host: HTMLElement, initial: TransitionCon
   const intensity = createEaseIntensity();
   let copy: ReturnType<typeof mountTransitionCopy> | undefined;
   let presets: ReturnType<typeof mountTransitionPresets> | undefined;
-  const presetsFolder = springOnly ? undefined : mountFolder(element('div'), { title: 'Presets', defaultOpen: false });
-  const showPresetName = () => presetsFolder?.update({ title: 'Presets', meta: transitionPresetName(current(), mode, DialStore.getTransitionPresets()) });
+  const presetsFolder = springOnly ? undefined : mountFolder(element('div'), { title: 'Presets', defaultOpen: false, hint: TRANSITION_HINTS.presets });
+  const showPresetName = () => presetsFolder?.update({ title: 'Presets', hint: TRANSITION_HINTS.presets, meta: transitionPresetName(current(), mode, DialStore.getTransitionPresets()) });
   const stopPresets = presetsFolder ? DialStore.subscribeTransitions(showPresetName) : undefined;
   let controls: {
     destroy(): void;
@@ -171,7 +171,7 @@ export function mountTransitionControl(host: HTMLElement, initial: TransitionCon
       const fieldsProps = () => ({ ease: cache.easing.ease, onChange: (ease: EasingConfig['ease']) => change({ ...cache.easing, ease }) });
       const fields = mountEaseFields(body, fieldsProps());
       const intensityProps = (): SliderProps => ({
-        label: 'Intensity', value: intensity.read(cache.easing.ease), min: 0, max: 100, step: 1, unit: '%',
+        label: 'Intensity', hint: TRANSITION_HINTS.intensity, value: intensity.read(cache.easing.ease), min: 0, max: 100, step: 1, unit: '%',
         onChange: v => change({ ...cache.easing, ease: intensity.apply(cache.easing.ease, v) }),
       });
       const intensitySlider = mountSlider(body, intensityProps());

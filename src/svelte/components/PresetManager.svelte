@@ -191,7 +191,7 @@
                   {#if preset.locked}
                     {@render lockButton(preset)}
                   {:else}
-                    <button type="button" class="dialkit-preset-more" aria-label={`More actions for ${preset.name}`}>
+                    <button type="button" class="dialkit-preset-more" aria-label={`More actions for ${preset.name}`} data-hint={HINTS.versionActions}>
                       {@render icon(ICON_MORE)}
                     </button>
                   {/if}

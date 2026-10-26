@@ -261,6 +261,7 @@ export function mountPresetManager(host: HTMLElement, initial: PresetManagerProp
         const more = element('button', 'dialkit-preset-more');
         more.type = 'button';
         more.setAttribute('aria-label', `More actions for ${preset.name}`);
+        more.dataset.hint = HINTS.versionActions;
         more.append(icon(ICON_MORE));
         actions.append(more, rename, lock, action('dialkit-preset-delete', `Delete ${preset.name}`, ICON_TRASH, () => DialStore.deletePreset(props.panelId, id)));
       }

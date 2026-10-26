@@ -164,7 +164,7 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, noun = 
                       {/* Keyboard order: the icon shown at rest (the menu icon, or a locked row's lock), then the actions it reveals. */}
                       <div className="dialkit-preset-actions">
                         {preset.locked ? lockButton(preset) : (
-                          <button type="button" className="dialkit-preset-more" aria-label={`More actions for ${preset.name}`}>
+                          <button type="button" className="dialkit-preset-more" aria-label={`More actions for ${preset.name}`} data-hint={HINTS.versionActions}>
                             <Icon paths={ICON_MORE} />
                           </button>
                         )}

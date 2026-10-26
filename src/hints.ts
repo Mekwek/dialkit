@@ -23,8 +23,10 @@ const ALIGN = '.dialkit-panel-toolbar, .dialkit-panel-section-toolbar';
  */
 export const HINTS = {
   panel: 'Closes the panel to a small button. Click the button to open it again.',
-  versions: 'Switches to another version. Delete a version from the list.',
+  versions: 'Switches to another version. Rename, lock or delete a version from the list.',
+  versionActions: 'Shows rename, lock and delete for this version.',
   copy: "Copies the panel's values as text, ready to paste into code.",
+  sectionReset: 'Sets every control in this section back to its default.',
   saveVersion: 'Saves the current values as a new version, with a picture of the page.',
   version: 'Switches to this version. Double-click its name to rename it.',
   deleteVersion: 'Deletes this version.',
@@ -42,6 +44,20 @@ export const HINTS = {
   imageUpload: 'Adds an image from your computer.',
   imageClear: 'Removes the image.',
 } as const;
+
+/** The hints of the timeline bar's parts, shown while the hint key (H) is held. */
+export const TIMELINE_HINTS = {
+  play: 'Plays or pauses the sequence.',
+  replay: 'Plays the sequence again from the start.',
+  loop: 'Loops the sequence endlessly.',
+  toggle: "Opens or closes the timeline's tracks.",
+  ruler: 'Drag to move the playhead. Option-drag or Option-scroll to zoom. Shift-click resets the zoom.',
+  playhead: 'The current time. Drag to scrub.',
+  copy: "Copies the sequence's values as text, ready to paste into code.",
+  resize: 'Drag to make the timeline taller or shorter.',
+  overview: 'Drag to move through the whole sequence.',
+  closeEditor: 'Closes the clip editor.',
+};
 
 /**
  * Whether this browser has seen a hint yet, shared by every panel. Until
@@ -125,11 +141,21 @@ export function getHintPosition(
 }
 
 /**
- * The areas a hint dims, nearest first: an open picker, the panel's outer
- * box (its root folder inside can be taller and scroll), the root folder.
- * Without one, the root of a custom layout dims.
+ * The areas a hint dims, nearest first: an open picker or clip editor, the
+ * panel's outer box (its root folder inside can be taller and scroll), the
+ * root folder, the timeline bar. Without one, the root of a custom layout
+ * dims.
  */
-const DIM_AREAS = ['.dialkit-color-popover', '.dialkit-image-popover', '.dialkit-panel-inner', '.dialkit-folder-root'];
+const DIM_AREAS = [
+  '.dialkit-color-popover',
+  '.dialkit-image-popover',
+  '.dialkit-timeline-popover',
+  '.dialkit-background-popover',
+  '.dialkit-background-shape-menu',
+  '.dialkit-panel-inner',
+  '.dialkit-folder-root',
+  '.dialkit-timeline-dock',
+];
 
 function areaOf(row: HTMLElement): HTMLElement | null {
   for (const selector of DIM_AREAS) {

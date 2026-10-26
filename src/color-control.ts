@@ -11,6 +11,12 @@ export type ColorControlProps = { label: string; value: string; onChange: (value
 const FORMATS: SegmentedOption<ColorFormat>[] = [
   { value: 'hex', label: 'Hex' }, { value: 'rgb', label: 'RGB' }, { value: 'hsl', label: 'HSL' }, { value: 'oklch', label: 'OKLCH' }, { value: 'p3', label: 'P3', ariaLabel: 'Display P3' },
 ];
+/** The hints of the picker's format tabs, fields and eyedropper, shown while the hint key (H) is held. */
+const PICKER_HINTS = {
+  format: 'Shows the color as hex, RGB, HSL or OKLCH.',
+  fields: 'Type a value, or drag a letter or the % to change it.',
+  eyedropper: 'Picks a color from anywhere on the screen.',
+};
 const OPACITY: ColorChannel = { name: '%', label: 'Opacity', max: 100, step: 1, digits: 0 };
 type EyeDropperConstructor = new () => { open: (options?: { signal?: AbortSignal }) => Promise<{ sRGBHex: string }> };
 
@@ -196,16 +202,19 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
     const formats = segmentedControl('dialkit-color-formats', 'Color format', FORMATS, f => commit(color, f), 'dialkit-color-format');
     formatRow.append(formats.root);
     stopFormats = formats.disconnect;
+    setHint(formats.root, PICKER_HINTS.format);
 
     // One field per channel of the format, then opacity. Type a value, step it
     // with the arrow keys, or drag the channel's letter (or the %).
     const fieldsRow = element('div', 'dialkit-color-fields-row');
     const fields = element('div', 'dialkit-color-fields');
+    setHint(fields, PICKER_HINTS.fields);
     const EyeDropper = (window as Window & { EyeDropper?: EyeDropperConstructor }).EyeDropper;
     if (EyeDropper) {
       const eyedropper = element('button', 'dialkit-color-eyedropper');
       eyedropper.setAttribute('aria-label', 'Pick a color from the screen');
       eyedropper.title = 'Pick a color from the screen';
+      setHint(eyedropper, PICKER_HINTS.eyedropper);
       eyedropper.append(eyedropperIcon());
       eyedropper.addEventListener('click', async () => {
         eyedropperAbort?.abort();

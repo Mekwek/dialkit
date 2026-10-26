@@ -3,7 +3,7 @@ import { mountEaseFields } from '../../easing-control';
 import { defineComponent, h, onMounted, onUnmounted, ref, shallowRef, watchEffect, type PropType } from 'vue';
 import { DialStore } from '../../store/DialStore';
 import type { CopiedTransition, EasingConfig, SpringConfig, TransitionConfig, TransitionMode } from '../../store/DialStore';
-import { transitionPresetName } from '../../transition-presets';
+import { TRANSITION_HINTS, transitionPresetName } from '../../transition-presets';
 import { mountTransitionCopy, mountTransitionPresets } from '../../transition-presets-control';
 import { HINTS } from '../../hints';
 import { useHints } from '../useHints';
@@ -231,6 +231,7 @@ export const TransitionControl = defineComponent({
                   max: 100,
                   step: 1,
                   unit: '%',
+                  hint: TRANSITION_HINTS.intensity,
                   onChange: (next: number) => emit('change', { ...currentEasing, ease: intensity.apply(currentEasing.ease, next) }),
                 }),
               ]
@@ -276,7 +277,7 @@ export const TransitionControl = defineComponent({
                   }),
                 ]),
             durationSlider,
-            h(Folder, { title: 'Presets', defaultOpen: false, meta: transitionPresetName(current, mode.value, savedPresets.value) }, {
+            h(Folder, { title: 'Presets', defaultOpen: false, hint: TRANSITION_HINTS.presets, meta: transitionPresetName(current, mode.value, savedPresets.value) }, {
               default: () => [
                 h(TransitionPresets, { mode: mode.value, value: current, onChange: (next: TransitionConfig) => emit('change', next) }),
               ],

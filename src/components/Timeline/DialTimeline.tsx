@@ -33,6 +33,8 @@ import { findControl } from '../../shortcut-utils';
 import { observePointerFocus } from '../../pointer-focus';
 import { ControlRenderer } from '../ControlRenderer';
 import { PresetManager } from '../PresetManager';
+import { TIMELINE_HINTS } from '../../hints';
+import { useHints } from '../../hooks/useHints';
 import type { DialTheme } from '../DialRoot';
 
 const DRAG_THRESHOLD_PX = 3;
@@ -108,6 +110,7 @@ function DialTimelineDock({
   defaultOpen: boolean;
 }) {
   const [mounted, setMounted] = useState(false);
+  useHints(true);
   const [dockMaxHeight, setDockMaxHeight] = useState(DEFAULT_DOCK_MAX_HEIGHT);
   const visibilityControllerId = useRef(Symbol('dialkit-timeline-visibility'));
   const dockRef = useRef<HTMLDivElement>(null);
@@ -180,6 +183,7 @@ function DialTimelineDock({
         onPointerDown={handleResizePointerDown}
         role="separator"
         aria-label="Resize timeline height"
+        data-hint={TIMELINE_HINTS.resize}
         aria-orientation="horizontal"
         title="Drag to resize timeline"
       />
@@ -224,6 +228,7 @@ function PlayPauseButton({ id }: { id: string }) {
       onClick={() => (playing ? TimelineStore.pause(id) : TimelineStore.play(id))}
       title={playing ? 'Pause' : 'Play'}
       aria-label={playing ? 'Pause' : 'Play'}
+      data-hint={TIMELINE_HINTS.play}
       whileTap={{ scale: 0.9 }}
       transition={{ type: 'spring', visualDuration: 0.15, bounce: 0.3 }}
     >
@@ -271,6 +276,7 @@ function ReplayButton({ onReplay }: { onReplay: () => void }) {
       onClick={onReplay}
       title="Replay"
       aria-label="Replay"
+      data-hint={TIMELINE_HINTS.replay}
       whileTap={{ scale: 0.9 }}
       transition={{ type: 'spring', visualDuration: 0.15, bounce: 0.3 }}
     >
@@ -289,6 +295,7 @@ function LoopButton({ id, loop }: { id: string; loop: boolean }) {
       aria-pressed={loop}
       aria-label="Loop"
       title={loop ? 'Stop looping' : 'Loop'}
+      data-hint={TIMELINE_HINTS.loop}
       onClick={() => TimelineStore.setLoop(id, !loop)}
       whileTap={{ scale: 0.9 }}
       transition={{ type: 'spring', visualDuration: 0.15, bounce: 0.3 }}
@@ -419,6 +426,7 @@ function TimelinePlayheadFlag({
       onPointerDown={handlePointerDown}
       role="slider"
       aria-label="Timeline current time"
+      data-hint={TIMELINE_HINTS.playhead}
       aria-valuemin={0}
       aria-valuemax={duration}
       aria-valuenow={time}
@@ -491,6 +499,7 @@ function TimelineOverview({
       onPointerCancel={finishScrub}
       onLostPointerCapture={finishScrub}
       title="Drag to scrub the full timeline"
+      data-hint={TIMELINE_HINTS.overview}
     >
       <div
         className="dialkit-timeline-overview-viewport"
@@ -1088,6 +1097,7 @@ const TimelineSection = memo(function TimelineSection({
             onClick={handleCopy}
             title="Copy parameters"
             aria-label={copied ? 'Copied parameters' : 'Copy parameters'}
+            data-hint={TIMELINE_HINTS.copy}
             whileTap={{ scale: 0.9 }}
             transition={{ type: 'spring', visualDuration: 0.15, bounce: 0.3 }}
           >
@@ -1136,6 +1146,7 @@ const TimelineSection = memo(function TimelineSection({
             aria-expanded={open}
             onClick={() => setOpen(!open)}
             title={open ? 'Collapse timeline' : 'Expand timeline'}
+            data-hint={TIMELINE_HINTS.toggle}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d={ICON_CHEVRON} />
@@ -1166,6 +1177,7 @@ const TimelineSection = memo(function TimelineSection({
                 onPointerCancel={handleRulerPointerCancel}
                 onLostPointerCapture={handleRulerPointerCancel}
                 title="Drag to seek · Option-drag to zoom · Shift-drag to reset zoom"
+                data-hint={TIMELINE_HINTS.ruler}
               >
                 {fineTicks.map((t) => (
                   <div key={`fine:${t}`} className="dialkit-timeline-tick dialkit-timeline-tick-fine" style={{ left: (t - safeViewStart) * pxPerSecond }} />
@@ -1397,7 +1409,7 @@ function ClipPopover({
       >
         <div className="dialkit-timeline-popover-header">
           <span className="dialkit-timeline-popover-title">{title}</span>
-          <button className="dialkit-timeline-popover-close" onClick={onClose} title="Close editor" aria-label="Close editor">
+          <button className="dialkit-timeline-popover-close" onClick={onClose} title="Close editor" aria-label="Close editor" data-hint={TIMELINE_HINTS.closeEditor}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M6 6L18 18M18 6L6 18" />
             </svg>

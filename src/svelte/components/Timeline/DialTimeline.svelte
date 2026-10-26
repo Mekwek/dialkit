@@ -9,6 +9,8 @@
   import { observePointerFocus } from '../../../pointer-focus';
   import type { DialTheme } from '../DialRoot.svelte';
   import TimelineSection from './TimelineSection.svelte';
+  import { TIMELINE_HINTS } from '../../../hints';
+  import { createHints } from '../../hints.svelte.js';
 
   const DEFAULT_DOCK_MAX_HEIGHT = 400;
   const MIN_DOCK_MAX_HEIGHT = 120;
@@ -28,6 +30,7 @@
     defaultOpen?: boolean;
     productionEnabled?: boolean;
   }>();
+  createHints(() => true);
 
   const controllerId = Symbol('dialkit-timeline-visibility');
   let mounted = $state(false);
@@ -113,6 +116,7 @@
         onpointerdown={handleResizePointerDown}
         role="separator"
         aria-label="Resize timeline height"
+        data-hint={TIMELINE_HINTS.resize}
         aria-orientation="horizontal"
         title="Drag to resize timeline"
       ></div>

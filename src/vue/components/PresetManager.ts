@@ -177,7 +177,7 @@ export const PresetManager = defineComponent({
                   h('button', { type: 'button', class: 'dialkit-preset-name' }, preset.name),
                   // Keyboard order: the icon shown at rest (the menu icon, or a locked row's lock), then the actions it reveals.
                   h('div', { class: 'dialkit-preset-actions' }, [
-                    preset.locked ? lockButton(preset) : h('button', { type: 'button', class: 'dialkit-preset-more', 'aria-label': `More actions for ${preset.name}` }, [icon(ICON_MORE)]),
+                    preset.locked ? lockButton(preset) : h('button', { type: 'button', class: 'dialkit-preset-more', 'aria-label': `More actions for ${preset.name}`, 'data-hint': HINTS.versionActions }, [icon(ICON_MORE)]),
                     h('button', { type: 'button', class: 'dialkit-preset-rename', title: `Rename ${preset.name}`, onClick: () => { editingId.value = preset.id; } }, [icon(ICON_PENCIL)]),
                     ...(preset.locked ? [] : [
                       lockButton(preset),

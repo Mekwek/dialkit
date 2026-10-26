@@ -103,6 +103,12 @@ export interface TransitionPresetOption {
   value: TransitionConfig;
 }
 
+/** The hints of a transition's Presets folder and Intensity slider, shown while the hint key (H) is held. */
+export const TRANSITION_HINTS = {
+  presets: 'Ready-made curves to pick from, and the ones you saved.',
+  intensity: 'How strong the curve is. 50 is the curve itself, 0 is a straight line.',
+};
+
 /** The built-in presets for a mode: curves for Easing, springs for Time and Physics. */
 export function defaultTransitionPresets(mode: TransitionMode): TransitionPresetOption[] {
   if (mode === 'easing') {

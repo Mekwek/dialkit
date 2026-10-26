@@ -46,7 +46,8 @@ import {
 } from '../../../icons';
 import { findControl } from '../../../shortcut-utils';
 import { observePointerFocus } from '../../../pointer-focus';
-import { fromStore } from '../../primitives';
+import { TIMELINE_HINTS } from '../../../hints';
+import { createHints, fromStore } from '../../primitives';
 import { ControlRenderer } from '../ControlRenderer';
 import { PresetManager } from '../PresetManager';
 import type { DialTheme } from '../DialRoot';
@@ -89,6 +90,7 @@ export function DialTimeline(props: DialTimelineProps) {
 }
 
 function DialTimelineDock(props: DialTimelineProps) {
+  createHints(() => true);
   const timelines = fromStore(
     () => TimelineStore.getTimelines(),
     (notify) => TimelineStore.subscribeGlobal(notify)
@@ -163,6 +165,7 @@ function DialTimelineDock(props: DialTimelineProps) {
             onPointerDown={handleResizePointerDown}
             role="separator"
             aria-label="Resize timeline height"
+            data-hint={TIMELINE_HINTS.resize}
             aria-orientation="horizontal"
             title="Drag to resize timeline"
           />
@@ -200,6 +203,7 @@ function PlayPauseButton(props: { id: string }) {
       onClick={() => playing() ? TimelineStore.pause(props.id) : TimelineStore.play(props.id)}
       title={label()}
       aria-label={label()}
+      data-hint={TIMELINE_HINTS.play}
     >
       <span style={{ position: 'relative', width: '16px', height: '16px' }}>
         <Show
@@ -226,6 +230,7 @@ function ReplayButton(props: { onReplay: () => void }) {
       onClick={props.onReplay}
       title="Replay"
       aria-label="Replay"
+      data-hint={TIMELINE_HINTS.replay}
     >
       <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <For each={ICON_REPLAY}>{(path) => <path d={path} fill="currentColor" />}</For>
@@ -242,6 +247,7 @@ function LoopButton(props: { id: string; loop: boolean }) {
       aria-pressed={props.loop}
       aria-label="Loop"
       title={props.loop ? 'Stop looping' : 'Loop'}
+      data-hint={TIMELINE_HINTS.loop}
       onClick={() => TimelineStore.setLoop(props.id, !props.loop)}
     >
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -311,6 +317,7 @@ function TimelineOverview(props: {
       onPointerCancel={finish}
       onLostPointerCapture={finish}
       title="Drag to scrub the full timeline"
+      data-hint={TIMELINE_HINTS.overview}
     >
       <div
         class="dialkit-timeline-overview-viewport"
@@ -416,6 +423,7 @@ function TimelinePlayheadFlag(props: {
         }}
         role="slider"
         aria-label="Timeline current time"
+        data-hint={TIMELINE_HINTS.playhead}
         aria-valuemin={0}
         aria-valuemax={props.duration}
         aria-valuenow={time()}
@@ -888,6 +896,7 @@ function TimelineSection(props: {
             onClick={handleCopy}
             title="Copy parameters"
             aria-label={copied() ? 'Copied parameters' : 'Copy parameters'}
+            data-hint={TIMELINE_HINTS.copy}
           >
             <span style={{ position: 'relative', width: '16px', height: '16px' }}>
               <Show
@@ -911,6 +920,7 @@ function TimelineSection(props: {
             aria-expanded={open()}
             onClick={() => setOpen((current) => !current)}
             title={open() ? 'Collapse timeline' : 'Expand timeline'}
+            data-hint={TIMELINE_HINTS.toggle}
           >
             <ChevronIcon />
           </button>
@@ -939,6 +949,7 @@ function TimelineSection(props: {
                 onPointerCancel={finishRuler}
                 onLostPointerCapture={finishRuler}
                 title="Drag to seek · Option-drag to zoom · Shift-drag to reset zoom"
+                data-hint={TIMELINE_HINTS.ruler}
               >
                 <For each={ticks().fine}>{(time) => <div class="dialkit-timeline-tick dialkit-timeline-tick-fine" style={{ left: `${(time - safeViewStart()) * pxPerSecond()}px` }} />}</For>
                 <For each={ticks().medium}>{(time) => <div class="dialkit-timeline-tick dialkit-timeline-tick-medium" style={{ left: `${(time - safeViewStart()) * pxPerSecond()}px` }} />}</For>
@@ -1179,7 +1190,7 @@ function ClipPopover(props: {
           >
             <div class="dialkit-timeline-popover-header">
               <span class="dialkit-timeline-popover-title">{presentation().title}</span>
-              <button class="dialkit-timeline-popover-close" onClick={props.onClose} title="Close editor" aria-label="Close editor">
+              <button class="dialkit-timeline-popover-close" onClick={props.onClose} title="Close editor" aria-label="Close editor" data-hint={TIMELINE_HINTS.closeEditor}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                   <path d="M6 6L18 18M18 6L6 18" />
                 </svg>

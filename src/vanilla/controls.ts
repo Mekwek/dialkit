@@ -54,6 +54,7 @@ export function mountFolder(host: HTMLElement, initial: FolderProps) {
   }
   const renderReset = () => {
     reset?.setAttribute('aria-label', `Reset ${props.title}`);
+    if (reset) setHint(reset, HINTS.sectionReset);
     reset?.setAttribute('data-changed', String(!!props.changed));
   };
   const actions = element('div', 'dialkit-folder-actions');
@@ -186,6 +187,7 @@ export function mountFolder(host: HTMLElement, initial: FolderProps) {
       stopFades?.();
       sectionTransition?.destroy();
       setHint(top, undefined);
+      if (reset) setHint(reset, undefined);
       node.remove();
     }
   };

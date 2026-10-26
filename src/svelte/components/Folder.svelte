@@ -48,7 +48,7 @@
   }>();
   // A panel's own header, which closes the panel, has a hint by default.
   const headerHint = $derived(hint ?? (isRoot && !inline ? HINTS.panel : undefined));
-  createHints(() => !!headerHint);
+  createHints(() => !!headerHint || (!isRoot && !!onReset));
 
   const initiallyOpen = untrack(() => open ?? defaultOpen);
   let localOpen = $state(initiallyOpen);
@@ -269,6 +269,7 @@
           type="button"
           class="dialkit-folder-reset"
           aria-label={`Reset ${title}`}
+          data-hint={HINTS.sectionReset}
           data-changed={String(changed)}
           onclick={(e) => {
             e.stopPropagation();

@@ -7,6 +7,7 @@ import { findControl } from '../shortcut-utils';
 import { getDropdownPosition } from '../dropdown-position';
 import { buildCopyInstruction } from '../copy-instruction';
 import { observePointerFocus } from '../pointer-focus';
+import { mountHints, TIMELINE_HINTS } from '../hints';
 import { ICON_CHEVRON, ICON_PLAY, ICON_PAUSE, ICON_REPLAY, ICON_LOOP, ICON_CLIPBOARD_PLAIN, ICON_CHECK } from '../icons';
 import { mountControlRenderer } from './ControlRenderer';
 import { mountPresetManager } from './menus';
@@ -31,6 +32,9 @@ export function createDialTimelineRoot(initial: DialTimelineOptions = {}) {
   const resize = element('div', 'dialkit-timeline-resize-handle');
   resize.setAttribute('role', 'separator');
   resize.setAttribute('aria-label', 'Resize timeline height');
+  resize.dataset.hint = TIMELINE_HINTS.resize;
+  // The timeline's hinted parts are all its own, so one mount serves them.
+  const hints = mountHints();
   resize.setAttribute('aria-orientation', 'horizontal');
   resize.tabIndex = 0;
   const dock = element('div', 'dialkit-timeline-dock');
@@ -116,6 +120,7 @@ export function createDialTimelineRoot(initial: DialTimelineOptions = {}) {
       stopPointerFocus();
       sections.forEach(s => s.destroy());
       sections.clear();
+      hints.destroy();
       root.remove();
     },
   };
@@ -188,6 +193,10 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
   });
   const loop = button('Loop', ICON_LOOP, () => TimelineStore.setLoop(meta.id, !meta.loop));
   loop.classList.add('dialkit-timeline-toolbar-toggle', 'dialkit-timeline-loop');
+  play.dataset.hint = TIMELINE_HINTS.play;
+  replay.dataset.hint = TIMELINE_HINTS.replay;
+  loop.dataset.hint = TIMELINE_HINTS.loop;
+  overview.dataset.hint = TIMELINE_HINTS.overview;
   playback.append(play, replay, loop);
   const presetProps = () => ({ panelId: meta.id, presets: DialStore.getPresets(meta.id), activePresetId: DialStore.getActivePresetId(meta.id), noun: 'sequence' as const });
   const presets = mountPresetManager(actions, presetProps());
@@ -209,8 +218,10 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
     copyTimer = setTimeout(() => copy.replaceChildren(icon([ICON_CLIPBOARD_PLAIN.board, ICON_CLIPBOARD_PLAIN.body])), 1500);
   });
   actions.append(copy);
+  copy.dataset.hint = TIMELINE_HINTS.copy;
   const collapse = element('button', 'dialkit-timeline-chevron');
   collapse.append(icon(ICON_CHEVRON));
+  collapse.dataset.hint = TIMELINE_HINTS.toggle;
   collapse.addEventListener('click', () => {
     open = !open;
     closeEditor();
@@ -222,12 +233,14 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
   const rulerRow = element('div', 'dialkit-timeline-row dialkit-timeline-ruler-row');
   const ruler = element('div', 'dialkit-timeline-ruler');
   ruler.title = 'Drag to seek · Option-drag to zoom · Shift-drag to reset zoom';
+  ruler.dataset.hint = TIMELINE_HINTS.ruler;
   rulerRow.append(element('div', 'dialkit-timeline-label'), ruler);
   grid.append(rulerRow);
   const playhead = element('div', 'dialkit-timeline-playhead-control');
   playhead.setAttribute('role', 'slider');
   playhead.tabIndex = 0;
   playhead.setAttribute('aria-label', 'Timeline current time');
+  playhead.dataset.hint = TIMELINE_HINTS.playhead;
   const stem = element('div', 'dialkit-timeline-playhead-stem');
   const anchor = element('div', 'dialkit-timeline-playhead-anchor');
   const flag = element('div', 'dialkit-timeline-playhead-flag');
@@ -649,6 +662,7 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
     const close = element('button', 'dialkit-timeline-popover-close');
     close.title = 'Close editor';
     close.setAttribute('aria-label', close.title);
+    close.dataset.hint = TIMELINE_HINTS.closeEditor;
     close.append(icon('M6 6l12 12M18 6 6 18'));
     close.addEventListener('click', closeEditor);
     heading.append(close);

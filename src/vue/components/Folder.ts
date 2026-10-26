@@ -40,7 +40,7 @@ export const Folder = defineComponent({
   setup(props, { emit, slots }) {
     // A panel's own header, which closes the panel, has a hint by default.
     const headerHint = computed(() => props.hint ?? (props.isRoot && !props.inline ? HINTS.panel : undefined));
-    useHints(() => !!headerHint.value);
+    useHints(() => !!headerHint.value || (!props.isRoot && !!props.onReset));
     const localOpen = ref(props.defaultOpen);
     const isOpen = computed(() => props.open ?? localOpen.value);
     const isCollapsed = computed(() => !isOpen.value);
@@ -152,6 +152,7 @@ export const Folder = defineComponent({
           type: 'button',
           class: 'dialkit-folder-reset',
           'aria-label': `Reset ${props.title}`,
+          'data-hint': HINTS.sectionReset,
           'data-changed': String(props.changed),
           onClick: (event: Event) => {
             event.stopPropagation();

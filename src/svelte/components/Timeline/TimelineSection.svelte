@@ -29,6 +29,7 @@
     ICON_REPLAY,
   } from '../../../icons';
   import { findControl } from '../../../shortcut-utils';
+  import { TIMELINE_HINTS } from '../../../hints';
   import PresetManager from '../PresetManager.svelte';
   import type { DialTheme } from '../DialRoot.svelte';
   import ClipPopover from './ClipPopover.svelte';
@@ -562,6 +563,7 @@
         onclick={() => transport.playing ? TimelineStore.pause(meta.id) : TimelineStore.play(meta.id)}
         title={transport.playing ? 'Pause' : 'Play'}
         aria-label={transport.playing ? 'Pause' : 'Play'}
+        data-hint={TIMELINE_HINTS.play}
       >
         <span style="position:relative;width:16px;height:16px;">
           {#if transport.playing}
@@ -575,7 +577,7 @@
           {/if}
         </span>
       </button>
-      <button class="dialkit-toolbar-add" onclick={handleReplay} title="Replay" aria-label="Replay">
+      <button class="dialkit-toolbar-add" onclick={handleReplay} title="Replay" aria-label="Replay" data-hint={TIMELINE_HINTS.replay}>
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" style="width:16px;height:16px;color:var(--dial-text-label);">
           {#each ICON_REPLAY as path}<path d={path} fill="currentColor" />{/each}
         </svg>
@@ -586,6 +588,7 @@
         aria-pressed={meta.loop}
         aria-label="Loop"
         title={meta.loop ? 'Stop looping' : 'Loop'}
+        data-hint={TIMELINE_HINTS.loop}
         onclick={() => TimelineStore.setLoop(meta.id, !meta.loop)}
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -603,6 +606,7 @@
         onpointercancel={finishOverview}
         onlostpointercapture={finishOverview}
         title="Drag to scrub the full timeline"
+        data-hint={TIMELINE_HINTS.overview}
         role="slider"
         tabindex="0"
         aria-label="Timeline overview"
@@ -628,6 +632,7 @@
         onclick={handleCopy}
         title="Copy parameters"
         aria-label={copied ? 'Copied parameters' : 'Copy parameters'}
+        data-hint={TIMELINE_HINTS.copy}
       >
         <span style="position:relative;width:16px;height:16px;">
           {#if copied}
@@ -648,6 +653,7 @@
         aria-expanded={open}
         onclick={() => { open = !open; }}
         title={open ? 'Collapse timeline' : 'Expand timeline'}
+        data-hint={TIMELINE_HINTS.toggle}
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <path d={ICON_CHEVRON} />
@@ -679,6 +685,7 @@
             onpointercancel={finishRuler}
             onlostpointercapture={finishRuler}
             title="Drag to seek · Option-drag to zoom · Shift-drag to reset zoom"
+            data-hint={TIMELINE_HINTS.ruler}
             role="slider"
             tabindex="0"
             aria-label="Timeline ruler"
@@ -827,6 +834,7 @@
             role="slider"
             tabindex="0"
             aria-label="Timeline current time"
+            data-hint={TIMELINE_HINTS.playhead}
             aria-valuemin={0}
             aria-valuemax={meta.duration}
             aria-valuenow={transport.time}
