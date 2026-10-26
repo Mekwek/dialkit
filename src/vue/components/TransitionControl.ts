@@ -82,6 +82,9 @@ export const TransitionControl = defineComponent({
     },
     hideDuration: { type: Boolean, default: false },
     durationControl: Object as PropType<TransitionDurationControl>,
+    /** Shows a reset button in the header. See Folder.onReset. */
+    onReset: Function as PropType<() => void>,
+    changed: { type: Boolean, default: false },
   },
   emits: ['change'],
   setup(props, { emit }) {
@@ -163,7 +166,7 @@ export const TransitionControl = defineComponent({
         })
         : null;
 
-      return h(Folder, { title: props.label, defaultOpen: true }, {
+      return h(Folder, { title: props.label, defaultOpen: true, onReset: props.onReset, changed: props.changed }, {
         default: () => [
           h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } }, [
             isEasing

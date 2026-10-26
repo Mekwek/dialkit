@@ -8,7 +8,7 @@
   import { folderTransition } from './transitions';
 
   import type { Snippet } from 'svelte';
-  import { ICON_CLOSE, ICON_PANEL, ICON_CHEVRON } from '../../icons';
+  import { ICON_CLOSE, ICON_PANEL, ICON_CHEVRON, ICON_RESET } from '../../icons';
 
   let {
     title,
@@ -19,6 +19,8 @@
     onOpenChange,
     toolbar,
     panelHeightOffset = 0,
+    onReset,
+    changed = false,
     children,
   } = $props<{
     title: string;
@@ -29,6 +31,9 @@
     onOpenChange?: (isOpen: boolean) => void;
     toolbar?: Snippet;
     panelHeightOffset?: number;
+    /** Shows a reset button after the title, visible while `changed` is true. */
+    onReset?: () => void;
+    changed?: boolean;
     children?: Snippet;
   }>();
 
@@ -42,6 +47,7 @@
   let contentRef: HTMLDivElement | undefined;
   let panelRef: HTMLDivElement | undefined;
   let sectionRef = $state<HTMLDivElement>();
+  let headerRef = $state<HTMLDivElement>();
   let sectionTransition = $state<ReturnType<typeof createPanelSectionTransition>>();
 
   $effect(() => {
@@ -222,7 +228,7 @@
 {:else}
   <div bind:this={sectionRef} class:dialkit-folder-section={!!toolbar} class="dialkit-folder" data-open={String(isOpen)}>
     <div class="dialkit-folder-header" onclick={handleToggle}>
-      <div class="dialkit-folder-header-top" role="button" tabindex="0" aria-label={title} aria-expanded={isOpen} onkeydown={(e) => activateOnKey(e, handleToggle)}>
+      <div bind:this={headerRef} class="dialkit-folder-header-top" role="button" tabindex="0" aria-label={title} aria-expanded={isOpen} onkeydown={(e) => activateOnKey(e, handleToggle)}>
         <div class="dialkit-folder-title-row">
           <span class="dialkit-folder-title">{title}</span>
         </div>
@@ -240,6 +246,24 @@
           <path d={ICON_CHEVRON} />
         </svg>
       </div>
+      {#if onReset}
+        <button
+          type="button"
+          class="dialkit-folder-reset"
+          aria-label={`Reset ${title}`}
+          data-changed={String(changed)}
+          onclick={(e) => {
+            e.stopPropagation();
+            // The button hides once the values are back; keep focus in the header.
+            headerRef?.focus();
+            onReset();
+          }}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            {#each ICON_RESET as d (d)}<path {d} />{/each}
+          </svg>
+        </button>
+      {/if}
       {#if toolbar}
         <div class="dialkit-panel-section-toolbar-clip">
           <div class="dialkit-panel-section-toolbar" onclick={(e) => e.stopPropagation()}>{@render toolbar()}</div>

@@ -6,12 +6,15 @@
   import SegmentedControl from './SegmentedControl.svelte';
   import SpringVisualization from './SpringVisualization.svelte';
 
-  let { panelId, path, label, spring, onChange } = $props<{
+  let { panelId, path, label, spring, onChange, onReset, changed = false } = $props<{
     panelId: string;
     path: string;
     label: string;
     spring: SpringConfig;
     onChange: (spring: SpringConfig) => void;
+    /** Shows a reset button in the header. See Folder's onReset. */
+    onReset?: () => void;
+    changed?: boolean;
   }>();
 
   let mode = $state<'simple' | 'advanced'>(DialStore.getSpringMode(panelId, path));
@@ -62,7 +65,7 @@
   };
 </script>
 
-<Folder title={label} defaultOpen={true}>
+<Folder title={label} defaultOpen={true} {onReset} {changed}>
   <div style="display: flex; flex-direction: column; gap: 6px;">
     <SpringVisualization {spring} isSimpleMode={isSimpleMode} />
 

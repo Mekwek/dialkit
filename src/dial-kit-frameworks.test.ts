@@ -14,7 +14,7 @@ import { useDialKitController as useVueDialKitController } from './vue/useDialKi
 import { DialStore, type DialConfig } from './store/DialStore';
 
 const config = { group: {
-  position: { type: 'pad' }, amount: [0.25, 0, 1], enabled: true,
+  _reset: true, position: { type: 'pad' }, amount: [0.25, 0, 1], enabled: true,
   title: { type: 'text', default: 'Example' }, choice: { type: 'select', options: [] },
   accent: { type: 'color' }, cover: { type: 'image' },
   spring: { type: 'spring', visualDuration: 0.3, bounce: 0.2 },
@@ -114,6 +114,11 @@ describe('DialKit framework values', () => {
       assert.deepEqual(JSON.parse(JSON.stringify(dial.values().group)), ${JSON.stringify(changed)});
       dial.resetValues();
       assert.deepEqual(JSON.parse(JSON.stringify(dial.values().group)), ${JSON.stringify(defaults)});
+      // The store keeps its own copies, so an edited spring leaves its default alone.
+      dial.setValues({ group: { spring: { type: 'spring', visualDuration: 0.6, bounce: 0.2 } } });
+      assert.equal(DialStore.isFolderChanged('pad-solid', 'group.spring'), true);
+      DialStore.resetFolder('pad-solid', 'group.spring');
+      assert.deepEqual(DialStore.getValue('pad-solid', 'group.spring'), ${JSON.stringify(config.group.spring)});
       dispose();
       assert.equal(DialStore.getPanel('pad-solid'), undefined);
     `;
@@ -135,6 +140,7 @@ describe('DialKit framework values', () => {
         try {
           flushSync();
           assert.deepEqual(JSON.parse(JSON.stringify(dial.values.group)), ${JSON.stringify(defaults)});
+          assert.equal('_reset' in dial.values.group, false);
           dial.setValues({ group: ${JSON.stringify(updates)} });
           flushSync();
           assert.deepEqual(JSON.parse(JSON.stringify(dial.values.group)), ${JSON.stringify(changed)});

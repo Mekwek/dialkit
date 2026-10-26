@@ -12,6 +12,9 @@ interface SpringControlProps {
   label: string;
   spring: SpringConfig;
   onChange: (spring: SpringConfig) => void;
+  /** Shows a reset button in the header. See Folder.onReset. */
+  onReset?: () => void;
+  changed?: boolean;
 }
 
 export function SpringControl(props: SpringControlProps) {
@@ -58,7 +61,7 @@ export function SpringControl(props: SpringControlProps) {
   };
 
   return (
-    <Folder title={props.label} defaultOpen={true}>
+    <Folder title={props.label} defaultOpen={true} onReset={props.onReset} changed={props.changed}>
       <div style={{ display: 'flex', 'flex-direction': 'column', gap: '6px' }}>
         <SpringVisualization spring={props.spring} isSimpleMode={isSimpleMode()} />
 
