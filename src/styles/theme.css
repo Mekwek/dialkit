@@ -643,7 +643,7 @@
   top: -1px;
   left: 0;
   right: 0;
-  border-top: 1px solid var(--dial-surface-subtle);
+  border-top: 1px solid var(--dial-divider);
   background: var(--dial-glass-bg);
   box-shadow: 0 -1px var(--dial-glass-bg), -12px 0 var(--dial-glass-bg), 12px 0 var(--dial-glass-bg);
   pointer-events: none;
@@ -1334,7 +1334,7 @@
    on it ends on its header. */
 :is(.dialkit-easing-host, .dialkit-easing-viz, .dialkit-spring-viz) ~ .dialkit-folder {
   border-top-style: dashed;
-  border-image: repeating-linear-gradient(90deg, var(--dial-surface-subtle) 0 8px, transparent 0 12px) 1;
+  border-image: var(--dial-nested-line-image);
 }
 
 .dialkit-folder-inner:has(> div > :is(.dialkit-easing-host, .dialkit-easing-viz, .dialkit-spring-viz) ~ .dialkit-folder:last-child) {
@@ -2035,7 +2035,9 @@
 .dialkit-anchor-cell:focus-visible .dialkit-anchor-dot { box-shadow: 0 0 0 3px var(--dial-focus-ring); }
 @media (prefers-reduced-motion: reduce) { .dialkit-anchor-dot { transition: none; } }
 /* Field rows: a `_fields` folder's numbers side by side */
-.dialkit-fields { display: grid; gap: var(--dial-row-gap); min-width: 0; padding-top: var(--dial-row-gap); border-top: 1px solid var(--dial-surface-subtle); }
+.dialkit-fields { display: grid; gap: var(--dial-row-gap); min-width: 0; padding-top: var(--dial-row-gap); border-top: 1px solid var(--dial-divider); }
+/* Inside a folder the line is dashed, like a nested folder's divider. */
+:where(.dialkit-folder:not(.dialkit-folder-root)) .dialkit-fields { border-top-style: dashed; border-image: var(--dial-nested-line-image); }
 /* The line above a row is a folder's divider: a row that opens its folder draws none, and a row right after another keeps neither the line nor the space. */
 .dialkit-folder-inner > .dialkit-fields:first-child, .dialkit-folder-inner > :first-child > .dialkit-fields { border-top: none; }
 .dialkit-fields + .dialkit-fields, .dialkit-fields-host + .dialkit-fields-host > .dialkit-fields { padding-top: 0; border-top: none; }
@@ -2968,7 +2970,7 @@
 .dialkit-hint-tip {
   margin: 4px 0 0;
   padding: 10px 0 2px;
-  border-top: 1px solid var(--dial-surface-subtle);
+  border-top: 1px solid var(--dial-divider);
   color: var(--dial-text-label);
   opacity: 0.8;
   font-size: 12px;
