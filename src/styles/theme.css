@@ -697,7 +697,14 @@
   z-index: 1;
   left: 0;
   right: 0;
-  border-top: 1px solid var(--dial-surface-subtle);
+  border-top: 1px solid var(--dial-divider);
+}
+
+/* Under a pinned header the line is dashed, like a nested divider: the
+   rows passing under it belong to the folder it heads. */
+.dialkit-panel .dialkit-folder:not(.dialkit-folder-root) > .dialkit-folder-header > .dialkit-folder-header-top::before {
+  border-top-style: dashed;
+  border-image: var(--dial-nested-line-image);
 }
 
 /* The panel title keeps its own border and fades below it. */
