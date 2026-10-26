@@ -5,15 +5,22 @@
   position: relative;
 
   /* Surfaces */
-  --dial-surface: rgba(255, 255, 255, 0.05);
-  --dial-surface-hover: rgba(255, 255, 255, 0.1);
-  --dial-surface-active: rgba(255, 255, 255, 0.11);
-  --dial-surface-subtle: rgba(255, 255, 255, 0.06);
+  --dial-surface: rgba(255, 255, 255, 0.03);
+  --dial-surface-hover: rgba(255, 255, 255, 0.06);
+  --dial-surface-active: rgba(255, 255, 255, 0.08);
+  --dial-surface-subtle: rgba(255, 255, 255, 0.04);
+
+  /* Dividers - under the panel header and between folders */
+  --dial-divider: rgba(255, 255, 255, 0.06);
+  /* Folders inside folders get dashed dividers, so the depth reads at a glance */
+  --dial-nested-line-dash: 8px;
+  --dial-nested-line-gap: 4px;
+  --dial-nested-line-image: repeating-linear-gradient(90deg, var(--dial-divider) 0 var(--dial-nested-line-dash), transparent 0 calc(var(--dial-nested-line-dash) + var(--dial-nested-line-gap))) 1;
 
   /* Text hierarchy - 3 levels */
   --dial-text-root: #FFFFFF;   /* Root title */
   --dial-text-section: rgba(255, 255, 255, 0.7); /* Section titles + carets */
-  --dial-text-label: rgba(255, 255, 255, 0.7);   /* Input labels */
+  --dial-text-label: rgba(255, 255, 255, 0.6);   /* Input labels */
   --dial-text-focus: #ffffff;
 
   /* Legacy aliases */
@@ -31,8 +38,8 @@
   --dial-timeline-clip-overlay: transparent;
 
   /* Glassmorphic panel */
-  --dial-glass-bg: #212121;
-  --dial-dropdown-bg: #2a2a2a;
+  --dial-glass-bg: #0d0d0d;
+  --dial-dropdown-bg: #1a1a1a;
   --dial-backdrop-blur: 20px;
   --dial-radius: 8px;
   --dial-row-height: 36px;
@@ -210,7 +217,7 @@
 .dialkit-folder {
   padding-bottom: 8px;
   margin-bottom: 8px;
-  border-bottom: 1px solid var(--dial-surface-subtle);
+  border-bottom: 1px solid var(--dial-divider);
 }
 
 .dialkit-folder:last-child:not(.dialkit-folder-root) {
@@ -227,7 +234,12 @@
 .dialkit-panel-header {
   padding-bottom: 6px;
   margin-bottom: 12px;
-  border-bottom: 1px solid var(--dial-surface-subtle);
+  border-bottom: 1px solid var(--dial-divider);
+}
+
+/* A panel that starts with a folder shares the header's divider. */
+.dialkit-folder-root > .dialkit-panel-header:has(+ .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder:first-child) {
+  margin-bottom: 0;
 }
 
 .dialkit-panel:not([data-mode="inline"]) .dialkit-panel-inner:not([data-collapsed="true"]) > .dialkit-folder-root > .dialkit-panel-header {
@@ -342,11 +354,20 @@
 
 /* Non-root folders - top & bottom HR dividers */
 .dialkit-folder:not(.dialkit-folder-root) {
-  border-top: 1px solid var(--dial-surface-subtle);
-  border-bottom: 1px solid var(--dial-surface-subtle);
+  border-top: 1px solid var(--dial-divider);
+  border-bottom: 1px solid var(--dial-divider);
   margin-top: 4px;
   margin-bottom: 4px;
   padding-bottom: 0;
+}
+
+/* Folders inside folders - dashed dividers. A panel section's own folders keep
+   solid ones. Same specificity as above, so the rules below still remove
+   shared and trailing dividers. */
+:where(.dialkit-folder:not(.dialkit-folder-root):not(.dialkit-folder-section)) .dialkit-folder:not(.dialkit-folder-root) {
+  border-top-style: dashed;
+  border-bottom-style: dashed;
+  border-image: var(--dial-nested-line-image);
 }
 
 .dialkit-folder:not(.dialkit-folder-root):last-child {
@@ -376,8 +397,18 @@
   padding-bottom: 0;
 }
 
-/* A sole group that comes first can share the panel header's divider. */
-.dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder:first-child:not(:has(~ .dialkit-folder)) {
+/* The last folder of a panel ends on the panel's own bottom padding. */
+.dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder:last-child > .dialkit-folder-content > .dialkit-folder-inner {
+  padding-bottom: 0;
+}
+
+/* A folder that ends with a folder ends on that folder's own spacing. */
+.dialkit-folder:not(.dialkit-folder-root) > .dialkit-folder-content > .dialkit-folder-inner:has(> .dialkit-folder:last-child) {
+  padding-bottom: 0;
+}
+
+/* A folder that comes first shares the panel header's divider. */
+.dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder:first-child {
   border-top: none;
   margin-top: 0;
 }
@@ -413,7 +444,7 @@
 .dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder {
   margin: 0;
   padding-bottom: 0;
-  border-top: 1px solid var(--dial-surface-subtle);
+  border-top: 1px solid var(--dial-divider);
   border-bottom: none;
 }
 
@@ -1764,6 +1795,8 @@
   --dial-surface-active: rgba(0, 0, 0, 0.1);
   --dial-surface-subtle: rgba(0, 0, 0, 0.06);
 
+  --dial-divider: rgba(0, 0, 0, 0.08);
+
   --dial-text-root: #000000;
   --dial-text-section: rgba(0, 0, 0, 0.65);
   --dial-text-label: rgba(0, 0, 0, 0.6);
@@ -1811,6 +1844,8 @@
     --dial-surface-hover: rgba(0, 0, 0, 0.08);
     --dial-surface-active: rgba(0, 0, 0, 0.1);
     --dial-surface-subtle: rgba(0, 0, 0, 0.06);
+
+    --dial-divider: rgba(0, 0, 0, 0.08);
 
     --dial-text-root: #000000;
     --dial-text-section: rgba(0, 0, 0, 0.65);
