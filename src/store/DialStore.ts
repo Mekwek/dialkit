@@ -61,7 +61,7 @@ export type DialConfig = {
 };
 
 export type ResolvedValues<T extends DialConfig> = {
-  [K in keyof T]: T[K] extends [number, number, number, number?]
+  [K in keyof T as K extends '_collapsed' | '_hints' ? never : K]: T[K] extends [number, number, number, number?]
     ? number
     : T[K] extends SpringConfig
       ? TransitionConfig
@@ -81,7 +81,7 @@ export type ResolvedValues<T extends DialConfig> = {
 };
 
 export type DialKitValueUpdates<T extends DialConfig> = {
-  [K in keyof T as K extends '_collapsed' ? never : K]?: T[K] extends [number, number, number, number?]
+  [K in keyof T as K extends '_collapsed' | '_hints' ? never : K]?: T[K] extends [number, number, number, number?]
     ? number
     : T[K] extends SpringConfig | EasingConfig
       ? TransitionConfig
@@ -119,6 +119,8 @@ export type ControlMeta = {
   placeholder?: string;
   pad?: DialPadConfig;
   shortcut?: ShortcutConfig;
+  /** A short sentence about the control, from its folder's `_hints`. */
+  hint?: string;
 };
 
 export type PanelConfig = {
@@ -196,7 +198,7 @@ function resolveConfigValues(
   const result: Record<string, unknown> = {};
 
   for (const [key, configValue] of Object.entries(config)) {
-    if (key === '_collapsed') continue;
+    if (isFolderMetaKey(key)) continue;
     const path = prefix ? `${prefix}.${key}` : key;
 
     if (isLeafConfigValue(configValue)) {
@@ -216,7 +218,7 @@ function flattenConfigUpdates(
   values: Record<string, DialValue>
 ): void {
   for (const [key, configValue] of Object.entries(config)) {
-    if (key === '_collapsed' || !(key in updates)) continue;
+    if (isFolderMetaKey(key) || !(key in updates)) continue;
 
     const nextValue = updates[key];
     if (nextValue === undefined) continue;
@@ -242,6 +244,11 @@ function flattenConfigUpdates(
       flattenConfigUpdates(configValue as DialConfig, nextValue as Record<string, unknown>, path, values);
     }
   }
+}
+
+/** Folder metadata such as `_collapsed` configures the folder and is not a value. */
+export function isFolderMetaKey(key: string): boolean {
+  return key === '_collapsed' || key === '_hints';
 }
 
 export function isLeafConfigValue(value: unknown): boolean {
@@ -961,9 +968,10 @@ class DialStoreClass {
     const controlsByPath = new Map<string, ControlMeta>();
     const visit = (config: DialConfig, prefix: string): ControlMeta[] => {
       const controls: ControlMeta[] = [];
+      const hints = config._hints as Record<string, unknown> | undefined;
 
       for (const [key, value] of Object.entries(config)) {
-        if (key === '_collapsed') continue;
+        if (isFolderMetaKey(key)) continue;
         const path = prefix ? `${prefix}.${key}` : key;
         const label = formatLabel(key);
         const shortcut = shortcuts?.[path];
@@ -1020,6 +1028,8 @@ class DialStoreClass {
           };
         }
         if (!control) continue;
+        const hint = hints?.[key];
+        if (typeof hint === 'string' && hint) control.hint = hint;
         controls.push(control);
         controlsByPath.set(path, control);
         if (control.type === 'folder') continue;

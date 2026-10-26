@@ -4,12 +4,12 @@ import { mountImageControl } from '../../image-control';
 
 export const ImageControl = defineComponent({
   name: 'DialKitImageControl',
-  props: { options: Array as PropType<ImageOption[]>, label: { type: String, required: true }, value: { type: String, required: true } },
+  props: { options: Array as PropType<ImageOption[]>, label: { type: String, required: true }, value: { type: String, required: true }, hint: String },
   emits: ['change'],
   setup(props, { emit }) {
     const host = ref<HTMLElement>();
     let control: ReturnType<typeof mountImageControl> | undefined;
-    const options = () => ({ label: props.label, value: props.value, options: props.options, onChange: (value: string) => emit('change', value) });
+    const options = () => ({ label: props.label, value: props.value, options: props.options, hint: props.hint, onChange: (value: string) => emit('change', value) });
     onMounted(() => {
       control = mountImageControl(host.value!, options());
     });

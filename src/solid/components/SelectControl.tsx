@@ -5,7 +5,7 @@ import { Portal } from 'solid-js/web';
 import { animate } from 'motion';
 import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition, type DropdownPosition } from '../../dropdown-position';
 import { ICON_CHEVRON } from '../../icons';
-import { createDropdownDismiss, createDropdownPresence, type AnimationHandle } from '../primitives';
+import { createDropdownDismiss, createDropdownPresence, createHints, type AnimationHandle } from '../primitives';
 
 type SelectOption = string | { value: string; label: string };
 
@@ -14,6 +14,7 @@ interface SelectControlProps {
   value: string;
   options: SelectOption[];
   onChange: (value: string) => void;
+  hint?: string;
 }
 
 function toTitleCase(s: string): string {
@@ -27,6 +28,7 @@ function normalizeOptions(options: SelectOption[]): { value: string; label: stri
 }
 
 export function SelectControl(props: SelectControlProps) {
+  createHints(() => !!props.hint);
   const [pos, setPos] = createSignal<DropdownPosition | null>(null);
   const [portalTarget, setPortalTarget] = createSignal<HTMLElement | null>(null);
   let triggerRef!: HTMLButtonElement;
@@ -100,7 +102,7 @@ export function SelectControl(props: SelectControlProps) {
   };
 
   return (
-    <div class="dialkit-select-row">
+    <div class="dialkit-select-row" data-hint={props.hint}>
       <button
         ref={triggerRef}
         class="dialkit-select-trigger"

@@ -3,6 +3,8 @@ import { createPanelSectionTransition, measurePanelHeight, observePanelHeader } 
 import { useState, useRef, useEffect, useLayoutEffect, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ICON_CLOSE, ICON_PANEL, ICON_CHEVRON } from '../icons';
+import { HINTS } from '../hints';
+import { useHints } from '../hooks/useHints';
 
 interface FolderProps {
   title: string;
@@ -14,9 +16,13 @@ interface FolderProps {
   onOpenChange?: (isOpen: boolean) => void;
   toolbar?: ReactNode;
   panelHeightOffset?: number;
+  hint?: string;
 }
 
-export function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, panelHeightOffset = 0 }: FolderProps) {
+export function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, panelHeightOffset = 0, hint }: FolderProps) {
+  // A panel's own header, which closes the panel, has a hint by default.
+  const headerHint = hint ?? (isRoot && !inline ? HINTS.panel : undefined);
+  useHints(!!headerHint);
   const [localOpen, setIsOpen] = useState(defaultOpen);
   const isOpen = open ?? localOpen;
   const isCollapsed = !isOpen;
@@ -72,7 +78,7 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
       data-open={String(isOpen)}
     >
       <div className={`dialkit-folder-header ${isRoot ? 'dialkit-panel-header' : ''}`} onClick={handleToggle}>
-        <div className="dialkit-folder-header-top" role={inline && isRoot ? undefined : "button"} tabIndex={inline && isRoot ? undefined : 0} aria-label={title} aria-expanded={isOpen} onKeyDown={(e) => activateOnKey(e, handleToggle)}>
+        <div className="dialkit-folder-header-top" data-hint={headerHint} role={inline && isRoot ? undefined : "button"} tabIndex={inline && isRoot ? undefined : 0} aria-label={title} aria-expanded={isOpen} onKeyDown={(e) => activateOnKey(e, handleToggle)}>
           {isRoot ? (
             isOpen && (
               <div className="dialkit-folder-title-row">

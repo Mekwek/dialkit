@@ -3,6 +3,7 @@
 // version. Plain DOM, so every framework mounts the same thing.
 
 import { DialStore } from '../store/DialStore';
+import { HINTS, setHint } from '../hints';
 import { ICON_CLOSE, ICON_GRID, ICON_PLUS } from '../icons';
 import { element, icon, svg, type Mounted } from '../vanilla/dom';
 import { ArrivalStore, saveVersionWithAppshot } from './appshot';
@@ -32,11 +33,13 @@ export function mountVersionGallery(host: HTMLElement, initial: VersionGalleryPr
   const save = element('button', 'dialkit-versions-button');
   save.dataset.primary = 'true';
   save.append(icon(ICON_PLUS, '', '0 0 24 24'), 'Save version');
+  setHint(save, HINTS.saveVersion);
   const toggle = element('button', 'dialkit-versions-button');
   toggle.dataset.icon = 'true';
   const grid = svg('svg', { viewBox: '0 0 24 24', fill: 'currentColor', 'aria-hidden': 'true' });
   for (const d of ICON_GRID) grid.append(svg('path', { d }));
   toggle.append(grid);
+  setHint(toggle, HINTS.allVersions);
   actions.append(save, toggle);
   const strip = element('div', 'dialkit-versions-strip');
   strip.setAttribute('role', 'listbox');
@@ -70,13 +73,12 @@ export function mountVersionGallery(host: HTMLElement, initial: VersionGalleryPr
     // The grid only shows the versions it opened with, so saving waits for it to close.
     save.disabled = !!overview || opening;
     toggle.setAttribute('aria-label', `All versions (${versions.length})`);
-    toggle.title = `All versions (${versions.length})`;
     // Thumbnails appear once there's something to compare.
     strip.hidden = !many;
 
     const keys = new Set(versions.map((v) => v.key));
     for (const [key, node] of thumbs) {
-      if (!keys.has(key)) { node.remove(); thumbs.delete(key); }
+      if (!keys.has(key)) { removeThumb(node); thumbs.delete(key); }
     }
     versions.forEach((version, index) => {
       const node = thumbs.get(version.key) ?? createThumb(version.key);
@@ -107,6 +109,7 @@ export function mountVersionGallery(host: HTMLElement, initial: VersionGalleryPr
   const createThumb = (key: string) => {
     const node = element('div', 'dialkit-version-thumb');
     node.dataset.version = key;
+    setHint(node, HINTS.version);
     const frame = element('button', 'dialkit-version-thumb-frame');
     frame.setAttribute('role', 'option');
     // With the grid open, picking a thumbnail zooms into that version.
@@ -115,17 +118,24 @@ export function mountVersionGallery(host: HTMLElement, initial: VersionGalleryPr
       else void switchTo(key);
     });
     const label = element('span', 'dialkit-version-thumb-label');
-    label.title = 'Double-click to rename';
     label.addEventListener('dblclick', () => rename(key, label));
     node.append(frame, label);
     if (key !== versionKey(null)) {
       const remove = element('button', 'dialkit-version-thumb-delete');
       remove.append(icon(ICON_CLOSE));
+      setHint(remove, HINTS.deleteVersion);
       remove.addEventListener('click', () => deleteVersion(props.panelId, key));
       node.append(remove);
     }
     thumbs.set(key, node);
     return node;
+  };
+
+  const removeThumb = (node: HTMLElement) => {
+    setHint(node, undefined);
+    const remove = node.querySelector<HTMLElement>('.dialkit-version-thumb-delete');
+    if (remove) setHint(remove, undefined);
+    node.remove();
   };
 
   // Inline rename: Enter saves, Escape cancels, blur saves.
@@ -217,7 +227,7 @@ export function mountVersionGallery(host: HTMLElement, initial: VersionGalleryPr
       if (next.panelId !== props.panelId) {
         watcher.stop();
         stopStore();
-        thumbs.forEach((node) => node.remove());
+        thumbs.forEach(removeThumb);
         thumbs.clear();
         watcher = watchVersionThumbnails(next.panelId);
         stopStore = DialStore.subscribe(next.panelId, render);
@@ -234,6 +244,9 @@ export function mountVersionGallery(host: HTMLElement, initial: VersionGalleryPr
       stopThumbnails();
       stopArrivals();
       window.removeEventListener('resize', syncAspect);
+      thumbs.forEach(removeThumb);
+      setHint(save, undefined);
+      setHint(toggle, undefined);
       root.remove();
     },
   };

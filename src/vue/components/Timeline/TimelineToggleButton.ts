@@ -20,7 +20,6 @@ export const TimelineToggleButton = defineComponent({
         'data-active': visible.value || undefined,
         'aria-pressed': visible.value,
         'aria-label': label,
-        title: label,
         onClick: () => TimelineUiStore.toggle(),
       }, [
         h('svg', { viewBox: '0 0 24 24', fill: 'none', 'aria-hidden': 'true' },

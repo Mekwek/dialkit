@@ -2,7 +2,7 @@ import { handleSliderKey } from '../../control-keyboard';
 import { createSignal, createEffect, onMount, onCleanup, Show } from 'solid-js';
 import { animate, motionValue } from 'motion';
 import type { ShortcutConfig } from '../../store/DialStore';
-import type { AnimationHandle } from '../primitives';
+import { createHints, type AnimationHandle } from '../primitives';
 import {
   decimalsForStep,
   roundValue,
@@ -20,6 +20,7 @@ interface SliderProps {
   unit?: string;
   shortcut?: ShortcutConfig;
   shortcutActive?: boolean;
+  hint?: string;
 }
 
 const CLICK_THRESHOLD = 3;
@@ -28,6 +29,7 @@ const MAX_CURSOR_RANGE = 200;
 const MAX_STRETCH = 8;
 
 export function Slider(props: SliderProps) {
+  createHints(() => !!props.hint);
   const min = () => props.min ?? 0;
   const max = () => props.max ?? 1;
   const step = () => props.step ?? 0.01;
@@ -365,7 +367,7 @@ export function Slider(props: SliderProps) {
   };
 
   return (
-    <div ref={wrapperRef} class="dialkit-slider-wrapper">
+    <div ref={wrapperRef} class="dialkit-slider-wrapper" data-hint={props.hint}>
       <div
         ref={trackRef}
         class={`dialkit-slider ${isActive() ? 'dialkit-slider-active' : ''}`}

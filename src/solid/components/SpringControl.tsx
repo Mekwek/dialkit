@@ -1,5 +1,6 @@
 import { DialStore } from '../../store/DialStore';
 import type { SpringConfig } from '../../store/DialStore';
+import { HINTS } from '../../hints';
 import { fromStore } from '../primitives';
 import { Folder } from './Folder';
 import { Slider } from './Slider';
@@ -12,6 +13,7 @@ interface SpringControlProps {
   label: string;
   spring: SpringConfig;
   onChange: (spring: SpringConfig) => void;
+  hint?: string;
 }
 
 export function SpringControl(props: SpringControlProps) {
@@ -58,7 +60,7 @@ export function SpringControl(props: SpringControlProps) {
   };
 
   return (
-    <Folder title={props.label} defaultOpen={true}>
+    <Folder title={props.label} defaultOpen={true} hint={props.hint}>
       <div style={{ display: 'flex', 'flex-direction': 'column', gap: '6px' }}>
         <SpringVisualization spring={props.spring} isSimpleMode={isSimpleMode()} />
 
@@ -84,6 +86,7 @@ export function SpringControl(props: SpringControlProps) {
               max={1}
               step={0.05}
               unit="s"
+              hint={HINTS.springDuration}
             />
             <Slider
               label="Bounce"
@@ -92,6 +95,7 @@ export function SpringControl(props: SpringControlProps) {
               min={0}
               max={1}
               step={0.05}
+              hint={HINTS.bounce}
             />
           </>
         ) : (
@@ -103,6 +107,7 @@ export function SpringControl(props: SpringControlProps) {
               min={1}
               max={1000}
               step={10}
+              hint={HINTS.stiffness}
             />
             <Slider
               label="Damping"
@@ -111,6 +116,7 @@ export function SpringControl(props: SpringControlProps) {
               min={1}
               max={100}
               step={1}
+              hint={HINTS.damping}
             />
             <Slider
               label="Mass"
@@ -119,6 +125,7 @@ export function SpringControl(props: SpringControlProps) {
               min={0.1}
               max={10}
               step={0.1}
+              hint={HINTS.mass}
             />
           </>
         )}

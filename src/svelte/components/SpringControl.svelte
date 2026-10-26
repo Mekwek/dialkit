@@ -1,17 +1,19 @@
 <script lang="ts">
   import { DialStore } from 'dialkit/store';
   import type { SpringConfig } from 'dialkit/store';
+  import { HINTS } from '../../hints';
   import Folder from './Folder.svelte';
   import Slider from './Slider.svelte';
   import SegmentedControl from './SegmentedControl.svelte';
   import SpringVisualization from './SpringVisualization.svelte';
 
-  let { panelId, path, label, spring, onChange } = $props<{
+  let { panelId, path, label, spring, onChange, hint } = $props<{
     panelId: string;
     path: string;
     label: string;
     spring: SpringConfig;
     onChange: (spring: SpringConfig) => void;
+    hint?: string;
   }>();
 
   let mode = $state<'simple' | 'advanced'>(DialStore.getSpringMode(panelId, path));
@@ -62,7 +64,7 @@
   };
 </script>
 
-<Folder title={label} defaultOpen={true}>
+<Folder title={label} defaultOpen={true} {hint}>
   <div style="display: flex; flex-direction: column; gap: 6px;">
     <SpringVisualization {spring} isSimpleMode={isSimpleMode} />
 
@@ -87,6 +89,7 @@
         max={1}
         step={0.05}
         unit="s"
+        hint={HINTS.springDuration}
       />
       <Slider
         label="Bounce"
@@ -95,6 +98,7 @@
         min={0}
         max={1}
         step={0.05}
+        hint={HINTS.bounce}
       />
     {:else}
       <Slider
@@ -104,6 +108,7 @@
         min={1}
         max={1000}
         step={10}
+        hint={HINTS.stiffness}
       />
       <Slider
         label="Damping"
@@ -112,6 +117,7 @@
         min={1}
         max={100}
         step={1}
+        hint={HINTS.damping}
       />
       <Slider
         label="Mass"
@@ -120,6 +126,7 @@
         min={0.1}
         max={10}
         step={0.1}
+        hint={HINTS.mass}
       />
     {/if}
   </div>
