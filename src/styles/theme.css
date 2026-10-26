@@ -623,7 +623,8 @@
   top: 2px;
   bottom: 2px;
   background: var(--dial-surface-active);
-  border-radius: 6px;
+  /* 4px inside the row on every side, so 4px less round than the row. */
+  border-radius: max(0px, calc(var(--dial-radius) - 4px));
   z-index: 0;
   pointer-events: none;
 }
@@ -636,6 +637,7 @@
   font-family: inherit;
   font-size: 13px;
   font-weight: 500;
+  text-align: center;
   background: transparent;
   border: none;
   cursor: pointer;
@@ -754,7 +756,36 @@
 
 .dialkit-labeled-control .dialkit-segmented {
   flex-shrink: 0;
-  margin-right: -6px;
+  /* The track fills the row's height and ends 2px from its right edge, so
+     the pill keeps the same 4px inset on every side. */
+  align-self: stretch;
+  margin-right: -8px;
+}
+
+/* Without a row label, equal segments fill the row. */
+.dialkit-labeled-control[data-hide-label="true"] {
+  padding: 2px;
+}
+
+.dialkit-labeled-control[data-hide-label="true"] .dialkit-segmented {
+  flex: 1;
+  min-width: 0;
+  margin-right: 0;
+}
+
+.dialkit-labeled-control[data-hide-label="true"] .dialkit-segmented-button {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dialkit-segmented-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  margin: 0 auto;
 }
 
 .dialkit-action-button {

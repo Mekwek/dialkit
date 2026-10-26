@@ -1,10 +1,11 @@
-import { DialStore, type Preset } from '../store/DialStore';
+import { DialStore, type Preset, type SelectConfig, type SelectOption } from '../store/DialStore';
 import { observeDropdownKeyboard } from '../dropdown-keyboard';
 import { openDropdownOnKey } from '../control-keyboard';
 import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition } from '../dropdown-position';
 import { findControl, formatToggleShortcut } from '../shortcut-utils';
 import { ICON_CHEVRON, ICON_TRASH, ICON_PLUS, ICON_CHECK } from '../icons';
 import { element, icon, type Mounted } from './dom';
+import { mountSegmentedControl } from './controls';
 export function popupMenu(trigger: HTMLButtonElement, className: string, kind: 'select' | 'presets' | 'help', populate: (popup: HTMLElement) => void) {
   let popup: HTMLDivElement | undefined;
   let stopKeyboard: (() => void) | undefined, stopPosition: (() => void) | undefined;
@@ -70,13 +71,36 @@ export function popupMenu(trigger: HTMLButtonElement, className: string, kind: '
 export interface SelectControlProps {
   label: string;
   value: string;
-  options: (string | {
-    value: string;
-    label: string;
-  })[];
+  options: SelectOption[];
   onChange: (value: string) => void;
+  display?: SelectConfig['display'];
+  hideLabel?: boolean;
+}
+function selectOptions(options: SelectOption[]) {
+  return options.map(option => typeof option === 'string' ? { value: option, label: option.replace(/\b\w/g, c => c.toUpperCase()) } : option);
 }
 export function mountSelectControl(host: HTMLElement, initial: SelectControlProps): Mounted<SelectControlProps> {
+  let props = initial;
+  const mountForm = () => (props.display === 'segmented' ? mountSegmentedSelect : mountSelectDropdown)(host, props);
+  let form = mountForm();
+  return {
+    update(next) {
+      const remount = (next.display === 'segmented') !== (props.display === 'segmented');
+      props = next;
+      if (!remount)
+        return form.update(props);
+      const previous = form;
+      form = mountForm();
+      // The new form takes the old one's place among its siblings.
+      previous.row.before(form.row);
+      previous.destroy();
+    }, destroy() {
+      form.destroy();
+    }
+  };
+}
+type SelectForm = Mounted<SelectControlProps> & { row: HTMLElement };
+function mountSelectDropdown(host: HTMLElement, initial: SelectControlProps): SelectForm {
   let props = initial;
   const row = element('div', 'dialkit-select-row');
   const trigger = element('button', 'dialkit-select-trigger');
@@ -87,7 +111,7 @@ export function mountSelectControl(host: HTMLElement, initial: SelectControlProp
   trigger.append(label, right);
   row.append(trigger);
   host.append(row);
-  const options = () => props.options.map(option => typeof option === 'string' ? { value: option, label: option.replace(/\b\w/g, c => c.toUpperCase()) } : option);
+  const options = () => selectOptions(props.options);
   const menu = popupMenu(trigger, 'dialkit-select-dropdown', 'select', popup => {
     popup.replaceChildren(...options().map(option => {
       const b = element('button', 'dialkit-select-option', option.label);
@@ -107,11 +131,42 @@ export function mountSelectControl(host: HTMLElement, initial: SelectControlProp
   }
   render();
   return {
+    row,
     update(next) {
       props = next;
       render();
     }, destroy() {
       menu.destroy();
+      row.remove();
+    }
+  };
+}
+function mountSegmentedSelect(host: HTMLElement, initial: SelectControlProps): SelectForm {
+  let props = initial;
+  const row = element('div', 'dialkit-labeled-control');
+  const label = element('span', 'dialkit-labeled-control-label');
+  host.append(row);
+  const segmentProps = () => ({ options: selectOptions(props.options), value: props.value, onChange: (value: string) => props.onChange(value), label: props.label });
+  const segmented = mountSegmentedControl(row, segmentProps());
+  function render() {
+    label.textContent = props.label;
+    if (props.hideLabel) {
+      row.dataset.hideLabel = 'true';
+      label.remove();
+    } else {
+      delete row.dataset.hideLabel;
+      row.prepend(label);
+    }
+    segmented.update(segmentProps());
+  }
+  render();
+  return {
+    row,
+    update(next) {
+      props = next;
+      render();
+    }, destroy() {
+      segmented.destroy();
       row.remove();
     }
   };

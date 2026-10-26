@@ -130,6 +130,25 @@ describe('DialStore config lifecycle', () => {
     } finally { DialStore.unregisterPanel(id); }
   });
 
+  it('passes segmented select options through to the control metadata', () => {
+    const id = 'config-segmented';
+    const viewport = { value: 'viewport', label: 'Viewport', icon: ['M4 4H20V20H4Z'] };
+    const config = {
+      layout: { type: 'select', options: ['stack', 'grid'], display: 'segmented' },
+      ratio: { type: 'select', options: ['1:1', viewport], default: '1:1', display: 'segmented', hideLabel: true },
+    } satisfies DialConfig;
+    try {
+      DialStore.registerPanel(id, 'Config', config);
+      const [layout, ratio] = DialStore.getPanel(id)!.controls;
+      assert.equal(layout.display, 'segmented');
+      assert.equal(layout.hideLabel, undefined);
+      assert.deepEqual(ratio, { type: 'select', path: 'ratio', label: 'Ratio', options: ['1:1', viewport], display: 'segmented', hideLabel: true });
+      assert.deepEqual(DialStore.getValues(id), { layout: 'stack', ratio: '1:1' });
+      DialStore.updateValue(id, 'ratio', 'viewport');
+      assert.deepEqual(resolveDialValues(config, DialStore.getValues(id)), { layout: 'stack', ratio: 'viewport' });
+    } finally { DialStore.unregisterPanel(id); }
+  });
+
   it('does not retain an extra registration when an invalid config is rejected', () => {
     const id = 'config-rejected-owner';
     DialStore.registerPanel(id, 'Original', { amount: 1 });

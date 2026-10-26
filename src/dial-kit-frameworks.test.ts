@@ -9,6 +9,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { createRenderer, defineComponent, h, nextTick, reactive } from 'vue';
 import { compileModule } from 'svelte/compiler';
 import { ModuleKind, ScriptTarget, transpileModule } from 'typescript';
+import { SelectControl } from './components/SelectControl';
 import { useDialKitController } from './hooks/useDialKit';
 import { useDialKitController as useVueDialKitController } from './vue/useDialKit';
 import { DialStore, type DialConfig } from './store/DialStore';
@@ -41,6 +42,34 @@ describe('DialKit framework values', () => {
       assert.deepEqual(dial!.values.group, defaults);
     } finally { act(() => renderer?.unmount()); }
     assert.equal(DialStore.getPanel(id), undefined);
+  });
+
+  it('renders a segmented select as radios, naming the group and icon options', () => {
+    const changes: string[] = [];
+    const props = {
+      label: 'Ratio', value: '1:1', onChange: (value: string) => changes.push(value), display: 'segmented' as const,
+      options: ['1:1', { value: 'viewport', label: 'Viewport', icon: ['M4 4H20V20H4Z'] }],
+    };
+    let renderer: ReactTestRenderer | undefined;
+    try {
+      act(() => { renderer = create(createElement(SelectControl, props)); });
+      const labels = () => renderer!.root.findAll(node => node.props.className === 'dialkit-labeled-control-label');
+      const radios = () => renderer!.root.findAll(node => node.type === 'button' && node.props.role === 'radio');
+      const groupName = () => renderer!.root.findByProps({ role: 'radiogroup' }).props['aria-label'];
+      assert.equal(labels().length, 1);
+      assert.equal(groupName(), 'Ratio');
+      assert.deepEqual(radios().map(radio => [radio.props['aria-checked'], radio.props['aria-label']]), [[true, undefined], [false, 'Viewport']]);
+      assert.equal(radios()[1].findAllByType('path').length, 1);
+      act(() => radios()[1].props.onClick());
+      assert.deepEqual(changes, ['viewport']);
+      act(() => renderer!.update(createElement(SelectControl, { ...props, hideLabel: true })));
+      assert.equal(labels().length, 0);
+      assert.equal(renderer!.root.findByProps({ className: 'dialkit-labeled-control' }).props['data-hide-label'], 'true');
+      assert.equal(groupName(), 'Ratio');
+      act(() => renderer!.update(createElement(SelectControl, { ...props, hideLabel: false })));
+      assert.equal(labels().length, 1);
+      assert.equal(groupName(), 'Ratio');
+    } finally { act(() => renderer?.unmount()); }
   });
 
   it('updates and resets the Vue computed controller values', () => {
