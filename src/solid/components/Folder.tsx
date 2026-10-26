@@ -66,8 +66,12 @@ export function Folder(props: FolderProps) {
     );
   }, { defer: true }));
 
+  // motion's stop() does not cancel an animation that has reached its end but
+  // not yet reported it, so a close may only unmount while it is the latest change.
+  let generation = 0;
   createEffect(on(isOpen, (next) => {
     if (isSection) return;
+    const current = ++generation;
     if (next) {
       sectionAnim?.stop();
       sectionAnim = null;
@@ -97,6 +101,7 @@ export function Folder(props: FolderProps) {
         {
           ...sectionTransition,
           onComplete: () => {
+            if (current !== generation) return;
             setContentMounted(false);
             sectionAnim = null;
             sectionContentRef = undefined;

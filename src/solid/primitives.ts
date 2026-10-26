@@ -41,7 +41,9 @@ export interface DropdownPresence {
  * Mount/unmount bookkeeping for an animated dropdown: `open()` mounts
  * immediately (the call site's ref callback runs the enter animation),
  * `close()` plays the provided exit animation and unmounts on completion.
- * Interrupted exits are stopped and re-opened cleanly.
+ * Opening during an exit remounts the dropdown, so its enter animation runs
+ * again. motion's `stop()` does not cancel an animation that has reached its
+ * end but not yet reported it, so only the latest close may unmount.
  */
 export function createDropdownPresence(
   animateExit: (el: HTMLElement, done: () => void) => AnimationHandle
@@ -50,12 +52,17 @@ export function createDropdownPresence(
   const [mounted, setMounted] = createSignal(false);
   let el: HTMLElement | undefined;
   let exitAnim: AnimationHandle | null = null;
+  let generation = 0;
 
   onCleanup(() => exitAnim?.stop());
 
   const open = () => {
-    exitAnim?.stop();
-    exitAnim = null;
+    generation++;
+    if (exitAnim) {
+      exitAnim.stop();
+      exitAnim = null;
+      setMounted(false);
+    }
     setMounted(true);
     setIsOpen(true);
   };
@@ -67,7 +74,9 @@ export function createDropdownPresence(
       return;
     }
     exitAnim?.stop();
+    const current = ++generation;
     exitAnim = animateExit(el, () => {
+      if (current !== generation) return;
       setMounted(false);
       exitAnim = null;
     });
