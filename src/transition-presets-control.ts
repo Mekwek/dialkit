@@ -1,6 +1,7 @@
 import { DialStore } from './store/DialStore';
 import type { CopiedTransition, TransitionConfig, TransitionMode } from './store/DialStore';
 import { handleSegmentKey } from './control-keyboard';
+import { setHint } from './hints';
 import { ICON_CHECK, ICON_CLOSE, ICON_COPY, ICON_MORE, ICON_PASTE } from './icons';
 import { springParams, springProgress, springRestDuration, springSettleDuration } from './transition-math';
 import { applyTransitionPreset, defaultTransitionPresets, sameTransition, type TransitionPresetOption } from './transition-presets';
@@ -116,10 +117,13 @@ export function mountTransitionPresets(host: HTMLElement, initial: TransitionPre
   host.append(root);
 
   function buildItems(options: (TransitionPresetOption & { id?: string })[]) {
+    items.forEach(item => setHint(item.pick, undefined));
     items = options.map(option => {
       const item = element('div', 'dialkit-transition-preset');
       const pick = element('button', 'dialkit-transition-preset-pick');
       pick.append(thumbnail(option.value), element('span', 'dialkit-transition-preset-name', option.name));
+      // Hold H over a built-in preset to read how it moves.
+      setHint(pick, option.description);
       pick.addEventListener('click', () => props.onChange(applyTransitionPreset(props.value, option.value, props.mode)));
       item.append(pick);
       if (option.id) {
@@ -178,7 +182,12 @@ export function mountTransitionPresets(host: HTMLElement, initial: TransitionPre
       props = next;
       render();
     },
-    destroy() { stop(); resize?.disconnect(); root.remove(); },
+    destroy() {
+      stop();
+      resize?.disconnect();
+      items.forEach(item => setHint(item.pick, undefined));
+      root.remove();
+    },
   };
 }
 
