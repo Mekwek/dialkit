@@ -10,7 +10,7 @@ export function measurePanelHeight(content: HTMLElement): number {
   return content.offsetHeight + chrome;
 }
 
-/** Keep nested panel headers below the root's title and optional toolbar. */
+/** Keep nested folder headers below a panel's title and optional toolbar. */
 export function observePanelHeader(folder: HTMLElement): () => void {
   const header = folder.firstElementChild as HTMLElement | null;
   if (!header) return () => {};
@@ -23,6 +23,46 @@ export function observePanelHeader(folder: HTMLElement): () => void {
   return () => {
     observer.disconnect();
     folder.style.removeProperty('--dial-panel-header-height');
+  };
+}
+
+/**
+ * The scroll fades for browsers without CSS scroll-state queries. Marks
+ * pinned folder headers (`data-stuck`) and a panel with more rows below
+ * (`data-more`), which theme.css reads like the queries. Where the queries
+ * exist, it does nothing. One passive scroll listener and a size observer,
+ * at most one pass a frame: reads first, then writes.
+ */
+export function observeScrollFades(root: HTMLElement): () => void {
+  const scroller = root.parentElement;
+  if (!scroller || typeof CSS === 'undefined' || CSS.supports('container-type', 'scroll-state')) return () => {};
+  let frame = 0;
+  const update = () => {
+    frame = 0;
+    const headers = Array.from(root.querySelectorAll<HTMLElement>('.dialkit-folder-header'));
+    const stuck = headers.map((header) => {
+      if (header.parentElement === root) return scroller.scrollTop > 0;
+      const folder = header.parentElement!;
+      return header.getBoundingClientRect().top - folder.getBoundingClientRect().top - folder.clientTop > 0.5;
+    });
+    const more = scroller.scrollTop + scroller.clientHeight < scroller.scrollHeight - 1;
+    headers.forEach((header, index) => header.toggleAttribute('data-stuck', stuck[index]));
+    scroller.toggleAttribute('data-more', more);
+  };
+  const schedule = () => {
+    if (!frame) frame = requestAnimationFrame(update);
+  };
+  const resize = new ResizeObserver(schedule);
+  resize.observe(root);
+  resize.observe(scroller);
+  scroller.addEventListener('scroll', schedule, { passive: true });
+  schedule();
+  return () => {
+    resize.disconnect();
+    scroller.removeEventListener('scroll', schedule);
+    cancelAnimationFrame(frame);
+    for (const header of root.querySelectorAll('[data-stuck]')) header.removeAttribute('data-stuck');
+    scroller.removeAttribute('data-more');
   };
 }
 
@@ -60,6 +100,8 @@ export function createPanelSectionTransition(folder: HTMLElement, initiallyOpen:
   const toolbar = folder.querySelector<HTMLElement>(':scope > .dialkit-folder-header > .dialkit-panel-section-toolbar-clip')!;
   let open = initiallyOpen;
   let panel: HTMLElement | null = null;
+  // The toolbar folds with the section, so folders pinned below follow its height.
+  const stopHeader = observePanelHeader(folder);
   finishSectionFold({ content, toolbar, open });
 
   return {
@@ -149,6 +191,7 @@ export function createPanelSectionTransition(folder: HTMLElement, initiallyOpen:
       tick(started);
     },
     destroy() {
+      stopHeader();
       if (!panel) return;
       const group = panelFolds.get(panel);
       group?.sections.delete(folder);
