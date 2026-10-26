@@ -163,7 +163,7 @@ Define controls with an object. Keys become labels; returned values keep the sam
 | Folder | `shadow: { blur: [12, 0, 40] }` | Nested values |
 | Field row | `scale: { _fields: true, x: [1, 0, 3], y: [1, 0, 3] }` | Nested numbers |
 
-Slider tuples use `[default, min, max, step?, unit?]`; the unit shows after the value. Add `_collapsed: true` inside a folder to start it closed, or `_reset: true` to show a reset button beside its title once a value inside changes. The button restores that folder's defaults, nested folders included. Spring and easing controls get the same button in their own header, without `_reset`. Add `_hints` to [explain its controls](#hints). Folder metadata is omitted from returned values.
+Slider tuples use `[default, min, max, step?, unit?]`; the unit shows after the value. Add `_collapsed: true` inside a folder to start it closed, or `_reset: true` to show a reset button beside its title once a value inside changes. The button restores that folder's defaults, nested folders included. Spring, easing and background controls get the same button in their own header, without `_reset`. Add `_hints` to [explain its controls](#hints). Folder metadata is omitted from returned values.
 
 An XY pad takes the same tuples for `x` and `y`; add `hideLabel: true` to let its axis fields fill the row, and `dragLabels: true` to drag an axis label to change its value.
 

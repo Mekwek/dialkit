@@ -43,7 +43,7 @@
 
   const controlValue = $derived(values[control.path]);
   // The reset button of the folder this control draws: a `_reset` folder, a
-  // spring, or a transition. A folder reset adds to the count its children get.
+  // spring, a transition, or a background. A folder reset adds to the count its children get.
   let folderResets = $state(0);
   const changed = $derived.by(() => {
     values;
@@ -191,7 +191,7 @@
     onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
   />
 {:else if control.type === 'background'}
-  <Folder title={control.label} defaultOpen={true} hint={control.hint}>
+  <Folder title={control.label} defaultOpen={true} hint={control.hint} {onReset} {changed}>
     <BackgroundControl
       {panelId}
       label={control.label}

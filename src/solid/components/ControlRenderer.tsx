@@ -104,7 +104,7 @@ export function ControlRenderer(props: ControlRendererProps) {
   // Counts folder resets, so sliders can spring to the values a reset sets.
   const [resetCount, setResetCount] = createSignal(0);
 
-  // The reset button of the folder a control draws: a `_reset` folder, a spring, or a transition.
+  // The reset button of the folder a control draws: a `_reset` folder, a spring, a transition, or a background.
   const resetProps = (control: ControlMeta) => {
     if (!control.reset) return {};
     const changed = createMemo(on(() => props.values, () => DialStore.isFolderChanged(props.panelId, control.path)));
@@ -275,7 +275,7 @@ export function ControlRenderer(props: ControlRendererProps) {
         );
       case 'background':
         return (
-          <Folder title={control.label} defaultOpen={true} hint={control.hint}>
+          <Folder title={control.label} defaultOpen={true} hint={control.hint} {...reset}>
             <BackgroundControl
               panelId={props.panelId}
               label={control.label}

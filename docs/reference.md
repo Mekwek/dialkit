@@ -305,7 +305,7 @@ const values = useDialKit("Card", {
 
 `_reset: true` shows a reset button beside the folder title while any value inside, nested folders included, differs from its default. It restores only that folder and saves to the active version like any other edit. Clicking it springs the folder's sliders back; sliders inside spring and easing editors move at once. From code, `DialStore.resetFolder("card", "shadow")` resets without the spring, and `DialStore.isFolderChanged("card", "shadow")` reports whether the button shows.
 
-Spring and easing controls draw a folder of their own, and its header gets the same button without `_reset`: it shows once the curve or its mode differs from the default, and restores both. The store methods take the control's path, as in `DialStore.resetFolder("card", "enter")` for an `enter` spring.
+Spring and easing controls draw a folder of their own, and its header gets the same button without `_reset`: it shows once the curve or its mode differs from the default, and restores both. A background's folder gets it too, and restores the default background. The store methods take the control's path, as in `DialStore.resetFolder("card", "enter")` for an `enter` spring.
 
 `_hints` maps the keys of a folder's controls, nested folders included, to a short sentence. Hold H over a control, or with it focused, to show its hint; the rest of the panel dims. Like `_collapsed`, it is omitted from resolved values.
 

@@ -188,6 +188,21 @@ describe('Background control store', () => {
     } finally { DialStore.unregisterPanel(id); }
   });
 
+  it('resets a background from its own folder', () => {
+    const id = 'background-reset';
+    try {
+      DialStore.registerPanel(id, 'Background', { backdrop: { type: 'background', default: { mode: 'gradient' } } });
+      const initial = DialStore.getValue(id, 'backdrop');
+      assert.equal(DialStore.getPanel(id)!.controls[0].reset, true);
+      assert.equal(DialStore.isFolderChanged(id, 'backdrop'), false);
+      DialStore.updateValues(id, { backdrop: { mode: 'solid', color: '#123456' } as BackgroundValue });
+      assert.equal(DialStore.isFolderChanged(id, 'backdrop'), true);
+      DialStore.resetFolder(id, 'backdrop');
+      assert.deepEqual(DialStore.getValue(id, 'backdrop'), initial);
+      assert.equal(DialStore.isFolderChanged(id, 'backdrop'), false);
+    } finally { DialStore.unregisterPanel(id); }
+  });
+
   it('keeps saved gradients in memory and leaves storage alone without persist', () => withStorage((storage, writes) => {
     const id = 'background-saved';
     try {

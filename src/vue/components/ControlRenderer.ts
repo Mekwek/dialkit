@@ -45,7 +45,7 @@ export const ControlRenderer = defineComponent({
     const shortcut = inject(ShortcutKey, undefined);
     // Counts folder resets, so sliders can spring to the values a reset sets.
     const resetCount = ref(0);
-    // The reset button of the folder a control draws: a `_reset` folder, a spring, or a transition.
+    // The reset button of the folder a control draws: a `_reset` folder, a spring, a transition, or a background.
     const resetProps = (control: ControlMeta) => control.reset ? {
       changed: DialStore.isFolderChanged(props.panelId, control.path),
       onReset: () => {
@@ -198,6 +198,7 @@ export const ControlRenderer = defineComponent({
             title: control.label,
             defaultOpen: true,
             hint: control.hint,
+            ...resetProps(control),
           }, {
             default: () => h(BackgroundControl, {
               panelId: props.panelId,

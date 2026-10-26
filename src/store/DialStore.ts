@@ -176,7 +176,7 @@ export type ControlMeta = {
   unit?: string;
   children?: ControlMeta[];
   defaultOpen?: boolean;
-  /** The folder drawn for this control shows a reset button: `_reset` folders, springs, and transitions. */
+  /** The folder drawn for this control shows a reset button: `_reset` folders, springs, transitions, and backgrounds. */
   reset?: boolean;
   /** Folder only: `_fields: true` shows its numbers as one row of fields. */
   fields?: boolean;
@@ -753,8 +753,8 @@ class DialStoreClass {
 
   /**
    * Restore the defaults behind a folder's reset button: every value inside a
-   * `_reset` folder, nested folders included, or a spring or transition's own
-   * value. Saves like any other edit.
+   * `_reset` folder, nested folders included, or a spring, transition or
+   * background's own value. Saves like any other edit.
    */
   resetFolder(panelId: string, path: string): void {
     const panel = this.panels.get(panelId);
@@ -1418,7 +1418,7 @@ class DialStoreClass {
         } else if (isAnchorConfigValue(value)) {
           control = { type: 'anchor', path, label, anchor: value };
         } else if (isBackgroundConfigValue(value)) {
-          control = { type: 'background', path, label, background: value };
+          control = { type: 'background', path, label, background: value, reset: true };
         } else if (typeof value === 'string') {
           // Auto-detect: hex color vs text
           if (parseColor(value) && value !== 'transparent') {
