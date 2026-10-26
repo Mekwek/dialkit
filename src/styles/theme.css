@@ -2089,7 +2089,6 @@
 .dialkit-fields-input { min-width: 0; width: 100%; border: 0; padding: 0; background: transparent; color: var(--dial-text-focus); text-align: right; font: 500 13px 'Geist Mono', monospace; outline: none; }
 .dialkit-fields-field:hover, .dialkit-fields-field:focus-within, .dialkit-fields-field[data-scrubbing] { background: var(--dial-surface-hover); }
 .dialkit-fields-field[data-scrubbing] .dialkit-fields-value { color: var(--dial-text-focus); }
-.dialkit-fields-input:focus-visible { box-shadow: inset 0 -1px var(--dial-focus-ring); }
 @media (prefers-reduced-motion: reduce) { .dialkit-fields-reset, .dialkit-fields-reset:not([data-changed]) { rotate: none; animation: none; } }
 
 /* Color Control */
@@ -4068,7 +4067,7 @@
 .dialkit-color-control:has(.dialkit-color-value:focus-visible:not([data-pointer-focus])),
 .dialkit-text-control:has(.dialkit-text-input:focus-visible:not([data-pointer-focus])),
 .dialkit-labeled-control:has(.dialkit-text-input:focus-visible:not([data-pointer-focus])),
-.dialkit-fields-field:has(.dialkit-fields-value:focus-visible:not([data-pointer-focus])) {
+.dialkit-fields-field:has(.dialkit-fields-input:focus-visible:not([data-pointer-focus])) {
   outline: 2px solid var(--dial-focus-ring);
   outline-offset: -2px;
 }
