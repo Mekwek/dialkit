@@ -188,6 +188,8 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
   const presets = mountPresetManager(actions, presetProps());
   let copyTimer: ReturnType<typeof setTimeout> | undefined;
   let destroyed = false;
+  // Ruler width the rows were last laid out at; a resize to the same width needs no rebuild.
+  let renderedWidth = -1;
   const copy = button('Copy parameters', [ICON_CLIPBOARD_PLAIN.board, ICON_CLIPBOARD_PLAIN.body], async () => {
     try {
       await navigator.clipboard.writeText(buildCopyInstruction('createDialTimeline', meta.name, normalizeTimelineValuesForCopy(DialStore.getValues(meta.id), meta.clips)));
@@ -384,6 +386,7 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
     collapse.setAttribute('aria-label', collapse.title);
     viewStart = clamp(viewStart, 0, Math.max(0, meta.duration - visibleDuration()));
     const px = scale();
+    renderedWidth = width();
     ruler.replaceChildren();
     const tickSteps = [0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600];
     let major = tickSteps.find(t => t >= 140 / (px || 1)) ?? 600;
@@ -629,7 +632,10 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
   }
   const stopValues = DialStore.subscribe(meta.id, render);
   const stopTransport = TimelineStore.subscribe(meta.id, transport);
-  const observer = new ResizeObserver(render);
+  const observer = new ResizeObserver(() => {
+    if (width() !== renderedWidth)
+      render();
+  });
   observer.observe(ruler);
   render();
   return {
