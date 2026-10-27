@@ -126,6 +126,8 @@ export function ControlRenderer(props: ControlRendererProps) {
             x={control.pad?.x}
             y={control.pad?.y}
             labels={control.pad?.labels}
+            hideLabel={control.pad?.hideLabel}
+            dragLabels={control.pad?.dragLabels}
             onChange={(next) => DialStore.updateValue(props.panelId, control.path, next)}
           />
         );

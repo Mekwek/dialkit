@@ -114,6 +114,8 @@ export const ControlRenderer = defineComponent({
             x: control.pad?.x,
             y: control.pad?.y,
             labels: control.pad?.labels,
+            hideLabel: control.pad?.hideLabel,
+            dragLabels: control.pad?.dragLabels,
             onChange: (next: DialPadValue) => DialStore.updateValue(props.panelId, control.path, next),
           });
         case 'action':

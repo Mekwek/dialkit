@@ -10,6 +10,10 @@ export type DialPadConfig = {
   /** Positive Y points upward. Defaults to [0, -1, 1, 0.01]. */
   y?: DialPadAxis;
   labels?: { x?: string; y?: string };
+  /** Hides the label box; the fields fill the row, and the label still names the pad. */
+  hideLabel?: boolean;
+  /** Drag an axis label left or right to change its value. */
+  dragLabels?: boolean;
 };
 
 export type PadAxis = { default: number; min: number; max: number; step: number };
@@ -72,4 +76,20 @@ export function padValueFromKey(value: DialPadValue, key: string, shift: boolean
   const range = resolvePadAxis(config[axis]);
   const direction = key === 'ArrowRight' || key === 'ArrowUp' ? 1 : -1;
   return { ...value, [axis]: snapPadAxis(value[axis] + direction * range.step * (shift ? 10 : 1), range) };
+}
+
+/**
+ * Dragging an axis label moves its value one step per pixel, or ten with Shift.
+ * The result is clamped but not snapped, so fractional pointer moves add up.
+ */
+export function padValueFromDrag(value: number, distance: number, shift: boolean, config?: DialPadAxis): number {
+  const axis = resolvePadAxis(config);
+  return Math.max(axis.min, Math.min(axis.max, value + distance * axis.step * (shift ? 10 : 1)));
+}
+
+/** The accessible name of an axis field; a name that already starts with the pad label stands alone. */
+export function padAxisLabel(label: string, name: string): string {
+  const axis = name.toLowerCase();
+  const pad = label.toLowerCase();
+  return axis === pad || axis.startsWith(`${pad} `) ? name : `${label} ${name}`;
 }

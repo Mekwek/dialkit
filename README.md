@@ -161,6 +161,8 @@ Define controls with an object. Keys become labels; returned values keep the sam
 
 Slider tuples use `[default, min, max, step?, unit?]`; the unit shows after the value. Add `_collapsed: true` inside a folder to start it closed. Folder metadata is omitted from returned values.
 
+An XY pad takes the same tuples for `x` and `y`; add `hideLabel: true` to let its axis fields fill the row, and `dragLabels: true` to drag an axis label to change its value.
+
 Spring and easing controls share an editor with **Easing**, **Time**, and **Physics** modes. Color controls accept hex, RGB, HSL, OKLCH, and Display P3. Image controls support local uploads up to 10 MB; files stay in the browser.
 
 See the [control reference](https://github.com/joshpuckett/dialkit/blob/main/docs/reference.md#controls) for configuration and editing details.
