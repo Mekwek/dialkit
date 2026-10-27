@@ -18,6 +18,8 @@
     inline = false,
     onOpenChange,
     toolbar,
+    meta,
+    actions,
     panelHeightOffset = 0,
     onReset,
     changed = false,
@@ -30,6 +32,10 @@
     inline?: boolean;
     onOpenChange?: (isOpen: boolean) => void;
     toolbar?: Snippet;
+    /** Short text at the end of a nested folder's title row, such as the preset in use. */
+    meta?: string;
+    /** Buttons beside the title of a nested folder, such as a transition's copy and paste. */
+    actions?: Snippet;
     panelHeightOffset?: number;
     /** Shows a reset button after the title, visible while `changed` is true. */
     onReset?: () => void;
@@ -230,9 +236,12 @@
 {:else}
   <div bind:this={sectionRef} class:dialkit-folder-section={!!toolbar} class="dialkit-folder" data-open={String(isOpen)}>
     <div class="dialkit-folder-header" onclick={handleToggle}>
-      <div bind:this={headerRef} class="dialkit-folder-header-top" role="button" tabindex="0" aria-label={title} aria-expanded={isOpen} onkeydown={(e) => activateOnKey(e, handleToggle)}>
+      <div bind:this={headerRef} class="dialkit-folder-header-top" role="button" tabindex="0" aria-label={meta ? `${title}, ${meta}` : title} aria-expanded={isOpen} onkeydown={(e) => activateOnKey(e, handleToggle)}>
         <div class="dialkit-folder-title-row">
           <span class="dialkit-folder-title">{title}</span>
+          {#if meta}
+            <span class="dialkit-folder-meta">{meta}</span>
+          {/if}
         </div>
 
         <svg
@@ -265,6 +274,9 @@
             {#each ICON_RESET as d (d)}<path {d} />{/each}
           </svg>
         </button>
+      {/if}
+      {#if actions && !isRoot}
+        <div class="dialkit-folder-actions">{@render actions()}</div>
       {/if}
       {#if toolbar}
         <div class="dialkit-panel-section-toolbar-clip">

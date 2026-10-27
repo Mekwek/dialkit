@@ -1,11 +1,14 @@
-import { formatEase, parseEase } from '../easing-geometry';
-import { SpringConfig, EasingConfig, TransitionConfig, DialStore } from '../store/DialStore';
+import { createEaseIntensity } from '../easing-geometry';
+import { mountEaseFields, type EaseFieldsProps } from '../easing-control';
+import { SpringConfig, EasingConfig, TransitionConfig, DialStore, type CopiedTransition } from '../store/DialStore';
+import { transitionPresetName } from '../transition-presets';
+import { mountTransitionCopy, mountTransitionPresets, type TransitionCopyProps, type TransitionPresetsProps } from '../transition-presets-control';
 import { Folder } from './Folder';
 import { Slider } from './Slider';
 import { SegmentedControl } from './SegmentedControl';
 import { SpringVisualization } from './SpringVisualization';
 import { EasingVisualization } from './EasingVisualization';
-import { useCallback, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 interface TransitionControlProps {
   panelId: string;
@@ -30,6 +33,9 @@ interface TransitionControlProps {
 
 type CurveMode = 'easing' | 'simple' | 'advanced';
 
+const subscribeTransitions = (callback: () => void) => DialStore.subscribeTransitions(callback);
+const getTransitionPresets = () => DialStore.getTransitionPresets();
+
 export function TransitionControl({
   panelId,
   path,
@@ -50,6 +56,7 @@ export function TransitionControl({
     [panelId, path]
   );
   const mode = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const savedPresets = useSyncExternalStore(subscribeTransitions, getTransitionPresets, getTransitionPresets);
 
   const isEasing = mode === 'easing';
   const isSimpleSpring = mode === 'simple';
@@ -89,6 +96,14 @@ export function TransitionControl({
     }
   };
 
+  // Intensity scales the curve it started from; 50% is that curve.
+  const [intensity] = useState(createEaseIntensity);
+
+  const handlePaste = (copied: CopiedTransition) => {
+    DialStore.updateTransitionMode(panelId, path, copied.mode);
+    onChange(copied.value);
+  };
+
   const handleSpringUpdate = (key: keyof SpringConfig, val: number) => {
     if (isSimpleSpring) {
       const { stiffness, damping, mass, ...rest } = spring;
@@ -108,22 +123,16 @@ export function TransitionControl({
         else handleSpringUpdate('visualDuration', next);
       })}
       min={durationControl?.min ?? 0.1}
-      max={durationControl?.max ?? (isEasing ? 2 : 1)}
+      max={durationControl?.max ?? (isEasing ? 2 : 5)}
       step={durationControl?.step ?? 0.05}
       unit="s"
     />
   ) : null;
 
   return (
-    <Folder title={label} defaultOpen={true} onReset={onReset} changed={changed}>
+    <Folder title={label} defaultOpen={true} onReset={onReset} changed={changed} actions={<TransitionCopy mode={mode} value={isEasing ? easing : spring} onPaste={handlePaste} />}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {isEasing ? (
-          <EasingVisualization easing={easing} onChange={(ease) => onChange({ ...easing, ease })} />
-        ) : (
-          <SpringVisualization spring={spring} isSimpleMode={isSimpleSpring} />
-        )}
-
-        <div className="dialkit-labeled-control">
+        <div className="dialkit-labeled-control dialkit-transition-type">
           <span className="dialkit-labeled-control-label">Type</span>
           <SegmentedControl
             options={[
@@ -137,8 +146,23 @@ export function TransitionControl({
         </div>
 
         {isEasing ? (
+          <EasingVisualization easing={easing} onChange={(ease) => onChange({ ...easing, ease })} />
+        ) : (
+          <SpringVisualization spring={spring} isSimpleMode={isSimpleSpring} />
+        )}
+
+        {isEasing ? (
           <>
-            <EaseTextInput ease={easing.ease} onChange={(newEase) => onChange({ ...easing, ease: newEase })} />
+            <EaseFields ease={easing.ease} onChange={(ease) => onChange({ ...easing, ease })} />
+            <Slider
+              label="Intensity"
+              value={intensity.read(easing.ease)}
+              onChange={(v) => onChange({ ...easing, ease: intensity.apply(easing.ease, v) })}
+              min={0}
+              max={100}
+              step={1}
+              unit="%"
+            />
           </>
         ) : isSimpleSpring ? (
           <Slider label="Bounce" value={spring.bounce ?? 0.2} onChange={(v) => handleSpringUpdate('bounce', v)} min={0} max={1} step={0.05} />
@@ -150,46 +174,50 @@ export function TransitionControl({
           </>
         )}
         {durationSlider}
+
+        <Folder title="Presets" defaultOpen={false} meta={transitionPresetName(isEasing ? easing : spring, mode, savedPresets)}>
+          <TransitionPresets mode={mode} value={isEasing ? easing : spring} onChange={onChange} />
+        </Folder>
       </div>
     </Folder>
   );
 }
 
-function EaseTextInput({ ease, onChange }: { ease: [number, number, number, number]; onChange: (ease: [number, number, number, number]) => void }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState('');
+function TransitionPresets(props: TransitionPresetsProps) {
+  const host = useRef<HTMLDivElement>(null);
+  const control = useRef<ReturnType<typeof mountTransitionPresets>>();
+  const latest = useRef(props);
+  latest.current = props;
+  useEffect(() => {
+    control.current = mountTransitionPresets(host.current!, latest.current);
+    return () => control.current?.destroy();
+  }, []);
+  useEffect(() => { control.current?.update(props); });
+  return <div ref={host} />;
+}
 
-  const handleFocus = () => {
-    setDraft(formatEase(ease));
-    setEditing(true);
-  };
+function TransitionCopy(props: TransitionCopyProps) {
+  const host = useRef<HTMLDivElement>(null);
+  const control = useRef<ReturnType<typeof mountTransitionCopy>>();
+  const latest = useRef(props);
+  latest.current = props;
+  useEffect(() => {
+    control.current = mountTransitionCopy(host.current!, latest.current);
+    return () => control.current?.destroy();
+  }, []);
+  useEffect(() => { control.current?.update(props); });
+  return <div ref={host} />;
+}
 
-  const handleBlur = () => {
-    const parsed = parseEase(draft);
-    if (parsed) onChange(parsed);
-    setEditing(false);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      (e.target as HTMLInputElement).blur();
-    }
-  };
-
-  return (
-    <div className="dialkit-labeled-control">
-      <span className="dialkit-labeled-control-label">Ease</span>
-      <input
-        type="text"
-        aria-label="Bézier coordinates"
-        className="dialkit-text-input"
-        value={editing ? draft : formatEase(ease)}
-        onChange={(e) => setDraft(e.target.value)}
-        onFocus={handleFocus}
-        onBlur={handleBlur}
-        onKeyDown={handleKeyDown}
-        spellCheck={false}
-      />
-    </div>
-  );
+function EaseFields(props: EaseFieldsProps) {
+  const host = useRef<HTMLDivElement>(null);
+  const control = useRef<ReturnType<typeof mountEaseFields>>();
+  const latest = useRef(props);
+  latest.current = props;
+  useEffect(() => {
+    control.current = mountEaseFields(host.current!, latest.current);
+    return () => control.current?.destroy();
+  }, []);
+  useEffect(() => { control.current?.update(props); });
+  return <div ref={host} />;
 }

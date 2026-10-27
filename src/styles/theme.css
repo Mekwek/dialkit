@@ -37,6 +37,7 @@
   --dial-radius: 8px;
   --dial-row-height: 36px;
   --dial-row-gap: 6px;
+  --dial-preset-list-height: 156px; /* Four rows of a transition's presets; a longer list scrolls */
   --dial-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
   --dial-shadow-collapsed: 0 4px 16px rgba(0, 0, 0, 0.25);
   --dial-shadow-dropdown: 0 8px 24px rgba(0, 0, 0, 0.4);
@@ -1085,6 +1086,8 @@
 
 /* Spring Visualization */
 .dialkit-spring-viz {
+  /* A block, so the column under it starts at its edge, not a line's descent below. */
+  display: block;
   width: 100%;
   border-radius: var(--dial-radius);
   background: var(--dial-surface);
@@ -1183,6 +1186,388 @@
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+
+/* Transition mode tabs, Bézier fields, copy and paste, and presets */
+/* The row keeps the panel's row height, so the tabs and their pill are 28px. */
+.dialkit-transition-type {
+  box-sizing: border-box;
+  padding: 4px;
+}
+
+/* The tabs name themselves through this label, which stays for screen readers only. */
+.dialkit-transition-type .dialkit-labeled-control-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* The tabs fill the row and share its width equally. The pill stays
+   concentric: 4px inside the row, its corners 4px less round. */
+.dialkit-transition-type .dialkit-segmented {
+  flex: 1;
+  align-self: stretch;
+  min-width: 0;
+  margin-right: 0;
+  padding: 0;
+}
+
+.dialkit-transition-type .dialkit-segmented-pill {
+  top: 0;
+  bottom: 0;
+  border-radius: calc(var(--dial-radius) - 4px);
+}
+
+.dialkit-transition-type .dialkit-segmented-button {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 0 4px;
+}
+
+/* The fields sit as close under the curve box as they sit to each other. */
+.dialkit-ease-fields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  margin-top: calc(4px - var(--dial-row-gap));
+}
+
+.dialkit-ease-field {
+  min-width: 0;
+  height: var(--dial-row-height);
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--dial-radius);
+  outline: none;
+  background: var(--dial-surface);
+  color: var(--dial-text-label);
+  font: 500 13px 'Geist Mono', monospace;
+  text-align: center;
+  transition: background 0.15s, color 0.15s;
+}
+
+.dialkit-ease-field:hover,
+.dialkit-ease-field:focus,
+.dialkit-ease-field[data-scrubbing] {
+  background: var(--dial-surface-hover);
+  color: var(--dial-text-focus);
+}
+
+/* A field not open for typing scrubs its value. */
+.dialkit-ease-field:not(:focus) {
+  cursor: ew-resize;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Short text at the end of a nested folder's title row, such as the preset in use. */
+.dialkit-folder-meta {
+  flex-shrink: 0;
+  margin-left: auto;
+  margin-right: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--dial-text-tertiary);
+  white-space: nowrap;
+}
+
+/* A transition's Presets folder sits on a dashed divider under the curve or
+   spring, so it reads as part of the transition, and a transition that ends
+   on it ends on its header. */
+:is(.dialkit-easing-host, .dialkit-easing-viz, .dialkit-spring-viz) ~ .dialkit-folder {
+  border-top-style: dashed;
+  border-image: repeating-linear-gradient(90deg, var(--dial-surface-subtle) 0 8px, transparent 0 12px) 1;
+}
+
+.dialkit-folder-inner:has(> div > :is(.dialkit-easing-host, .dialkit-easing-viz, .dialkit-spring-viz) ~ .dialkit-folder:last-child) {
+  padding-bottom: 0;
+}
+
+/* A nested folder's actions sit between its title and chevron. The header's
+   columns run through the header row, so a long title stops before them. */
+.dialkit-folder-header:has(> .dialkit-folder-actions) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.dialkit-folder-header:has(> .dialkit-folder-actions) > .dialkit-folder-header-top {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-area: 1 / 1 / 2 / -1;
+}
+
+.dialkit-folder-header:has(> .dialkit-folder-actions) > .dialkit-folder-header-top > .dialkit-folder-icon {
+  grid-column: 3;
+}
+
+.dialkit-folder-actions {
+  grid-area: 1 / 2;
+  display: flex;
+  align-items: center;
+  padding: 0 2px 0 var(--dial-row-gap);
+}
+
+.dialkit-copy-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* Copy and paste open to the left of the dots. The icons sit at the group's
+   right, by the dots, so its widening reveals them in place. */
+.dialkit-copy-group {
+  display: flex;
+  justify-content: flex-end;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.dialkit-copy-group[hidden] {
+  display: none;
+}
+
+.dialkit-copy-action,
+.dialkit-copy-button {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 3px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--dial-text-label);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+
+.dialkit-copy-action svg,
+.dialkit-copy-button svg {
+  width: 100%;
+  height: 100%;
+}
+
+.dialkit-copy-button {
+  color: var(--dial-text-tertiary);
+}
+
+.dialkit-copy-action:hover,
+.dialkit-copy-action:focus-visible,
+.dialkit-copy-button:hover,
+.dialkit-copy-button[aria-expanded="true"] {
+  background: var(--dial-surface-hover);
+  color: var(--dial-text-focus);
+}
+
+.dialkit-copy-action {
+  transition: color 0.15s, background 0.15s, opacity 0.15s;
+}
+
+.dialkit-copy-action:disabled {
+  opacity: 0.35;
+  background: transparent;
+  cursor: default;
+}
+
+.dialkit-transition-presets {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dialkit-transition-preset-tabs {
+  height: var(--dial-row-height);
+  padding: 4px;
+  background: var(--dial-surface);
+}
+
+/* The pill sits 4px inside the track, its corners 4px less round. */
+.dialkit-transition-preset-tabs .dialkit-segmented-pill {
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc((100% - 8px) / 2);
+  border-radius: calc(var(--dial-radius) - 4px);
+  transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.dialkit-transition-preset-tab {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0 4px;
+  text-align: center;
+}
+
+.dialkit-transition-preset-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  max-height: var(--dial-preset-list-height);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  --dial-preset-fade-top: 1;
+  --dial-preset-fade-bottom: 1;
+  -webkit-mask-image: linear-gradient(rgba(0, 0, 0, var(--dial-preset-fade-top)), #000 28px, #000 calc(100% - 28px), rgba(0, 0, 0, var(--dial-preset-fade-bottom)));
+  mask-image: linear-gradient(rgba(0, 0, 0, var(--dial-preset-fade-top)), #000 28px, #000 calc(100% - 28px), rgba(0, 0, 0, var(--dial-preset-fade-bottom)));
+  transition: --dial-preset-fade-top 0.15s, --dial-preset-fade-bottom 0.15s;
+}
+
+/* The list fades at each edge while more presets sit beyond it. */
+@property --dial-preset-fade-top { syntax: '<number>'; inherits: false; initial-value: 1; }
+@property --dial-preset-fade-bottom { syntax: '<number>'; inherits: false; initial-value: 1; }
+
+.dialkit-transition-preset-list[data-above] {
+  --dial-preset-fade-top: 0.3;
+}
+
+.dialkit-transition-preset-list[data-below] {
+  --dial-preset-fade-bottom: 0.3;
+}
+
+.dialkit-transition-preset {
+  position: relative;
+}
+
+.dialkit-transition-preset-pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: var(--dial-row-height);
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--dial-radius);
+  background: var(--dial-surface);
+  color: var(--dial-text-label);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.dialkit-transition-preset-pick:hover,
+.dialkit-transition-preset-pick:focus-visible {
+  background: var(--dial-surface-hover);
+  color: var(--dial-text-focus);
+}
+
+.dialkit-transition-preset[data-active="true"] .dialkit-transition-preset-pick {
+  background: var(--dial-surface-active);
+  color: var(--dial-text-focus);
+}
+
+/* The name keeps the label colour; a hovered or picked row lights its thumbnail. */
+.dialkit-transition-preset-name {
+  min-width: 0;
+  color: var(--dial-text-label);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dialkit-transition-preset-thumb {
+  flex-shrink: 0;
+  width: 24px;
+  height: 16px;
+  overflow: visible;
+}
+
+.dialkit-transition-preset-thumb {
+  opacity: 0.8;
+}
+
+.dialkit-transition-preset-thumb path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.dialkit-transition-preset-delete {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin: auto 0;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: var(--dial-surface-hover);
+  color: var(--dial-text-label);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.dialkit-transition-preset:hover .dialkit-transition-preset-delete,
+.dialkit-transition-preset:focus-within .dialkit-transition-preset-delete {
+  opacity: 1;
+}
+
+.dialkit-transition-preset-delete:hover {
+  color: var(--dial-text-focus);
+}
+
+.dialkit-transition-preset-delete svg {
+  width: 10px;
+  height: 10px;
+}
+
+.dialkit-transition-preset-empty {
+  margin: 4px 0;
+  font-size: 12px;
+  color: var(--dial-text-tertiary);
+  text-align: center;
+}
+
+.dialkit-transition-preset-save {
+  height: var(--dial-row-height);
+  padding: 0 12px;
+  border: 1px dashed var(--dial-border);
+  border-radius: var(--dial-radius);
+  background: none;
+  color: var(--dial-text-label);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.dialkit-transition-preset-save:hover:not(:disabled) {
+  border-color: var(--dial-border-hover);
+  color: var(--dial-text-focus);
+}
+
+.dialkit-transition-preset-save:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.dialkit-transition-presets [hidden] {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialkit-transition-preset-tabs .dialkit-segmented-pill { transition: none; }
 }
 
 /* Panel Wrapper (contains panel + toolbar) */

@@ -13,13 +13,17 @@ interface FolderProps {
   inline?: boolean;
   onOpenChange?: (isOpen: boolean) => void;
   toolbar?: ReactNode;
+  /** Short text at the end of a nested folder's title row, such as the preset in use. */
+  meta?: string;
+  /** Buttons beside the title of a nested folder, such as a transition's copy and paste. */
+  actions?: ReactNode;
   panelHeightOffset?: number;
   /** Shows a reset button after the title, visible while `changed` is true. */
   onReset?: () => void;
   changed?: boolean;
 }
 
-export function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, panelHeightOffset = 0, onReset, changed = false }: FolderProps) {
+export function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, meta, actions, panelHeightOffset = 0, onReset, changed = false }: FolderProps) {
   const [localOpen, setIsOpen] = useState(defaultOpen);
   const isOpen = open ?? localOpen;
   const isCollapsed = !isOpen;
@@ -77,7 +81,7 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
       data-open={String(isOpen)}
     >
       <div className={`dialkit-folder-header ${isRoot ? 'dialkit-panel-header' : ''}`} onClick={handleToggle}>
-        <div ref={headerRef} className="dialkit-folder-header-top" role={inline && isRoot ? undefined : "button"} tabIndex={inline && isRoot ? undefined : 0} aria-label={title} aria-expanded={isOpen} onKeyDown={(e) => activateOnKey(e, handleToggle)}>
+        <div ref={headerRef} className="dialkit-folder-header-top" role={inline && isRoot ? undefined : "button"} tabIndex={inline && isRoot ? undefined : 0} aria-label={!isRoot && meta ? `${title}, ${meta}` : title} aria-expanded={isOpen} onKeyDown={(e) => activateOnKey(e, handleToggle)}>
           {isRoot ? (
             isOpen && (
               <div className="dialkit-folder-title-row">
@@ -91,6 +95,7 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
               <span className="dialkit-folder-title">
                 {title}
               </span>
+              {meta && <span className="dialkit-folder-meta">{meta}</span>}
             </div>
           )}
           {isRoot && !inline && (
@@ -142,6 +147,9 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
               {ICON_RESET.map((d, i) => <path key={i} d={d} />)}
             </svg>
           </button>
+        )}
+        {actions && !isRoot && (
+          <div className="dialkit-folder-actions">{actions}</div>
         )}
 
         {isSection ? (

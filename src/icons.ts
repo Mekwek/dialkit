@@ -49,6 +49,21 @@ export const ICON_CLIPBOARD_PLAIN = {
 
 export const ICON_PLUS = ['M5 12H19M12 5V19'];
 
+export const ICON_MORE = ['M5 12h.01', 'M12 12h.01', 'M19 12h.01'];
+
+export const ICON_COPY = [
+  'M9 11a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-7a2 2 0 0 1-2-2z',
+  'M5 15a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2',
+];
+
+export const ICON_PASTE = [
+  'M9 3h6v3H9z',
+  'M15 4.5h2a2 2 0 0 1 2 2V10',
+  'M9 4.5H7a2 2 0 0 0-2 2V19a2 2 0 0 0 2 2h4',
+  'M14 16h7',
+  'm18 13 3 3-3 3',
+];
+
 export const ICON_ADD_PRESET = [
   'M4 6H20',
   'M4 12H10',

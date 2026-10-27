@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { easingGuideEnd, easingHandleFromKey, fitEasingGraph, formatEase, moveEasingHandle, normalizeEase, parseEase, type BezierPoints } from './easing-geometry';
+import { createEaseIntensity, easingGuideEnd, easingHandleFromKey, fitEasingGraph, moveEasingHandle, normalizeEase, parseEase, scaleEase, type BezierPoints } from './easing-geometry';
+import { easingCurves } from './transition-presets';
 
 describe('Bézier editor', () => {
   it('contains the curve, tangents, and full handle targets at every scale', () => {
@@ -69,7 +70,7 @@ describe('Bézier editor', () => {
 
   it('accepts valid overshoot and preserves precision while rejecting invalid easing coordinates', () => {
     const ease: BezierPoints = [0.12345, -0.98765, 0.85, 1.98765];
-    assert.deepEqual(parseEase(formatEase(ease)), ease);
+    assert.deepEqual(parseEase(ease.join(', ')), ease);
     assert.deepEqual(parseEase(' .1, -2e2, +.9, 3. '), [0.1, -1, 0.9, 2]);
     for (const text of ['0, Infinity, 1, 1', '0, NaN, 1, 1', '0, 2px, 1, 1', '0, , 1, 1', '-0.1, 0, 1, 1', '0, 0, 1.1, 1', '0,0,1', '0,0,1,1,2', '0,1e999,1,1']) {
       assert.equal(parseEase(text), null, text);
@@ -82,5 +83,45 @@ describe('Bézier editor', () => {
     assert.deepEqual(easingGuideEnd({ x: 30, y: 40 }, { x: 0, y: 0 }), { x: 3, y: 4 });
     assert.deepEqual(easingGuideEnd({ x: 0, y: 0 }, { x: 3, y: 4 }), { x: 0, y: 0 });
     assert.deepEqual(easingGuideEnd({ x: 1, y: 1 }, { x: 1, y: 1 }), { x: 1, y: 1 });
+  });
+});
+
+describe('curve intensity', () => {
+  const valid = ([x1, y1, x2, y2]: BezierPoints) =>
+    [x1, x2].every(x => x >= 0 && x <= 1) && [y1, y2].every(y => y >= -1 && y <= 2);
+
+  it('scales both handles from their endpoints: 0 is linear, 1 is the curve', () => {
+    assert.deepEqual(scaleEase([0.42, 0, 0.58, 1], 0), [0, 0, 1, 1]);
+    assert.deepEqual(scaleEase([0.42, 0, 0.58, 1], 1), [0.42, 0, 0.58, 1]);
+    assert.deepEqual(scaleEase([0.25, 0.1, 0.25, 1], 0.5), [0.125, 0.05, 0.625, 1]);
+    // X2 reaches 0 at 4/3 and stays there; the other handle keeps scaling.
+    assert.deepEqual(scaleEase([0.25, 0.1, 0.25, 1], 2), [0.5, 0.2, 0, 1]);
+  });
+
+  it('never leaves the editable range, at any scale, for every preset', () => {
+    for (const { name, ease } of easingCurves) {
+      for (let scale = 0; scale <= 3; scale += 0.05) assert.ok(valid(scaleEase(ease, scale)), `${name} at ${scale}`);
+    }
+    // Each coordinate stops at its own bound.
+    assert.deepEqual(scaleEase([0.68, -0.55, 0.265, 1.55], 3), [1, -1, 0, 2]);
+  });
+
+  it('round-trips through the slider and restarts after another edit', () => {
+    const intensity = createEaseIntensity();
+    const base: BezierPoints = [0.165, 0.84, 0.44, 1];
+    assert.equal(intensity.read(base), 50);
+    const half = intensity.apply(base, 25);
+    assert.deepEqual(half, [0.083, 0.42, 0.72, 1]);
+    assert.equal(intensity.read(half), 25);
+    const strong = intensity.apply(half, 100);
+    assert.ok(valid(strong));
+    assert.deepEqual(strong, [0.33, 1.68, 0, 1]);
+    assert.equal(intensity.read(strong), 100);
+    assert.deepEqual(intensity.apply(strong, 50), base);
+    assert.deepEqual(intensity.apply(base, 0), [0, 0, 1, 1]);
+    // Any other change to the curve is the new 50%.
+    const edited: BezierPoints = [0.3, 0, 0.7, 1];
+    assert.equal(intensity.read(edited), 50);
+    assert.deepEqual(intensity.apply(edited, 50), edited);
   });
 });

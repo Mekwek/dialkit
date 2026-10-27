@@ -71,8 +71,7 @@ export const SpringControl = defineComponent({
     return () => h(Folder, { title: props.label, defaultOpen: true, onReset: props.onReset, changed: props.changed }, {
       default: () => [
         h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } }, [
-          h(SpringVisualization, { spring: props.spring, isSimpleMode: isSimpleMode() }),
-          h('div', { class: 'dialkit-labeled-control' }, [
+          h('div', { class: 'dialkit-labeled-control dialkit-transition-type' }, [
             h('span', { class: 'dialkit-labeled-control-label' }, 'Type'),
             h(SegmentedControl, {
               options: [
@@ -83,13 +82,14 @@ export const SpringControl = defineComponent({
               onChange: handleModeChange,
             }),
           ]),
+          h(SpringVisualization, { spring: props.spring, isSimpleMode: isSimpleMode() }),
           ...(isSimpleMode()
             ? [
               h(Slider, {
                 label: 'Duration',
                 value: props.spring.visualDuration ?? 0.3,
                 min: 0.1,
-                max: 1,
+                max: 5,
                 step: 0.05,
                 unit: 's',
                 onChange: (next: number) => handleUpdate('visualDuration', next),

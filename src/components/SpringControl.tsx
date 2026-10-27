@@ -69,9 +69,7 @@ export function SpringControl({ panelId, path, label, spring, onChange, onReset,
   return (
     <Folder title={label} defaultOpen={true} onReset={onReset} changed={changed}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <SpringVisualization spring={spring} isSimpleMode={isSimpleMode} />
-
-        <div className="dialkit-labeled-control">
+        <div className="dialkit-labeled-control dialkit-transition-type">
           <span className="dialkit-labeled-control-label">Type</span>
           <SegmentedControl
             options={[
@@ -83,6 +81,8 @@ export function SpringControl({ panelId, path, label, spring, onChange, onReset,
           />
         </div>
 
+        <SpringVisualization spring={spring} isSimpleMode={isSimpleMode} />
+
         {isSimpleMode ? (
           <>
             <Slider
@@ -90,7 +90,7 @@ export function SpringControl({ panelId, path, label, spring, onChange, onReset,
               value={spring.visualDuration ?? 0.3}
               onChange={(v) => handleUpdate('visualDuration', v)}
               min={0.1}
-              max={1}
+              max={5}
               step={0.05}
               unit="s"
             />

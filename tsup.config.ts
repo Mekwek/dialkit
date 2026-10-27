@@ -49,6 +49,8 @@ export default defineConfig([
       'fields-control': 'src/fields-control.ts',
       'easing-control': 'src/easing-control.ts',
       'easing-geometry': 'src/easing-geometry.ts',
+      'transition-presets': 'src/transition-presets.ts',
+      'transition-presets-control': 'src/transition-presets-control.ts',
       'control-keyboard': 'src/control-keyboard.ts',
       'dropdown-keyboard': 'src/dropdown-keyboard.ts',
       'preset-menu': 'src/preset-menu.ts',

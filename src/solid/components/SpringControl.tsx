@@ -63,9 +63,7 @@ export function SpringControl(props: SpringControlProps) {
   return (
     <Folder title={props.label} defaultOpen={true} onReset={props.onReset} changed={props.changed}>
       <div style={{ display: 'flex', 'flex-direction': 'column', gap: '6px' }}>
-        <SpringVisualization spring={props.spring} isSimpleMode={isSimpleMode()} />
-
-        <div class="dialkit-labeled-control">
+        <div class="dialkit-labeled-control dialkit-transition-type">
           <span class="dialkit-labeled-control-label">Type</span>
           <SegmentedControl
             options={[
@@ -77,6 +75,8 @@ export function SpringControl(props: SpringControlProps) {
           />
         </div>
 
+        <SpringVisualization spring={props.spring} isSimpleMode={isSimpleMode()} />
+
         {isSimpleMode() ? (
           <>
             <Slider
@@ -84,7 +84,7 @@ export function SpringControl(props: SpringControlProps) {
               value={props.spring.visualDuration ?? 0.3}
               onChange={(v) => handleUpdate('visualDuration', v)}
               min={0.1}
-              max={1}
+              max={5}
               step={0.05}
               unit="s"
             />

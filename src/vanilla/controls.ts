@@ -13,6 +13,10 @@ export interface FolderProps {
   isRoot?: boolean;
   isSection?: boolean;
   inline?: boolean;
+  /** Short text at the end of a nested folder's title row, such as the preset in use. */
+  meta?: string;
+  /** Adds a slot beside the title of a nested folder, such as a transition's copy and paste. */
+  actions?: boolean;
   onOpenChange?: (open: boolean) => void;
   /** Shows a reset button after the title, visible while `changed` is true. */
   onReset?: () => void;
@@ -26,6 +30,7 @@ export function mountFolder(host: HTMLElement, initial: FolderProps) {
   const top = element('div', 'dialkit-folder-header-top');
   const titleRow = element('div', 'dialkit-folder-title-row');
   const title = element('span', `dialkit-folder-title${props.isRoot ? ' dialkit-folder-title-root' : ''}`);
+  const meta = element('span', 'dialkit-folder-meta');
   titleRow.append(title);
   top.append(titleRow);
   const glyph = props.isRoot ? svg('svg', { class: 'dialkit-panel-icon', viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': 'true' }) : icon(ICON_CHEVRON, 'dialkit-folder-icon');
@@ -49,6 +54,9 @@ export function mountFolder(host: HTMLElement, initial: FolderProps) {
     reset?.setAttribute('aria-label', `Reset ${props.title}`);
     reset?.setAttribute('data-changed', String(!!props.changed));
   };
+  const actions = element('div', 'dialkit-folder-actions');
+  if (props.actions && !props.isRoot)
+    header.append(actions);
   if (props.isSection) {
     const toolbarClip = element('div', 'dialkit-panel-section-toolbar-clip');
     toolbarClip.append(toolbar);
@@ -77,7 +85,12 @@ export function mountFolder(host: HTMLElement, initial: FolderProps) {
     renderedOpen = open;
     folder.dataset.open = String(open);
     title.textContent = props.title;
-    top.setAttribute('aria-label', props.title);
+    meta.textContent = props.meta ?? '';
+    if (props.meta && !props.isRoot)
+      titleRow.append(meta);
+    else
+      meta.remove();
+    top.setAttribute('aria-label', props.meta && !props.isRoot ? `${props.title}, ${props.meta}` : props.title);
     top.setAttribute('aria-expanded', String(open));
     if (!(props.inline && props.isRoot)) {
       top.setAttribute('role', 'button');
@@ -154,7 +167,7 @@ export function mountFolder(host: HTMLElement, initial: FolderProps) {
   const stopHeader = props.isRoot ? observePanelHeader(folder) : undefined;
   const stopFades = props.isRoot ? observeScrollFades(folder) : undefined;
   return {
-    element: node, body, toolbar, update(next: FolderProps) {
+    element: node, body, toolbar, actions, update(next: FolderProps) {
       const title = props.title;
       props = next;
       renderReset();
