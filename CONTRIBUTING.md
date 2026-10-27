@@ -12,7 +12,7 @@ Thanks for contributing.
 
 After `npm run build`, run `node scripts/build-toolbar-fixtures.mjs` and serve `.toolbar-fixtures` on port 3011 (for example, `python3 -m http.server 3011 --directory .toolbar-fixtures`). The fixtures cover panels and timelines in all five frameworks; append `?theme=dark` to inspect dark mode.
 
-With Playwright and Chrome installed, run `node scripts/test-toolbar-browser.mjs` to check version creation, selection, deletion, numbering, and keyboard focus. `DIALKIT_PLAYWRIGHT` can point to an existing Playwright installation, and `DIALKIT_FIXTURE_URL` overrides the server URL.
+With Playwright and Chrome installed, run `node scripts/test-toolbar-browser.mjs` to check version creation, selection, deletion, numbering, keyboard focus, and accordion folders. `DIALKIT_PLAYWRIGHT` can point to an existing Playwright installation, and `DIALKIT_FIXTURE_URL` overrides the server URL.
 
 Run `node scripts/test-versions-browser.mjs` to check the version gallery (capture flash, thumbnails, rename, and the all-versions grid) in the plain-HTML bundle and, when the fixtures are served, all five frameworks.
 

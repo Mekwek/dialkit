@@ -2,6 +2,7 @@
   import { untrack } from 'svelte';
   import { DialStore } from 'dialkit/store';
   import type { PanelConfig } from 'dialkit/store';
+  import { pruneOpenFolders } from '../../accordion';
   import { TimelineStore } from 'dialkit/timeline';
   import type { TimelineMeta } from 'dialkit/timeline';
   import { themeCSS } from '../theme-css';
@@ -39,7 +40,7 @@
       ? viteMode !== 'production'
       : true;
 
-  let { position = 'top-right', defaultOpen = true, mode = 'popover', theme = 'system' as DialTheme, productionEnabled = isDevDefault, versions = 'thumbnails', onOpenChange } = $props<{
+  let { position = 'top-right', defaultOpen = true, mode = 'popover', theme = 'system' as DialTheme, productionEnabled = isDevDefault, versions = 'thumbnails', accordion = false, onOpenChange } = $props<{
     position?: DialPosition;
     defaultOpen?: boolean;
     mode?: DialMode;
@@ -47,6 +48,7 @@
     productionEnabled?: boolean;
     /** How saved versions appear: captured thumbnails (default), or a menu. */
     versions?: DialVersions;
+    accordion?: boolean;
     onOpenChange?: (open: boolean) => void;
   }>();
 
@@ -66,6 +68,10 @@
   let dragTarget: HTMLElement | null = null;
   let panelOpenStates = new Map<string, boolean>();
   let rootOpen: boolean | undefined;
+  // Panels remount when the root switches between one panel and several, so
+  // the root keeps each panel's accordion folder by panel ID.
+  let openFolders = $state<Record<string, string | null>>({});
+  const setOpenFolder = (id: string, path: string | null) => (openFolders = { ...openFolders, [id]: path });
 
   const dragStyle = $derived(
     dragOffset
@@ -124,6 +130,7 @@
     }
     panelOpenStates = nextStates;
     rootOpen = Array.from(nextStates.values()).some(Boolean);
+    untrack(() => { openFolders = pruneOpenFolders(openFolders, panels.map(panel => panel.id)); });
   });
 
   $effect(() => {
@@ -233,6 +240,7 @@
           data-origin-x={originX}
           data-origin-y={originY}
           data-multiple={panels.length > 1 ? 'true' : undefined}
+          data-accordion={accordion ? 'true' : undefined}
           style={dragStyle}
           onpointerdown={!inline ? handlePointerDown : undefined}
           onpointermove={!inline ? handlePointerMove : undefined}
@@ -272,6 +280,9 @@
                   <Panel
                     {panel}
                     defaultOpen={true}
+                    {accordion}
+                    openFolder={openFolders[panel.id]}
+                    onOpenFolderChange={(path) => setOpenFolder(panel.id, path)}
                     variant="section"
                     {versions}
                     {theme}
@@ -285,6 +296,9 @@
                 {panel}
                 defaultOpen={inline || defaultOpen}
                 {inline}
+                {accordion}
+                openFolder={openFolders[panel.id]}
+                onOpenFolderChange={(path) => setOpenFolder(panel.id, path)}
                 toolbarExtra={timelineToolbar}
                 {versions}
                 {theme}

@@ -19,13 +19,16 @@
   import type { ShortcutContextValue } from './ShortcutListener.svelte';
   import type { TransitionDurationControl } from './TransitionControl.svelte';
 
-  let { panelId, control, values, transitionDuration, resetCount = 0 } = $props<{
+  let { panelId, control, values, transitionDuration, resetCount = 0, openFolder, onOpenFolderChange } = $props<{
     panelId: string;
     control: ControlMeta;
     values: Record<string, DialValue>;
     transitionDuration?: TransitionDurationControl;
     /** Counts folder resets, so sliders can spring to the values a reset sets. */
     resetCount?: number;
+    /** Path of the one open top-level folder in accordion mode, or null when all are closed. */
+    openFolder?: string | null;
+    onOpenFolderChange?: (path: string | null) => void;
   }>();
 
   const shortcutCtx = getContext<ShortcutContextValue | undefined>(SHORTCUT_CTX);
@@ -42,6 +45,9 @@
     folderResets++;
     DialStore.resetFolder(panelId, control.path);
   } : undefined);
+
+  // Accordion mode controls top-level folders; nested ones are rendered without openFolder.
+  const accordion = $derived(openFolder !== undefined);
   const isShortcutActive = $derived(
     shortcutCtx ? shortcutCtx.activePanelId === panelId && shortcutCtx.activePath === control.path : false
   );
@@ -103,6 +109,8 @@
     defaultOpen={control.defaultOpen ?? true}
     {onReset}
     {changed}
+    open={accordion ? openFolder === control.path : undefined}
+    onOpenChange={accordion ? (open) => onOpenFolderChange?.(open ? control.path : null) : undefined}
   >
     {#each control.children ?? [] as child (child.path)}
       <ControlRenderer {panelId} control={child} {values} {transitionDuration} resetCount={resetCount + folderResets} />

@@ -1,4 +1,5 @@
 import { buildCopyInstruction } from '../../copy-instruction';
+import { resolveOpenFolder } from '../../accordion';
 import { batch, createSignal, createEffect, on, onMount, onCleanup, type JSX } from 'solid-js';
 import { animate } from 'motion';
 import { ICON_CLIPBOARD_PLAIN, ICON_CHECK } from '../../icons';
@@ -16,6 +17,9 @@ interface PanelProps {
   panel: PanelConfig;
   defaultOpen?: boolean;
   inline?: boolean;
+  accordion?: boolean;
+  openFolder?: string | null;
+  onOpenFolderChange?: (path: string | null) => void;
   onOpenChange?: (open: boolean) => void;
   variant?: 'root' | 'section';
   toolbarExtra?: JSX.Element;
@@ -165,7 +169,13 @@ export function Panel(props: PanelProps) {
       {versions() !== 'menu' && (
         <VersionGallery panelId={props.panel.id} theme={props.theme} />
       )}
-      <ControlRenderer panelId={props.panel.id} controls={props.panel.controls} values={values()} />
+      <ControlRenderer
+        panelId={props.panel.id}
+        controls={props.panel.controls}
+        values={values()}
+        openFolder={props.accordion ? resolveOpenFolder(props.panel.controls, props.openFolder) : undefined}
+        onOpenFolderChange={props.onOpenFolderChange}
+      />
     </>
   );
 

@@ -251,7 +251,14 @@ In vanilla, use `createDialRoot({ mode: "inline", target: container })`.
 | `mode` | `"popover"` | `"popover"`, `"inline"` |
 | `versions` | `"thumbnails"` | `"thumbnails"`, `"menu"` |
 | `defaultOpen` | `true` | Initial root state; a panel's `defaultCollapsed` takes precedence |
+| `accordion` | `false` | Keep one top-level folder open in each panel |
 | `onOpenChange` | — | Callback for root open state; `@open-change` in Vue |
+
+```tsx
+<DialRoot accordion />
+```
+
+In vanilla, use `createDialRoot({ accordion: true })`. Opening a folder closes the others in its panel, and the first folder without `_collapsed` starts open. Nested folders keep their own state and get a dashed divider.
 
 Framework roots are hidden in production builds unless `productionEnabled` is set to `true`. Vanilla roots are enabled by default; set `productionEnabled: false` to hide them. This setting controls the editor UI, not the code consuming its values.
 

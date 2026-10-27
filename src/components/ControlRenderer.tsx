@@ -28,11 +28,14 @@ interface ControlRendererProps {
     max?: number;
     step?: number;
   };
+  /** Path of the one open top-level folder in accordion mode, or null when all are closed. */
+  openFolder?: string | null;
+  onOpenFolderChange?: (path: string | null) => void;
 }
 
 // Renders a ControlMeta tree with the standard DialKit controls.
 // Shared by the panel and the timeline clip popover.
-export function ControlRenderer({ panelId, controls, values, transitionDuration }: ControlRendererProps) {
+export function ControlRenderer({ panelId, controls, values, transitionDuration, openFolder, onOpenFolderChange }: ControlRendererProps) {
   const shortcutCtx = useContext(ShortcutContext);
   // Counts folder resets, so sliders can spring to the values a reset sets.
   const [resetCount, setResetCount] = useState(0);
@@ -46,7 +49,7 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration 
     },
   } : {};
 
-  const renderControl = (control: ControlMeta) => {
+  const renderControl = (control: ControlMeta, topLevel = false) => {
     const value = values[control.path];
 
     switch (control.type) {
@@ -106,7 +109,7 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration 
           />
         );
 
-      case 'folder':
+      case 'folder': {
         if (control.fields) {
           return (
             <Fields
@@ -119,16 +122,21 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration 
             />
           );
         }
+        // Accordion mode controls top-level folders; nested folders keep their own state.
+        const accordion = topLevel && openFolder !== undefined;
         return (
           <Folder
             key={control.path}
             title={control.label}
             defaultOpen={control.defaultOpen ?? true}
             {...resetProps(control)}
+            open={accordion ? openFolder === control.path : undefined}
+            onOpenChange={accordion ? (open) => onOpenFolderChange?.(open ? control.path : null) : undefined}
           >
-            {control.children?.map(renderControl)}
+            {control.children?.map((child) => renderControl(child))}
           </Folder>
         );
+      }
 
       case 'text':
         return (
@@ -216,5 +224,5 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration 
     }
   };
 
-  return <>{controls.map(renderControl)}</>;
+  return <>{controls.map((control) => renderControl(control, true))}</>;
 }

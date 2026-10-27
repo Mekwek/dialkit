@@ -16,6 +16,9 @@ export interface ControlRendererProps {
   controls: ControlMeta[];
   values: Record<string, DialValue>;
   transitionDuration?: TransitionControlProps['durationControl'];
+  /** Path of the one open top-level folder in accordion mode, or null when all are closed. */
+  openFolder?: string | null;
+  onOpenFolderChange?: (path: string | null) => void;
 }
 export function mountControlRenderer(host: HTMLElement, initial: ControlRendererProps): Mounted<ControlRendererProps> {
   let props = initial;
@@ -36,7 +39,7 @@ export function mountControlRenderer(host: HTMLElement, initial: ControlRenderer
     destroy(): void;
   }[] = [];
   // Keep controls as direct children: folder spacing depends on this DOM structure.
-  function build(controls: ControlMeta[], target: HTMLElement) {
+  function build(controls: ControlMeta[], target: HTMLElement, topLevel = false) {
     for (const control of controls) {
       const value = () => props.values[control.path];
       const change = (v: DialValue) => DialStore.updateValue(props.panelId, control.path, v);
@@ -51,9 +54,11 @@ export function mountControlRenderer(host: HTMLElement, initial: ControlRenderer
             mount(mountFields, () => ({ label: control.label, controls: control.children ?? [], values: props.values, defaults: DialStore.getDefaultValues(props.panelId), onChange: (v: Record<string, DialValue>) => DialStore.updateValues(props.panelId, v) }));
             break;
           }
+          // Accordion mode controls top-level folders; nested folders keep their own state.
+          const open = () => topLevel && props.openFolder !== undefined ? props.openFolder === control.path : undefined;
           const folderProps = () => ({
-            title: control.label,
-            defaultOpen: control.defaultOpen,
+            title: control.label, defaultOpen: control.defaultOpen, open: open(),
+            onOpenChange: open() === undefined ? undefined : (next: boolean) => props.onOpenFolderChange?.(next ? control.path : null),
             ...resetProps(control),
           });
           const folder = mountFolder(target, folderProps());
@@ -112,7 +117,7 @@ export function mountControlRenderer(host: HTMLElement, initial: ControlRenderer
       mounted.forEach(c => c.destroy());
       mounted = [];
       signature = next;
-      build(props.controls, host);
+      build(props.controls, host, true);
     }
     else
       mounted.forEach(c => c.update());

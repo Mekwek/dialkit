@@ -443,6 +443,14 @@
   padding-bottom: 0;
 }
 
+/* In accordion mode, nested folders keep their own open state; a dashed divider
+   sets them apart. Same specificity as above, so the rules below still remove
+   shared and trailing dividers. */
+:where(.dialkit-panel[data-accordion="true"] .dialkit-folder:not(.dialkit-folder-root):not(.dialkit-folder-section)) .dialkit-folder:not(.dialkit-folder-root) {
+  border-top-style: dashed;
+  border-bottom-style: dashed;
+}
+
 .dialkit-folder:not(.dialkit-folder-root):last-child {
   border-bottom: none;
   margin-bottom: 0;

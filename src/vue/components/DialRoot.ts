@@ -3,6 +3,7 @@ import { DialStore } from '../../store/DialStore';
 import type { PanelConfig } from '../../store/DialStore';
 import { TimelineStore } from '../../store/TimelineStore';
 import type { TimelineMeta } from '../../store/TimelineStore';
+import { pruneOpenFolders } from '../../accordion';
 import { Folder } from './Folder';
 import { Panel } from './Panel';
 import { ShortcutListener } from './ShortcutListener';
@@ -64,6 +65,10 @@ export const DialRoot = defineComponent({
       type: String as () => DialVersions,
       default: 'thumbnails',
     },
+    accordion: {
+      type: Boolean,
+      default: false,
+    },
   },
   emits: ['openChange'],
   setup(props, { emit }) {
@@ -85,6 +90,11 @@ export const DialRoot = defineComponent({
     const shellOpen = ref(props.mode === 'inline' || props.defaultOpen);
     let unsubscribeOpen: (() => void) | undefined;
     let rootOpen: boolean | undefined;
+    // Panels remount when the root switches between one panel and several, so
+    // the root keeps each panel's accordion folder by panel ID.
+    const openFolders = ref<Record<string, string | null>>({});
+    const setOpenFolder = (id: string, path: string | null) => { openFolders.value = { ...openFolders.value, [id]: path }; };
+    watch(panels, (list) => { openFolders.value = pruneOpenFolders(openFolders.value, list.map(panel => panel.id)); });
 
     const syncPanelOpenStates = () => {
       const fallbackOpen = props.mode === 'inline' || props.defaultOpen;
@@ -256,6 +266,9 @@ export const DialRoot = defineComponent({
               key: panel.id,
               panel,
               defaultOpen: true,
+              accordion: props.accordion,
+              openFolder: openFolders.value[panel.id],
+              onOpenFolderChange: (path: string | null) => setOpenFolder(panel.id, path),
               variant: 'section',
               versions: props.versions,
               theme: props.theme,
@@ -268,6 +281,9 @@ export const DialRoot = defineComponent({
         panel,
         defaultOpen: props.mode === 'inline' || props.defaultOpen,
         inline: props.mode === 'inline',
+        accordion: props.accordion,
+        openFolder: openFolders.value[panel.id],
+        onOpenFolderChange: (path: string | null) => setOpenFolder(panel.id, path),
         toolbarExtra: timelineToggle,
         versions: props.versions,
         theme: props.theme,
@@ -288,6 +304,7 @@ export const DialRoot = defineComponent({
           'data-origin-y': originY.value,
           'data-mode': props.mode,
           'data-multiple': panels.value.length > 1 ? 'true' : undefined,
+          'data-accordion': props.accordion ? 'true' : undefined,
           style: getDragStyle(),
           onPointerdown: props.mode === 'inline' ? undefined : handlePointerDown,
           onPointermove: props.mode === 'inline' ? undefined : handlePointerMove,
