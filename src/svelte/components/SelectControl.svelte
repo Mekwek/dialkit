@@ -7,20 +7,22 @@ import { openDropdownOnKey } from '../../control-keyboard';
   import { dropdownTransition } from './transitions';
   import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition, type DropdownPosition } from '../../dropdown-position';
   import { ICON_CHEVRON } from '../../icons';
+  import type { SelectConfig, SelectOption } from 'dialkit/store';
+  import SegmentedControl from './SegmentedControl.svelte';
 
-  type SelectOption = string | { value: string; label: string };
-
-  let { label, value, options, onChange } = $props<{
+  let { label, value, options, onChange, display, hideLabel = false } = $props<{
     label: string;
     value: string;
     options: SelectOption[];
     onChange: (value: string) => void;
+    display?: SelectConfig['display'];
+    hideLabel?: boolean;
   }>();
 
   let isOpen = $state(false);
   let pos = $state<DropdownPosition | null>(null);
   let portalTarget = $state<HTMLElement | null>(null);
-  let triggerRef: HTMLButtonElement | undefined;
+  let triggerRef = $state<HTMLButtonElement | undefined>(undefined);
   let dropdownRef: HTMLDivElement | undefined;
 
   const chevronRotation = new Spring(0, { stiffness: 0.2, damping: 0.6 });
@@ -71,7 +73,11 @@ import { openDropdownOnKey } from '../../control-keyboard';
   });
 
   $effect(() => {
-    if (!isOpen || typeof window === 'undefined') return;
+    if (display === 'segmented') closeDropdown();
+  });
+
+  $effect(() => {
+    if (!isOpen || !triggerRef || typeof window === 'undefined') return;
 
     const handleViewportChange = () => updatePos();
 
@@ -97,56 +103,65 @@ import { openDropdownOnKey } from '../../control-keyboard';
   });
 </script>
 
-<div class="dialkit-select-row">
-  <button
-    bind:this={triggerRef}
-    class="dialkit-select-trigger"
-    onclick={() => (isOpen ? closeDropdown() : openDropdown())}
-    data-open={String(isOpen)}
-    type="button" aria-haspopup="listbox" aria-expanded={isOpen} disabled={!options.length}
-    onkeydown={(e) => openDropdownOnKey(e, openDropdown)}
-  >
-    <span class="dialkit-select-label">{label}</span>
-    <div class="dialkit-select-right">
-      <span class="dialkit-select-value">{selectedOption?.label ?? value}</span>
-      <svg
-        class="dialkit-select-chevron"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2.5"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        style:transform={`rotate(${chevronRotation.current}deg)`}
-      >
-        <path d={ICON_CHEVRON} />
-      </svg>
-    </div>
-  </button>
-
-  {#if portalTarget}
-    <Portal target={portalTarget}>
-      {#if isOpen && pos}
-        <div
-          bind:this={dropdownRef}
-          class="dialkit-select-dropdown"
-          style={dropdownStyle}
-          transition:dropdownTransition={{ above: pos.above }}
+{#if display === 'segmented'}
+  <div class="dialkit-labeled-control" data-hide-label={hideLabel ? 'true' : undefined}>
+    {#if !hideLabel}
+      <span class="dialkit-labeled-control-label">{label}</span>
+    {/if}
+    <SegmentedControl options={normalized} value={value} onChange={onChange} label={label} />
+  </div>
+{:else}
+  <div class="dialkit-select-row">
+    <button
+      bind:this={triggerRef}
+      class="dialkit-select-trigger"
+      onclick={() => (isOpen ? closeDropdown() : openDropdown())}
+      data-open={String(isOpen)}
+      type="button" aria-haspopup="listbox" aria-expanded={isOpen} disabled={!options.length}
+      onkeydown={(e) => openDropdownOnKey(e, openDropdown)}
+    >
+      <span class="dialkit-select-label">{label}</span>
+      <div class="dialkit-select-right">
+        <span class="dialkit-select-value">{selectedOption?.label ?? value}</span>
+        <svg
+          class="dialkit-select-chevron"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          style:transform={`rotate(${chevronRotation.current}deg)`}
         >
-          {#each normalized as option (option.value)}
-            <button
-              class="dialkit-select-option"
-              data-selected={String(option.value === value)}
-              onclick={() => {
-                onChange(option.value);
-                closeDropdown();
-              }}
-            >
-              {option.label}
-            </button>
-          {/each}
-        </div>
-      {/if}
-    </Portal>
-  {/if}
-</div>
+          <path d={ICON_CHEVRON} />
+        </svg>
+      </div>
+    </button>
+
+    {#if portalTarget}
+      <Portal target={portalTarget}>
+        {#if isOpen && pos}
+          <div
+            bind:this={dropdownRef}
+            class="dialkit-select-dropdown"
+            style={dropdownStyle}
+            transition:dropdownTransition={{ above: pos.above }}
+          >
+            {#each normalized as option (option.value)}
+              <button
+                class="dialkit-select-option"
+                data-selected={String(option.value === value)}
+                onclick={() => {
+                  onChange(option.value);
+                  closeDropdown();
+                }}
+              >
+                {option.label}
+              </button>
+            {/each}
+          </div>
+        {/if}
+      </Portal>
+    {/if}
+  </div>
+{/if}

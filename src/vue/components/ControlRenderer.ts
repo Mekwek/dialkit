@@ -88,6 +88,8 @@ export const ControlRenderer = defineComponent({
             label: control.label,
             value: value as string,
             options: control.options ?? [],
+            display: control.display,
+            hideLabel: control.hideLabel,
             onChange: (next: string) => DialStore.updateValue(props.panelId, control.path, next),
           });
         case 'color':

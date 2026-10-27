@@ -5,27 +5,47 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition, type DropdownPosition } from '../dropdown-position';
 import { ICON_CHEVRON } from '../icons';
-
-type SelectOption = string | { value: string; label: string };
+import type { SelectConfig, SelectOption } from '../store/DialStore';
+import { SegmentedControl } from './SegmentedControl';
 
 interface SelectControlProps {
   label: string;
   value: string;
   options: SelectOption[];
   onChange: (value: string) => void;
+  display?: SelectConfig['display'];
+  hideLabel?: boolean;
 }
 
 function toTitleCase(s: string): string {
   return s.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function normalizeOptions(options: SelectOption[]): { value: string; label: string }[] {
+function normalizeOptions(options: SelectOption[]): Exclude<SelectOption, string>[] {
   return options.map((opt) =>
     typeof opt === 'string' ? { value: opt, label: toTitleCase(opt) } : opt
   );
 }
 
-export function SelectControl({ label, value, options, onChange }: SelectControlProps) {
+export function SelectControl(props: SelectControlProps) {
+  return props.display === 'segmented' ? <SegmentedSelect {...props} /> : <SelectDropdown {...props} />;
+}
+
+function SegmentedSelect({ label, value, options, onChange, hideLabel }: SelectControlProps) {
+  return (
+    <div className="dialkit-labeled-control" data-hide-label={hideLabel ? 'true' : undefined}>
+      {!hideLabel && <span className="dialkit-labeled-control-label">{label}</span>}
+      <SegmentedControl
+        options={normalizeOptions(options)}
+        value={value}
+        onChange={onChange}
+        label={label}
+      />
+    </div>
+  );
+}
+
+function SelectDropdown({ label, value, options, onChange }: SelectControlProps) {
   const [isOpen, setIsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);

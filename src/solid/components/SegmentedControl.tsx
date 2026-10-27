@@ -1,15 +1,20 @@
 import { handleSegmentKey, labelSegmentedControl } from '../../control-keyboard';
+import { iconPaths } from '../../icons';
 import { createSignal, createEffect, on, onMount, onCleanup, For, Show } from 'solid-js';
 
 interface SegmentedControlOption<T extends string> {
   value: T;
   label: string;
+  /** SVG path data in a 24 × 24 box, shown in place of the label. */
+  icon?: string | string[];
 }
 
 interface SegmentedControlProps<T extends string> {
   options: SegmentedControlOption<T>[];
   value: T;
   onChange: (value: T) => void;
+  /** Accessible name for the group. */
+  label?: string;
 }
 
 export function SegmentedControl<T extends string>(props: SegmentedControlProps<T>) {
@@ -23,9 +28,13 @@ export function SegmentedControl<T extends string>(props: SegmentedControlProps<
     labelSegmentedControl(containerRef);
     const activeButton = containerRef.querySelector('[data-active="true"]') as HTMLElement | null;
     if (!activeButton) return;
+    // Fractions of the row stay exact at fractional sizes and under transforms.
+    const containerRect = containerRef.getBoundingClientRect();
+    const buttonRect = activeButton.getBoundingClientRect();
+    if (!containerRect.width) return;
     setPillStyle({
-      left: activeButton.offsetLeft,
-      width: activeButton.offsetWidth,
+      left: (buttonRect.left - containerRect.left) / containerRect.width * 100,
+      width: buttonRect.width / containerRect.width * 100,
     });
   };
 
@@ -49,14 +58,14 @@ export function SegmentedControl<T extends string>(props: SegmentedControlProps<
   );
 
   return (
-    <div class="dialkit-segmented" ref={containerRef} role="radiogroup" onKeyDown={handleSegmentKey}>
+    <div class="dialkit-segmented" ref={containerRef} role="radiogroup" aria-label={props.label} onKeyDown={handleSegmentKey}>
       <Show when={pillStyle()}>
         {(style) => (
           <div
             class="dialkit-segmented-pill"
             style={{
-              left: `${style().left}px`,
-              width: `${style().width}px`,
+              left: `${style().left}%`,
+              width: `${style().width}%`,
               transition: transition(),
             }}
           />
@@ -69,8 +78,16 @@ export function SegmentedControl<T extends string>(props: SegmentedControlProps<
             class="dialkit-segmented-button"
             data-active={String(props.value === option.value)}
             type="button" role="radio" aria-checked={props.value === option.value} tabIndex={props.value === option.value ? 0 : -1}
+            title={option.icon ? option.label : undefined}
+            aria-label={option.icon ? option.label : undefined}
           >
-            {option.label}
+            <Show when={option.icon} fallback={option.label}>
+              {(icon) => (
+                <svg class="dialkit-segmented-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <For each={iconPaths(icon())}>{(d) => <path d={d} />}</For>
+                </svg>
+              )}
+            </Show>
           </button>
         )}
       </For>
