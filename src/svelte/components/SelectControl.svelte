@@ -107,7 +107,7 @@ import { openDropdownOnKey } from '../../control-keyboard';
 </script>
 
 {#if display === 'segmented'}
-  <div class="dialkit-labeled-control" data-hide-label={hideLabel ? 'true' : undefined}>
+  <div class="dialkit-labeled-control" data-hide-label={hideLabel ? 'true' : undefined} data-hint={hint}>
     {#if !hideLabel}
       <span class="dialkit-labeled-control-label">{label}</span>
     {/if}

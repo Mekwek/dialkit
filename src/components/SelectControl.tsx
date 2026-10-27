@@ -30,12 +30,13 @@ function normalizeOptions(options: SelectOption[]): Exclude<SelectOption, string
 }
 
 export function SelectControl(props: SelectControlProps) {
+  useHints(!!props.hint);
   return props.display === 'segmented' ? <SegmentedSelect {...props} /> : <SelectDropdown {...props} />;
 }
 
-function SegmentedSelect({ label, value, options, onChange, hideLabel }: SelectControlProps) {
+function SegmentedSelect({ label, value, options, onChange, hideLabel, hint }: SelectControlProps) {
   return (
-    <div className="dialkit-labeled-control" data-hide-label={hideLabel ? 'true' : undefined}>
+    <div className="dialkit-labeled-control" data-hide-label={hideLabel ? 'true' : undefined} data-hint={hint}>
       {!hideLabel && <span className="dialkit-labeled-control-label">{label}</span>}
       <SegmentedControl
         options={normalizeOptions(options)}
@@ -48,7 +49,6 @@ function SegmentedSelect({ label, value, options, onChange, hideLabel }: SelectC
 }
 
 function SelectDropdown({ label, value, options, onChange, hint }: SelectControlProps) {
-  useHints(!!hint);
   const [isOpen, setIsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
