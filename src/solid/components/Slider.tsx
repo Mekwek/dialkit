@@ -5,6 +5,7 @@ import type { ShortcutConfig } from '../../store/DialStore';
 import type { AnimationHandle } from '../primitives';
 import {
   decimalsForStep,
+  isWordUnit,
   roundValue,
   snapToDecile,
   formatSliderShortcut,
@@ -445,6 +446,11 @@ export function Slider(props: SliderProps) {
             style={{ cursor: isValueEditable() ? 'text' : 'default' }}
           >
             {displayValue()}
+            <Show when={props.unit}>
+              <span class="dialkit-slider-unit" data-spaced={isWordUnit(props.unit!) || undefined}>
+                {props.unit}
+              </span>
+            </Show>
           </span>
         )}
       </div>

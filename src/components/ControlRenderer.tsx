@@ -46,6 +46,7 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration 
             min={control.min}
             max={control.max}
             step={control.step}
+            unit={control.unit}
             shortcut={control.shortcut}
             shortcutActive={shortcutCtx.activePanelId === panelId && shortcutCtx.activePath === control.path}
           />
