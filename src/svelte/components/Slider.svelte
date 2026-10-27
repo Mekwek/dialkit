@@ -1,7 +1,7 @@
 <script lang="ts">
   import { handleSliderKey } from '../../control-keyboard';
 
-  import { tick } from 'svelte';
+  import { tick, untrack } from 'svelte';
   import { Spring } from 'svelte/motion';
   import type { ShortcutConfig } from 'dialkit/store';
   import { decimalsForStep, isWordUnit, roundValue, snapToDecile, formatSliderShortcut } from '../../shortcut-utils';
@@ -16,6 +16,7 @@
     unit,
     shortcut,
     shortcutActive = false,
+    resetCount = 0,
   } = $props<{
     label: string;
     value: number;
@@ -26,6 +27,8 @@
     unit?: string;
     shortcut?: ShortcutConfig;
     shortcutActive?: boolean;
+    /** @internal A value that arrives with a new count springs into place, like a click on the track. */
+    resetCount?: number;
   }>();
 
   const CLICK_THRESHOLD = 3;
@@ -82,10 +85,14 @@
     return sign * MAX_STRETCH * Math.sqrt(Math.min(overflow / MAX_CURSOR_RANGE, 1));
   };
 
+  // A folder reset springs the fill to its new value instead of jumping.
+  let seenResetCount = untrack(() => resetCount);
   $effect(() => {
     value;
+    const isReset = seenResetCount !== resetCount;
+    seenResetCount = resetCount;
     if (!isInteracting) {
-      fillPercent.set(((value - min) / (max - min)) * 100, { instant: true });
+      fillPercent.set(((value - min) / (max - min)) * 100, isReset ? undefined : { instant: true });
     }
   });
 

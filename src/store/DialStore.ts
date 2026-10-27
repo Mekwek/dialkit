@@ -92,7 +92,7 @@ export type ResolvedValues<T extends DialConfig> = {
 };
 
 export type DialKitValueUpdates<T extends DialConfig> = {
-  [K in keyof T as K extends '_collapsed' | '_fields' ? never : K]?: T[K] extends [number, number, number, number?, string?]
+  [K in keyof T as K extends '_collapsed' | '_fields' | '_reset' ? never : K]?: T[K] extends [number, number, number, number?, string?]
     ? number
     : T[K] extends SpringConfig | EasingConfig
       ? TransitionConfig
@@ -129,6 +129,8 @@ export type ControlMeta = {
   unit?: string;
   children?: ControlMeta[];
   defaultOpen?: boolean;
+  /** The folder drawn for this control shows a reset button: `_reset` folders, springs, and transitions. */
+  reset?: boolean;
   /** Folder only: `_fields: true` shows its numbers as one row of fields. */
   fields?: boolean;
   options?: SelectOption[];
@@ -266,7 +268,7 @@ function flattenConfigUpdates(
 
 /** Folder metadata such as `_collapsed` configures the folder and is not a value. */
 export function isFolderMetaKey(key: string): boolean {
-  return key === '_collapsed' || key === '_fields';
+  return key === '_collapsed' || key === '_fields' || key === '_reset';
 }
 
 /** A field row holds two to four numbers and at most one boolean, its lock. */
@@ -313,6 +315,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function sameControlValue(previous: unknown, next: unknown, control?: ControlMeta): boolean {
   return Object.is(previous, next) || ((control?.type === 'pad' || control?.type === 'anchor') &&
     isRecord(previous) && isRecord(next) && previous.x === next.x && previous.y === next.y);
+}
+
+/** Deep equality for stored values: springs, easings, and pads are compared by content. */
+function sameValue(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  const keys = Object.keys(a);
+  return keys.length === Object.keys(b).length &&
+    keys.every((key) => sameValue((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]));
 }
 
 function hasType(value: unknown, type: string): boolean {
@@ -387,6 +399,7 @@ class DialStoreClass {
   private panelOpenStates = new Map<string, boolean>();
   private panels: Map<string, PanelConfig> = new Map();
   private controlsByPanel = new WeakMap<PanelConfig, Map<string, ControlMeta>>();
+  private resetKeysByPanel = new WeakMap<PanelConfig, Map<string, string[]>>();
   private panelsSnapshot: PanelConfig[] = [];
   private standardPanelsSnapshot: PanelConfig[] = [];
   private timelinePanelsSnapshot: PanelConfig[] = [];
@@ -404,7 +417,7 @@ class DialStoreClass {
   private persistConfigs: Map<string, PersistConfig> = new Map();
 
   registerPanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, options: DialStorePanelOptions = {}): void {
-    const { controls, controlsByPath, defaultValues } = this.parseConfig(config, shortcuts);
+    const { controls, controlsByPath, defaultValues, resetKeys } = this.parseConfig(config, shortcuts);
     if (!this.panelOpenStates.has(id) && options.defaultCollapsed !== undefined) {
       this.panelOpenStates.set(id, !options.defaultCollapsed);
     }
@@ -428,6 +441,7 @@ class DialStoreClass {
     const panel: PanelConfig = { id, name, controls, values, shortcuts: shortcuts ?? {}, kind: options.kind };
     this.panels.set(id, panel);
     this.controlsByPanel.set(panel, controlsByPath);
+    this.resetKeysByPanel.set(panel, resetKeys);
     this.snapshots.set(id, { ...values });
     this.baseValues.set(id, baseValues);
     this.defaultValues.set(id, { ...defaultValues });
@@ -455,13 +469,14 @@ class DialStoreClass {
       return;
     }
 
-    const { controls, controlsByPath, defaultValues } = this.parseConfig(config, shortcuts ?? existing.shortcuts);
+    const { controls, controlsByPath, defaultValues, resetKeys } = this.parseConfig(config, shortcuts ?? existing.shortcuts);
     this.configurePanelRetention(id, options);
     const nextValues = this.reconcileValues(defaultValues, existing.values, controlsByPath);
 
     const nextPanel: PanelConfig = { id, name, controls, values: nextValues, shortcuts: shortcuts ?? existing.shortcuts, kind: options.kind ?? existing.kind };
     this.panels.set(id, nextPanel);
     this.controlsByPanel.set(nextPanel, controlsByPath);
+    this.resetKeysByPanel.set(nextPanel, resetKeys);
     this.snapshots.set(id, { ...nextValues });
 
     const previousBaseValues = this.baseValues.get(id) ?? {};
@@ -604,6 +619,28 @@ class DialStoreClass {
     this.activePreset.set(panelId, null);
     this.persistPanel(panelId);
     this.notify(panelId);
+  }
+
+  /**
+   * Restore the defaults behind a folder's reset button: every value inside a
+   * `_reset` folder, nested folders included, or a spring or transition's own
+   * value. Saves like any other edit.
+   */
+  resetFolder(panelId: string, path: string): void {
+    const panel = this.panels.get(panelId);
+    const keys = panel && this.resetKeysByPanel.get(panel)?.get(path);
+    const defaults = this.defaultValues.get(panelId);
+    if (!keys || !defaults) return;
+    this.updateValues(panelId, Object.fromEntries(keys.map((key) => [key, defaults[key]])));
+  }
+
+  /** True when a value that `resetFolder` restores differs from its default, so the reset button shows. */
+  isFolderChanged(panelId: string, path: string): boolean {
+    const panel = this.panels.get(panelId);
+    const keys = panel && this.resetKeysByPanel.get(panel)?.get(path);
+    const defaults = this.defaultValues.get(panelId);
+    if (!panel || !keys || !defaults) return false;
+    return keys.some((key) => !sameValue(panel.values[key], defaults[key]));
   }
 
   updateSpringMode(panelId: string, path: string, mode: 'simple' | 'advanced'): void {
@@ -1068,7 +1105,7 @@ class DialStoreClass {
         } else if (typeof value === 'boolean') {
           control = { type: 'toggle', path, label, shortcut };
         } else if (isSpringConfigValue(value) || isEasingConfigValue(value)) {
-          control = { type: 'transition', path, label };
+          control = { type: 'transition', path, label, reset: true };
         } else if (isActionConfigValue(value)) {
           control = { type: 'action', path, label: value.label || label };
         } else if (isSelectConfigValue(value)) {
@@ -1100,6 +1137,7 @@ class DialStoreClass {
             path,
             label,
             defaultOpen,
+            reset: folderConfig._reset === true,
             children,
           };
           if (folderConfig._fields === true) {
@@ -1128,7 +1166,16 @@ class DialStoreClass {
     };
     const controls = visit(config, '');
     Object.assign(defaultValues, modes);
-    return { controls, defaultValues, controlsByPath };
+    // The values each reset button restores: everything inside a `_reset`
+    // folder, nested folders included, or a control's own value. Transition
+    // modes are included either way.
+    const resetKeys = new Map<string, string[]>();
+    for (const control of controlsByPath.values()) {
+      if (!control.reset) continue;
+      const prefix = `${control.path}.`;
+      resetKeys.set(control.path, Object.keys(defaultValues).filter((key) => key === control.path || key.startsWith(prefix)));
+    }
+    return { controls, defaultValues, controlsByPath, resetKeys };
   }
 
   private inferRange(value: number): { min: number; max: number; step: number } {

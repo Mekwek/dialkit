@@ -2,7 +2,7 @@ import { activateOnKey } from '../control-keyboard';
 import { createPanelSectionTransition, measurePanelHeight, observePanelHeader, observeScrollFades } from '../panel-size';
 import { useState, useRef, useEffect, useLayoutEffect, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ICON_CLOSE, ICON_PANEL, ICON_CHEVRON } from '../icons';
+import { ICON_CLOSE, ICON_PANEL, ICON_CHEVRON, ICON_RESET } from '../icons';
 
 interface FolderProps {
   title: string;
@@ -14,13 +14,17 @@ interface FolderProps {
   onOpenChange?: (isOpen: boolean) => void;
   toolbar?: ReactNode;
   panelHeightOffset?: number;
+  /** Shows a reset button after the title, visible while `changed` is true. */
+  onReset?: () => void;
+  changed?: boolean;
 }
 
-export function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, panelHeightOffset = 0 }: FolderProps) {
+export function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, panelHeightOffset = 0, onReset, changed = false }: FolderProps) {
   const [localOpen, setIsOpen] = useState(defaultOpen);
   const isOpen = open ?? localOpen;
   const isCollapsed = !isOpen;
   const contentRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
   const sectionRef = useRef<HTMLDivElement>(null);
   const sectionTransition = useRef<ReturnType<typeof createPanelSectionTransition> | null>(null);
   const isSection = !isRoot && !!toolbar;
@@ -73,7 +77,7 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
       data-open={String(isOpen)}
     >
       <div className={`dialkit-folder-header ${isRoot ? 'dialkit-panel-header' : ''}`} onClick={handleToggle}>
-        <div className="dialkit-folder-header-top" role={inline && isRoot ? undefined : "button"} tabIndex={inline && isRoot ? undefined : 0} aria-label={title} aria-expanded={isOpen} onKeyDown={(e) => activateOnKey(e, handleToggle)}>
+        <div ref={headerRef} className="dialkit-folder-header-top" role={inline && isRoot ? undefined : "button"} tabIndex={inline && isRoot ? undefined : 0} aria-label={title} aria-expanded={isOpen} onKeyDown={(e) => activateOnKey(e, handleToggle)}>
           {isRoot ? (
             isOpen && (
               <div className="dialkit-folder-title-row">
@@ -120,6 +124,25 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
             </motion.svg>
           )}
         </div>
+
+        {!isRoot && onReset && (
+          <button
+            type="button"
+            className="dialkit-folder-reset"
+            aria-label={`Reset ${title}`}
+            data-changed={String(changed)}
+            onClick={(e) => {
+              e.stopPropagation();
+              // The button hides once the values are back; keep focus in the header.
+              headerRef.current?.focus();
+              onReset();
+            }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              {ICON_RESET.map((d, i) => <path key={i} d={d} />)}
+            </svg>
+          </button>
+        )}
 
         {isSection ? (
           <div className="dialkit-panel-section-toolbar-clip">

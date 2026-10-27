@@ -321,6 +321,91 @@
   transition: color 0.15s;
 }
 
+/* A folder's reset button (`_reset` folders, springs, transitions) follows
+   the title, outside the header's toggle. The header becomes a grid, and
+   its toggle spans every column. */
+.dialkit-folder-header:has(> .dialkit-folder-reset) {
+  display: grid;
+  grid-template-columns: minmax(0, max-content) auto 1fr;
+  align-items: center;
+  column-gap: 4px;
+}
+
+.dialkit-folder-header:has(> .dialkit-folder-reset) > .dialkit-folder-header-top {
+  grid-area: 1 / 1 / 2 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+}
+
+.dialkit-folder-header:has(> .dialkit-folder-reset) > .dialkit-folder-header-top > .dialkit-folder-icon {
+  grid-column: 3;
+  justify-self: end;
+}
+
+.dialkit-folder-reset {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  padding: 3px;
+  box-sizing: border-box;
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  color: var(--dial-text-tertiary);
+  grid-area: 1 / 2;
+  cursor: pointer;
+  /* An icon beside a title centres on its lowercase letters, where a word
+     looks centred, not on its capitals: half a cap height minus half an x
+     height lower, in the title's font, not the header's own. It also
+     follows the title's 0.5px lift. */
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  translate: 0 calc(0.5cap - 0.5ex - 0.54px);
+  /* Motion's spring (visualDuration 0.2, bounce 0.35), written as a CSS curve. */
+  --dial-folder-reset-spring: 453ms linear(0.0000, 0.0473, 0.1532, 0.2693, 0.4153, 0.5580, 0.6874, 0.7979, 0.8756, 0.9467, 0.9980, 1.0323, 1.0526, 1.0612, 1.0635, 1.0601, 1.0531, 1.0443, 1.0363, 1.0273, 1.0192, 1.0123, 1.0067, 1.0031, 0.9999, 0.9978, 0.9966, 0.9960, 0.9960, 0.9962, 0.9967, 0.9972, 0.9978, 0.9983, 0.9988, 0.9993, 0.9996, 0.9999, 1.0000, 1.0001, 1.0000);
+  transition: color 0.15s, background 0.15s, opacity 140ms ease-out, scale var(--dial-folder-reset-spring), rotate var(--dial-folder-reset-spring), visibility 0s;
+}
+
+.dialkit-folder-reset:hover,
+.dialkit-folder-reset:focus-visible {
+  color: var(--dial-text-focus);
+  background: var(--dial-surface-hover);
+}
+
+/* The button turns in the way its arrow points (counter-clockwise, an undo)
+   and, once the values are back, keeps turning that way as it leaves. The
+   fade is quick and plain; only the turn and the scale spring. */
+.dialkit-folder-reset[data-changed="false"] {
+  visibility: hidden;
+  opacity: 0;
+  scale: 0.6;
+  rotate: -180deg;
+  pointer-events: none;
+  transition: color 0.15s, background 0.15s, opacity 180ms ease-in, scale var(--dial-folder-reset-spring), rotate var(--dial-folder-reset-spring), visibility 0s linear 180ms;
+}
+
+.dialkit-folder-reset[data-changed="true"] {
+  animation: dialkit-folder-reset-in var(--dial-folder-reset-spring);
+}
+
+@keyframes dialkit-folder-reset-in {
+  from { opacity: 0; scale: 0.6; rotate: 180deg; }
+  30% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialkit-folder-reset, .dialkit-folder-reset[data-changed="false"] { rotate: none; animation: none; }
+}
+
+.dialkit-folder-reset svg {
+  width: 100%;
+  height: 100%;
+}
+
 .dialkit-panel-icon {
   position: absolute;
   top: 12px;
@@ -435,6 +520,10 @@
   line-height: 20px;
   color: var(--dial-text-root);
   transform: translateZ(0);
+}
+
+.dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder > .dialkit-folder-header > .dialkit-folder-reset {
+  font-size: 15px;
 }
 
 .dialkit-panel[data-multiple="true"] .dialkit-folder-title-root {

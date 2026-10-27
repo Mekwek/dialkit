@@ -1,7 +1,7 @@
 import { activateOnKey } from '../../control-keyboard';
 import { createSignal, createEffect, on, onCleanup, Show, JSX } from 'solid-js';
 import { animate } from 'motion';
-import { ICON_CHEVRON } from '../../icons';
+import { ICON_CHEVRON, ICON_RESET } from '../../icons';
 import type { AnimationHandle } from '../primitives';
 import { RootPanel } from './RootPanel';
 import { createPanelSectionTransition } from '../../panel-size';
@@ -20,6 +20,9 @@ interface FolderProps {
   toolbar?: JSX.Element;
   /** @deprecated Only meaningful with isRoot. */
   panelHeightOffset?: number;
+  /** Shows a reset button after the title, visible while `changed` is true. */
+  onReset?: () => void;
+  changed?: boolean;
 }
 
 const sectionTransition = { type: 'spring' as const, visualDuration: 0.35, bounce: 0.1 };
@@ -35,6 +38,7 @@ export function Folder(props: FolderProps) {
   const isOpen = () => props.open ?? localOpen();
   const isSection = !!props.toolbar;
   let folderRef: HTMLDivElement | undefined;
+  let headerRef: HTMLDivElement | undefined;
   let panelTransition: ReturnType<typeof createPanelSectionTransition> | undefined;
   const [contentMounted, setContentMounted] = createSignal(props.open ?? props.defaultOpen ?? true);
   let skipFirstAnim = props.open ?? props.defaultOpen ?? true;
@@ -122,7 +126,7 @@ export function Folder(props: FolderProps) {
   return (
     <div ref={folderRef} class={`dialkit-folder${props.toolbar ? ' dialkit-folder-section' : ''}`} data-open={String(isOpen())}>
       <div class="dialkit-folder-header" onClick={handleToggle}>
-        <div class="dialkit-folder-header-top" role={false ? undefined : "button"} tabIndex={false ? undefined : 0} aria-label={props.title} aria-expanded={isOpen()} onKeyDown={(e) => activateOnKey(e, handleToggle)}>
+        <div ref={headerRef} class="dialkit-folder-header-top" role={false ? undefined : "button"} tabIndex={false ? undefined : 0} aria-label={props.title} aria-expanded={isOpen()} onKeyDown={(e) => activateOnKey(e, handleToggle)}>
           <div class="dialkit-folder-title-row">
             <span class="dialkit-folder-title">{props.title}</span>
           </div>
@@ -141,6 +145,24 @@ export function Folder(props: FolderProps) {
             <path d={ICON_CHEVRON} />
           </svg>
         </div>
+        <Show when={props.onReset}>
+          <button
+            type="button"
+            class="dialkit-folder-reset"
+            aria-label={`Reset ${props.title}`}
+            data-changed={String(!!props.changed)}
+            onClick={(e) => {
+              e.stopPropagation();
+              // The button hides once the values are back; keep focus in the header.
+              headerRef?.focus();
+              props.onReset?.();
+            }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              {ICON_RESET.map((d) => <path d={d} />)}
+            </svg>
+          </button>
+        </Show>
         <Show when={props.toolbar}>
           <div class="dialkit-panel-section-toolbar-clip">
             <div class="dialkit-panel-section-toolbar" onClick={(e) => e.stopPropagation()}>{props.toolbar}</div>

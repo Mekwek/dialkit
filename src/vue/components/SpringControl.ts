@@ -16,6 +16,9 @@ export const SpringControl = defineComponent({
       type: Object as PropType<SpringConfig>,
       required: true,
     },
+    /** Shows a reset button in the header. See Folder.onReset. */
+    onReset: Function as PropType<() => void>,
+    changed: { type: Boolean, default: false },
   },
   emits: ['change'],
   setup(props, { emit }) {
@@ -65,7 +68,7 @@ export const SpringControl = defineComponent({
       }
     };
 
-    return () => h(Folder, { title: props.label, defaultOpen: true }, {
+    return () => h(Folder, { title: props.label, defaultOpen: true, onReset: props.onReset, changed: props.changed }, {
       default: () => [
         h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } }, [
           h(SpringVisualization, { spring: props.spring, isSimpleMode: isSimpleMode() }),

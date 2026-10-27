@@ -224,6 +224,16 @@ Actions call `onAction` with their full dot path. They are not writable values. 
 
 Folders can nest. `_collapsed: true` starts a folder closed; it is UI metadata and is omitted from resolved values. Use `defaultCollapsed` in panel options to close the entire panel.
 
+```tsx
+const values = useDialKit("Card", {
+  shadow: { _reset: true, blur: [12, 0, 40], spread: [0, 0, 20] },
+}, { id: "card" });
+```
+
+`_reset: true` shows a reset button beside the folder title while any value inside, nested folders included, differs from its default. It restores only that folder and saves to the active version like any other edit. Clicking it springs the folder's sliders back; sliders inside spring and easing editors move at once. From code, `DialStore.resetFolder("card", "shadow")` resets without the spring, and `DialStore.isFolderChanged("card", "shadow")` reports whether the button shows.
+
+Spring and easing controls draw a folder of their own, and its header gets the same button without `_reset`: it shows once the curve or its mode differs from the default, and restores both. The store methods take the control's path, as in `DialStore.resetFolder("card", "enter")` for an `enter` spring.
+
 ## Controllers
 
 Use `useDialKitController` in React and Vue, or `createDialKitController` in Solid, Svelte, and vanilla. Vanilla's `createDialKit` is an alias for its controller factory.

@@ -44,10 +44,14 @@ export interface TransitionControlProps {
     max?: number;
     step?: number;
   };
+  /** Shows a reset button in the header. See FolderProps.onReset. */
+  onReset?: () => void;
+  changed?: boolean;
 }
 export function mountTransitionControl(host: HTMLElement, initial: TransitionControlProps, springOnly = false): Mounted<TransitionControlProps> {
   let props = initial;
-  const folder = mountFolder(host, { title: props.label });
+  const folderProps = () => ({ title: props.label, onReset: props.onReset, changed: props.changed });
+  const folder = mountFolder(host, folderProps());
   const body = element('div');
   Object.assign(body.style, { display: 'flex', flexDirection: 'column', gap: '6px' });
   folder.body.append(body);
@@ -78,7 +82,7 @@ export function mountTransitionControl(host: HTMLElement, initial: TransitionCon
       mode = nextMode;
       rebuild();
     }
-    folder.update({ title: props.label });
+    folder.update(folderProps());
     refresh();
   }
   function rebuild() {
@@ -199,6 +203,9 @@ export interface SpringControlProps {
   label: string;
   spring: SpringConfig;
   onChange: (value: SpringConfig) => void;
+  /** Shows a reset button in the header. See FolderProps.onReset. */
+  onReset?: () => void;
+  changed?: boolean;
 }
 export function mountSpringControl(host: HTMLElement, props: SpringControlProps): Mounted<SpringControlProps> {
   const convert = (p: SpringControlProps): TransitionControlProps => ({ ...p, value: p.spring, onChange: value => p.onChange(value as SpringConfig) });

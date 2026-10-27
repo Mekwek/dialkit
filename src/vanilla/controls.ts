@@ -2,7 +2,7 @@ import { activateOnKey, handleSegmentKey, handleSliderKey, labelSegmentedControl
 import { decimalsForStep, isWordUnit, roundValue, snapToDecile, formatSliderShortcut, formatToggleShortcut } from '../shortcut-utils';
 import { observeTextSize } from '../text-autosize';
 import { createPanelSectionTransition, observePanelHeader, observeScrollFades } from '../panel-size';
-import { ICON_CLOSE, ICON_CHEVRON, ICON_PANEL } from '../icons';
+import { ICON_CLOSE, ICON_CHEVRON, ICON_PANEL, ICON_RESET } from '../icons';
 import type { ShortcutConfig } from '../store/DialStore';
 import { element, icon, svg, type Mounted } from './dom';
 import { animateSpring } from './animation';
@@ -14,6 +14,9 @@ export interface FolderProps {
   isSection?: boolean;
   inline?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /** Shows a reset button after the title, visible while `changed` is true. */
+  onReset?: () => void;
+  changed?: boolean;
 }
 export function mountFolder(host: HTMLElement, initial: FolderProps) {
   let props = initial;
@@ -31,6 +34,21 @@ export function mountFolder(host: HTMLElement, initial: FolderProps) {
   const toolbar = element('div', props.isRoot ? 'dialkit-panel-toolbar' : 'dialkit-panel-section-toolbar');
   toolbar.addEventListener('click', event => event.stopPropagation());
   header.append(top);
+  const reset = props.onReset && !props.isRoot ? element('button', 'dialkit-folder-reset') : undefined;
+  if (reset) {
+    reset.append(icon(ICON_RESET));
+    reset.addEventListener('click', event => {
+      event.stopPropagation();
+      // The button hides once the values are back; keep focus in the header.
+      top.focus();
+      props.onReset?.();
+    });
+    header.append(reset);
+  }
+  const renderReset = () => {
+    reset?.setAttribute('aria-label', `Reset ${props.title}`);
+    reset?.setAttribute('data-changed', String(!!props.changed));
+  };
   if (props.isSection) {
     const toolbarClip = element('div', 'dialkit-panel-section-toolbar-clip');
     toolbarClip.append(toolbar);
@@ -130,13 +148,19 @@ export function mountFolder(host: HTMLElement, initial: FolderProps) {
       if (!open)
         toggle();
     });
+  renderReset();
   render();
   if (props.isSection) sectionTransition = createPanelSectionTransition(folder, open);
   const stopHeader = props.isRoot ? observePanelHeader(folder) : undefined;
   const stopFades = props.isRoot ? observeScrollFades(folder) : undefined;
   return {
     element: node, body, toolbar, update(next: FolderProps) {
+      const title = props.title;
       props = next;
+      renderReset();
+      // Value changes only touch the reset button; a full render reads layout.
+      if ((next.open ?? open) === open && next.title === title)
+        return;
       open = next.open ?? open;
       render();
     }, destroy() {
@@ -274,6 +298,8 @@ export interface SliderProps {
   unit?: string;
   shortcut?: ShortcutConfig;
   shortcutActive?: boolean;
+  /** @internal A value that arrives with a new count springs into place, like a click on the track. */
+  resetCount?: number;
 }
 export function mountSlider(host: HTMLElement, initial: SliderProps): Mounted<SliderProps> {
   let props = initial;
@@ -358,6 +384,19 @@ export function mountSlider(host: HTMLElement, initial: SliderProps): Mounted<Sl
     render();
     props.onChange(value);
   };
+  /** Springs the fill and handle from `from` to the current value. */
+  const springFrom = (from: number) => {
+    const { min, max } = range();
+    if (max <= min)
+      return;
+    const startPct = (from - min) / (max - min) * 100;
+    const endPct = (props.value - min) / (max - min) * 100;
+    cancelClick();
+    clickAnimations = [
+      animateSpring(fill, p => ({ width: `${startPct + (endPct - startPct) * p}%` }), 0.25),
+      animateSpring(handle, p => ({ left: `max(5px, calc(${startPct + (endPct - startPct) * p}% - 9px))` }), 0.25),
+    ];
+  };
   const position = (x: number) => {
     const { min, max } = range();
     const rect = drag?.rect ?? wrapper.getBoundingClientRect();
@@ -433,13 +472,7 @@ export function mountSlider(host: HTMLElement, initial: SliderProps): Mounted<Sl
       const next = (max - min) / step <= 10 ? min + Math.round((raw - min) / step) * step : snapToDecile(raw, min, max);
       const from = props.value;
       commit(roundValue(next, step, min, max));
-      const startPct = (from - min) / (max - min) * 100;
-      const endPct = (props.value - min) / (max - min) * 100;
-      if (max > min)
-        clickAnimations = [
-          animateSpring(fill, p => ({ width: `${startPct + (endPct - startPct) * p}%` }), 0.25),
-          animateSpring(handle, p => ({ left: `max(5px, calc(${startPct + (endPct - startPct) * p}% - 9px))` }), 0.25),
-        ];
+      springFrom(from);
     }
     endDrag();
   });
@@ -487,8 +520,12 @@ export function mountSlider(host: HTMLElement, initial: SliderProps): Mounted<Sl
   render();
   return {
     update(next) {
+      const from = props.value;
+      const isReset = (next.resetCount ?? 0) !== (props.resetCount ?? 0);
       props = next;
       render();
+      if (isReset && from !== props.value && !drag)
+        springFrom(from);
     }, destroy() {
       clearTimeout(timer);
       cancelClick();
