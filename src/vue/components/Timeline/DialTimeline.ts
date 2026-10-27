@@ -18,19 +18,22 @@ import type { TimelineClipMeta, TimelineMeta } from '../../../store/TimelineStor
 import { TimelineUiStore } from '../../../store/TimelineUiStore';
 import {
   TIMELINE_MIN_CLIP_DURATION,
-  clampClipMove,
   clampClipResizeEnd,
   clampClipResizeStart,
   clampStepResize,
   clampTrackDelay,
   computeClipStaticFromValues,
+  dragTimelineClip,
   formatClock,
   formatSeconds,
   formatStepLabel,
   normalizeTimelineValuesForCopy,
+  timelineClipDragBounds,
+  timelineClipProgress,
+  timelineClipSpans,
   timelinePopoverDisplayValues,
 } from '../../../timeline-core';
-import type { TimelineClipLoop, TimelineStepStatic } from '../../../timeline-core';
+import type { TimelineClipDragBounds, TimelineClipLoop, TimelineStepStatic } from '../../../timeline-core';
 import { clamp } from '../../../transition-math';
 import { buildCopyInstruction } from '../../../copy-instruction';
 import { isDevDefault } from '../../../env';
@@ -38,6 +41,7 @@ import {
   ICON_CHEVRON,
   ICON_CHECK,
   ICON_CLIPBOARD_PLAIN,
+  ICON_LOOP,
   ICON_PAUSE,
   ICON_PLAY,
   ICON_REPLAY,
@@ -57,7 +61,9 @@ const SECOND_TICK_STEPS = [
   1, 2, 5, 10, 15, 30, 60, 120, 300, 600,
 ];
 const MIN_TIMELINE_MAX_ZOOM = 8;
-const PLAYHEAD_FLAG_WIDTH = 52;
+// The flag hugs its digits; the edge clamp keeps its widest (five
+// characters) inside the lane.
+const PLAYHEAD_FLAG_WIDTH = 38;
 const PLAYHEAD_FLAG_EDGE_OVERHANG = 1;
 const POPOVER_WIDTH = 280;
 const ZOOM_DRAG_DISTANCE = 180;
@@ -218,6 +224,55 @@ const ReplayButton = defineComponent({
       h('svg', { viewBox: '0 0 24 24', fill: 'none', 'aria-hidden': 'true' },
         ICON_REPLAY.map((path) => h('path', { d: path, fill: 'currentColor' }))),
     ]);
+  },
+});
+
+const LoopButton = defineComponent({
+  props: {
+    id: { type: String, required: true },
+    loop: { type: Boolean, required: true },
+  },
+  setup(props) {
+    return () => h('button', {
+      class: 'dialkit-toolbar-add dialkit-timeline-toolbar-toggle dialkit-timeline-loop',
+      'data-active': props.loop || undefined,
+      'aria-pressed': props.loop,
+      'aria-label': 'Loop',
+      title: props.loop ? 'Stop looping' : 'Loop',
+      onClick: () => TimelineStore.setLoop(props.id, !props.loop),
+    }, [
+      h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' },
+        ICON_LOOP.map((path) => h('path', { d: path }))),
+    ]);
+  },
+});
+
+// The part of a single-track bar the playhead has crossed. Re-renders only
+// while the playhead is inside the bar: before and after, the width holds.
+const ClipFill = defineComponent({
+  props: {
+    id: { type: String, required: true },
+    at: { type: Number, required: true },
+    duration: { type: Number, required: true },
+  },
+  setup(props) {
+    const read = () => timelineClipProgress(TimelineStore.getTransport(props.id).time, props.at, props.duration);
+    const progress = ref(read());
+    let unsubscribe: (() => void) | undefined;
+    onMounted(() => {
+      unsubscribe = TimelineStore.subscribe(props.id, () => {
+        progress.value = read();
+      });
+    });
+    onUnmounted(() => unsubscribe?.());
+    watch(() => [props.at, props.duration], () => {
+      progress.value = read();
+    });
+    return () => h('span', {
+      class: 'dialkit-timeline-clip-fill',
+      style: { width: `${progress.value * 100}%` },
+      'aria-hidden': 'true',
+    });
   },
 });
 
@@ -420,6 +475,8 @@ const TimelineSection = defineComponent({
     const open = ref(props.defaultOpen);
     const copied = ref(false);
     const popover = ref<PopoverState | null>(null);
+    // Single track: the bar last pressed stays selected until the empty lane is pressed.
+    const selectedKey = ref<string | null>(null);
     const collapsedGroups = ref(new Set<string>());
     const expandedTracks = ref(new Set<string>());
     const zoom = ref(1);
@@ -433,8 +490,10 @@ const TimelineSection = defineComponent({
     let unsubscribeValues: (() => void) | undefined;
     let resizeObserver: ResizeObserver | undefined;
 
-    const measure = () => {
-      if (laneAreaRef.value) laneWidth.value = laneAreaRef.value.getBoundingClientRect().width;
+    // Layout sizes, which a host's zoom (a scale on a parent) leaves alone:
+    // a scaled screen width would place every clip as far out as the zoom.
+    const measure = (entries?: ResizeObserverEntry[]) => {
+      if (laneAreaRef.value) laneWidth.value = entries?.[0]?.borderBoxSize?.[0]?.inlineSize ?? laneAreaRef.value.offsetWidth;
     };
     const connectMeasure = async () => {
       resizeObserver?.disconnect();
@@ -579,6 +638,19 @@ const TimelineSection = defineComponent({
       else openClipPopover(clip, rect, stepKey);
     };
 
+    // Where a dragged bar may go: the whole timeline, or the gap between its
+    // neighbors on a single track. The playhead is a snap target while paused.
+    const singleTrack = () => props.meta.track === 'single';
+    const getDragBounds = (clipKey: string) => {
+      const transport = TimelineStore.getTransport(props.meta.id);
+      return timelineClipDragBounds(
+        timelineClipSpans(DialStore.getValues(props.meta.id), props.meta.clips, props.meta.duration),
+        clipKey,
+        props.meta.duration,
+        { singleTrack: singleTrack(), playhead: transport.playing ? undefined : transport.time }
+      );
+    };
+
     const ticks = computed(() => {
       const raw = pxPerSecond.value > 0 ? MAJOR_TICK_TARGET_PX / pxPerSecond.value : 1;
       const adaptive = SECOND_TICK_STEPS.find((step) => step >= raw) ?? SECOND_TICK_STEPS[SECOND_TICK_STEPS.length - 1];
@@ -602,6 +674,33 @@ const TimelineSection = defineComponent({
     });
 
     const renderRows = (): VNodeChild[] => {
+      // A single track puts every clip on one lane, named inside its bar.
+      if (singleTrack()) {
+        return [h('div', { key: 'single', class: 'dialkit-timeline-row' }, [
+          h('div', { class: 'dialkit-timeline-label' }),
+          h('div', { class: 'dialkit-timeline-lane' }, props.meta.clips.map((clip) => {
+            const stat = computeClipStaticFromValues(values.value, clip, props.meta.duration);
+            return h(TimelineClip, {
+              key: clip.key,
+              timelineId: props.meta.id,
+              clip,
+              at: stat.at,
+              duration: stat.duration,
+              loop: stat.loop,
+              fixedDuration: stat.isPhysics,
+              single: true,
+              pxPerSecond: pxPerSecond.value,
+              viewStart: safeViewStart.value,
+              timelineDuration: props.meta.duration,
+              selected: selectedKey.value === clip.key || popover.value?.clip.key === clip.key,
+              getDragBounds,
+              onSelect: (key: string) => { selectedKey.value = key; },
+              onClick: handleBarClick,
+              onDrag: closePopover,
+            });
+          })),
+        ])];
+      }
       const rows: VNodeChild[] = [];
       let lastGroup: string | undefined;
       for (const clip of props.meta.clips) {
@@ -656,6 +755,7 @@ const TimelineSection = defineComponent({
             timelineDuration: props.meta.duration,
             selected,
             selectedStepKey: selected ? popover.value?.stepKey : undefined,
+            getDragBounds,
             onClick: handleBarClick,
             onDrag: closePopover,
           })]),
@@ -691,6 +791,7 @@ const TimelineSection = defineComponent({
               timelineDuration: props.meta.duration,
               selected: trackSelected,
               selectedStepKey: trackSelected ? popover.value?.stepKey : undefined,
+              getDragBounds,
               onClick: openClipPopover,
               onDrag: closePopover,
             })]),
@@ -700,10 +801,12 @@ const TimelineSection = defineComponent({
       return rows;
     };
 
-    return () => h('div', { class: 'dialkit-timeline-section' }, [
+    return () => h('div', { class: 'dialkit-timeline-section', role: 'group', 'aria-label': props.meta.name, 'data-track': singleTrack() ? 'single' : undefined }, [
       h('div', { class: 'dialkit-timeline-header', 'data-open': open.value || undefined }, [
-        h('div', { class: 'dialkit-timeline-identity' }, [
-          h('span', { class: 'dialkit-timeline-title' }, props.meta.name),
+        h('div', { class: 'dialkit-timeline-transport' }, [
+          h(PlayPauseButton, { id: props.meta.id }),
+          h(ReplayButton, { onReplay: handleReplay }),
+          h(LoopButton, { id: props.meta.id, loop: props.meta.loop }),
         ]),
         !open.value ? h(TimelineOverview, {
           id: props.meta.id,
@@ -713,18 +816,16 @@ const TimelineSection = defineComponent({
           onNavigate: centerViewAt,
         }) : null,
         h('div', { class: 'dialkit-timeline-actions' }, [
-          h(PlayPauseButton, { id: props.meta.id }),
-          h(ReplayButton, { onReplay: handleReplay }),
           h(PresetManager, { panelId: props.meta.id, presets: presets.value, activePresetId: activePresetId.value }),
           h('button', {
-            class: 'dialkit-toolbar-add dialkit-toolbar-primary',
+            class: 'dialkit-toolbar-add',
             title: 'Copy parameters',
             'aria-label': copied.value ? 'Copied parameters' : 'Copy parameters',
             onClick: handleCopy,
           }, [h('span', { style: { position: 'relative', width: '16px', height: '16px' } }, [
             copied.value
-              ? h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', style: { ...iconStyle, color: 'inherit' } }, [h('path', { d: ICON_CHECK })])
-              : h('svg', { viewBox: '0 0 24 24', fill: 'none', style: { ...iconStyle, color: 'inherit' } }, [
+              ? h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', style: iconStyle }, [h('path', { d: ICON_CHECK })])
+              : h('svg', { viewBox: '0 0 24 24', fill: 'none', style: iconStyle }, [
                 h('path', { d: ICON_CLIPBOARD_PLAIN.board, stroke: 'currentColor', 'stroke-width': '2', 'stroke-linejoin': 'round' }),
                 h('path', { d: ICON_CLIPBOARD_PLAIN.body, stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }),
               ]),
@@ -745,6 +846,7 @@ const TimelineSection = defineComponent({
           const target = event.target as HTMLElement;
           if (target.closest('.dialkit-timeline-label, button')) return;
           if (!event.shiftKey && target.closest('.dialkit-timeline-clip')) return;
+          selectedKey.value = null;
           const rect = laneAreaRef.value?.getBoundingClientRect();
           if (!rect) return;
           event.preventDefault();
@@ -850,6 +952,9 @@ const TimelineSection = defineComponent({
         popover: popover.value,
         values: values.value,
         theme: props.theme,
+        maxDuration: singleTrack() && !popover.value.stepKey
+          ? getDragBounds(popover.value.clip.key).end - computeClipStaticFromValues(values.value, popover.value.clip, props.meta.duration).at
+          : undefined,
         onClose: closePopover,
       }) : null,
     ]);
@@ -868,6 +973,8 @@ const ClipPopover = defineComponent({
     popover: { type: Object as PropType<PopoverState>, required: true },
     values: { type: Object as PropType<Record<string, DialValue>>, required: true },
     theme: { type: String as PropType<DialTheme>, required: true },
+    /** On a single track a clip grows only up to the next one. */
+    maxDuration: Number,
     onClose: { type: Function as PropType<() => void>, required: true },
   },
   setup(props) {
@@ -928,12 +1035,21 @@ const ClipPopover = defineComponent({
       const target = stepKey ? `${clip.key}.${stepKey}` : clip.key;
       const durationMeta = getControlAt(props.panelId, `${target}.duration`);
       const durationValue = durationMeta ? props.values[durationMeta.path] : undefined;
+      const durationMin = Math.max(TIMELINE_MIN_CLIP_DURATION, durationMeta?.min ?? 0);
+      const maxDuration = props.maxDuration;
+      const durationMax = maxDuration === undefined
+        ? durationMeta?.max
+        : Math.max(durationMin, Math.min(durationMeta?.max ?? maxDuration, maxDuration));
       const transitionDuration = durationMeta?.type === 'slider' && typeof durationValue === 'number'
         ? {
             value: durationValue,
-            onChange: (next: number) => DialStore.updateValue(props.panelId, durationMeta.path, next),
-            min: Math.max(TIMELINE_MIN_CLIP_DURATION, durationMeta.min ?? 0),
-            max: durationMeta.max,
+            onChange: (next: number) => DialStore.updateValue(
+              props.panelId,
+              durationMeta.path,
+              durationMax === undefined ? next : Math.min(next, durationMax)
+            ),
+            min: durationMin,
+            max: durationMax,
             step: durationMeta.step,
           }
         : undefined;
@@ -1011,6 +1127,7 @@ type DragState = {
   pointerX: number;
   at: number;
   duration: number;
+  bounds: TimelineClipDragBounds;
   stepDurations?: number[];
   clickEl: HTMLElement | null;
   moved: boolean;
@@ -1026,6 +1143,8 @@ const TimelineClip = defineComponent({
     steps: Array as PropType<TimelineStepStatic[]>,
     fixedDuration: { type: Boolean, required: true },
     composite: Boolean,
+    /** Single track: the bar carries its name and fills as the playhead crosses it. */
+    single: Boolean,
     baseAt: { type: Number, default: 0 },
     delayMode: Boolean,
     pxPerSecond: { type: Number, required: true },
@@ -1033,6 +1152,9 @@ const TimelineClip = defineComponent({
     timelineDuration: { type: Number, required: true },
     selected: { type: Boolean, required: true },
     selectedStepKey: String,
+    getDragBounds: { type: Function as PropType<(clipKey: string) => TimelineClipDragBounds>, required: true },
+    /** Single track: pressing the bar, not an edge, selects it. */
+    onSelect: Function as PropType<(clipKey: string) => void>,
     onClick: { type: Function as PropType<(clip: TimelineClipMeta, rect: DOMRect, stepKey?: string) => void>, required: true },
     onDrag: { type: Function as PropType<() => void>, required: true },
   },
@@ -1092,7 +1214,9 @@ const TimelineClip = defineComponent({
         });
         if (!props.steps?.[0]?.isPhysics) children.push(h('div', { class: 'dialkit-timeline-clip-handle', 'data-edge': 'start' }));
       } else {
+        if (props.single) children.push(h(ClipFill, { id: props.timelineId, at: props.at, duration: props.duration }));
         if (resizable) children.push(h('div', { class: 'dialkit-timeline-clip-handle', 'data-edge': 'start' }));
+        if (props.single) children.push(h('span', { class: 'dialkit-timeline-clip-name' }, props.clip.label));
         if (width > 56) children.push(h('span', { class: 'dialkit-timeline-clip-duration' }, durationText));
         if (resizable) children.push(h('div', { class: 'dialkit-timeline-clip-handle', 'data-edge': 'end' }));
       }
@@ -1105,7 +1229,8 @@ const TimelineClip = defineComponent({
         'data-composite': props.composite || undefined,
         'data-selected': props.selected || undefined,
         'data-dragging': dragging.value || undefined,
-        style: { left: `${(props.at - props.viewStart) * props.pxPerSecond}px`, width: `${width}px`, background: props.composite ? `${props.clip.color}80` : props.clip.color },
+        // A single-track bar draws 1px short of its span on each side, so butted bars keep a hairline of lane between them.
+        style: { left: `${(props.at - props.viewStart) * props.pxPerSecond + (props.single ? 1 : 0)}px`, width: `${props.single ? Math.max(width - 2, 12) : width}px`, background: props.single ? undefined : props.composite ? `${props.clip.color}80` : props.clip.color },
         title,
         onPointerdown: (event: PointerEvent) => {
           if (event.shiftKey) return;
@@ -1120,12 +1245,14 @@ const TimelineClip = defineComponent({
             const edge = target.dataset.edge as 'start' | 'end' | undefined;
             if (edge) mode = edge;
           }
+          if (mode === 'move') props.onSelect?.(props.clip.key);
           drag = {
             mode,
             boundaryIndex,
             pointerX: event.clientX,
             at: props.at,
             duration: props.duration,
+            bounds: props.getDragBounds(props.clip.key),
             stepDurations: props.steps?.map((step) => step.duration),
             clickEl: target.closest?.('[data-step]'),
             moved: false,
@@ -1146,9 +1273,16 @@ const TimelineClip = defineComponent({
             const index = drag.boundaryIndex ?? 0;
             const others = drag.stepDurations.reduce((sum, duration, stepIndex) => stepIndex === index ? sum : sum + duration, 0);
             DialStore.updateValue(props.timelineId, `${props.clip.key}.${props.steps[index].key ?? ''}.duration`, clampStepResize(drag.stepDurations[index] + dt, drag.at, others, props.timelineDuration));
-          } else if (drag.mode === 'move') {
-            if (props.delayMode) DialStore.updateValue(props.timelineId, `${props.clip.key}.delay`, clampTrackDelay(drag.at + dt - props.baseAt, props.baseAt, drag.duration, props.timelineDuration));
-            else DialStore.updateValue(props.timelineId, `${props.clip.key}.at`, clampClipMove(drag.at + dt, drag.duration, props.timelineDuration));
+          } else if (!props.delayMode && drag.mode !== 'boundary' && !(drag.mode === 'start' && props.steps)) {
+            // Clip bars. Cmd (Ctrl elsewhere) snaps to other clips and the playhead.
+            const next = dragTimelineClip(drag.mode, drag, dt, drag.bounds, event.metaKey || event.ctrlKey);
+            DialStore.updateValues(props.timelineId, {
+              ...(drag.mode !== 'end' && { [`${props.clip.key}.at`]: next.at }),
+              ...(drag.mode !== 'move' && { [`${props.clip.key}.duration`]: next.duration }),
+            });
+          } else if (drag.mode === 'move' && props.delayMode) {
+            // Track rows: moving the bar shifts the property's phase.
+            DialStore.updateValue(props.timelineId, `${props.clip.key}.delay`, clampTrackDelay(drag.at + dt - props.baseAt, props.baseAt, drag.duration, props.timelineDuration));
           } else if (drag.mode === 'end') {
             DialStore.updateValue(props.timelineId, `${props.clip.key}.duration`, clampClipResizeEnd(drag.duration + dt, drag.at, props.timelineDuration));
           } else if (props.steps && drag.stepDurations) {

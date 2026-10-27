@@ -40,7 +40,8 @@ export function useDialTimeline<T extends TimelineConfig>(
       name,
       staticTimeline.value.duration,
       parsed.value,
-      options?.loop
+      options?.loop,
+      options?.track
     );
   });
   let mounted = false;

@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { TimelineStore } from './store/TimelineStore';
 import { TimelineUiStore } from './store/TimelineUiStore';
 
-const meta = (id: string, duration = 2) => ({
+const meta = (id: string, duration = 2, loop = false, loopStart = 0) => ({
   id,
   name: id,
   duration,
-  loop: false,
-  loopStart: 0,
+  loop,
+  loopStart,
   clips: [],
 });
 
@@ -29,6 +29,29 @@ describe('TimelineStore', () => {
       duration: 0,
       wraps: 0,
     });
+    TimelineStore.unregister(id);
+  });
+
+  it('toggles looping and keeps the toggle across updates', () => {
+    const id = 'store-loop-toggle';
+    TimelineStore.register(meta(id, 2, true, 0.5), { autoplay: false });
+    TimelineStore.setLoop(id, false);
+    assert.equal(TimelineStore.getTimeline(id)?.loop, false);
+
+    // Edits rebuild the meta from the same options; the toggle stays.
+    TimelineStore.update(meta(id, 3, true, 0.5));
+    assert.equal(TimelineStore.getTimeline(id)?.loop, false);
+
+    // Back on, a `{ from }` loop wraps to the same start.
+    TimelineStore.setLoop(id, true);
+    assert.equal(TimelineStore.getTimeline(id)?.loop, true);
+    assert.equal(TimelineStore.getTimeline(id)?.loopStart, 0.5);
+
+    // A changed option replaces the toggle.
+    TimelineStore.setLoop(id, false);
+    TimelineStore.update(meta(id, 3, false));
+    TimelineStore.update(meta(id, 3, true));
+    assert.equal(TimelineStore.getTimeline(id)?.loop, true);
     TimelineStore.unregister(id);
   });
 

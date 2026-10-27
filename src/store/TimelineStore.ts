@@ -31,7 +31,10 @@ export type TimelineMeta = {
   /** Loop wraps back to this time, not 0 — clips before it play once
    * (intro-then-idle). 0 loops the whole timeline. */
   loopStart: number;
-  clips: TimelineClipMeta[]; // one row each
+  /** `rows` (the default) gives each clip a row; `single` lines every
+   * clip up on one track, one after another. */
+  track?: 'rows' | 'single';
+  clips: TimelineClipMeta[];
 };
 
 export type TimelineTransport = {
@@ -85,6 +88,9 @@ class TimelineStoreClass {
   private globalListeners: Set<Listener> = new Set();
   private registrationCounts: Map<string, number> = new Map();
   private listCache: TimelineMeta[] | null = null;
+  /** Loop toggled in the dock, kept across updates until the authored
+   * option turns looping on or off. */
+  private loopToggles: Map<string, { authored: boolean; loop: boolean }> = new Map();
   private rafId: number | null = null;
   private lastTick = 0;
 
@@ -114,6 +120,7 @@ class TimelineStoreClass {
 
     this.registrationCounts.delete(id);
     this.timelines.delete(id);
+    this.loopToggles.delete(id);
     this.transports.delete(id);
     // Keep listener sets: subscribers (e.g. a mounted dock) may outlive the
     // registration — HMR tears down and re-registers the same id, and their
@@ -151,6 +158,20 @@ class TimelineStoreClass {
     this.transports.set(id, { ...transport, time: 0, wraps: 0, playing: true });
     this.notify(id);
     this.ensureLoop();
+  }
+
+  /** Turns looping on or off. A `{ from }` loop keeps its start, so turning
+   * it back on wraps to the same time. */
+  setLoop(id: string, loop: boolean): void {
+    const meta = this.timelines.get(id);
+    if (!meta || meta.loop === loop) return;
+    const authored = this.loopToggles.get(id)?.authored ?? meta.loop;
+    if (loop === authored) this.loopToggles.delete(id);
+    else this.loopToggles.set(id, { authored, loop });
+    this.timelines.set(id, { ...meta, loop });
+    this.listCache = null;
+    this.notify(id);
+    this.notifyGlobal();
   }
 
   seek(id: string, time: number): void {
@@ -203,7 +224,10 @@ class TimelineStoreClass {
     const loopStart = Number.isFinite(meta.loopStart)
       ? Math.min(duration, Math.max(0, meta.loopStart))
       : 0;
-    const safeMeta = { ...meta, duration, loopStart };
+    const toggle = this.loopToggles.get(meta.id);
+    if (toggle && toggle.authored !== meta.loop) this.loopToggles.delete(meta.id);
+    const loop = this.loopToggles.get(meta.id)?.loop ?? meta.loop;
+    const safeMeta = { ...meta, duration, loop, loopStart };
     this.timelines.set(meta.id, safeMeta);
 
     const existing = this.transports.get(meta.id);

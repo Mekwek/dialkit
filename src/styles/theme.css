@@ -945,6 +945,11 @@
   color: var(--dial-text-root);
 }
 
+/* The loop icon stays dim until looping is on. */
+.dialkit-timeline-loop:not([data-active]) svg {
+  opacity: 0.45;
+}
+
 .dialkit-toolbar-add svg {
   width: 16px;
   height: 16px;
@@ -1873,7 +1878,9 @@
   border-radius: 14px;
   backdrop-filter: blur(var(--dial-backdrop-blur));
   -webkit-backdrop-filter: blur(var(--dial-backdrop-blur));
-  padding: 0 12px 10px;
+  /* 12px all round. The top is the dock's, not the header's: a header
+     background there would cover the inside of the dock's border. */
+  padding: 12px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -1911,12 +1918,12 @@
 .dialkit-timeline-section {
   --dial-timeline-label-w: 96px;
   --dial-timeline-actions-w: 284px;
-  --dial-timeline-header-h: calc(var(--dial-row-height) + 4px);
+  --dial-timeline-header-h: var(--dial-row-height);
 }
 
 .dialkit-timeline-section + .dialkit-timeline-section {
   border-top: 1px solid var(--dial-border);
-  padding-top: 10px;
+  padding-top: 12px;
 }
 
 .dialkit-timeline-header {
@@ -1929,7 +1936,7 @@
   z-index: 7;
   box-sizing: border-box;
   height: var(--dial-timeline-header-h);
-  padding: 4px 0 0;
+  padding: 0;
   margin: 0;
   background: var(--dial-glass-bg);
   backdrop-filter: blur(var(--dial-backdrop-blur));
@@ -1942,55 +1949,7 @@
 }
 
 .dialkit-timeline-header:not([data-open]) {
-  grid-template-columns: var(--dial-timeline-label-w) minmax(0, 1fr) auto;
-  gap: 0;
-}
-
-.dialkit-timeline-header:not([data-open]) .dialkit-timeline-identity {
-  width: var(--dial-timeline-label-w);
-  box-sizing: border-box;
-  padding-right: 10px;
-  overflow: hidden;
-}
-
-.dialkit-timeline-header:not([data-open]) .dialkit-timeline-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.dialkit-timeline-header:not([data-open]) .dialkit-timeline-overview {
-  margin-right: 12px;
-}
-
-.dialkit-timeline-identity {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.dialkit-timeline-title {
-  display: block;
-  min-width: 0;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--dial-text-root);
-  letter-spacing: -0.01em;
-  white-space: nowrap;
-}
-
-.dialkit-timeline-header[data-open] .dialkit-timeline-identity {
-  width: 100%;
-  overflow: hidden;
-}
-
-.dialkit-timeline-header[data-open] .dialkit-timeline-title {
-  display: inline-block;
-  flex: 0 1 auto;
-  width: fit-content;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  grid-template-columns: auto minmax(0, 1fr) auto;
 }
 
 .dialkit-timeline-time {
@@ -2047,10 +2006,13 @@
   pointer-events: none;
 }
 
+/* Play, replay and loop sit on the left; versions, Copy and collapse on
+   the right. */
+.dialkit-timeline-transport,
 .dialkit-timeline-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .dialkit-timeline-header[data-open] .dialkit-timeline-actions {
@@ -2068,7 +2030,7 @@
 .dialkit-timeline-chevron {
   background: none;
   border: none;
-  width: 20px;
+  width: var(--dial-row-height);
   height: var(--dial-row-height);
   padding: 2px;
   cursor: pointer;
@@ -2101,13 +2063,13 @@
 
 .dialkit-timeline-scroll-row {
   position: sticky;
-  bottom: -10px;
+  bottom: -12px;
   z-index: 6;
   display: grid;
   grid-template-columns: var(--dial-timeline-label-w) minmax(0, 1fr);
   margin-top: 6px;
-  margin-bottom: -10px;
-  padding: 4px 0 10px;
+  margin-bottom: -12px;
+  padding: 4px 0 12px;
   background: var(--dial-glass-bg);
   backdrop-filter: blur(var(--dial-backdrop-blur));
   -webkit-backdrop-filter: blur(var(--dial-backdrop-blur));
@@ -2170,10 +2132,11 @@
   -webkit-user-select: none;
 }
 
+/* A short ruler: ticks hang from its foot, labels run along its top. */
 .dialkit-timeline-ruler {
   position: relative;
   min-width: 0;
-  height: 28px;
+  height: 22px;
   cursor: col-resize;
   touch-action: none;
   overflow: visible;
@@ -2182,11 +2145,14 @@
   z-index: 5;
 }
 
+/* The row's top padding keeps a gap under the header, sticky or not. */
 .dialkit-timeline-ruler-row {
   position: sticky;
   top: var(--dial-timeline-header-h);
   z-index: 6;
+  box-sizing: border-box;
   height: 28px;
+  padding-top: 6px;
   background: var(--dial-glass-bg);
   backdrop-filter: blur(var(--dial-backdrop-blur));
   -webkit-backdrop-filter: blur(var(--dial-backdrop-blur));
@@ -2194,37 +2160,33 @@
 
 .dialkit-timeline-tick {
   position: absolute;
-  top: 50%;
+  bottom: 0;
   width: 1px;
-  height: 100%;
-  background: var(--dial-text-tertiary);
-  transform: translateY(-50%);
+  height: 8px;
+  background: var(--dial-timeline-tick-major);
   pointer-events: none;
 }
 
 .dialkit-timeline-tick-medium {
-  height: 16px;
-  background: var(--dial-border-hover);
+  height: 6px;
+  background: var(--dial-timeline-tick-medium);
 }
 
 .dialkit-timeline-tick-fine {
-  height: 8px;
-  background: var(--dial-border);
+  height: 4px;
+  background: var(--dial-timeline-tick-fine);
 }
 
 .dialkit-timeline-tick-label {
   position: absolute;
-  top: 50%;
-  left: 4px;
-  display: flex;
-  align-items: center;
-  height: 18px;
-  transform: translateY(-50%);
+  bottom: calc(100% + 1px);
+  left: 0;
   font-family: 'Geist Mono', ui-monospace, monospace;
-  font-size: 9.5px;
-  line-height: 18px;
+  font-size: 8.5px;
+  line-height: 13px;
+  letter-spacing: 0.04em;
   font-variant-numeric: tabular-nums;
-  color: var(--dial-text-tertiary);
+  color: var(--dial-timeline-tick-text);
   white-space: nowrap;
 }
 
@@ -2361,6 +2323,209 @@
   pointer-events: none;
 }
 
+/* ── Single track ──
+   Every clip shares one lane, so each bar carries its own name and the
+   body drops the label column. */
+
+.dialkit-timeline-section[data-track="single"] .dialkit-timeline-body {
+  --dial-timeline-label-w: 0px;
+  /* The light theme darkens row bars with an overlay. A single-track bar
+     sets its own greys, so it has none. */
+  --dial-timeline-clip-overlay: transparent;
+}
+
+/* Bars draw in greys, not a hue per clip: they rest dim, the part the
+   playhead has crossed is brighter, and each steps up again on hover. A
+   selected or dragged bar is light, with dark text. Light themes mirror
+   the relationships: bars sit below the ground and go dark when selected.
+   The grips are washes, one step above whichever grey they sit on. */
+.dialkit-timeline-section {
+  --dial-timeline-tick-major: rgba(255, 255, 255, 0.4);
+  --dial-timeline-tick-medium: rgba(255, 255, 255, 0.28);
+  --dial-timeline-tick-fine: rgba(255, 255, 255, 0.18);
+  --dial-timeline-tick-text: #71717b;
+  --dial-timeline-flag-bg: #f3f3f3;
+  --dial-timeline-flag-text: #414141;
+  --dial-timeline-flag-border: rgba(255, 255, 255, 0.75);
+  --dial-timeline-bar-rest: #2c2c2c;
+  --dial-timeline-bar-played: #484848;
+  --dial-timeline-bar-rest-hover: #3a3a3a;
+  --dial-timeline-bar-played-hover: #575757;
+  --dial-timeline-bar-text: rgba(255, 255, 255, 0.92);
+  --dial-timeline-bar-grip: rgba(255, 255, 255, 0.11);
+  --dial-timeline-bar-grip-hover: rgba(255, 255, 255, 0.22);
+  --dial-timeline-sel-bar: #b9b9b9;
+  --dial-timeline-sel-bar-hover: #cacaca;
+  --dial-timeline-sel-played: #ffffff;
+  --dial-timeline-sel-text: rgba(0, 0, 0, 0.78);
+  --dial-timeline-sel-dur: rgba(0, 0, 0, 0.55);
+  --dial-timeline-sel-grip: rgba(0, 0, 0, 0.16);
+  --dial-timeline-sel-grip-hover: rgba(0, 0, 0, 0.3);
+}
+
+.dialkit-root[data-theme="light"] .dialkit-timeline-section {
+  --dial-timeline-tick-major: rgba(0, 0, 0, 0.45);
+  --dial-timeline-tick-medium: rgba(0, 0, 0, 0.32);
+  --dial-timeline-tick-fine: rgba(0, 0, 0, 0.2);
+  --dial-timeline-flag-bg: #2e2e2e;
+  --dial-timeline-flag-text: #f3f3f3;
+  --dial-timeline-flag-border: rgba(0, 0, 0, 0.35);
+  --dial-timeline-bar-rest: #d1d1d1;
+  --dial-timeline-bar-played: #b3b3b3;
+  --dial-timeline-bar-rest-hover: #c2c2c2;
+  --dial-timeline-bar-played-hover: #a4a4a4;
+  --dial-timeline-bar-text: rgba(0, 0, 0, 0.85);
+  --dial-timeline-bar-grip: rgba(0, 0, 0, 0.13);
+  --dial-timeline-bar-grip-hover: rgba(0, 0, 0, 0.26);
+  --dial-timeline-sel-bar: #6b6b6b;
+  --dial-timeline-sel-bar-hover: #5a5a5a;
+  --dial-timeline-sel-played: #2c2c2c;
+  --dial-timeline-sel-text: rgba(255, 255, 255, 0.92);
+  --dial-timeline-sel-dur: rgba(255, 255, 255, 0.7);
+  --dial-timeline-sel-grip: rgba(255, 255, 255, 0.3);
+  --dial-timeline-sel-grip-hover: rgba(255, 255, 255, 0.5);
+}
+
+@media (prefers-color-scheme: light) {
+  .dialkit-root[data-theme="system"] .dialkit-timeline-section {
+    --dial-timeline-tick-major: rgba(0, 0, 0, 0.45);
+    --dial-timeline-tick-medium: rgba(0, 0, 0, 0.32);
+    --dial-timeline-tick-fine: rgba(0, 0, 0, 0.2);
+    --dial-timeline-flag-bg: #2e2e2e;
+    --dial-timeline-flag-text: #f3f3f3;
+    --dial-timeline-flag-border: rgba(0, 0, 0, 0.35);
+    --dial-timeline-bar-rest: #d1d1d1;
+    --dial-timeline-bar-played: #b3b3b3;
+    --dial-timeline-bar-rest-hover: #c2c2c2;
+    --dial-timeline-bar-played-hover: #a4a4a4;
+    --dial-timeline-bar-text: rgba(0, 0, 0, 0.85);
+    --dial-timeline-bar-grip: rgba(0, 0, 0, 0.13);
+    --dial-timeline-bar-grip-hover: rgba(0, 0, 0, 0.26);
+    --dial-timeline-sel-bar: #6b6b6b;
+    --dial-timeline-sel-bar-hover: #5a5a5a;
+    --dial-timeline-sel-played: #2c2c2c;
+    --dial-timeline-sel-text: rgba(255, 255, 255, 0.92);
+    --dial-timeline-sel-dur: rgba(255, 255, 255, 0.7);
+    --dial-timeline-sel-grip: rgba(255, 255, 255, 0.3);
+    --dial-timeline-sel-grip-hover: rgba(255, 255, 255, 0.5);
+  }
+}
+
+/* The lane is 34px, so a bar is 28px. Each adapter draws a bar 1px short
+   of its span on each side, which leaves a hairline of lane between butted
+   bars; its clear border keeps the fill, grips and labels 1px inside. */
+.dialkit-timeline-section[data-track="single"] .dialkit-timeline-row:not(.dialkit-timeline-ruler-row) {
+  height: 34px;
+}
+
+.dialkit-timeline-section[data-track="single"] .dialkit-timeline-clip {
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background-color: var(--dial-timeline-bar-rest);
+  transition: background-color 0.15s;
+}
+
+.dialkit-timeline-section[data-track="single"] .dialkit-timeline-clip:hover {
+  background-color: var(--dial-timeline-bar-rest-hover);
+}
+
+.dialkit-timeline-section[data-track="single"] .dialkit-timeline-clip:is([data-selected], [data-dragging]) {
+  background-color: var(--dial-timeline-sel-bar);
+  /* The light bar says "selected" on its own: no ring. */
+  box-shadow: none;
+}
+
+.dialkit-timeline-section[data-track="single"] .dialkit-timeline-clip[data-selected]:hover {
+  background-color: var(--dial-timeline-sel-bar-hover);
+}
+
+.dialkit-timeline-clip-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  background: var(--dial-timeline-bar-played);
+  transition: background 0.15s;
+  pointer-events: none;
+}
+
+.dialkit-timeline-clip:hover .dialkit-timeline-clip-fill {
+  background: var(--dial-timeline-bar-played-hover);
+}
+
+.dialkit-timeline-clip:is([data-selected], [data-dragging]) .dialkit-timeline-clip-fill {
+  background: var(--dial-timeline-sel-played);
+}
+
+.dialkit-timeline-clip-name {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--dial-timeline-bar-text);
+  pointer-events: none;
+}
+
+.dialkit-timeline-section[data-track="single"] .dialkit-timeline-clip-duration {
+  position: relative;
+  font-size: 10.5px;
+  color: var(--dial-timeline-bar-text);
+}
+
+.dialkit-timeline-section[data-track="single"] .dialkit-timeline-clip:is([data-selected], [data-dragging]) .dialkit-timeline-clip-name {
+  color: var(--dial-timeline-sel-text);
+}
+
+.dialkit-timeline-section[data-track="single"] .dialkit-timeline-clip:is([data-selected], [data-dragging]) .dialkit-timeline-clip-duration {
+  color: var(--dial-timeline-sel-dur);
+}
+
+/* Each edge keeps a grip in sight. Under the pointer it brightens and grows
+   a little taller, so the mark and the resize cursor agree. */
+.dialkit-timeline-section[data-track="single"] .dialkit-timeline-clip-handle::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--dial-timeline-bar-grip);
+  transition: background 0.15s, transform 0.15s;
+}
+
+.dialkit-timeline-section[data-track="single"] .dialkit-timeline-clip-handle:hover::after {
+  background: var(--dial-timeline-bar-grip-hover);
+  transform: scaleY(1.25);
+}
+
+.dialkit-timeline-section[data-track="single"] .dialkit-timeline-clip:is([data-selected], [data-dragging]) .dialkit-timeline-clip-handle::after {
+  background: var(--dial-timeline-sel-grip);
+}
+
+.dialkit-timeline-section[data-track="single"] .dialkit-timeline-clip:is([data-selected], [data-dragging]) .dialkit-timeline-clip-handle:hover::after {
+  background: var(--dial-timeline-sel-grip-hover);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialkit-timeline-section[data-track="single"] .dialkit-timeline-clip-handle::after { transition: background 0.15s; }
+  .dialkit-timeline-section[data-track="single"] .dialkit-timeline-clip-handle:hover::after { transform: none; }
+}
+
+.dialkit-timeline-clip-handle[data-edge="start"]::after {
+  left: 3px;
+}
+
+.dialkit-timeline-clip-handle[data-edge="end"]::after {
+  right: 3px;
+}
+
 /* ── Sequence segments ──
    A steps clip is one bar sliced into legs; boundaries between legs are
    drag handles that retime the leg to their left. */
@@ -2441,7 +2606,7 @@
 
 .dialkit-timeline-playhead-anchor {
   position: sticky;
-  top: calc(var(--dial-timeline-header-h) + 14px);
+  top: calc(var(--dial-timeline-header-h) + 17px);
   z-index: 8;
   width: 0;
   height: 0;
@@ -2452,26 +2617,26 @@
   content: '';
   position: absolute;
   top: 0;
-  left: -1px;
-  width: 2px;
-  height: 15px;
+  left: 0;
+  width: 1px;
+  height: 12px;
   background: var(--dial-text-root);
   pointer-events: none;
 }
 
+/* The flag hugs its digits and centres on the playhead. */
 .dialkit-timeline-playhead-flag {
   position: absolute;
   top: 0;
-  left: calc(var(--dial-timeline-playhead-flag-offset, 0px) - 26px);
+  left: var(--dial-timeline-playhead-flag-offset, 0px);
   z-index: 1;
-  width: 52px;
   height: 18px;
-  padding: 0 7px;
+  padding: 0 4px;
   box-sizing: border-box;
-  border: 1px solid rgba(255, 255, 255, 0.75);
+  border: 1px solid var(--dial-timeline-flag-border);
   border-radius: 6px;
-  background: #f3f3f3;
-  color: #414141;
+  background: var(--dial-timeline-flag-bg);
+  color: var(--dial-timeline-flag-text);
   font-family: 'Geist Mono', ui-monospace, monospace;
   font-size: 9.5px;
   font-weight: 600;
@@ -2480,7 +2645,7 @@
   line-height: 16px;
   text-align: center;
   white-space: nowrap;
-  transform: translateY(-50%);
+  transform: translate(-50%, -50%);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.28);
   transition: top 0.12s ease;
 }
@@ -2489,9 +2654,9 @@
   position: absolute;
   top: 27px;
   bottom: 0;
-  left: 5px;
+  left: 6px;
   z-index: 5;
-  width: 2px;
+  width: 1px;
   background: var(--dial-text-root);
   pointer-events: none;
 }
@@ -2572,7 +2737,7 @@
 
 @media (max-width: 720px) {
   .dialkit-timeline-dock {
-    padding: 0 10px 10px;
+    padding: 12px 10px;
   }
 
   .dialkit-timeline-header {
@@ -2583,17 +2748,6 @@
   .dialkit-timeline-section {
     --dial-timeline-label-w: 76px;
     --dial-timeline-actions-w: 270px;
-  }
-
-  .dialkit-timeline-identity {
-    overflow: hidden;
-    gap: 7px;
-  }
-
-  .dialkit-timeline-title {
-    font-size: 13px;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 
   .dialkit-timeline-time {

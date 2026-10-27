@@ -22,7 +22,7 @@ export function createDialTimeline<T extends TimelineConfig>(name: string, confi
   const registration = { retainOnUnmount: options.id !== undefined, persist: options.persist, kind: 'timeline' as const };
   DialStore.registerPanel(id, name, parsed.dialConfig, undefined, registration);
   let compiled = computeStaticTimeline(parsed, DialStore.getValues(id));
-  const meta = () => buildTimelineMeta(id, name, compiled.duration, parsed, options.loop);
+  const meta = () => buildTimelineMeta(id, name, compiled.duration, parsed, options.loop, options.track);
   TimelineStore.register(meta(), { autoplay: options.autoplay ?? true });
   const actions = {
     play() {
