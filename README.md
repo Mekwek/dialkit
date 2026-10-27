@@ -318,7 +318,7 @@ const values = useDialKit("Card", {
 });
 ```
 
-Holding **H** also explains the focused control, and the hint describes that control for screen readers. The key is ignored while typing in a field or with a modifier held, and a shortcut assigned to **H** takes precedence. DialKit's own parts, such as the version gallery, the copy button, and the transition editor, have hints with no setup. Until a hint first shows, panels with hints end with a line that points to the key.
+Holding **H** also explains the focused control, and the hint describes that control for screen readers. The key is ignored while typing in a field or with a modifier held, and a shortcut assigned to **H** takes precedence. DialKit's own parts, such as the version gallery, the copy button, and the transition editor, have hints with no setup. Until a hint first shows, every open panel ends with a line that points to the key (the panel header has a built-in hint).
 
 ## Timeline
 
