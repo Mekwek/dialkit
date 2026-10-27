@@ -45,6 +45,7 @@ import {
   ICON_REPLAY,
 } from '../../../icons';
 import { findControl } from '../../../shortcut-utils';
+import { observePointerFocus } from '../../../pointer-focus';
 import { fromStore } from '../../primitives';
 import { ControlRenderer } from '../ControlRenderer';
 import { PresetManager } from '../PresetManager';
@@ -110,6 +111,7 @@ function DialTimelineDock(props: DialTimelineProps) {
       onVisibilityChange: props.onVisibilityChange,
     });
     onCleanup(unregister);
+    onCleanup(observePointerFocus());
   });
 
   createEffect(() => {

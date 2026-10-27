@@ -6,6 +6,7 @@ import { clamp } from '../transition-math';
 import { findControl } from '../shortcut-utils';
 import { getDropdownPosition } from '../dropdown-position';
 import { buildCopyInstruction } from '../copy-instruction';
+import { observePointerFocus } from '../pointer-focus';
 import { ICON_CHEVRON, ICON_PLAY, ICON_PAUSE, ICON_REPLAY, ICON_LOOP, ICON_CLIPBOARD_PLAIN, ICON_CHECK } from '../icons';
 import { mountControlRenderer } from './ControlRenderer';
 import { mountPresetManager } from './menus';
@@ -84,6 +85,8 @@ export function createDialTimelineRoot(initial: DialTimelineOptions = {}) {
   };
   const stopVisible = enabled ? TimelineUiStore.subscribe(render) : () => {
   };
+  const stopPointerFocus = enabled ? observePointerFocus() : () => {
+  };
   if (enabled) {
     (options.target ?? document.body).append(root);
     render();
@@ -110,6 +113,7 @@ export function createDialTimelineRoot(initial: DialTimelineOptions = {}) {
       stopGlobal();
       stopVisible();
       stopController();
+      stopPointerFocus();
       sections.forEach(s => s.destroy());
       sections.clear();
       root.remove();

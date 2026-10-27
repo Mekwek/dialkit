@@ -189,10 +189,114 @@ try {
         await trigger.evaluate((el) => el === document.activeElement),
         true,
       );
+      if (!kind) {
+        // A click lights the field without a ring; keyboard focus adds one.
+        const style = (selector, property) =>
+          page
+            .locator(selector)
+            .first()
+            .evaluate((el, name) => getComputedStyle(el)[name], property);
+        const title = page.getByRole("textbox", { name: "Title", exact: true });
+        await title.click();
+        assert.equal(await title.getAttribute("data-pointer-focus"), "");
+        assert.equal(
+          await style(".dialkit-text-control", "outlineStyle"),
+          "none",
+        );
+        assert.equal(
+          await style(".dialkit-text-control", "backgroundColor"),
+          "rgba(0, 0, 0, 0.08)",
+        );
+        await page.keyboard.press("Tab");
+        const hex = page.getByRole("textbox", {
+          name: "Accent color value",
+          exact: true,
+        });
+        assert.equal(await hex.getAttribute("data-pointer-focus"), null);
+        assert.equal(await title.getAttribute("data-pointer-focus"), null);
+        assert.equal(
+          await style(".dialkit-color-control", "outlineStyle"),
+          "solid",
+        );
+        assert.equal(
+          await style(".dialkit-text-control", "outlineStyle"),
+          "none",
+        );
+        await page.locator("h1").click();
+        await hex.click();
+        assert.equal(
+          await style(".dialkit-color-control", "outlineStyle"),
+          "none",
+        );
+        assert.deepEqual(
+          await hex.evaluate((el) => [el.selectionStart, el.selectionEnd]),
+          [0, 7],
+        );
+        // Values and folder titles take the focus color under the pointer.
+        await page.locator("h1").click();
+        await page.locator(".dialkit-color-control").hover();
+        await page.waitForFunction(
+          () =>
+            getComputedStyle(document.querySelector(".dialkit-color-value"))
+              .color === "rgb(0, 0, 0)",
+        );
+        await page.getByRole("button", { name: "Group", exact: true }).hover();
+        await page.waitForFunction(
+          () =>
+            getComputedStyle(
+              document.querySelector(
+                ".dialkit-folder:not(.dialkit-folder-root) .dialkit-folder-title",
+              ),
+            ).color === "rgb(0, 0, 0)",
+        );
+        // An invalid hex stays red under the pointer.
+        await hex.click();
+        await page.keyboard.type("zz");
+        await page.keyboard.press("Enter");
+        assert.equal(await hex.getAttribute("aria-invalid"), "true");
+        await page.locator(".dialkit-color-control").hover();
+        await page.waitForTimeout(200);
+        assert.equal(
+          await style(".dialkit-color-value", "color"),
+          "rgb(239, 119, 119)",
+        );
+        await page.keyboard.press("Escape");
+        // The transition editor's Bézier field follows the same rule.
+        const bezier = page.getByRole("textbox", {
+          name: "Bézier coordinates",
+          exact: true,
+        });
+        const easeRow = ".dialkit-labeled-control:has(.dialkit-text-input)";
+        await bezier.click();
+        assert.equal(await style(easeRow, "outlineStyle"), "none");
+        assert.equal(
+          await style(easeRow, "backgroundColor"),
+          "rgba(0, 0, 0, 0.08)",
+        );
+        await page.keyboard.press("Shift+Tab");
+        await page.keyboard.press("Tab");
+        assert.equal(await bezier.getAttribute("data-pointer-focus"), null);
+        assert.equal(await style(easeRow, "outlineStyle"), "solid");
+        // A folder header clicked with the mouse keeps no focus.
+        const group = page.getByRole("button", { name: "Group", exact: true });
+        for (const expanded of ["false", "true"]) {
+          await group.click();
+          assert.equal(await group.getAttribute("aria-expanded"), expanded);
+          assert.equal(
+            await group.evaluate((el) => el === document.activeElement),
+            false,
+          );
+        }
+        // A slider pressed with the pointer keeps no ring when its arrows are used.
+        const slider = page.locator(".dialkit-slider").first();
+        await slider.click();
+        await page.keyboard.press("ArrowRight");
+        assert.equal(await style(".dialkit-slider", "outlineStyle"), "none");
+      }
       assert.deepEqual(errors, []);
       await page.close();
       console.log(
-        `${framework}${kind}: version lifecycle, actions and keyboard checks passed`,
+        `${framework}${kind}: version lifecycle, actions${kind ? " and keyboard" : ", keyboard and focus"} checks passed`,
       );
     }
 

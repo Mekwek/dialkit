@@ -8,6 +8,7 @@ import { Panel } from './Panel';
 import type { DialVersions } from '../versions/gallery';
 import { ShortcutListener } from './ShortcutListener';
 import { TimelineToggleButton } from './Timeline/TimelineToggleButton';
+import { observePointerFocus } from '../pointer-focus';
 import { blockPanelDragClick, capturePanelPointer, releasePanelPointer, getPanelCorner, getPanelDragHandle, getPanelDragOffset, getPanelDragStart, getPanelOriginX, getPanelOriginY, hasPanelDragMoved } from '../panel-drag';
 
 export type DialPosition = 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
@@ -44,6 +45,8 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
   const dragTargetRef = useRef<HTMLElement | null>(null);
   const panelOpenStatesRef = useRef<Map<string, boolean>>(new Map());
   const rootOpenRef = useRef<boolean | null>(null);
+
+  useEffect(() => observePointerFocus(), []);
 
   // Subscribe to registered editing surfaces. Timeline-backed panels render
   // in DialTimeline, but their presence adds a visibility toggle here.

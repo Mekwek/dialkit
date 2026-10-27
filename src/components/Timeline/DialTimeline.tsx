@@ -30,6 +30,7 @@ import { buildCopyInstruction } from '../../copy-instruction';
 import { isDevDefault } from '../../env';
 import { ICON_CHEVRON, ICON_CHECK, ICON_CLIPBOARD_PLAIN, ICON_LOOP, ICON_PAUSE, ICON_PLAY, ICON_REPLAY } from '../../icons';
 import { findControl } from '../../shortcut-utils';
+import { observePointerFocus } from '../../pointer-focus';
 import { ControlRenderer } from '../ControlRenderer';
 import { PresetManager } from '../PresetManager';
 import type { DialTheme } from '../DialRoot';
@@ -129,6 +130,8 @@ function DialTimelineDock({
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => observePointerFocus(), []);
 
   useEffect(() => () => resizeCleanupRef.current?.(), []);
 

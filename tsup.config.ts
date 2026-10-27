@@ -50,6 +50,7 @@ export default defineConfig([
       'dropdown-keyboard': 'src/dropdown-keyboard.ts',
       'preset-menu': 'src/preset-menu.ts',
       'text-autosize': 'src/text-autosize.ts',
+      'pointer-focus': 'src/pointer-focus.ts',
       'shortcut-utils': 'src/shortcut-utils.ts',
       'version-gallery': 'src/version-gallery.ts',
     },
