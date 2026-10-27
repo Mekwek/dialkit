@@ -39,18 +39,28 @@ export function segmentedControl<T extends string>(className: string, label: str
     root.append(button);
     return button;
   });
-  // Measured to the subpixel, so a label sits in the middle of the pill; the
-  // scale undoes a transform on the way in (a popover's entrance). A resize
-  // (the row taking its width, a font loading) moves the pill without a slide.
+  // The segments are measured as laid out, to the subpixel, so a label sits
+  // in the middle of the pill, and a transform on the row (a popover's
+  // entrance) or on a segment (a page animating it) does not move the pill
+  // off its segment. A resize (the row taking its width, a font loading)
+  // moves the pill without a slide.
+  const width = (button: HTMLElement) => {
+    const style = getComputedStyle(button);
+    const inner = parseFloat(style.width);
+    if (style.boxSizing === 'border-box') return inner;
+    return inner + parseFloat(style.paddingLeft) + parseFloat(style.paddingRight)
+      + parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth);
+  };
   const place = (slide: boolean) => {
-    const active = buttons.find(button => button.dataset.active === 'true');
-    if (!active?.offsetWidth) return;
-    const row = root.getBoundingClientRect();
-    const box = active.getBoundingClientRect();
-    const scale = row.width / root.offsetWidth;
+    const index = buttons.findIndex(button => button.dataset.active === 'true');
+    if (!buttons[index]?.offsetWidth) return;
+    const row = getComputedStyle(root);
+    const gap = parseFloat(row.columnGap) || 0;
+    let left = parseFloat(row.paddingLeft);
+    for (const button of buttons.slice(0, index)) left += width(button) + gap;
     if (!slide) pill.style.transition = 'none';
-    pill.style.left = `${(box.left - row.left) / scale}px`;
-    pill.style.width = `${box.width / scale}px`;
+    pill.style.left = `${left}px`;
+    pill.style.width = `${width(buttons[index])}px`;
     if (!slide) {
       void pill.offsetWidth;
       pill.style.transition = '';
