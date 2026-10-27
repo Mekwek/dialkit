@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition, type DropdownPosition } from '../dropdown-position';
 import { ICON_CHEVRON } from '../icons';
+import { usePresenceResync } from '../hooks/usePresenceResync';
 
 type SelectOption = string | { value: string; label: string };
 
@@ -27,6 +28,7 @@ function normalizeOptions(options: SelectOption[]): { value: string; label: stri
 
 export function SelectControl({ label, value, options, onChange }: SelectControlProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const resyncPresence = usePresenceResync();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
@@ -104,7 +106,7 @@ export function SelectControl({ label, value, options, onChange }: SelectControl
       </button>
 
       {portalTarget && createPortal(
-        <AnimatePresence>
+        <AnimatePresence onExitComplete={resyncPresence}>
           {isOpen && pos && (
             <motion.div
               ref={dropdownRef}

@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { DialStore, Preset } from '../store/DialStore';
 import { ICON_CHEVRON, ICON_TRASH, ICON_PLUS, ICON_CHECK } from '../icons';
+import { usePresenceResync } from '../hooks/usePresenceResync';
 
 interface PresetManagerProps {
   panelId: string;
@@ -18,6 +19,7 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd }: Prese
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
+  const resyncPresence = usePresenceResync();
 
   const activePreset = presets.find((p) => p.id === activePresetId);
 
@@ -98,7 +100,7 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd }: Prese
       </button>
 
       {createPortal(
-        <AnimatePresence>
+        <AnimatePresence onExitComplete={resyncPresence}>
           {isOpen && (
             <motion.div
               ref={dropdownRef}

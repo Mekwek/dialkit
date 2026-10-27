@@ -3,6 +3,7 @@ import { createPanelSectionTransition, measurePanelHeight, observePanelHeader } 
 import { useState, useRef, useEffect, useLayoutEffect, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ICON_CLOSE, ICON_PANEL, ICON_CHEVRON } from '../icons';
+import { usePresenceResync } from '../hooks/usePresenceResync';
 
 interface FolderProps {
   title: string;
@@ -19,6 +20,7 @@ interface FolderProps {
 export function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, panelHeightOffset = 0 }: FolderProps) {
   const [localOpen, setIsOpen] = useState(defaultOpen);
   const isOpen = open ?? localOpen;
+  const resyncPresence = usePresenceResync();
   const isCollapsed = !isOpen;
   const contentRef = useRef<HTMLDivElement>(null);
   const sectionRef = useRef<HTMLDivElement>(null);
@@ -133,7 +135,7 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
         <div className="dialkit-folder-content">
           <div className="dialkit-folder-inner">{children}</div>
         </div>
-      ) : <AnimatePresence initial={false}>
+      ) : <AnimatePresence initial={false} onExitComplete={resyncPresence}>
         {isOpen && (
           <motion.div
             className="dialkit-folder-content"
