@@ -335,7 +335,6 @@
   flex-shrink: 0;
   color: var(--dial-text-label);
   opacity: 0.6;
-  transition: color 0.15s;
 }
 
 /* A folder's reset button (`_reset` folders, springs, transitions) follows
@@ -1817,7 +1816,6 @@
   outline: none;
   text-align: right;
   cursor: text;
-  transition: color 0.15s;
 }
 
 .dialkit-text-control[data-autosized] {
@@ -1898,7 +1896,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  transition: color 0.15s;
 }
 
 .dialkit-select-trigger:hover .dialkit-select-value {
@@ -2043,7 +2040,7 @@
 .dialkit-pad-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--dial-row-gap); }
 .dialkit-pad-field { display: flex; align-items: center; gap: 4px; min-width: 0; height: var(--dial-row-height); padding: 0 12px 0 10px; border-radius: var(--dial-radius); background: var(--dial-surface); }
 .dialkit-pad-axis { min-width: 0; max-width: 35%; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; color: var(--dial-text-label); }
-.dialkit-pad-value { min-width: 0; width: 100%; border: 0; padding: 0 0 1px; background: transparent; color: var(--dial-text-label); text-align: right; font: 500 13px 'Geist Mono', monospace; transition: color 0.15s; }
+.dialkit-pad-value { min-width: 0; width: 100%; border: 0; padding: 0 0 1px; background: transparent; color: var(--dial-text-label); text-align: right; font: 500 13px 'Geist Mono', monospace; }
 .dialkit-pad-field:focus-within { background: var(--dial-surface-hover); }
 /* A focused pad value fills its own box, however it was focused; the row draws no ring. */
 .dialkit-pad-value:focus { color: var(--dial-text-focus); background: var(--dial-surface-hover); border-radius: 4px; }
@@ -2148,7 +2145,6 @@
   font: 500 13px 'Geist Mono', monospace;
   text-align: right;
   text-overflow: ellipsis;
-  transition: color 0.15s;
 }
 .dialkit-color-value:focus { color: var(--dial-text-focus); }
 .dialkit-color-swatch {
