@@ -36,6 +36,20 @@ describe('version gallery', () => {
     } finally { DialStore.unregisterPanel(id); }
   });
 
+  it('keeps a locked version and its thumbnail', () => {
+    const id = 'versions-locked';
+    DialStore.registerPanel(id, id, { amount: 1 });
+    try {
+      const version = DialStore.saveNewPreset(id);
+      ThumbnailStore.set(id, version, { src: 'data:,', width: 1, height: 1, capturedAt: 1 });
+      DialStore.setPresetLocked(id, version, true);
+      assert.equal(listVersions(id)[1].locked, true);
+      deleteVersion(id, version);
+      assert.deepEqual(listVersions(id).map(v => v.name), ['V1', 'V2']);
+      assert.ok(ThumbnailStore.get(id, version));
+    } finally { DialStore.unregisterPanel(id); }
+  });
+
   it('times events along a baked linear() spring', () => {
     const spring = bakedSpring('linear(0, 0.5, 1 50%, 1)', 1);
     // The unpositioned 0.5 stop sits halfway between 0% and 50%.

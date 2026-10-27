@@ -991,6 +991,7 @@ const TimelineSection = memo(function TimelineSection({
             panelId={meta.id}
             presets={presets}
             activePresetId={activePresetId}
+            noun="sequence"
           />
           <motion.button
             className="dialkit-toolbar-add dialkit-toolbar-primary"

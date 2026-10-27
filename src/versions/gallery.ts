@@ -82,6 +82,7 @@ export function mountVersionGallery(host: HTMLElement, initial: VersionGalleryPr
       const node = thumbs.get(version.key) ?? createThumb(version.key);
       const frame = node.firstElementChild as HTMLButtonElement;
       node.dataset.active = String(version.key === activeKey);
+      node.dataset.locked = String(!!version.locked);
       frame.setAttribute('aria-selected', String(version.key === activeKey));
       frame.setAttribute('aria-label', version.name);
       if (arrival?.key === version.key) node.dataset.arrival = arrival.stage;
