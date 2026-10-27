@@ -20,11 +20,13 @@ export { mountImageControl, mountImageControl as ImageControl } from '../image-c
 export type { ImageControlProps } from '../image-control';
 export { mountDialPad, mountDialPad as DialPad } from '../dial-pad-control';
 export type { DialPadProps } from '../dial-pad-control';
+export { mountAnchorControl, mountAnchorControl as AnchorControl } from '../anchor-control';
+export type { AnchorControlProps } from '../anchor-control';
 export { mountEasingVisualization, mountEasingVisualization as EasingVisualization } from '../easing-control';
 export type { EasingVisualizationProps } from '../easing-control';
 export { mountShortcutListener } from './shortcuts';
 export { DialStore } from '../store/DialStore';
-export type { SpringConfig, EasingConfig, TransitionConfig, ActionConfig, SelectConfig, ColorConfig, ImageConfig, ImageOption, DialPadAxis, DialPadConfig, DialPadValue, TextConfig, DialKitPersistOptions, ShortcutConfig, ShortcutMode, ShortcutInteraction, Preset, DialValue, DialConfig, DialKitValueUpdates, ResolvedValues, ControlMeta, PanelConfig } from '../store/DialStore';
+export type { SpringConfig, EasingConfig, TransitionConfig, ActionConfig, SelectConfig, ColorConfig, ImageConfig, ImageOption, DialPadAxis, DialPadConfig, DialPadValue, AnchorConfig, AnchorValue, TextConfig, DialKitPersistOptions, ShortcutConfig, ShortcutMode, ShortcutInteraction, Preset, DialValue, DialConfig, DialKitValueUpdates, ResolvedValues, ControlMeta, PanelConfig } from '../store/DialStore';
 export { formatClock } from '../timeline-core';
 export { TimelineStore } from '../store/TimelineStore';
 export type { TimelineMeta, TimelineClipMeta, TimelineClipTrackMeta, TimelineTransport } from '../store/TimelineStore';

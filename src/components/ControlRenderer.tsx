@@ -11,7 +11,9 @@ import { SelectControl } from './SelectControl';
 import { ColorControl } from './ColorControl';
 import { ImageControl } from './ImageControl';
 import { DialPad } from './DialPad';
+import { AnchorControl } from './AnchorControl';
 import type { DialPadValue } from '../dial-pad';
+import type { AnchorValue } from '../anchor';
 
 interface ControlRendererProps {
   panelId: string;
@@ -147,6 +149,16 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration 
             x={control.pad?.x}
             y={control.pad?.y}
             labels={control.pad?.labels}
+            onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
+          />
+        );
+
+      case 'anchor':
+        return (
+          <AnchorControl
+            key={control.path}
+            label={control.label}
+            value={value as AnchorValue}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
           />
         );

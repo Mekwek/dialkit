@@ -153,6 +153,7 @@ Define controls with an object. Keys become labels; returned values keep the sam
 | Select | `layout: { type: "select", options: ["stack", "grid"] }` | Selected string |
 | Image | `cover: { type: "image", options: ["/cover.jpg"] }` | URL or data URL |
 | XY pad | `position: { type: "pad" }` | `{ x, y }` |
+| Anchor | `origin: { type: "anchor" }` | `{ x, y }` |
 | Spring | `motion: { type: "spring", visualDuration: 0.3, bounce: 0.2 }` | `TransitionConfig` |
 | Easing | `motion: { type: "easing", duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }` | `TransitionConfig` |
 | Action | `replay: { type: "action" }` | Calls `onAction(path)` |
@@ -160,7 +161,7 @@ Define controls with an object. Keys become labels; returned values keep the sam
 
 Slider tuples use `[default, min, max, step?]`. Add `_collapsed: true` inside a folder to start it closed. Folder metadata is omitted from returned values.
 
-Spring and easing controls share an editor with **Easing**, **Time**, and **Physics** modes. Color controls accept hex, RGB, HSL, OKLCH, and Display P3. Image controls support local uploads up to 10 MB; files stay in the browser.
+Spring and easing controls share an editor with **Easing**, **Time**, and **Physics** modes. Color controls accept hex, RGB, HSL, OKLCH, and Display P3. Image controls support local uploads up to 10 MB; files stay in the browser. An anchor sets both axes with one click on a 3 × 3 grid: `x` is `"left"`, `"center"`, or `"right"`, and `y` is `"top"`, `"center"`, or `"bottom"`.
 
 See the [control reference](https://github.com/joshpuckett/dialkit/blob/main/docs/reference.md#controls) for configuration and editing details.
 
