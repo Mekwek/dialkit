@@ -48,16 +48,17 @@ export function createDialKitController<T extends DialConfig>(
 
   // Resolved values live in a store so consumers reading `values().someKey`
   // subscribe to that key alone; reconcile diffs each snapshot from the
-  // external DialStore instead of replacing the whole object.
-  const [values, setValues] = createStore(
-    resolveDialValues(config, DialStore.getValues(panelId))
-  );
+  // external DialStore instead of replacing the whole object. The store
+  // writes into the objects it holds, so it gets copies: otherwise an edited
+  // spring or easing would overwrite the DialStore default it started from.
+  const resolveValues = () => structuredClone(resolveDialValues(config, DialStore.getValues(panelId)));
+  const [values, setValues] = createStore(resolveValues());
 
   if (!isServer) {
     // Subscribe at setup so the notify fired by registerPanel (in onMount)
     // syncs persisted/preset values into the store without a manual copy.
     const unsubValues = DialStore.subscribe(panelId, () => {
-      setValues(reconcile(resolveDialValues(config, DialStore.getValues(panelId))));
+      setValues(reconcile(resolveValues()));
     });
     onCleanup(unsubValues);
   }

@@ -18,6 +18,16 @@ export function mountControlRenderer(host: HTMLElement, initial: ControlRenderer
   let props = initial;
   let active: ActiveShortcut = null;
   let signature = '';
+  // Counts folder resets, so sliders can spring to the values a reset sets.
+  let resetCount = 0;
+  // The reset button of the folder a control draws: a `_reset` folder, a spring, or a transition.
+  const resetProps = (control: ControlMeta) => control.reset ? {
+    changed: DialStore.isFolderChanged(props.panelId, control.path),
+    onReset: () => {
+      resetCount++;
+      DialStore.resetFolder(props.panelId, control.path);
+    },
+  } : {};
   let mounted: {
     update(): void;
     destroy(): void;
@@ -34,16 +44,18 @@ export function mountControlRenderer(host: HTMLElement, initial: ControlRenderer
       }
       switch (control.type) {
         case 'folder': {
-          const folder = mountFolder(target, { title: control.label, defaultOpen: control.defaultOpen });
-          mounted.push({
-            update() {
-            }, destroy: folder.destroy
+          const folderProps = () => ({
+            title: control.label,
+            defaultOpen: control.defaultOpen,
+            ...resetProps(control),
           });
+          const folder = mountFolder(target, folderProps());
+          mounted.push({ update: () => folder.update(folderProps()), destroy: folder.destroy });
           build(control.children ?? [], folder.body);
           break;
         }
         case 'slider':
-          mount(mountSlider, () => ({ label: control.label, value: value() as number, min: control.min, max: control.max, step: control.step, onChange: change, ...shortcut() }));
+          mount(mountSlider, () => ({ label: control.label, value: value() as number, min: control.min, max: control.max, step: control.step, resetCount, onChange: change, ...shortcut() }));
           break;
         case 'toggle':
           mount(mountToggle, () => ({ label: control.label, checked: value() as boolean, onChange: change, ...shortcut() }));
@@ -64,10 +76,10 @@ export function mountControlRenderer(host: HTMLElement, initial: ControlRenderer
           mount(mountDialPad, () => ({ ...control.pad, label: control.label, value: value() as DialPadValue, onChange: change }));
           break;
         case 'spring':
-          mount(mountSpringControl, () => ({ panelId: props.panelId, path: control.path, label: control.label, spring: value() as SpringConfig, onChange: change }));
+          mount(mountSpringControl, () => ({ panelId: props.panelId, path: control.path, label: control.label, spring: value() as SpringConfig, onChange: change, ...resetProps(control) }));
           break;
         case 'transition':
-          mount(mountTransitionControl, () => ({ panelId: props.panelId, path: control.path, label: control.label, value: value() as TransitionConfig, durationControl: props.transitionDuration, onChange: change }));
+          mount(mountTransitionControl, () => ({ panelId: props.panelId, path: control.path, label: control.label, value: value() as TransitionConfig, durationControl: props.transitionDuration, onChange: change, ...resetProps(control) }));
           break;
         case 'action': {
           const b = element('button', 'dialkit-button', control.label);

@@ -158,7 +158,7 @@ Define controls with an object. Keys become labels; returned values keep the sam
 | Action | `replay: { type: "action" }` | Calls `onAction(path)` |
 | Folder | `shadow: { blur: [12, 0, 40] }` | Nested values |
 
-Slider tuples use `[default, min, max, step?]`. Add `_collapsed: true` inside a folder to start it closed. Folder metadata is omitted from returned values.
+Slider tuples use `[default, min, max, step?]`. Add `_collapsed: true` inside a folder to start it closed, or `_reset: true` to show a reset button beside its title once a value inside changes. The button restores that folder's defaults, nested folders included. Spring and easing controls get the same button in their own header, without `_reset`. Folder metadata is omitted from returned values.
 
 Spring and easing controls share an editor with **Easing**, **Time**, and **Physics** modes. Color controls accept hex, RGB, HSL, OKLCH, and Display P3. Image controls support local uploads up to 10 MB; files stay in the browser.
 

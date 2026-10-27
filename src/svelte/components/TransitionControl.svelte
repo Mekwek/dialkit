@@ -18,7 +18,7 @@
     step?: number;
   };
 
-  let { panelId, path, label, value, onChange, hideDuration = false, durationControl } = $props<{
+  let { panelId, path, label, value, onChange, hideDuration = false, durationControl, onReset, changed = false } = $props<{
     panelId: string;
     path: string;
     label: string;
@@ -26,6 +26,9 @@
     onChange: (value: TransitionConfig) => void;
     hideDuration?: boolean;
     durationControl?: TransitionDurationControl;
+    /** Shows a reset button in the header. See Folder's onReset. */
+    onReset?: () => void;
+    changed?: boolean;
   }>();
 
   let mode = $state<CurveMode>(DialStore.getTransitionMode(panelId, path));
@@ -106,7 +109,7 @@
   };
 </script>
 
-<Folder title={label} defaultOpen={true}>
+<Folder title={label} defaultOpen={true} {onReset} {changed}>
   <div style="display: flex; flex-direction: column; gap: 6px;">
     {#if isEasing}
       <EasingVisualization {easing} onChange={(ease) => onChange({ ...easing, ease })} />

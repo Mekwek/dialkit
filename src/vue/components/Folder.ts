@@ -2,7 +2,7 @@ import { activateOnKey } from '../../control-keyboard';
 import { createPanelSectionTransition, measurePanelHeight, observePanelHeader } from '../../panel-size';
 import { computed, defineComponent, h, onMounted, onUnmounted, ref, watch, type PropType, type VNodeChild } from 'vue';
 import { AnimatePresence, motion } from 'motion-v';
-import { ICON_CLOSE, ICON_CHEVRON, ICON_PANEL } from '../../icons';
+import { ICON_CLOSE, ICON_CHEVRON, ICON_PANEL, ICON_RESET } from '../../icons';
 
 export const Folder = defineComponent({
   name: 'DialKitFolder',
@@ -21,6 +21,9 @@ export const Folder = defineComponent({
       type: Number,
       default: 0,
     },
+    /** Shows a reset button after the title, visible while `changed` is true. */
+    onReset: Function as PropType<() => void>,
+    changed: { type: Boolean, default: false },
   },
   emits: ['openChange'],
   setup(props, { emit, slots }) {
@@ -28,6 +31,7 @@ export const Folder = defineComponent({
     const isOpen = computed(() => props.open ?? localOpen.value);
     const isCollapsed = computed(() => !isOpen.value);
     const contentRef = ref<HTMLElement | null>(null);
+    const headerRef = ref<HTMLElement | null>(null);
     const sectionRef = ref<HTMLElement | null>(null);
     let sectionTransition: ReturnType<typeof createPanelSectionTransition> | undefined;
 
@@ -90,7 +94,7 @@ export const Folder = defineComponent({
       class: `dialkit-folder-header ${props.isRoot ? 'dialkit-panel-header' : ''}`,
       onClick: handleToggle,
     }, [
-      h('div', { class: 'dialkit-folder-header-top', role: props.inline && props.isRoot ? undefined : 'button', tabindex: props.inline && props.isRoot ? undefined : 0, 'aria-label': props.title, 'aria-expanded': isOpen.value, onKeydown: (e: KeyboardEvent) => activateOnKey(e, handleToggle) }, [
+      h('div', { ref: headerRef, class: 'dialkit-folder-header-top', role: props.inline && props.isRoot ? undefined : 'button', tabindex: props.inline && props.isRoot ? undefined : 0, 'aria-label': props.title, 'aria-expanded': isOpen.value, onKeydown: (e: KeyboardEvent) => activateOnKey(e, handleToggle) }, [
         props.isRoot
           ? (isOpen.value
               ? h('div', { class: 'dialkit-folder-title-row' }, [
@@ -125,6 +129,22 @@ export const Folder = defineComponent({
           }, [h('path', { d: ICON_CHEVRON })])
           : null,
       ]),
+      !props.isRoot && props.onReset
+        ? h('button', {
+          type: 'button',
+          class: 'dialkit-folder-reset',
+          'aria-label': `Reset ${props.title}`,
+          'data-changed': String(props.changed),
+          onClick: (event: Event) => {
+            event.stopPropagation();
+            // The button hides once the values are back; keep focus in the header.
+            headerRef.value?.focus();
+            props.onReset?.();
+          },
+        }, [
+          h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' }, ICON_RESET.map((d) => h('path', { d }))),
+        ])
+        : null,
       props.toolbar && !props.isRoot
         ? h('div', { class: 'dialkit-panel-section-toolbar-clip' }, [
           h('div', { class: 'dialkit-panel-section-toolbar', onClick: (event: Event) => event.stopPropagation() }, [props.toolbar()]),

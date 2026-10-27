@@ -23,6 +23,9 @@ interface TransitionControlProps {
     max?: number;
     step?: number;
   };
+  /** Shows a reset button in the header. See Folder.onReset. */
+  onReset?: () => void;
+  changed?: boolean;
 }
 
 type CurveMode = 'easing' | 'simple' | 'advanced';
@@ -35,6 +38,8 @@ export function TransitionControl({
   onChange,
   hideDuration = false,
   durationControl,
+  onReset,
+  changed,
 }: TransitionControlProps) {
   const subscribe = useCallback(
     (callback: () => void) => DialStore.subscribe(panelId, callback),
@@ -110,7 +115,7 @@ export function TransitionControl({
   ) : null;
 
   return (
-    <Folder title={label} defaultOpen={true}>
+    <Folder title={label} defaultOpen={true} onReset={onReset} changed={changed}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {isEasing ? (
           <EasingVisualization easing={easing} onChange={(ease) => onChange({ ...easing, ease })} />
