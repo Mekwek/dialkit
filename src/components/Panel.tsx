@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DialStore, PanelConfig } from '../store/DialStore';
 import { buildCopyInstruction } from '../copy-instruction';
+import { resolveOpenFolder } from '../accordion';
 import { ICON_CLIPBOARD_PLAIN, ICON_CHECK } from '../icons';
 import { ControlRenderer } from './ControlRenderer';
 import { Folder } from './Folder';
@@ -14,6 +15,9 @@ interface PanelProps {
   panel: PanelConfig;
   defaultOpen?: boolean;
   inline?: boolean;
+  accordion?: boolean;
+  openFolder?: string | null;
+  onOpenFolderChange?: (path: string | null) => void;
   onOpenChange?: (open: boolean) => void;
   variant?: 'root' | 'section';
   toolbarExtra?: ReactNode;
@@ -21,7 +25,7 @@ interface PanelProps {
   theme?: 'light' | 'dark' | 'system';
 }
 
-export function Panel({ panel, defaultOpen = true, inline = false, onOpenChange, variant = 'root', toolbarExtra, versions = 'thumbnails', theme }: PanelProps) {
+export function Panel({ panel, defaultOpen = true, inline = false, accordion = false, openFolder, onOpenFolderChange, onOpenChange, variant = 'root', toolbarExtra, versions = 'thumbnails', theme }: PanelProps) {
   const [copied, setCopied] = useState(false);
   const copyTimeout = useRef<ReturnType<typeof setTimeout>>();
   useEffect(() => () => clearTimeout(copyTimeout.current), []);
@@ -71,7 +75,13 @@ export function Panel({ panel, defaultOpen = true, inline = false, onOpenChange,
       {versions !== 'menu' && (
         <VersionGallery panelId={panel.id} theme={theme} />
       )}
-      <ControlRenderer panelId={panel.id} controls={panel.controls} values={values} />
+      <ControlRenderer
+        panelId={panel.id}
+        controls={panel.controls}
+        values={values}
+        openFolder={accordion ? resolveOpenFolder(panel.controls, openFolder) : undefined}
+        onOpenFolderChange={onOpenFolderChange}
+      />
     </>
   );
 

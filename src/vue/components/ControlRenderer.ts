@@ -22,10 +22,13 @@ export const ControlRenderer = defineComponent({
     controls: { type: Array as PropType<ControlMeta[]>, required: true },
     values: { type: Object as PropType<Record<string, DialValue>>, required: true },
     transitionDuration: Object as PropType<TransitionDurationControl>,
+    /** Path of the one open top-level folder in accordion mode, or null when all are closed. */
+    openFolder: { type: String as PropType<string | null>, default: undefined },
   },
-  setup(props) {
+  emits: ['openFolderChange'],
+  setup(props, { emit }) {
     const shortcut = inject(ShortcutKey, undefined);
-    const renderControl = (control: ControlMeta): ReturnType<typeof h> | null => {
+    const renderControl = (control: ControlMeta, topLevel = false): ReturnType<typeof h> | null => {
       const value = props.values[control.path];
       switch (control.type) {
         case 'slider':
@@ -68,12 +71,17 @@ export const ControlRenderer = defineComponent({
             durationControl: props.transitionDuration,
             onChange: (next: TransitionConfig) => DialStore.updateValue(props.panelId, control.path, next),
           });
-        case 'folder':
+        case 'folder': {
+          // Accordion mode controls top-level folders; nested folders keep their own state.
+          const accordion = topLevel && props.openFolder !== undefined;
           return h(Folder, {
             key: control.path,
             title: control.label,
             defaultOpen: control.defaultOpen ?? true,
-          }, { default: () => (control.children ?? []).map(renderControl) });
+            open: accordion ? props.openFolder === control.path : undefined,
+            onOpenChange: accordion ? (open: boolean) => emit('openFolderChange', open ? control.path : null) : undefined,
+          }, { default: () => (control.children ?? []).map((child) => renderControl(child)) });
+        }
         case 'text':
           return h(TextControl, {
             key: control.path,
@@ -125,6 +133,6 @@ export const ControlRenderer = defineComponent({
           return null;
       }
     };
-    return () => h(Fragment, null, props.controls.map(renderControl));
+    return () => h(Fragment, null, props.controls.map((control) => renderControl(control, true)));
   },
 });

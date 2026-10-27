@@ -24,12 +24,15 @@ interface ControlRendererProps {
   controls: ControlMeta[];
   values: Record<string, DialValue>;
   transitionDuration?: TransitionDurationControl;
+  /** Path of the one open top-level folder in accordion mode, or null when all are closed. */
+  openFolder?: string | null;
+  onOpenFolderChange?: (path: string | null) => void;
 }
 
 export function ControlRenderer(props: ControlRendererProps) {
   const shortcut = useShortcutContext();
 
-  const renderControl = (control: ControlMeta) => {
+  const renderControl = (control: ControlMeta, topLevel = false) => {
     const value = () => props.values[control.path];
     switch (control.type) {
       case 'slider':
@@ -76,12 +79,20 @@ export function ControlRenderer(props: ControlRendererProps) {
             durationControl={props.transitionDuration}
           />
         );
-      case 'folder':
+      case 'folder': {
+        // Accordion mode controls top-level folders; nested folders keep their own state.
+        const accordion = () => topLevel && props.openFolder !== undefined;
         return (
-          <Folder title={control.label} defaultOpen={control.defaultOpen ?? true}>
-            <For each={control.children ?? []}>{renderControl}</For>
+          <Folder
+            title={control.label}
+            defaultOpen={control.defaultOpen ?? true}
+            open={accordion() ? props.openFolder === control.path : undefined}
+            onOpenChange={accordion() ? (open) => props.onOpenFolderChange?.(open ? control.path : null) : undefined}
+          >
+            <For each={control.children ?? []}>{(child) => renderControl(child)}</For>
           </Folder>
         );
+      }
       case 'text':
         return (
           <TextControl
@@ -139,5 +150,5 @@ export function ControlRenderer(props: ControlRendererProps) {
     }
   };
 
-  return <For each={props.controls}>{renderControl}</For>;
+  return <For each={props.controls}>{(control) => renderControl(control, true)}</For>;
 }
