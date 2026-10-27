@@ -4,7 +4,9 @@ import type { ControlMeta, DialValue, SpringConfig, TransitionConfig } from '../
 import { ColorControl } from './ColorControl';
 import { ImageControl } from './ImageControl';
 import { DialPad } from './DialPad';
+import { AnchorControl } from './AnchorControl';
 import type { DialPadValue } from '../../dial-pad';
+import type { AnchorValue } from '../../anchor';
 import { Folder } from './Folder';
 import { SelectControl } from './SelectControl';
 import { ShortcutKey } from './ShortcutListener';
@@ -119,6 +121,13 @@ export const ControlRenderer = defineComponent({
             hideLabel: control.pad?.hideLabel,
             dragLabels: control.pad?.dragLabels,
             onChange: (next: DialPadValue) => DialStore.updateValue(props.panelId, control.path, next),
+          });
+        case 'anchor':
+          return h(AnchorControl, {
+            key: control.path,
+            label: control.label,
+            value: value as AnchorValue,
+            onChange: (next: AnchorValue) => DialStore.updateValue(props.panelId, control.path, next),
           });
         case 'action':
           return h('button', {

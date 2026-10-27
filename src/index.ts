@@ -51,6 +51,8 @@ export { ColorControl } from './components/ColorControl';
 export { ImageControl } from './components/ImageControl';
 export { DialPad } from './components/DialPad';
 export type { DialPadProps } from './dial-pad-control';
+export { AnchorControl } from './components/AnchorControl';
+export type { AnchorControlProps } from './anchor-control';
 export { PresetManager } from './components/PresetManager';
 export { VersionGallery } from './components/VersionGallery';
 export { ShortcutsMenu } from './components/ShortcutsMenu';
@@ -70,6 +72,8 @@ export type {
   DialPadAxis,
   DialPadConfig,
   DialPadValue,
+  AnchorConfig,
+  AnchorValue,
   TextConfig,
   DialKitPersistOptions,
   ShortcutConfig,

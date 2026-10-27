@@ -10,7 +10,9 @@ import { useShortcutContext } from './ShortcutListener';
 import { ColorControl } from './ColorControl';
 import { ImageControl } from './ImageControl';
 import { DialPad } from './DialPad';
+import { AnchorControl } from './AnchorControl';
 import type { DialPadValue } from '../../dial-pad';
+import type { AnchorValue } from '../../anchor';
 import { Folder } from './Folder';
 import { SelectControl } from './SelectControl';
 import { Slider } from './Slider';
@@ -130,6 +132,14 @@ export function ControlRenderer(props: ControlRendererProps) {
             labels={control.pad?.labels}
             hideLabel={control.pad?.hideLabel}
             dragLabels={control.pad?.dragLabels}
+            onChange={(next) => DialStore.updateValue(props.panelId, control.path, next)}
+          />
+        );
+      case 'anchor':
+        return (
+          <AnchorControl
+            label={control.label}
+            value={value() as AnchorValue}
             onChange={(next) => DialStore.updateValue(props.panelId, control.path, next)}
           />
         );

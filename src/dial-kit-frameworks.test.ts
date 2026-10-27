@@ -15,16 +15,16 @@ import { useDialKitController as useVueDialKitController } from './vue/useDialKi
 import { DialStore, type DialConfig } from './store/DialStore';
 
 const config = { group: {
-  position: { type: 'pad' }, amount: [0.25, 0, 1], enabled: true,
+  position: { type: 'pad' }, origin: { type: 'anchor' }, amount: [0.25, 0, 1], enabled: true,
   title: { type: 'text', default: 'Example' }, choice: { type: 'select', options: [] },
   accent: { type: 'color' }, cover: { type: 'image' },
   spring: { type: 'spring', visualDuration: 0.3, bounce: 0.2 },
   easing: { type: 'easing', duration: 0.5, ease: [0, 0, 1, 1] },
   run: { type: 'action' },
 } } satisfies DialConfig;
-const defaults = { position: { x: 0, y: 0 }, amount: 0.25, enabled: true, title: 'Example', choice: '',
+const defaults = { position: { x: 0, y: 0 }, origin: { x: 'center', y: 'center' }, amount: 0.25, enabled: true, title: 'Example', choice: '',
   accent: '#000000', cover: '', spring: config.group.spring, easing: config.group.easing, run: config.group.run };
-const updates = { position: { x: 0.75, y: -0.4 }, amount: 0.5, enabled: false, title: 'Changed', accent: '#ff0000', cover: '/cover.png' };
+const updates = { position: { x: 0.75, y: -0.4 }, origin: { x: 'left', y: 'bottom' }, amount: 0.5, enabled: false, title: 'Changed', accent: '#ff0000', cover: '/cover.png' };
 const changed = { ...defaults, ...updates };
 
 describe('DialKit framework values', () => {
