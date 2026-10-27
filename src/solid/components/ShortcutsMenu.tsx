@@ -106,7 +106,7 @@ export function ShortcutsMenu(props: ShortcutsMenuProps) {
         onPointerUp={() => tapTo(1)}
         onPointerCancel={() => tapTo(1)}
         onPointerLeave={() => tapTo(1)}
-        title="Keyboard shortcuts"
+        aria-label="Keyboard shortcuts"
         type="button" aria-haspopup="dialog" aria-expanded={dropdown.isOpen()}
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

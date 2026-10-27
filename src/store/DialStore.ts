@@ -104,7 +104,7 @@ export function unwrapVisibility(value: DialConfig[string]): DialConfig[string] 
 }
 
 export type ResolvedValues<T extends DialConfig> = {
-  [K in keyof T]: T[K] extends ControlWithVisibility<infer U extends DialConfig[string]>
+  [K in keyof T as K extends '_collapsed' | '_fields' | '_reset' | '_hints' ? never : K]: T[K] extends ControlWithVisibility<infer U extends DialConfig[string]>
     ? ResolvedValues<{ value: U }>['value']
     : T[K] extends [number, number, number, number?, string?]
     ? number
@@ -128,7 +128,7 @@ export type ResolvedValues<T extends DialConfig> = {
 };
 
 export type DialKitValueUpdates<T extends DialConfig> = {
-  [K in keyof T as K extends '_collapsed' | '_fields' | '_reset' ? never : K]?: T[K] extends ControlWithVisibility<infer U extends DialConfig[string]>
+  [K in keyof T as K extends '_collapsed' | '_fields' | '_reset' | '_hints' ? never : K]?: T[K] extends ControlWithVisibility<infer U extends DialConfig[string]>
     ? DialKitValueUpdates<{ value: U }>['value']
     : T[K] extends [number, number, number, number?, string?]
     ? number
@@ -179,6 +179,8 @@ export type ControlMeta = {
   anchor?: AnchorConfig;
   shortcut?: ShortcutConfig;
   visibleWhen?: VisibleWhen;
+  /** A short sentence about the control, from its folder's `_hints`. */
+  hint?: string;
 };
 
 export type PanelConfig = {
@@ -358,7 +360,7 @@ function flattenConfigUpdates(
 
 /** Folder metadata such as `_collapsed` configures the folder and is not a value. */
 export function isFolderMetaKey(key: string): boolean {
-  return key === '_collapsed' || key === '_fields' || key === '_reset';
+  return key === '_collapsed' || key === '_fields' || key === '_reset' || key === '_hints';
 }
 
 /** A field row holds two to four numbers and at most one boolean, its lock. */
@@ -1315,6 +1317,7 @@ class DialStoreClass {
     const rules: [string, VisibleWhen][] = [];
     const visit = (config: DialConfig, prefix: string): ControlMeta[] => {
       const controls: ControlMeta[] = [];
+      const hints = config._hints as Record<string, unknown> | undefined;
 
       for (const [key, rawValue] of Object.entries(config)) {
         if (isFolderMetaKey(key)) continue;
@@ -1391,6 +1394,8 @@ class DialStoreClass {
           control.visibleWhen = rawValue.visibleWhen;
           rules.push([path, rawValue.visibleWhen]);
         }
+        const hint = hints?.[key];
+        if (typeof hint === 'string' && hint) control.hint = hint;
         controls.push(control);
         controlsByPath.set(path, control);
         if (control.type === 'folder') continue;

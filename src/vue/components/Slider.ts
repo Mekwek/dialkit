@@ -3,6 +3,7 @@ import { defineComponent, h, computed, nextTick, onMounted, onUnmounted, ref, wa
 import { animate, motionValue } from 'motion-v';
 import type { ShortcutConfig } from '../../store/DialStore';
 import { decimalsForStep, isWordUnit, roundValue, snapToDecile, formatSliderShortcut } from '../../shortcut-utils';
+import { useHints } from '../useHints';
 
 const CLICK_THRESHOLD = 3;
 const DEAD_ZONE = 32;
@@ -23,9 +24,11 @@ export const Slider = defineComponent({
     shortcutActive: { type: Boolean, default: false },
     /** @internal A value that arrives with a new count springs into place, like a click on the track. */
     resetCount: { type: Number, default: 0 },
+    hint: { type: String, required: false },
   },
   emits: ['change'],
   setup(props, { emit }) {
+    useHints(() => !!props.hint);
     const min = computed(() => props.min ?? 0);
     const max = computed(() => props.max ?? 1);
     const step = computed(() => props.step ?? 0.01);
@@ -375,7 +378,7 @@ export const Slider = defineComponent({
       unsubHandleScaleY?.();
     });
 
-    return () => h('div', { ref: wrapperRef, class: 'dialkit-slider-wrapper' }, [
+    return () => h('div', { ref: wrapperRef, class: 'dialkit-slider-wrapper', 'data-hint': props.hint }, [
       h('div', {
         ref: trackRef,
         class: `dialkit-slider ${isActive.value ? 'dialkit-slider-active' : ''}`,

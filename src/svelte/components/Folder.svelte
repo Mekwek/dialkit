@@ -9,6 +9,8 @@
 
   import type { Snippet } from 'svelte';
   import { ICON_CLOSE, ICON_PANEL, ICON_CHEVRON, ICON_RESET } from '../../icons';
+  import { HINTS } from '../../hints';
+  import { createHints } from '../hints.svelte.js';
 
   let {
     title,
@@ -24,6 +26,7 @@
     onReset,
     changed = false,
     children,
+    hint,
   } = $props<{
     title: string;
     defaultOpen?: boolean;
@@ -41,7 +44,11 @@
     onReset?: () => void;
     changed?: boolean;
     children?: Snippet;
+    hint?: string;
   }>();
+  // A panel's own header, which closes the panel, has a hint by default.
+  const headerHint = $derived(hint ?? (isRoot && !inline ? HINTS.panel : undefined));
+  createHints(() => !!headerHint);
 
   const initiallyOpen = untrack(() => open ?? defaultOpen);
   let localOpen = $state(initiallyOpen);
@@ -194,7 +201,7 @@
   >
     <div bind:this={contentRef} class="dialkit-folder dialkit-folder-root" data-open={String(isOpen)}>
       <div class="dialkit-folder-header dialkit-panel-header" onclick={(e) => { e.stopPropagation(); handleToggle(); }}>
-        <div class="dialkit-folder-header-top" role="button" tabindex="0" aria-label={title} aria-expanded={isOpen} onkeydown={(e) => activateOnKey(e, handleToggle)}>
+        <div class="dialkit-folder-header-top" data-hint={headerHint} role="button" tabindex="0" aria-label={title} aria-expanded={isOpen} onkeydown={(e) => activateOnKey(e, handleToggle)}>
           {#if isOpen}
             <div class="dialkit-folder-title-row">
               <span class="dialkit-folder-title dialkit-folder-title-root">{title}</span>
@@ -236,7 +243,7 @@
 {:else}
   <div bind:this={sectionRef} class:dialkit-folder-section={!!toolbar} class="dialkit-folder" data-open={String(isOpen)}>
     <div class="dialkit-folder-header" onclick={handleToggle}>
-      <div bind:this={headerRef} class="dialkit-folder-header-top" role="button" tabindex="0" aria-label={meta ? `${title}, ${meta}` : title} aria-expanded={isOpen} onkeydown={(e) => activateOnKey(e, handleToggle)}>
+      <div bind:this={headerRef} class="dialkit-folder-header-top" data-hint={headerHint} role="button" tabindex="0" aria-label={meta ? `${title}, ${meta}` : title} aria-expanded={isOpen} onkeydown={(e) => activateOnKey(e, handleToggle)}>
         <div class="dialkit-folder-title-row">
           <span class="dialkit-folder-title">{title}</span>
           {#if meta}

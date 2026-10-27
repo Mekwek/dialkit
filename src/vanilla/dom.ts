@@ -25,7 +25,6 @@ export function icon(paths: string | readonly string[], className = '', viewBox 
 }
 export function button(title: string, paths: string | readonly string[], onClick: () => void) {
   const node = element('button', 'dialkit-toolbar-add');
-  node.title = title;
   node.setAttribute('aria-label', title);
   node.append(icon(paths));
   node.addEventListener('click', onClick);

@@ -6,7 +6,7 @@ export function DialPad(props: DialPadProps) {
   let control: ReturnType<typeof mountDialPad> | undefined;
   onMount(() => {
     control = mountDialPad(host, { ...props });
-    createEffect(() => control?.update({ label: props.label, value: props.value, x: props.x, y: props.y, labels: props.labels, hideLabel: props.hideLabel, dragLabels: props.dragLabels, onChange: props.onChange }));
+    createEffect(() => control?.update({ label: props.label, value: props.value, x: props.x, y: props.y, labels: props.labels, hideLabel: props.hideLabel, dragLabels: props.dragLabels, onChange: props.onChange, hint: props.hint }));
   });
   onCleanup(() => control?.destroy());
   return <div ref={host} class="dialkit-pad-host" />;

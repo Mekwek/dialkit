@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { DialStore, PanelConfig } from '../store/DialStore';
 import { buildCopyInstruction } from '../copy-instruction';
 import { resolveOpenFolder } from '../accordion';
+import { HINTS, HintStore } from '../hints';
+import { useHints } from '../hooks/useHints';
 import { ICON_CLIPBOARD_PLAIN, ICON_CHECK } from '../icons';
 import { ControlRenderer } from './ControlRenderer';
 import { Folder } from './Folder';
@@ -25,8 +27,13 @@ interface PanelProps {
   theme?: 'light' | 'dark' | 'system';
 }
 
+const subscribeHints = (listener: () => void) => HintStore.subscribe(listener);
+const getHintTipSeen = () => HintStore.isTipSeen();
+const getServerHintTipSeen = () => true;
+
 export function Panel({ panel, defaultOpen = true, inline = false, accordion = false, openFolder, onOpenFolderChange, onOpenChange, variant = 'root', toolbarExtra, versions = 'thumbnails', theme }: PanelProps) {
   const [copied, setCopied] = useState(false);
+  useHints(true);
   const copyTimeout = useRef<ReturnType<typeof setTimeout>>();
   useEffect(() => () => clearTimeout(copyTimeout.current), []);
   const subscribe = useCallback(
@@ -48,6 +55,7 @@ export function Panel({ panel, defaultOpen = true, inline = false, accordion = f
   // The store owns open/collapsed state so it can be driven programmatically.
   const storeOpen = useSyncExternalStore(subscribe, getOpenSnapshot, getOpenSnapshot);
   const isOpen = storeOpen ?? defaultOpen;
+  const hintTipSeen = useSyncExternalStore(subscribeHints, getHintTipSeen, getServerHintTipSeen);
 
   useEffect(() => {
     DialStore.initPanelOpen(panel.id, defaultOpen);
@@ -83,6 +91,11 @@ export function Panel({ panel, defaultOpen = true, inline = false, accordion = f
         onOpenFolderChange={onOpenFolderChange}
         animateControls
       />
+      {!hintTipSeen && (
+        <p className="dialkit-hint-tip">
+          Hold <kbd className="dialkit-hint-tip-key">H</kbd> over a control to see what it does.
+        </p>
+      )}
     </>
   );
 
@@ -102,7 +115,8 @@ export function Panel({ panel, defaultOpen = true, inline = false, accordion = f
         className="dialkit-toolbar-add dialkit-toolbar-primary"
         data-wide={versions !== 'menu' ? 'true' : undefined}
         onClick={handleCopy}
-        title="Copy parameters"
+        aria-label="Copy parameters"
+        data-hint={HINTS.copy}
         whileTap={{ scale: versions !== 'menu' ? 0.98 : 0.9 }}
         transition={{ type: 'spring', visualDuration: 0.15, bounce: 0.3 }}
       >

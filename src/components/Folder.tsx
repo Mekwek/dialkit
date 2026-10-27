@@ -3,6 +3,8 @@ import { createPanelSectionTransition, measurePanelHeight, observePanelHeader, o
 import { useState, useRef, useEffect, useLayoutEffect, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ICON_CLOSE, ICON_PANEL, ICON_CHEVRON, ICON_RESET } from '../icons';
+import { HINTS } from '../hints';
+import { useHints } from '../hooks/useHints';
 
 interface FolderProps {
   title: string;
@@ -21,9 +23,13 @@ interface FolderProps {
   /** Shows a reset button after the title, visible while `changed` is true. */
   onReset?: () => void;
   changed?: boolean;
+  hint?: string;
 }
 
-export function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, meta, actions, panelHeightOffset = 0, onReset, changed = false }: FolderProps) {
+export function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, meta, actions, panelHeightOffset = 0, onReset, changed = false, hint }: FolderProps) {
+  // A panel's own header, which closes the panel, has a hint by default.
+  const headerHint = hint ?? (isRoot && !inline ? HINTS.panel : undefined);
+  useHints(!!headerHint);
   const [localOpen, setIsOpen] = useState(defaultOpen);
   const isOpen = open ?? localOpen;
   const isCollapsed = !isOpen;
@@ -81,7 +87,7 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
       data-open={String(isOpen)}
     >
       <div className={`dialkit-folder-header ${isRoot ? 'dialkit-panel-header' : ''}`} onClick={handleToggle}>
-        <div ref={headerRef} className="dialkit-folder-header-top" role={inline && isRoot ? undefined : "button"} tabIndex={inline && isRoot ? undefined : 0} aria-label={!isRoot && meta ? `${title}, ${meta}` : title} aria-expanded={isOpen} onKeyDown={(e) => activateOnKey(e, handleToggle)}>
+        <div ref={headerRef} className="dialkit-folder-header-top" data-hint={headerHint} role={inline && isRoot ? undefined : "button"} tabIndex={inline && isRoot ? undefined : 0} aria-label={!isRoot && meta ? `${title}, ${meta}` : title} aria-expanded={isOpen} onKeyDown={(e) => activateOnKey(e, handleToggle)}>
           {isRoot ? (
             isOpen && (
               <div className="dialkit-folder-title-row">

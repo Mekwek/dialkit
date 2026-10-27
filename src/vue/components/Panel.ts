@@ -5,6 +5,8 @@ import { AnimatePresence, motion } from 'motion-v';
 import { ICON_CHECK, ICON_CLIPBOARD_PLAIN } from '../../icons';
 import { DialStore } from '../../store/DialStore';
 import type { DialValue, PanelConfig } from '../../store/DialStore';
+import { HINTS, HintStore } from '../../hints';
+import { useHints } from '../useHints';
 import { Folder } from './Folder';
 import { ControlRenderer } from './ControlRenderer';
 import { PresetManager } from './PresetManager';
@@ -54,8 +56,11 @@ export const Panel = defineComponent({
     const storeOpen = ref<boolean | undefined>(DialStore.getPanelOpen(props.panel.id));
     // The store owns open/collapsed state so it can be driven programmatically.
     const isOpen = computed(() => storeOpen.value ?? props.defaultOpen);
+    const hintTipSeen = ref(true);
+    useHints(() => true);
 
     let unsubscribe: (() => void) | undefined;
+    let unsubscribeHints: (() => void) | undefined;
     let copiedTimeout: ReturnType<typeof window.setTimeout> | null = null;
 
     onMounted(() => {
@@ -66,10 +71,15 @@ export const Panel = defineComponent({
         storeOpen.value = DialStore.getPanelOpen(props.panel.id);
       });
       DialStore.initPanelOpen(props.panel.id, props.defaultOpen);
+      hintTipSeen.value = HintStore.isTipSeen();
+      unsubscribeHints = HintStore.subscribe(() => {
+        hintTipSeen.value = HintStore.isTipSeen();
+      });
     });
 
     onUnmounted(() => {
       unsubscribe?.();
+      unsubscribeHints?.();
       if (copiedTimeout) {
         window.clearTimeout(copiedTimeout);
       }
@@ -107,7 +117,7 @@ export const Panel = defineComponent({
           class: 'dialkit-toolbar-add dialkit-toolbar-primary',
           'data-wide': gallery ? 'true' : undefined,
           onClick: handleCopy,
-          title: 'Copy parameters', 'aria-label': 'Copy parameters',
+          'aria-label': 'Copy parameters', 'data-hint': HINTS.copy,
           whilePress: { scale: 0.95 },
           transition: { type: 'spring', visualDuration: 0.15, bounce: 0.3 },
         }, [
@@ -175,9 +185,18 @@ export const Panel = defineComponent({
         animateControls: true,
       });
 
+      const hintTip = !hintTipSeen.value
+        ? h('p', { class: 'dialkit-hint-tip' }, [
+          'Hold ',
+          h('kbd', { class: 'dialkit-hint-tip-key' }, 'H'),
+          ' over a control to see what it does.',
+        ])
+        : null;
+
       const content = () => [
         gallery ? h(VersionGallery, { panelId: props.panel.id, theme: props.theme }) : null,
         renderControls(),
+        hintTip,
       ];
 
       if (props.variant === 'section') {

@@ -2,7 +2,7 @@ import { handleSliderKey } from '../../control-keyboard';
 import { createSignal, createEffect, onMount, onCleanup, Show } from 'solid-js';
 import { animate, motionValue } from 'motion';
 import type { ShortcutConfig } from '../../store/DialStore';
-import type { AnimationHandle } from '../primitives';
+import { createHints, type AnimationHandle } from '../primitives';
 import {
   decimalsForStep,
   isWordUnit,
@@ -23,6 +23,7 @@ interface SliderProps {
   shortcutActive?: boolean;
   /** @internal A value that arrives with a new count springs into place, like a click on the track. */
   resetCount?: number;
+  hint?: string;
 }
 
 const CLICK_THRESHOLD = 3;
@@ -32,6 +33,7 @@ const MAX_STRETCH = 8;
 const SNAP_SPRING = { type: 'spring', stiffness: 300, damping: 25, mass: 0.8 } as const;
 
 export function Slider(props: SliderProps) {
+  createHints(() => !!props.hint);
   const min = () => props.min ?? 0;
   const max = () => props.max ?? 1;
   const step = () => props.step ?? 0.01;
@@ -381,7 +383,7 @@ export function Slider(props: SliderProps) {
   };
 
   return (
-    <div ref={wrapperRef} class="dialkit-slider-wrapper">
+    <div ref={wrapperRef} class="dialkit-slider-wrapper" data-hint={props.hint}>
       <div
         ref={trackRef}
         class={`dialkit-slider ${isActive() ? 'dialkit-slider-active' : ''}`}

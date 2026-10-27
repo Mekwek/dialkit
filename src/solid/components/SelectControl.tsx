@@ -6,7 +6,7 @@ import { animate } from 'motion';
 import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition, type DropdownPosition } from '../../dropdown-position';
 import { ICON_CHEVRON } from '../../icons';
 import type { SelectConfig, SelectOption } from '../../store/DialStore';
-import { createDropdownDismiss, createDropdownPresence, type AnimationHandle } from '../primitives';
+import { createDropdownDismiss, createDropdownPresence, createHints, type AnimationHandle } from '../primitives';
 import { SegmentedControl } from './SegmentedControl';
 
 interface SelectControlProps {
@@ -16,6 +16,7 @@ interface SelectControlProps {
   onChange: (value: string) => void;
   display?: SelectConfig['display'];
   hideLabel?: boolean;
+  hint?: string;
 }
 
 function toTitleCase(s: string): string {
@@ -29,6 +30,7 @@ function normalizeOptions(options: SelectOption[]): Exclude<SelectOption, string
 }
 
 export function SelectControl(props: SelectControlProps) {
+  createHints(() => !!props.hint);
   return (
     <Show when={props.display === 'segmented'} fallback={<SelectDropdown {...props} />}>
       <SegmentedSelect {...props} />
@@ -126,7 +128,7 @@ function SelectDropdown(props: SelectControlProps) {
   };
 
   return (
-    <div class="dialkit-select-row">
+    <div class="dialkit-select-row" data-hint={props.hint}>
       <button
         ref={triggerRef}
         class="dialkit-select-trigger"

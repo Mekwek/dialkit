@@ -18,7 +18,6 @@ export function TimelineToggleButton() {
       data-active={visible || undefined}
       aria-pressed={visible}
       aria-label={label}
-      title={label}
       onClick={() => TimelineUiStore.toggle()}
       whileTap={{ scale: 0.9 }}
       transition={{ type: 'spring', visualDuration: 0.15, bounce: 0.3 }}

@@ -6,6 +6,7 @@ import { transitionPresetName } from '../transition-presets';
 import { mountTransitionCopy, mountTransitionPresets, type TransitionCopyProps, type TransitionPresetsProps } from '../transition-presets-control';
 import { mountFolder, mountSegmentedControl, mountSlider, type SliderProps } from './controls';
 import { element, svg, type Mounted } from './dom';
+import { HINTS, setHint } from '../hints';
 export interface SpringVisualizationProps {
   spring: SpringConfig;
   isSimpleMode: boolean;
@@ -49,10 +50,11 @@ export interface TransitionControlProps {
   /** Shows a reset button in the header. See FolderProps.onReset. */
   onReset?: () => void;
   changed?: boolean;
+  hint?: string;
 }
 export function mountTransitionControl(host: HTMLElement, initial: TransitionControlProps, springOnly = false): Mounted<TransitionControlProps> {
   let props = initial;
-  const folderProps = () => ({ title: props.label, onReset: props.onReset, changed: props.changed });
+  const folderProps = () => ({ title: props.label, hint: props.hint, onReset: props.onReset, changed: props.changed });
   const folder = mountFolder(host, { ...folderProps(), actions: !springOnly });
   const body = element('div');
   Object.assign(body.style, { display: 'flex', flexDirection: 'column', gap: '6px' });
@@ -111,6 +113,10 @@ export function mountTransitionControl(host: HTMLElement, initial: TransitionCon
     const change = (value: TransitionConfig) => props.onChange(value);
     const typeRow = element('div', 'dialkit-labeled-control dialkit-transition-type');
     typeRow.append(element('span', 'dialkit-labeled-control-label', 'Type'));
+    if (!springOnly) {
+      setHint(typeRow, HINTS.transitionType);
+      controls.push({ destroy: () => setHint(typeRow, undefined) });
+    }
     body.append(typeRow);
     if (mode === 'easing') {
       const vizProps = () => ({ easing: cache.easing, onChange: (ease: EasingConfig['ease']) => change({ ...cache.easing, ease }) });
@@ -136,12 +142,12 @@ export function mountTransitionControl(host: HTMLElement, initial: TransitionCon
       }
     });
     controls.push(segment);
-    function slider(label: string, key: string, fallback: number, min: number, max: number, step: number, duration = false) {
+    function slider(label: string, key: string, fallback: number, min: number, max: number, step: number, hint: string, duration = false) {
       const getProps = (): SliderProps => {
         const value = cache[mode] as unknown as Record<string, number>;
         const external = duration ? props.durationControl : undefined;
         return {
-          label, value: external?.value ?? value[key] ?? fallback, min: external?.min ?? min, max: external?.max ?? max, step: external?.step ?? step, unit: duration ? 's' : undefined,
+          label, hint, value: external?.value ?? value[key] ?? fallback, min: external?.min ?? min, max: external?.max ?? max, step: external?.step ?? step, unit: duration ? 's' : undefined,
           onChange: external?.onChange ?? (v => {
             const next = { ...cache[mode], [key]: v };
             if (mode === 'simple') {
@@ -174,16 +180,16 @@ export function mountTransitionControl(host: HTMLElement, initial: TransitionCon
     }
     else if (mode === 'simple') {
       if (springOnly && !props.hideDuration)
-        slider('Duration', 'visualDuration', 0.3, 0.1, 5, 0.05, true);
-      slider('Bounce', 'bounce', 0.2, 0, 1, 0.05);
+        slider('Duration', 'visualDuration', 0.3, 0.1, 5, 0.05, HINTS.springDuration, true);
+      slider('Bounce', 'bounce', 0.2, 0, 1, 0.05, HINTS.bounce);
     }
     else {
-      slider('Stiffness', 'stiffness', 400, 1, 1000, 10);
-      slider('Damping', 'damping', 17, 1, 100, 1);
-      slider('Mass', 'mass', 1, 0.1, 10, 0.1);
+      slider('Stiffness', 'stiffness', 400, 1, 1000, 10, HINTS.stiffness);
+      slider('Damping', 'damping', 17, 1, 100, 1, HINTS.damping);
+      slider('Mass', 'mass', 1, 0.1, 10, 0.1, HINTS.mass);
     }
     if (!springOnly && !props.hideDuration && mode !== 'advanced')
-      slider('Duration', mode === 'easing' ? 'duration' : 'visualDuration', 0.3, 0.1, mode === 'easing' ? 2 : 5, 0.05, true);
+      slider('Duration', mode === 'easing' ? 'duration' : 'visualDuration', 0.3, 0.1, mode === 'easing' ? 2 : 5, 0.05, mode === 'easing' ? HINTS.easingDuration : HINTS.springDuration, true);
     if (presetsFolder) {
       body.append(presetsFolder.element);
       presets ??= mountTransitionPresets(presetsFolder.body, presetProps());
@@ -216,6 +222,7 @@ export interface SpringControlProps {
   /** Shows a reset button in the header. See FolderProps.onReset. */
   onReset?: () => void;
   changed?: boolean;
+  hint?: string;
 }
 export function mountSpringControl(host: HTMLElement, props: SpringControlProps): Mounted<SpringControlProps> {
   const convert = (p: SpringControlProps): TransitionControlProps => ({ ...p, value: p.spring, onChange: value => p.onChange(value as SpringConfig) });

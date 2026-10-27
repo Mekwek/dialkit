@@ -5,6 +5,8 @@ import { DialStore } from '../../store/DialStore';
 import type { CopiedTransition, EasingConfig, SpringConfig, TransitionConfig, TransitionMode } from '../../store/DialStore';
 import { transitionPresetName } from '../../transition-presets';
 import { mountTransitionCopy, mountTransitionPresets } from '../../transition-presets-control';
+import { HINTS } from '../../hints';
+import { useHints } from '../useHints';
 import { Folder } from './Folder';
 import { Slider } from './Slider';
 import { SegmentedControl } from './SegmentedControl';
@@ -89,9 +91,11 @@ export const TransitionControl = defineComponent({
     /** Shows a reset button in the header. See Folder.onReset. */
     onReset: Function as PropType<() => void>,
     changed: { type: Boolean, default: false },
+    hint: { type: String, required: false },
   },
   emits: ['change'],
   setup(props, { emit }) {
+    useHints(() => true);
     const mode = ref<CurveMode>(DialStore.getTransitionMode(props.panelId, props.path));
     const savedPresets = shallowRef(DialStore.getTransitionPresets());
     let unsub: (() => void) | undefined;
@@ -179,6 +183,7 @@ export const TransitionControl = defineComponent({
           max: props.durationControl?.max ?? (isEasing ? 2 : 5),
           step: props.durationControl?.step ?? 0.05,
           unit: 's',
+          hint: isEasing ? HINTS.easingDuration : HINTS.springDuration,
           onChange: props.durationControl?.onChange ?? ((next: number) => {
             if (isEasing) emit('change', { ...currentEasing, duration: next });
             else handleSpringUpdate('visualDuration', next);
@@ -191,13 +196,14 @@ export const TransitionControl = defineComponent({
       return h(Folder, {
         title: props.label,
         defaultOpen: true,
+        hint: props.hint,
         onReset: props.onReset,
         changed: props.changed,
         actions: () => h(TransitionCopy, { mode: mode.value, value: current, onPaste: handlePaste }),
       }, {
         default: () => [
           h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } }, [
-            h('div', { class: 'dialkit-labeled-control dialkit-transition-type' }, [
+            h('div', { class: 'dialkit-labeled-control dialkit-transition-type', 'data-hint': HINTS.transitionType }, [
               h('span', { class: 'dialkit-labeled-control-label' }, 'Type'),
               h(SegmentedControl, {
                 options: [
@@ -237,6 +243,7 @@ export const TransitionControl = defineComponent({
                     max: 1,
                     step: 0.05,
                     onChange: (next: number) => handleSpringUpdate('bounce', next),
+                    hint: HINTS.bounce,
                   }),
                 ]
                 : [
@@ -247,6 +254,7 @@ export const TransitionControl = defineComponent({
                     max: 1000,
                     step: 10,
                     onChange: (next: number) => handleSpringUpdate('stiffness', next),
+                    hint: HINTS.stiffness,
                   }),
                   h(Slider, {
                     label: 'Damping',
@@ -255,6 +263,7 @@ export const TransitionControl = defineComponent({
                     max: 100,
                     step: 1,
                     onChange: (next: number) => handleSpringUpdate('damping', next),
+                    hint: HINTS.damping,
                   }),
                   h(Slider, {
                     label: 'Mass',
@@ -263,6 +272,7 @@ export const TransitionControl = defineComponent({
                     max: 10,
                     step: 0.1,
                     onChange: (next: number) => handleSpringUpdate('mass', next),
+                    hint: HINTS.mass,
                   }),
                 ]),
             durationSlider,

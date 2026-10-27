@@ -1,5 +1,6 @@
 import { DialStore } from '../../store/DialStore';
 import type { SpringConfig } from '../../store/DialStore';
+import { HINTS } from '../../hints';
 import { fromStore } from '../primitives';
 import { Folder } from './Folder';
 import { Slider } from './Slider';
@@ -15,6 +16,7 @@ interface SpringControlProps {
   /** Shows a reset button in the header. See Folder.onReset. */
   onReset?: () => void;
   changed?: boolean;
+  hint?: string;
 }
 
 export function SpringControl(props: SpringControlProps) {
@@ -61,7 +63,7 @@ export function SpringControl(props: SpringControlProps) {
   };
 
   return (
-    <Folder title={props.label} defaultOpen={true} onReset={props.onReset} changed={props.changed}>
+    <Folder title={props.label} defaultOpen={true} hint={props.hint} onReset={props.onReset} changed={props.changed}>
       <div style={{ display: 'flex', 'flex-direction': 'column', gap: '6px' }}>
         <div class="dialkit-labeled-control dialkit-transition-type">
           <span class="dialkit-labeled-control-label">Type</span>
@@ -87,6 +89,7 @@ export function SpringControl(props: SpringControlProps) {
               max={5}
               step={0.05}
               unit="s"
+              hint={HINTS.springDuration}
             />
             <Slider
               label="Bounce"
@@ -95,6 +98,7 @@ export function SpringControl(props: SpringControlProps) {
               min={0}
               max={1}
               step={0.05}
+              hint={HINTS.bounce}
             />
           </>
         ) : (
@@ -106,6 +110,7 @@ export function SpringControl(props: SpringControlProps) {
               min={1}
               max={1000}
               step={10}
+              hint={HINTS.stiffness}
             />
             <Slider
               label="Damping"
@@ -114,6 +119,7 @@ export function SpringControl(props: SpringControlProps) {
               min={1}
               max={100}
               step={1}
+              hint={HINTS.damping}
             />
             <Slider
               label="Mass"
@@ -122,6 +128,7 @@ export function SpringControl(props: SpringControlProps) {
               min={0.1}
               max={10}
               step={0.1}
+              hint={HINTS.mass}
             />
           </>
         )}

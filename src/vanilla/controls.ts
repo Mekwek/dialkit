@@ -3,6 +3,7 @@ import { decimalsForStep, isWordUnit, roundValue, snapToDecile, formatSliderShor
 import { observeTextSize } from '../text-autosize';
 import { createPanelSectionTransition, observePanelHeader, observeScrollFades } from '../panel-size';
 import { ICON_CLOSE, ICON_CHEVRON, ICON_PANEL, ICON_RESET } from '../icons';
+import { HINTS, setHint } from '../hints';
 import type { ShortcutConfig } from '../store/DialStore';
 import { element, icon, svg, type Mounted } from './dom';
 import { animateSpring } from './animation';
@@ -21,6 +22,7 @@ export interface FolderProps {
   /** Shows a reset button after the title, visible while `changed` is true. */
   onReset?: () => void;
   changed?: boolean;
+  hint?: string;
 }
 export function mountFolder(host: HTMLElement, initial: FolderProps) {
   let props = initial;
@@ -91,6 +93,8 @@ export function mountFolder(host: HTMLElement, initial: FolderProps) {
     else
       meta.remove();
     top.setAttribute('aria-label', props.meta && !props.isRoot ? `${props.title}, ${props.meta}` : props.title);
+    // A panel's own header, which closes the panel, has a hint by default.
+    setHint(top, props.hint ?? (props.isRoot && !props.inline ? HINTS.panel : undefined));
     top.setAttribute('aria-expanded', String(open));
     if (!(props.inline && props.isRoot)) {
       top.setAttribute('role', 'button');
@@ -181,6 +185,7 @@ export function mountFolder(host: HTMLElement, initial: FolderProps) {
       stopHeader?.();
       stopFades?.();
       sectionTransition?.destroy();
+      setHint(top, undefined);
       node.remove();
     }
   };
@@ -271,6 +276,7 @@ export interface ToggleProps {
   onChange: (value: boolean) => void;
   shortcut?: ShortcutConfig;
   shortcutActive?: boolean;
+  hint?: string;
 }
 export function mountToggle(host: HTMLElement, initial: ToggleProps): Mounted<ToggleProps> {
   let props = initial;
@@ -282,6 +288,7 @@ export function mountToggle(host: HTMLElement, initial: ToggleProps): Mounted<To
   const segmented = mountSegmentedControl(row, segmentProps());
   function render() {
     label.textContent = props.label;
+    setHint(row, props.hint);
     appendShortcut(label, props.shortcut, props.shortcutActive, true);
     segmented.update(segmentProps());
   }
@@ -292,6 +299,7 @@ export function mountToggle(host: HTMLElement, initial: ToggleProps): Mounted<To
       render();
     }, destroy() {
       segmented.destroy();
+      setHint(row, undefined);
       row.remove();
     }
   };
@@ -313,6 +321,7 @@ export interface SliderProps {
   shortcutActive?: boolean;
   /** @internal A value that arrives with a new count springs into place, like a click on the track. */
   resetCount?: number;
+  hint?: string;
 }
 export function mountSlider(host: HTMLElement, initial: SliderProps): Mounted<SliderProps> {
   let props = initial;
@@ -355,6 +364,7 @@ export function mountSlider(host: HTMLElement, initial: SliderProps): Mounted<Sl
   };
   function render() {
     const { min, max, step } = range();
+    setHint(wrapper, props.hint);
     const pct = max > min ? Math.max(0, Math.min(100, (props.value - min) / (max - min) * 100)) : 0;
     fill.style.width = `${pct}%`;
     handle.style.left = `max(5px, calc(${pct}% - 9px))`;
@@ -543,6 +553,7 @@ export function mountSlider(host: HTMLElement, initial: SliderProps): Mounted<Sl
       clearTimeout(timer);
       cancelClick();
       endDrag();
+      setHint(wrapper, undefined);
       wrapper.remove();
     }
   };
@@ -552,6 +563,7 @@ export interface TextControlProps {
   value: string;
   placeholder?: string;
   onChange: (value: string) => void;
+  hint?: string;
 }
 export function mountTextControl(host: HTMLElement, initial: TextControlProps): Mounted<TextControlProps> {
   let props = initial;
@@ -564,6 +576,7 @@ export function mountTextControl(host: HTMLElement, initial: TextControlProps): 
   const size = observeTextSize(input);
   function render() {
     label.textContent = props.label;
+    setHint(row, props.hint);
     if (input.value !== props.value)
       input.value = props.value;
     input.placeholder = props.placeholder ?? '';
@@ -581,6 +594,7 @@ export function mountTextControl(host: HTMLElement, initial: TextControlProps): 
       render();
     }, destroy() {
       size.destroy();
+      setHint(row, undefined);
       row.remove();
     }
   };

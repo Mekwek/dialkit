@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition, type DropdownPosition } from '../dropdown-position';
 import { ICON_CHEVRON } from '../icons';
+import { useHints } from '../hooks/useHints';
 import type { SelectConfig, SelectOption } from '../store/DialStore';
 import { SegmentedControl } from './SegmentedControl';
 
@@ -15,6 +16,7 @@ interface SelectControlProps {
   onChange: (value: string) => void;
   display?: SelectConfig['display'];
   hideLabel?: boolean;
+  hint?: string;
 }
 
 function toTitleCase(s: string): string {
@@ -45,7 +47,8 @@ function SegmentedSelect({ label, value, options, onChange, hideLabel }: SelectC
   );
 }
 
-function SelectDropdown({ label, value, options, onChange }: SelectControlProps) {
+function SelectDropdown({ label, value, options, onChange, hint }: SelectControlProps) {
+  useHints(!!hint);
   const [isOpen, setIsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -95,7 +98,7 @@ function SelectDropdown({ label, value, options, onChange }: SelectControlProps)
   }, [isOpen]);
 
   return (
-    <div className="dialkit-select-row">
+    <div className="dialkit-select-row" data-hint={hint}>
       <button
         ref={triggerRef}
         className="dialkit-select-trigger"

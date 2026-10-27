@@ -115,7 +115,7 @@ export const ShortcutsMenu = defineComponent({
           ref: triggerRef,
           class: 'dialkit-shortcuts-trigger',
           onClick: toggle,
-          title: 'Keyboard shortcuts',
+          'aria-label': 'Keyboard shortcuts',
           type: 'button', 'aria-haspopup': 'dialog', 'aria-expanded': isOpen.value,
         }, [
           h('svg', {

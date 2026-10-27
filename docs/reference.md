@@ -250,6 +250,8 @@ const values = useDialKit("Card", {
 
 Spring and easing controls draw a folder of their own, and its header gets the same button without `_reset`: it shows once the curve or its mode differs from the default, and restores both. The store methods take the control's path, as in `DialStore.resetFolder("card", "enter")` for an `enter` spring.
 
+`_hints` maps the keys of a folder's controls, nested folders included, to a short sentence. Hold H over a control, or with it focused, to show its hint; the rest of the panel dims. Like `_collapsed`, it is omitted from resolved values.
+
 ### Conditional controls
 
 ```tsx
@@ -359,6 +361,7 @@ DialStore.getPanelOpen("card");
 | Image picker | Arrows move through images; Enter/Space selects; Escape closes |
 | Bézier handles | Arrows move by 0.01; Shift + Arrow by 0.1; Escape cancels a drag |
 | Bézier fields | Up/Down adjust by 0.01, Shift by 0.1; Enter commits; Escape cancels |
+| Hints | Hold H over a control, or with a control focused, to show its hint |
 
 Menus return focus to their trigger on selection or Escape. Tab and Shift + Tab resume the owning panel's tab order.
 
@@ -387,7 +390,7 @@ For sliders, hold the key and scroll, drag horizontally, or move the pointer acc
 
 ## Custom layouts
 
-Adapters export individual controls, including `Slider`, `Toggle`, `TextControl`, `SelectControl`, `ColorControl`, `ImageControl`, `DialPad`, `AnchorControl`, `TransitionControl`, `Folder`, and `ButtonGroup`. `ControlRenderer` renders a control metadata tree; pass `openFolder` and `onOpenFolderChange` (`@open-folder-change` in Vue) to control its top-level folders as an accordion. Keep custom controls inside an element with `class="dialkit-root"` and set `data-theme` to `"system"`, `"light"`, or `"dark"`. Without a `DialRoot` or `DialTimeline` mounted, text fields also show the focus ring when clicked, a clicked folder header keeps the focus, and a slider's number input keeps a fixed width.
+Adapters export individual controls, including `Slider`, `Toggle`, `TextControl`, `SelectControl`, `ColorControl`, `ImageControl`, `DialPad`, `AnchorControl`, `TransitionControl`, `Folder`, and `ButtonGroup`. `ControlRenderer` renders a control metadata tree; pass `openFolder` and `onOpenFolderChange` (`@open-folder-change` in Vue) to control its top-level folders as an accordion. Keep custom controls inside an element with `class="dialkit-root"` and set `data-theme` to `"system"`, `"light"`, or `"dark"`. Without a `DialRoot` or `DialTimeline` mounted, text fields also show the focus ring when clicked, a clicked folder header keeps the focus, and a slider's number input keeps a fixed width. Hints work here with no extra setup: `ControlRenderer` passes `_hints` to its controls, and each control takes a `hint` prop. Hold H over one to read it while the rest of its root dims.
 In vanilla, each control takes a host element and props:
 
 ```js

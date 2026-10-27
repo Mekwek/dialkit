@@ -9,15 +9,18 @@ import { openDropdownOnKey } from '../../control-keyboard';
   import { ICON_CHEVRON } from '../../icons';
   import type { SelectConfig, SelectOption } from 'dialkit/store';
   import SegmentedControl from './SegmentedControl.svelte';
+  import { createHints } from '../hints.svelte.js';
 
-  let { label, value, options, onChange, display, hideLabel = false } = $props<{
+  let { label, value, options, onChange, display, hideLabel = false, hint } = $props<{
     label: string;
     value: string;
     options: SelectOption[];
     onChange: (value: string) => void;
     display?: SelectConfig['display'];
     hideLabel?: boolean;
+    hint?: string;
   }>();
+  createHints(() => !!hint);
 
   let isOpen = $state(false);
   let pos = $state<DropdownPosition | null>(null);
@@ -111,7 +114,7 @@ import { openDropdownOnKey } from '../../control-keyboard';
     <SegmentedControl options={normalized} value={value} onChange={onChange} label={label} />
   </div>
 {:else}
-  <div class="dialkit-select-row">
+  <div class="dialkit-select-row" data-hint={hint}>
     <button
       bind:this={triggerRef}
       class="dialkit-select-trigger"

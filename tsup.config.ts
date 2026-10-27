@@ -11,6 +11,18 @@ const externalPackageStorePlugin = {
   },
 };
 
+// The shared controls mount hints too; they must reach the same hints module
+// as the packaged Svelte components, so a page keeps one set of hint listeners.
+const externalHintsPlugin = {
+  name: 'external-hints',
+  setup(build: { onResolve: (options: { filter: RegExp }, callback: () => { path: string; external: boolean }) => void }) {
+    build.onResolve({ filter: /^(\.\.?\/)+hints$/ }, () => ({
+      path: './hints.js',
+      external: true,
+    }));
+  },
+};
+
 export default defineConfig([
   // Store build (shared across all framework entries)
   {
@@ -60,12 +72,13 @@ export default defineConfig([
       'shortcut-utils': 'src/shortcut-utils.ts',
       'version-gallery': 'src/version-gallery.ts',
       accordion: 'src/accordion.ts',
+      hints: 'src/hints.ts',
     },
     format: ['esm'],
     dts: true,
     splitting: false,
     sourcemap: true,
-    esbuildPlugins: [externalPackageStorePlugin],
+    esbuildPlugins: [externalPackageStorePlugin, externalHintsPlugin],
   },
   // Dependency-free DOM adapter, including a single script for plain HTML.
   {

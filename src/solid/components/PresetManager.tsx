@@ -8,7 +8,8 @@ import { ICON_CHEVRON, ICON_TRASH, ICON_PLUS, ICON_CHECK, ICON_MORE, ICON_PENCIL
 import { getDialKitPortalRoot, getDropdownPosition } from '../../dropdown-position';
 import { DialStore } from '../../store/DialStore';
 import type { Preset } from '../../store/DialStore';
-import { createDropdownDismiss, createDropdownPresence, type AnimationHandle } from '../primitives';
+import { HINTS } from '../../hints';
+import { createDropdownDismiss, createDropdownPresence, createHints, type AnimationHandle } from '../primitives';
 
 interface PresetManagerProps {
   panelId: string;
@@ -20,6 +21,7 @@ interface PresetManagerProps {
 }
 
 export function PresetManager(props: PresetManagerProps) {
+  createHints(() => true);
   const [pos, setPos] = createSignal({ top: 0, left: 0, width: 0 });
   const [portalTarget, setPortalTarget] = createSignal<HTMLElement | null>(null);
   const [editingId, setEditingId] = createSignal<string | null>(null);
@@ -110,7 +112,7 @@ export function PresetManager(props: PresetManagerProps) {
         data-open={String(dropdown.isOpen())}
         data-has-preset={String(!!activePreset())}
         type="button" aria-haspopup="menu" aria-expanded={dropdown.isOpen()}
-        aria-label="Versions" onKeyDown={(e) => openDropdownOnKey(e, openDropdown)}
+        aria-label="Versions" data-hint={HINTS.versions} onKeyDown={(e) => openDropdownOnKey(e, openDropdown)}
       >
         <span class="dialkit-preset-label">
           {activePreset() ? activePreset()!.name : DialStore.getBaseName(props.panelId)}

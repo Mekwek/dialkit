@@ -1,6 +1,7 @@
-import { createEffect, createSignal, from, onCleanup, untrack, type Accessor } from 'solid-js';
+import { createEffect, createMemo, createSignal, from, onCleanup, untrack, type Accessor } from 'solid-js';
 import { isServer } from 'solid-js/web';
 import type { animate } from 'motion';
+import { mountHints } from '../hints';
 
 /** Handle returned by motion's `animate()`; used instead of `any` for stored animations. */
 export type AnimationHandle = ReturnType<typeof animate>;
@@ -125,5 +126,15 @@ export function createDropdownDismiss(opts: {
         window.removeEventListener('scroll', handler, true);
       });
     }
+  });
+}
+
+/** Mounts the shared hint listeners while a control has a hint. */
+export function createHints(active: Accessor<boolean>): void {
+  const enabled = createMemo(active);
+  createEffect(() => {
+    if (!enabled()) return;
+    const hints = mountHints();
+    onCleanup(() => hints.destroy());
   });
 }

@@ -2,7 +2,7 @@ import { activateOnKey } from '../../control-keyboard';
 import { createSignal, createEffect, on, onCleanup, Show, JSX } from 'solid-js';
 import { animate } from 'motion';
 import { ICON_CHEVRON, ICON_RESET } from '../../icons';
-import type { AnimationHandle } from '../primitives';
+import { createHints, type AnimationHandle } from '../primitives';
 import { RootPanel } from './RootPanel';
 import { createPanelSectionTransition } from '../../panel-size';
 
@@ -27,12 +27,14 @@ interface FolderProps {
   /** Shows a reset button after the title, visible while `changed` is true. */
   onReset?: () => void;
   changed?: boolean;
+  hint?: string;
 }
 
 const sectionTransition = { type: 'spring' as const, visualDuration: 0.35, bounce: 0.1 };
 
 /** Collapsible section with animated height and rotating chevron. */
 export function Folder(props: FolderProps) {
+  createHints(() => !!props.hint);
   // Root panels are a different component; delegate for old call sites.
   if (props.isRoot) {
     return <RootPanel {...props} />;
@@ -130,7 +132,7 @@ export function Folder(props: FolderProps) {
   return (
     <div ref={folderRef} class={`dialkit-folder${props.toolbar ? ' dialkit-folder-section' : ''}`} data-open={String(isOpen())}>
       <div class="dialkit-folder-header" onClick={handleToggle}>
-        <div ref={headerRef} class="dialkit-folder-header-top" role={false ? undefined : "button"} tabIndex={false ? undefined : 0} aria-label={props.meta ? `${props.title}, ${props.meta}` : props.title} aria-expanded={isOpen()} onKeyDown={(e) => activateOnKey(e, handleToggle)}>
+        <div ref={headerRef} class="dialkit-folder-header-top" data-hint={props.hint} role={false ? undefined : "button"} tabIndex={false ? undefined : 0} aria-label={props.meta ? `${props.title}, ${props.meta}` : props.title} aria-expanded={isOpen()} onKeyDown={(e) => activateOnKey(e, handleToggle)}>
           <div class="dialkit-folder-title-row">
             <span class="dialkit-folder-title">{props.title}</span>
             <Show when={props.meta}>

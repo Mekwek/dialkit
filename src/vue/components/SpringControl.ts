@@ -1,6 +1,7 @@
 import { defineComponent, h, onMounted, onUnmounted, ref, type PropType } from 'vue';
 import { DialStore } from '../../store/DialStore';
 import type { SpringConfig } from '../../store/DialStore';
+import { HINTS } from '../../hints';
 import { Folder } from './Folder';
 import { Slider } from './Slider';
 import { SegmentedControl } from './SegmentedControl';
@@ -19,6 +20,7 @@ export const SpringControl = defineComponent({
     /** Shows a reset button in the header. See Folder.onReset. */
     onReset: Function as PropType<() => void>,
     changed: { type: Boolean, default: false },
+    hint: { type: String, required: false },
   },
   emits: ['change'],
   setup(props, { emit }) {
@@ -68,7 +70,7 @@ export const SpringControl = defineComponent({
       }
     };
 
-    return () => h(Folder, { title: props.label, defaultOpen: true, onReset: props.onReset, changed: props.changed }, {
+    return () => h(Folder, { title: props.label, defaultOpen: true, hint: props.hint, onReset: props.onReset, changed: props.changed }, {
       default: () => [
         h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } }, [
           h('div', { class: 'dialkit-labeled-control dialkit-transition-type' }, [
@@ -93,6 +95,7 @@ export const SpringControl = defineComponent({
                 step: 0.05,
                 unit: 's',
                 onChange: (next: number) => handleUpdate('visualDuration', next),
+                hint: HINTS.springDuration,
               }),
               h(Slider, {
                 label: 'Bounce',
@@ -101,6 +104,7 @@ export const SpringControl = defineComponent({
                 max: 1,
                 step: 0.05,
                 onChange: (next: number) => handleUpdate('bounce', next),
+                hint: HINTS.bounce,
               }),
             ]
             : [
@@ -111,6 +115,7 @@ export const SpringControl = defineComponent({
                 max: 1000,
                 step: 10,
                 onChange: (next: number) => handleUpdate('stiffness', next),
+                hint: HINTS.stiffness,
               }),
               h(Slider, {
                 label: 'Damping',
@@ -119,6 +124,7 @@ export const SpringControl = defineComponent({
                 max: 100,
                 step: 1,
                 onChange: (next: number) => handleUpdate('damping', next),
+                hint: HINTS.damping,
               }),
               h(Slider, {
                 label: 'Mass',
@@ -127,6 +133,7 @@ export const SpringControl = defineComponent({
                 max: 10,
                 step: 0.1,
                 onChange: (next: number) => handleUpdate('mass', next),
+                hint: HINTS.mass,
               }),
             ]),
         ]),

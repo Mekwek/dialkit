@@ -9,6 +9,8 @@ import { AnchorControl } from './AnchorControl';
 import { Fields } from './Fields';
 import type { DialPadValue } from '../../dial-pad';
 import type { AnchorValue } from '../../anchor';
+import { hasActionHints } from '../../hints';
+import { useHints } from '../useHints';
 import { Folder } from './Folder';
 import { SelectControl } from './SelectControl';
 import { ShortcutKey } from './ShortcutListener';
@@ -61,6 +63,8 @@ export const ControlRenderer = defineComponent({
         }, () => [renderControl(control, topLevel)])),
       })]
       : controls.map((control) => renderControl(control, topLevel));
+    // Hinted action buttons are the renderer's own rows; each control mounts its own.
+    useHints(() => hasActionHints(props.controls));
     const renderControl = (control: ControlMeta, topLevel = false): ReturnType<typeof h> | null => {
       const value = props.values[control.path];
       switch (control.type) {
@@ -68,6 +72,7 @@ export const ControlRenderer = defineComponent({
           return h(Slider, {
             key: control.path,
             label: control.label,
+            hint: control.hint,
             value: value as number,
             min: control.min,
             max: control.max,
@@ -82,6 +87,7 @@ export const ControlRenderer = defineComponent({
           return h(Toggle, {
             key: control.path,
             label: control.label,
+            hint: control.hint,
             checked: value as boolean,
             shortcut: control.shortcut,
             shortcutActive: shortcut?.activePanelId.value === props.panelId && shortcut.activePath.value === control.path,
@@ -93,6 +99,7 @@ export const ControlRenderer = defineComponent({
             panelId: props.panelId,
             path: control.path,
             label: control.label,
+            hint: control.hint,
             spring: value as SpringConfig,
             onChange: (next: SpringConfig) => DialStore.updateValue(props.panelId, control.path, next),
             ...resetProps(control),
@@ -103,6 +110,7 @@ export const ControlRenderer = defineComponent({
             panelId: props.panelId,
             path: control.path,
             label: control.label,
+            hint: control.hint,
             value: value as TransitionConfig,
             durationControl: props.transitionDuration,
             onChange: (next: TransitionConfig) => DialStore.updateValue(props.panelId, control.path, next),
@@ -125,6 +133,7 @@ export const ControlRenderer = defineComponent({
             key: control.path,
             title: control.label,
             defaultOpen: control.defaultOpen ?? true,
+            hint: control.hint,
             ...resetProps(control),
             open: accordion ? props.openFolder === control.path : undefined,
             onOpenChange: accordion ? (open: boolean) => emit('openFolderChange', open ? control.path : null) : undefined,
@@ -134,6 +143,7 @@ export const ControlRenderer = defineComponent({
           return h(TextControl, {
             key: control.path,
             label: control.label,
+            hint: control.hint,
             value: value as string,
             placeholder: control.placeholder,
             onChange: (next: string) => DialStore.updateValue(props.panelId, control.path, next),
@@ -142,6 +152,7 @@ export const ControlRenderer = defineComponent({
           return h(SelectControl, {
             key: control.path,
             label: control.label,
+            hint: control.hint,
             value: value as string,
             options: control.options ?? [],
             display: control.display,
@@ -152,6 +163,7 @@ export const ControlRenderer = defineComponent({
           return h(ColorControl, {
             key: control.path,
             label: control.label,
+            hint: control.hint,
             value: value as string,
             onChange: (next: string) => DialStore.updateValue(props.panelId, control.path, next),
           });
@@ -160,6 +172,7 @@ export const ControlRenderer = defineComponent({
             key: control.path,
             options: control.options,
             label: control.label,
+            hint: control.hint,
             value: value as string,
             onChange: (next: string) => DialStore.updateValue(props.panelId, control.path, next),
           });
@@ -167,6 +180,7 @@ export const ControlRenderer = defineComponent({
           return h(DialPad, {
             key: control.path,
             label: control.label,
+            hint: control.hint,
             value: value as DialPadValue,
             x: control.pad?.x,
             y: control.pad?.y,
@@ -186,6 +200,7 @@ export const ControlRenderer = defineComponent({
           return h('button', {
             key: control.path,
             class: 'dialkit-button',
+            'data-hint': control.hint,
             onClick: () => DialStore.triggerAction(props.panelId, control.path),
           }, control.label);
         default:

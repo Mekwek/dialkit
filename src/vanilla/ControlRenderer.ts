@@ -6,6 +6,7 @@ import { mountFields } from '../fields-control';
 import type { DialPadValue } from '../dial-pad';
 import { mountAnchorControl } from '../anchor-control';
 import type { AnchorValue } from '../anchor';
+import { setHint } from '../hints';
 import { mountFolder, mountSlider, mountTextControl, mountToggle } from './controls';
 import { mountSelectControl } from './menus';
 import { mountSpringControl, mountTransitionControl, type TransitionControlProps } from './transitions';
@@ -75,7 +76,7 @@ export function mountControlRenderer(host: HTMLElement, initial: ControlRenderer
         // Accordion mode controls top-level folders; nested folders keep their own state.
         const open = () => topLevel && props.openFolder !== undefined ? props.openFolder === control.path : undefined;
         const folderProps = () => ({
-          title: control.label, defaultOpen: control.defaultOpen, open: open(),
+          title: control.label, defaultOpen: control.defaultOpen, hint: control.hint, open: open(),
           onOpenChange: open() === undefined ? undefined : (next: boolean) => props.onOpenFolderChange?.(next ? control.path : null),
           ...resetProps(control),
         });
@@ -84,42 +85,44 @@ export function mountControlRenderer(host: HTMLElement, initial: ControlRenderer
         return folder.body;
       }
       case 'slider':
-        mount(mountSlider, () => ({ label: control.label, value: value() as number, min: control.min, max: control.max, step: control.step, unit: control.unit, resetCount, onChange: change, ...shortcut() }));
+        mount(mountSlider, () => ({ label: control.label, hint: control.hint, value: value() as number, min: control.min, max: control.max, step: control.step, unit: control.unit, resetCount, onChange: change, ...shortcut() }));
         break;
       case 'toggle':
-        mount(mountToggle, () => ({ label: control.label, checked: value() as boolean, onChange: change, ...shortcut() }));
+        mount(mountToggle, () => ({ label: control.label, hint: control.hint, checked: value() as boolean, onChange: change, ...shortcut() }));
         break;
       case 'text':
-        mount(mountTextControl, () => ({ label: control.label, value: value() as string, placeholder: control.placeholder, onChange: change }));
+        mount(mountTextControl, () => ({ label: control.label, hint: control.hint, value: value() as string, placeholder: control.placeholder, onChange: change }));
         break;
       case 'select':
-        mount(mountSelectControl, () => ({ label: control.label, value: value() as string, options: control.options ?? [], display: control.display, hideLabel: control.hideLabel, onChange: change }));
+        mount(mountSelectControl, () => ({ label: control.label, hint: control.hint, value: value() as string, options: control.options ?? [], display: control.display, hideLabel: control.hideLabel, onChange: change }));
         break;
       case 'color':
-        mount(mountColorControl, () => ({ label: control.label, value: value() as string, onChange: change }));
+        mount(mountColorControl, () => ({ label: control.label, hint: control.hint, value: value() as string, onChange: change }));
         break;
       case 'image':
-        mount(mountImageControl, () => ({ label: control.label, value: value() as string, options: control.options, onChange: change }));
+        mount(mountImageControl, () => ({ label: control.label, hint: control.hint, value: value() as string, options: control.options, onChange: change }));
         break;
       case 'pad':
-        mount(mountDialPad, () => ({ ...control.pad, label: control.label, value: value() as DialPadValue, onChange: change }));
+        mount(mountDialPad, () => ({ ...control.pad, label: control.label, hint: control.hint, value: value() as DialPadValue, onChange: change }));
         break;
       case 'anchor':
         mount(mountAnchorControl, () => ({ label: control.label, value: value() as AnchorValue, onChange: change }));
         break;
       case 'spring':
-        mount(mountSpringControl, () => ({ panelId: props.panelId, path: control.path, label: control.label, spring: value() as SpringConfig, onChange: change, ...resetProps(control) }));
+        mount(mountSpringControl, () => ({ panelId: props.panelId, path: control.path, label: control.label, hint: control.hint, spring: value() as SpringConfig, onChange: change, ...resetProps(control) }));
         break;
       case 'transition':
-        mount(mountTransitionControl, () => ({ panelId: props.panelId, path: control.path, label: control.label, value: value() as TransitionConfig, durationControl: props.transitionDuration, onChange: change, ...resetProps(control) }));
+        mount(mountTransitionControl, () => ({ panelId: props.panelId, path: control.path, label: control.label, hint: control.hint, value: value() as TransitionConfig, durationControl: props.transitionDuration, onChange: change, ...resetProps(control) }));
         break;
       case 'action': {
         const b = element('button', 'dialkit-button', control.label);
+        setHint(b, control.hint);
         b.addEventListener('click', () => DialStore.triggerAction(props.panelId, control.path));
         target.append(b);
         entries.push({
           update() {
           }, destroy() {
+            setHint(b, undefined);
             b.remove();
           }
         });

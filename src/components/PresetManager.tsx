@@ -5,6 +5,8 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { DialStore, Preset } from '../store/DialStore';
+import { HINTS } from '../hints';
+import { useHints } from '../hooks/useHints';
 import { ICON_CHEVRON, ICON_TRASH, ICON_PLUS, ICON_CHECK, ICON_MORE, ICON_PENCIL, ICON_LOCK, ICON_LOCK_OPEN } from '../icons';
 
 interface PresetManagerProps {
@@ -18,6 +20,7 @@ interface PresetManagerProps {
 
 export function PresetManager({ panelId, presets, activePresetId, onAdd, noun = 'version' }: PresetManagerProps) {
   const [isOpen, setIsOpen] = useState(false);
+  useHints(true);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
@@ -89,7 +92,7 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, noun = 
         data-open={String(isOpen)}
         data-has-preset={String(!!activePreset)}
         type="button" aria-haspopup="menu" aria-expanded={isOpen}
-        aria-label="Versions" onKeyDown={(e) => openDropdownOnKey(e, open)}
+        aria-label="Versions" data-hint={HINTS.versions} onKeyDown={(e) => openDropdownOnKey(e, open)}
       >
         <span className="dialkit-preset-label">
           {activePreset ? activePreset.name : DialStore.getBaseName(panelId)}

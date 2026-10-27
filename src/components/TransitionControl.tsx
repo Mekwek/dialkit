@@ -9,6 +9,8 @@ import { SegmentedControl } from './SegmentedControl';
 import { SpringVisualization } from './SpringVisualization';
 import { EasingVisualization } from './EasingVisualization';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { HINTS } from '../hints';
+import { useHints } from '../hooks/useHints';
 
 interface TransitionControlProps {
   panelId: string;
@@ -29,6 +31,7 @@ interface TransitionControlProps {
   /** Shows a reset button in the header. See Folder.onReset. */
   onReset?: () => void;
   changed?: boolean;
+  hint?: string;
 }
 
 type CurveMode = 'easing' | 'simple' | 'advanced';
@@ -46,6 +49,7 @@ export function TransitionControl({
   durationControl,
   onReset,
   changed,
+  hint,
 }: TransitionControlProps) {
   const subscribe = useCallback(
     (callback: () => void) => DialStore.subscribe(panelId, callback),
@@ -57,6 +61,7 @@ export function TransitionControl({
   );
   const mode = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   const savedPresets = useSyncExternalStore(subscribeTransitions, getTransitionPresets, getTransitionPresets);
+  useHints(true);
 
   const isEasing = mode === 'easing';
   const isSimpleSpring = mode === 'simple';
@@ -126,13 +131,14 @@ export function TransitionControl({
       max={durationControl?.max ?? (isEasing ? 2 : 5)}
       step={durationControl?.step ?? 0.05}
       unit="s"
+      hint={isEasing ? HINTS.easingDuration : HINTS.springDuration}
     />
   ) : null;
 
   return (
-    <Folder title={label} defaultOpen={true} onReset={onReset} changed={changed} actions={<TransitionCopy mode={mode} value={isEasing ? easing : spring} onPaste={handlePaste} />}>
+    <Folder title={label} defaultOpen={true} hint={hint} onReset={onReset} changed={changed} actions={<TransitionCopy mode={mode} value={isEasing ? easing : spring} onPaste={handlePaste} />}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <div className="dialkit-labeled-control dialkit-transition-type">
+        <div className="dialkit-labeled-control dialkit-transition-type" data-hint={HINTS.transitionType}>
           <span className="dialkit-labeled-control-label">Type</span>
           <SegmentedControl
             options={[
@@ -165,12 +171,12 @@ export function TransitionControl({
             />
           </>
         ) : isSimpleSpring ? (
-          <Slider label="Bounce" value={spring.bounce ?? 0.2} onChange={(v) => handleSpringUpdate('bounce', v)} min={0} max={1} step={0.05} />
+          <Slider label="Bounce" value={spring.bounce ?? 0.2} onChange={(v) => handleSpringUpdate('bounce', v)} min={0} max={1} step={0.05} hint={HINTS.bounce} />
         ) : (
           <>
-            <Slider label="Stiffness" value={spring.stiffness ?? 400} onChange={(v) => handleSpringUpdate('stiffness', v)} min={1} max={1000} step={10} />
-            <Slider label="Damping" value={spring.damping ?? 17} onChange={(v) => handleSpringUpdate('damping', v)} min={1} max={100} step={1} />
-            <Slider label="Mass" value={spring.mass ?? 1} onChange={(v) => handleSpringUpdate('mass', v)} min={0.1} max={10} step={0.1} />
+            <Slider label="Stiffness" value={spring.stiffness ?? 400} onChange={(v) => handleSpringUpdate('stiffness', v)} min={1} max={1000} step={10} hint={HINTS.stiffness} />
+            <Slider label="Damping" value={spring.damping ?? 17} onChange={(v) => handleSpringUpdate('damping', v)} min={1} max={100} step={1} hint={HINTS.damping} />
+            <Slider label="Mass" value={spring.mass ?? 1} onChange={(v) => handleSpringUpdate('mass', v)} min={0.1} max={10} step={0.1} hint={HINTS.mass} />
           </>
         )}
         {durationSlider}

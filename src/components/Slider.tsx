@@ -3,6 +3,7 @@ import { useRef, useState, useCallback, useEffect } from 'react';
 import { motion, useMotionValue, useTransform, animate } from 'motion/react';
 import type { ShortcutConfig } from '../store/DialStore';
 import { decimalsForStep, isWordUnit, roundValue, snapToDecile, formatSliderShortcut } from '../shortcut-utils';
+import { useHints } from '../hooks/useHints';
 
 interface SliderProps {
   label: string;
@@ -16,6 +17,7 @@ interface SliderProps {
   shortcutActive?: boolean;
   /** @internal A value that arrives with a new count springs into place, like a click on the track. */
   resetCount?: number;
+  hint?: string;
 }
 
 const CLICK_THRESHOLD = 3;
@@ -35,7 +37,9 @@ export function Slider({
   shortcut,
   shortcutActive,
   resetCount = 0,
+  hint,
 }: SliderProps) {
+  useHints(!!hint);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -387,7 +391,7 @@ export function Slider({
       });
 
   return (
-    <div ref={wrapperRef} className="dialkit-slider-wrapper">
+    <div ref={wrapperRef} className="dialkit-slider-wrapper" data-hint={hint}>
       <motion.div
         ref={trackRef}
         className={`dialkit-slider ${isActive ? 'dialkit-slider-active' : ''}`}

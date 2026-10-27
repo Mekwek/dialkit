@@ -5,7 +5,8 @@ import { DialStore } from '../../store/DialStore';
 import type { CopiedTransition, EasingConfig, SpringConfig, TransitionConfig } from '../../store/DialStore';
 import { transitionPresetName } from '../../transition-presets';
 import { mountTransitionCopy, mountTransitionPresets, type TransitionCopyProps, type TransitionPresetsProps } from '../../transition-presets-control';
-import { fromStore } from '../primitives';
+import { HINTS } from '../../hints';
+import { createHints, fromStore } from '../primitives';
 import { EasingVisualization } from './EasingVisualization';
 import { Folder } from './Folder';
 import { SegmentedControl } from './SegmentedControl';
@@ -31,6 +32,7 @@ interface TransitionControlProps {
   /** Shows a reset button in the header. See Folder.onReset. */
   onReset?: () => void;
   changed?: boolean;
+  hint?: string;
 }
 
 type CurveMode = 'easing' | 'simple' | 'advanced';
@@ -40,6 +42,7 @@ export function TransitionControl(props: TransitionControlProps) {
     () => DialStore.getTransitionMode(props.panelId, props.path),
     (notify) => DialStore.subscribe(props.panelId, notify)
   );
+  createHints(() => true);
   const savedPresets = fromStore(
     () => DialStore.getTransitionPresets(),
     (notify) => DialStore.subscribeTransitions(notify)
@@ -112,6 +115,7 @@ export function TransitionControl(props: TransitionControlProps) {
         max={external?.max ?? (isEasing() ? 2 : 5)}
         step={external?.step ?? 0.05}
         unit="s"
+        hint={isEasing() ? HINTS.easingDuration : HINTS.springDuration}
       />
     );
   };
@@ -120,12 +124,13 @@ export function TransitionControl(props: TransitionControlProps) {
     <Folder
       title={props.label}
       defaultOpen={true}
+      hint={props.hint}
       onReset={props.onReset}
       changed={props.changed}
       actions={<TransitionCopy mode={mode()} value={isEasing() ? easing() : spring()} onPaste={handlePaste} />}
     >
       <div style={{ display: 'flex', 'flex-direction': 'column', gap: '6px' }}>
-        <div class="dialkit-labeled-control dialkit-transition-type">
+        <div class="dialkit-labeled-control dialkit-transition-type" data-hint={HINTS.transitionType}>
           <span class="dialkit-labeled-control-label">Type</span>
           <SegmentedControl
             options={[
@@ -156,12 +161,12 @@ export function TransitionControl(props: TransitionControlProps) {
         </Show>
 
         <Show when={isSimple()}>
-          <Slider label="Bounce" value={spring().bounce ?? 0.2} onChange={(value) => handleSpringUpdate('bounce', value)} min={0} max={1} step={0.05} />
+          <Slider label="Bounce" value={spring().bounce ?? 0.2} onChange={(value) => handleSpringUpdate('bounce', value)} min={0} max={1} step={0.05} hint={HINTS.bounce} />
         </Show>
         <Show when={!isEasing() && !isSimple()}>
-          <Slider label="Stiffness" value={spring().stiffness ?? 400} onChange={(value) => handleSpringUpdate('stiffness', value)} min={1} max={1000} step={10} />
-          <Slider label="Damping" value={spring().damping ?? 17} onChange={(value) => handleSpringUpdate('damping', value)} min={1} max={100} step={1} />
-          <Slider label="Mass" value={spring().mass ?? 1} onChange={(value) => handleSpringUpdate('mass', value)} min={0.1} max={10} step={0.1} />
+          <Slider label="Stiffness" value={spring().stiffness ?? 400} onChange={(value) => handleSpringUpdate('stiffness', value)} min={1} max={1000} step={10} hint={HINTS.stiffness} />
+          <Slider label="Damping" value={spring().damping ?? 17} onChange={(value) => handleSpringUpdate('damping', value)} min={1} max={100} step={1} hint={HINTS.damping} />
+          <Slider label="Mass" value={spring().mass ?? 1} onChange={(value) => handleSpringUpdate('mass', value)} min={0.1} max={10} step={0.1} hint={HINTS.mass} />
         </Show>
         {durationSlider()}
 
