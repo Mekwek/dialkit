@@ -8,6 +8,7 @@ import { ICON_CHEVRON } from '../icons';
 import { useHints } from '../hooks/useHints';
 import type { SelectConfig, SelectOption } from '../store/DialStore';
 import { SegmentedControl } from './SegmentedControl';
+import { usePresenceResync } from '../hooks/usePresenceResync';
 
 interface SelectControlProps {
   label: string;
@@ -50,6 +51,7 @@ function SegmentedSelect({ label, value, options, onChange, hideLabel, hint }: S
 
 function SelectDropdown({ label, value, options, onChange, hint }: SelectControlProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const resyncPresence = usePresenceResync();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
@@ -127,7 +129,7 @@ function SelectDropdown({ label, value, options, onChange, hint }: SelectControl
       </button>
 
       {portalTarget && createPortal(
-        <AnimatePresence>
+        <AnimatePresence onExitComplete={resyncPresence}>
           {isOpen && pos && (
             <motion.div
               ref={dropdownRef}

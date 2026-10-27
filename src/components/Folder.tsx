@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ICON_CLOSE, ICON_PANEL, ICON_CHEVRON, ICON_RESET } from '../icons';
 import { HINTS } from '../hints';
 import { useHints } from '../hooks/useHints';
+import { usePresenceResync } from '../hooks/usePresenceResync';
 
 interface FolderProps {
   title: string;
@@ -32,6 +33,7 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
   useHints(!!headerHint || (!isRoot && !!onReset));
   const [localOpen, setIsOpen] = useState(defaultOpen);
   const isOpen = open ?? localOpen;
+  const resyncPresence = usePresenceResync();
   const isCollapsed = !isOpen;
   const contentRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
@@ -172,7 +174,7 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
         <div className="dialkit-folder-content">
           <div className="dialkit-folder-inner">{children}</div>
         </div>
-      ) : <AnimatePresence initial={false}>
+      ) : <AnimatePresence initial={false} onExitComplete={resyncPresence}>
         {isOpen && (
           <motion.div
             className="dialkit-folder-content"

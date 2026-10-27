@@ -2,6 +2,7 @@ import { observeDropdownKeyboard } from '../dropdown-keyboard';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
+import { usePresenceResync } from '../hooks/usePresenceResync';
 import { DialStore, ShortcutConfig } from '../store/DialStore';
 
 interface ShortcutsMenuProps {
@@ -29,6 +30,7 @@ function formatInteraction(sc: ShortcutConfig): string {
 
 export function ShortcutsMenu({ panelId }: ShortcutsMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const resyncPresence = usePresenceResync();
   const [panel, setPanel] = useState(() => DialStore.getPanel(panelId));
   useEffect(() => {
     const update = () => setPanel(DialStore.getPanel(panelId));
@@ -107,7 +109,7 @@ export function ShortcutsMenu({ panelId }: ShortcutsMenuProps) {
       </motion.button>
 
       {createPortal(
-        <AnimatePresence>
+        <AnimatePresence onExitComplete={resyncPresence}>
           {isOpen && (
             <motion.div
               ref={dropdownRef}
