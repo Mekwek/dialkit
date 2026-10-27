@@ -92,7 +92,8 @@ try {
   assert.ok((await page.locator('.dialkit-panel').boundingBox()).x < 100);
   await bubble.click();
   assert.equal(await bubble.getAttribute('data-collapsed'), 'false');
-  await page.getByRole('button', { name: 'Close panel', exact: true }).click();
+  // The panel now sits over the page's Close button once it has opened, so press it instead of clicking.
+  await page.getByRole('button', { name: 'Close panel', exact: true }).press('Enter');
   await page.getByRole('button', { name: 'Open panel', exact: true }).click();
   // Return the panel to its original corner before using the canvas.
   await page.evaluate(() => { window.demo.root.destroy(); window.demo.root = DialKit.createDialRoot({ theme: 'dark', versions: 'menu' }); });
@@ -112,6 +113,8 @@ try {
   assert.ok(await page.evaluate(() => window.demo.timeline.values.card.move.duration) < 2);
   await page.getByRole('button', { name: 'Collapse timeline', exact: true }).click();
   await page.getByRole('button', { name: 'Expand timeline', exact: true }).click();
+  // The ruler's ResizeObserver can lay the rows out again on the next frame; measure after it.
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   // Sequence boundaries and independent property tracks remain editable.
   const pulse = page.getByRole('button', { name: 'Edit Pulse', exact: true });
   const boundary = await pulse.locator('[data-boundary="0"]').boundingBox();
