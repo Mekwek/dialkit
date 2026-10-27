@@ -18,6 +18,8 @@
     inline = false,
     onOpenChange,
     toolbar,
+    meta,
+    actions,
     panelHeightOffset = 0,
     children,
   } = $props<{
@@ -28,6 +30,10 @@
     inline?: boolean;
     onOpenChange?: (isOpen: boolean) => void;
     toolbar?: Snippet;
+    /** Short text at the end of a nested folder's title row, such as the preset in use. */
+    meta?: string;
+    /** Buttons beside the title of a nested folder, such as a transition's copy and paste. */
+    actions?: Snippet;
     panelHeightOffset?: number;
     children?: Snippet;
   }>();
@@ -222,9 +228,12 @@
 {:else}
   <div bind:this={sectionRef} class:dialkit-folder-section={!!toolbar} class="dialkit-folder" data-open={String(isOpen)}>
     <div class="dialkit-folder-header" onclick={handleToggle}>
-      <div class="dialkit-folder-header-top" role="button" tabindex="0" aria-label={title} aria-expanded={isOpen} onkeydown={(e) => activateOnKey(e, handleToggle)}>
+      <div class="dialkit-folder-header-top" role="button" tabindex="0" aria-label={meta ? `${title}, ${meta}` : title} aria-expanded={isOpen} onkeydown={(e) => activateOnKey(e, handleToggle)}>
         <div class="dialkit-folder-title-row">
           <span class="dialkit-folder-title">{title}</span>
+          {#if meta}
+            <span class="dialkit-folder-meta">{meta}</span>
+          {/if}
         </div>
 
         <svg
@@ -240,6 +249,9 @@
           <path d={ICON_CHEVRON} />
         </svg>
       </div>
+      {#if actions && !isRoot}
+        <div class="dialkit-folder-actions">{@render actions()}</div>
+      {/if}
       {#if toolbar}
         <div class="dialkit-panel-section-toolbar-clip">
           <div class="dialkit-panel-section-toolbar" onclick={(e) => e.stopPropagation()}>{@render toolbar()}</div>

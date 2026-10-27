@@ -24,7 +24,7 @@ export { mountEasingVisualization, mountEasingVisualization as EasingVisualizati
 export type { EasingVisualizationProps } from '../easing-control';
 export { mountShortcutListener } from './shortcuts';
 export { DialStore } from '../store/DialStore';
-export type { SpringConfig, EasingConfig, TransitionConfig, ActionConfig, SelectConfig, ColorConfig, ImageConfig, ImageOption, DialPadAxis, DialPadConfig, DialPadValue, TextConfig, DialKitPersistOptions, ShortcutConfig, ShortcutMode, ShortcutInteraction, Preset, DialValue, DialConfig, DialKitValueUpdates, ResolvedValues, ControlMeta, PanelConfig } from '../store/DialStore';
+export type { SpringConfig, EasingConfig, TransitionConfig, ActionConfig, SelectConfig, ColorConfig, ImageConfig, ImageOption, DialPadAxis, DialPadConfig, DialPadValue, TextConfig, DialKitPersistOptions, ShortcutConfig, ShortcutMode, ShortcutInteraction, Preset, TransitionMode, TransitionPreset, CopiedTransition, DialValue, DialConfig, DialKitValueUpdates, ResolvedValues, ControlMeta, PanelConfig } from '../store/DialStore';
 export { formatClock } from '../timeline-core';
 export { TimelineStore } from '../store/TimelineStore';
 export type { TimelineMeta, TimelineClipMeta, TimelineClipTrackMeta, TimelineTransport } from '../store/TimelineStore';

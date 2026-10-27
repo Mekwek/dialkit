@@ -71,6 +71,28 @@ export function springSettleDuration(params: SpringParams): number {
   return round2(clamp(duration, 0.05, 10));
 }
 
+/**
+ * When Motion stops a spring that moves a value by `distance`: once it is
+ * within Motion's rest distance of the target and, if it bounces, slower
+ * than its rest speed. Both are finer for a small change, such as an
+ * opacity or a scale.
+ */
+export function springRestDuration(params: SpringParams, distance: number): number {
+  const size = Math.abs(distance);
+  if (size === 0) return 0;
+  const granular = size < 5;
+  const restDelta = (granular ? 0.005 : 0.5) / size;
+  const restSpeed = (granular ? 0.01 : 2) / size;
+  const bounces = params.damping < 2 * Math.sqrt(params.stiffness * params.mass);
+  for (let t = 0.001; t < 10; t += 0.001) {
+    const position = springProgress(t, params);
+    if (Math.abs(1 - position) > restDelta) continue;
+    // Motion's velocity: the change over the last 5ms, per second.
+    if (!bounces || Math.abs(position - springProgress(t - 0.005, params)) / 0.005 <= restSpeed) return Math.round(t * 1000) / 1000;
+  }
+  return 10;
+}
+
 /** Eased progress of a cubic-bezier easing at linear progress p (0–1). */
 export function cubicBezierProgress(p: number, [x1, y1, x2, y2]: [number, number, number, number]): number {
   if (p <= 0) return 0;

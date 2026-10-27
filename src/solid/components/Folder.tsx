@@ -18,6 +18,10 @@ interface FolderProps {
   inline?: boolean;
   /** Optional panel actions that stay with the section title while scrolling. */
   toolbar?: JSX.Element;
+  /** Short text at the end of a nested folder's title row, such as the preset in use. */
+  meta?: string;
+  /** Buttons beside the title of a nested folder, such as a transition's copy and paste. */
+  actions?: JSX.Element;
   /** @deprecated Only meaningful with isRoot. */
   panelHeightOffset?: number;
 }
@@ -117,9 +121,12 @@ export function Folder(props: FolderProps) {
   return (
     <div ref={folderRef} class={`dialkit-folder${props.toolbar ? ' dialkit-folder-section' : ''}`} data-open={String(isOpen())}>
       <div class="dialkit-folder-header" onClick={handleToggle}>
-        <div class="dialkit-folder-header-top" role={false ? undefined : "button"} tabIndex={false ? undefined : 0} aria-label={props.title} aria-expanded={isOpen()} onKeyDown={(e) => activateOnKey(e, handleToggle)}>
+        <div class="dialkit-folder-header-top" role={false ? undefined : "button"} tabIndex={false ? undefined : 0} aria-label={props.meta ? `${props.title}, ${props.meta}` : props.title} aria-expanded={isOpen()} onKeyDown={(e) => activateOnKey(e, handleToggle)}>
           <div class="dialkit-folder-title-row">
             <span class="dialkit-folder-title">{props.title}</span>
+            <Show when={props.meta}>
+              <span class="dialkit-folder-meta">{props.meta}</span>
+            </Show>
           </div>
 
           <svg
@@ -136,6 +143,9 @@ export function Folder(props: FolderProps) {
             <path d={ICON_CHEVRON} />
           </svg>
         </div>
+        <Show when={!props.isRoot && props.actions}>
+          {(actions) => <div class="dialkit-folder-actions">{actions()}</div>}
+        </Show>
         <Show when={props.toolbar}>
           <div class="dialkit-panel-section-toolbar-clip">
             <div class="dialkit-panel-section-toolbar" onClick={(e) => e.stopPropagation()}>{props.toolbar}</div>

@@ -64,9 +64,7 @@
 
 <Folder title={label} defaultOpen={true}>
   <div style="display: flex; flex-direction: column; gap: 6px;">
-    <SpringVisualization {spring} isSimpleMode={isSimpleMode} />
-
-    <div class="dialkit-labeled-control">
+    <div class="dialkit-labeled-control dialkit-transition-type">
       <span class="dialkit-labeled-control-label">Type</span>
       <SegmentedControl
         options={[
@@ -78,13 +76,15 @@
       />
     </div>
 
+    <SpringVisualization {spring} isSimpleMode={isSimpleMode} />
+
     {#if isSimpleMode}
       <Slider
         label="Duration"
         value={spring.visualDuration ?? 0.3}
         onChange={(v) => handleUpdate('visualDuration', v)}
         min={0.1}
-        max={1}
+        max={5}
         step={0.05}
         unit="s"
       />

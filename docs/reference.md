@@ -128,11 +128,27 @@ All three definitions open the same transition editor:
 
 | Mode | Parameters |
 | --- | --- |
-| Easing | Duration and four Bézier coordinates; handles can be dragged or edited by keyboard |
+| Easing | Duration, **Intensity**, and four Bézier coordinates; handles can be dragged or edited by keyboard |
 | Time | `visualDuration` and `bounce` |
 | Physics | `stiffness`, `damping`, and `mass` |
 
+The mode tabs sit above the curve. In Easing mode, the four fields (X1, Y1, X2, Y2) edit the handles directly: drag a field to scrub it, click it to type a value, or use the Up and Down arrows. Typing all four values into one field, such as `0.25, 0.1, 0.25, 1`, sets the whole curve. **Intensity** scales how far both handles reach from their endpoints: 50% is the curve as you left it, 0% is linear, and 100% doubles the reach. It stops where a handle would leave the editable range (X from 0 to 1, Y from -1 to 2), so the curve keeps its shape. Any other edit to the curve becomes the new 50%.
+
 Switching modes restores the previous edits for that mode while the editor remains mounted. The returned type is `TransitionConfig`, a union of `SpringConfig` and `EasingConfig`, because users can switch between them.
+
+The **Presets** folder's header shows the name of the preset in use, or **Custom**. It has two tabs. **Defaults** lists named curves in Easing mode and named springs in Time and Physics; picking a curve keeps the duration. Each built-in preset has a `description`: a short description of how it moves. **Custom** lists the transitions saved with **Save current curve** or **Save current spring**, per mode. Saved transitions are shared by every transition control and stay in memory; when a panel [persists](#persistence) its presets, they are also kept in that panel's storage under `dialkit:transition-presets`. The list scrolls past `--dial-preset-list-height` (156px, four rows) and fades at an edge while more presets sit beyond it. Read or change them from code:
+
+```ts
+DialStore.getTransitionPresets();                 // [{ id, name, mode, value }]
+DialStore.getDefaultTransitionPresets("easing");  // [{ name, description, value }]
+DialStore.saveTransitionPreset(value, "easing");  // saved as "Custom 1", "Custom 2", …
+DialStore.deleteTransitionPreset(id);
+DialStore.subscribeTransitions(listener);
+```
+
+Hovering, focusing, or tapping the **···** in a transition's header slides out **Copy** and **Paste**. Copy takes its value and mode; Paste stays disabled until something is copied, then applies both in any transition control. `DialStore.copyTransition(value, mode)`, `getCopiedTransition()`, and `clearCopiedTransition()` drive the same clipboard from code.
+
+The built-in curves are 12 named ones (Glide, Sweep, Settle, Flip, Natural, Coast, Elastic, Slow, Vive, Anticipate, Snappy Out, Swift Out), then Linear and the classic families: Ease, Sine, Quad, Cubic, Quart, Quint, Expo, Circ, and Back, each In, Out, and In Out. The springs are React Spring's configs, Crisp (its `default`), Gentle, Wobbly, Stiff, Slow, and Molasses, then Buoyant, Elegant, Bob, Fling, Swift, Float, Drift, Snap, and Stern.
 
 ### Actions and folders
 
@@ -202,7 +218,7 @@ const values = useDialKit("Card", { radius: [24, 0, 64] }, {
 });
 ```
 
-`storage` defaults to `"localStorage"`; `presets` defaults to `true`. With `presets: false`, only values are persisted. Open state is retained in memory for stable IDs but is never written to storage.
+`storage` defaults to `"localStorage"`; `presets` defaults to `true`. With `presets: false`, only values are persisted. Saved transition presets are shared by every panel, so they are kept under `dialkit:transition-presets` in the storage of each panel that persists presets. Each of those storages keeps its own copy, so saving or deleting a transition updates the storages of the panels persisting presets at that moment. Open state is retained in memory for stable IDs but is never written to storage.
 
 **Save version** saves and selects a new version. Selecting **V1** restores the editable base values. Hover a thumbnail to delete it. **Copy** places the values and a configuration-update instruction on the clipboard. With `versions="menu"` on the root, the toolbar shows the classic version menu instead.
 
@@ -240,9 +256,11 @@ DialStore.getPanelOpen("card");
 | XY pad | Arrows adjust axes; Shift + Arrow adjusts ten steps; Home resets; Escape cancels a drag |
 | Select or preset menu | Enter, Space, or Up/Down opens; arrows, Home/End, and typing navigate; Enter/Space selects; Escape closes |
 | Segmented control | Arrows select a segment; Home/End selects the first/last |
+| Transition copy and paste | Focusing **···** shows Copy and Paste; Enter or Space toggles them; they sit before it, so Shift + Tab reaches them and Tab moves on; Escape closes |
 | Color picker | Tab moves between controls; arrows adjust the focused control; Escape closes |
 | Image picker | Arrows move through images; Enter/Space selects; Escape closes |
 | Bézier handles | Arrows move by 0.01; Shift + Arrow by 0.1; Escape cancels a drag |
+| Bézier fields | Up/Down adjust by 0.01, Shift by 0.1; Enter commits; Escape cancels |
 
 Menus return focus to their trigger on selection or Escape. Tab and Shift + Tab resume the owning panel's tab order.
 

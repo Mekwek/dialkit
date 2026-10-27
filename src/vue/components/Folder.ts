@@ -17,6 +17,14 @@ export const Folder = defineComponent({
       required: false,
       default: null,
     },
+    /** Short text at the end of a nested folder's title row, such as the preset in use. */
+    meta: { type: String, default: '' },
+    /** Buttons beside the title of a nested folder, such as a transition's copy and paste. */
+    actions: {
+      type: null as unknown as PropType<(() => VNodeChild) | null>,
+      required: false,
+      default: null,
+    },
     panelHeightOffset: {
       type: Number,
       default: 0,
@@ -90,7 +98,7 @@ export const Folder = defineComponent({
       class: `dialkit-folder-header ${props.isRoot ? 'dialkit-panel-header' : ''}`,
       onClick: handleToggle,
     }, [
-      h('div', { class: 'dialkit-folder-header-top', role: props.inline && props.isRoot ? undefined : 'button', tabindex: props.inline && props.isRoot ? undefined : 0, 'aria-label': props.title, 'aria-expanded': isOpen.value, onKeydown: (e: KeyboardEvent) => activateOnKey(e, handleToggle) }, [
+      h('div', { class: 'dialkit-folder-header-top', role: props.inline && props.isRoot ? undefined : 'button', tabindex: props.inline && props.isRoot ? undefined : 0, 'aria-label': !props.isRoot && props.meta ? `${props.title}, ${props.meta}` : props.title, 'aria-expanded': isOpen.value, onKeydown: (e: KeyboardEvent) => activateOnKey(e, handleToggle) }, [
         props.isRoot
           ? (isOpen.value
               ? h('div', { class: 'dialkit-folder-title-row' }, [
@@ -99,6 +107,7 @@ export const Folder = defineComponent({
               : null)
           : h('div', { class: 'dialkit-folder-title-row' }, [
             h('span', { class: 'dialkit-folder-title' }, props.title),
+            props.meta ? h('span', { class: 'dialkit-folder-meta' }, props.meta) : null,
           ]),
         props.isRoot && !props.inline
           ? h('svg', { class: 'dialkit-panel-icon', viewBox: isOpen.value ? '0 0 24 24' : '0 0 16 16', fill: 'none' }, isOpen.value ? [h('path', { d: ICON_CLOSE, stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round' })] : [
@@ -125,6 +134,9 @@ export const Folder = defineComponent({
           }, [h('path', { d: ICON_CHEVRON })])
           : null,
       ]),
+      props.actions && !props.isRoot
+        ? h('div', { class: 'dialkit-folder-actions' }, [props.actions()])
+        : null,
       props.toolbar && !props.isRoot
         ? h('div', { class: 'dialkit-panel-section-toolbar-clip' }, [
           h('div', { class: 'dialkit-panel-section-toolbar', onClick: (event: Event) => event.stopPropagation() }, [props.toolbar()]),
