@@ -1,7 +1,7 @@
 import { activateOnKey, handleSegmentKey, handleSliderKey, labelSegmentedControl } from '../control-keyboard';
 import { decimalsForStep, roundValue, snapToDecile, formatSliderShortcut, formatToggleShortcut } from '../shortcut-utils';
 import { observeTextSize } from '../text-autosize';
-import { createPanelSectionTransition, observePanelHeader } from '../panel-size';
+import { createPanelSectionTransition, observePanelHeader, observeScrollFades } from '../panel-size';
 import { ICON_CLOSE, ICON_CHEVRON, ICON_PANEL } from '../icons';
 import type { ShortcutConfig } from '../store/DialStore';
 import { element, icon, svg, type Mounted } from './dom';
@@ -133,6 +133,7 @@ export function mountFolder(host: HTMLElement, initial: FolderProps) {
   render();
   if (props.isSection) sectionTransition = createPanelSectionTransition(folder, open);
   const stopHeader = props.isRoot ? observePanelHeader(folder) : undefined;
+  const stopFades = props.isRoot ? observeScrollFades(folder) : undefined;
   return {
     element: node, body, toolbar, update(next: FolderProps) {
       props = next;
@@ -141,6 +142,7 @@ export function mountFolder(host: HTMLElement, initial: FolderProps) {
     }, destroy() {
       animation?.cancel();
       stopHeader?.();
+      stopFades?.();
       sectionTransition?.destroy();
       node.remove();
     }

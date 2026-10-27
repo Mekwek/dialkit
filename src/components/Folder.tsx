@@ -1,5 +1,5 @@
 import { activateOnKey } from '../control-keyboard';
-import { createPanelSectionTransition, measurePanelHeight, observePanelHeader } from '../panel-size';
+import { createPanelSectionTransition, measurePanelHeight, observePanelHeader, observeScrollFades } from '../panel-size';
 import { useState, useRef, useEffect, useLayoutEffect, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ICON_CLOSE, ICON_PANEL, ICON_CHEVRON } from '../icons';
@@ -48,6 +48,7 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
     const el = contentRef.current;
     if (!el) return;
     const stopHeader = observePanelHeader(el);
+    const stopFades = observeScrollFades(el);
     const ro = new ResizeObserver(() => {
       if (isOpen) {
         const h = measurePanelHeight(el);
@@ -55,7 +56,7 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
       }
     });
     ro.observe(el);
-    return () => { ro.disconnect(); stopHeader(); };
+    return () => { ro.disconnect(); stopHeader(); stopFades(); };
   }, [isOpen]);
 
   const handleToggle = () => {

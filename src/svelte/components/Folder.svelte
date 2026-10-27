@@ -1,7 +1,7 @@
 <script lang="ts">
   import { activateOnKey } from '../../control-keyboard';
 
-  import { createPanelSectionTransition, measurePanelHeight, observePanelHeader } from '../../panel-size';
+  import { createPanelSectionTransition, measurePanelHeight, observePanelHeader, observeScrollFades } from '../../panel-size';
 
   import { Spring } from 'svelte/motion';
   import { untrack } from 'svelte';
@@ -69,6 +69,7 @@
   $effect(() => {
     if (!isRoot || !contentRef || typeof ResizeObserver === 'undefined') return;
     const stopHeader = observePanelHeader(contentRef);
+    const stopFades = observeScrollFades(contentRef);
 
     const ro = new ResizeObserver(() => {
       if (!isOpen) return;
@@ -86,6 +87,7 @@
     return () => {
       ro.disconnect();
       stopHeader();
+      stopFades();
     };
   });
 
