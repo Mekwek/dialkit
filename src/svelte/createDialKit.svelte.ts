@@ -1,4 +1,4 @@
-import { DialStore, flattenDialValueUpdates, isFolderMetaKey, isLeafConfigValue, resolveDialValues } from 'dialkit/store';
+import { DialStore, flattenDialValueUpdates, isFolderMetaKey, isLeafConfigValue, resolveDialValues, unwrapVisibility } from 'dialkit/store';
 import type {
   DialConfig,
   DialKitPersistOptions,
@@ -98,9 +98,10 @@ function buildReactiveValues<T extends DialConfig>(
 ): DialKitValues<ResolvedValues<T>> {
   const result: Record<string, unknown> = {};
 
-  for (const [key, configValue] of Object.entries(config)) {
+  for (const [key, rawValue] of Object.entries(config)) {
     if (isFolderMetaKey(key)) continue;
     const path = prefix ? `${prefix}.${key}` : key;
+    const configValue = unwrapVisibility(rawValue);
 
     if (typeof configValue === 'object' && configValue !== null && !isLeafConfigValue(configValue)) {
       const nested = buildReactiveValues(configValue as DialConfig, getValues, path);

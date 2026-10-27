@@ -81,6 +81,7 @@ export function Panel({ panel, defaultOpen = true, inline = false, accordion = f
         values={values}
         openFolder={accordion ? resolveOpenFolder(panel.controls, openFolder) : undefined}
         onOpenFolderChange={onOpenFolderChange}
+        animateControls
       />
     </>
   );

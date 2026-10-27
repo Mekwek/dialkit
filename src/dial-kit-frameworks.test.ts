@@ -12,7 +12,7 @@ import { ModuleKind, ScriptTarget, transpileModule } from 'typescript';
 import { SelectControl } from './components/SelectControl';
 import { useDialKitController } from './hooks/useDialKit';
 import { useDialKitController as useVueDialKitController } from './vue/useDialKit';
-import { DialStore, type DialConfig } from './store/DialStore';
+import { DialStore, withVisibility, type DialConfig } from './store/DialStore';
 
 const config = { group: {
   _reset: true, position: { type: 'pad' }, origin: { type: 'anchor' }, amount: [0.25, 0, 1], enabled: true,
@@ -20,11 +20,11 @@ const config = { group: {
   accent: { type: 'color' }, cover: { type: 'image' },
   spring: { type: 'spring', visualDuration: 0.3, bounce: 0.2 },
   easing: { type: 'easing', duration: 0.5, ease: [0, 0, 1, 1] },
-  run: { type: 'action' },
+  run: { type: 'action' }, shade: withVisibility([0.5, 0, 1], { field: 'group.enabled', is: true }),
   scale: { _fields: true, uniform: false, x: [1, 0.1, 3, 0.01], y: [1, 0.1, 3, 0.01] },
 } } satisfies DialConfig;
 const defaults = { position: { x: 0, y: 0 }, origin: { x: 'center', y: 'center' }, amount: 0.25, enabled: true, title: 'Example', choice: '',
-  accent: '#000000', cover: '', spring: config.group.spring, easing: config.group.easing, run: config.group.run,
+  accent: '#000000', cover: '', spring: config.group.spring, easing: config.group.easing, run: config.group.run, shade: 0.5,
   scale: { uniform: false, x: 1, y: 1 } };
 const updates = { position: { x: 0.75, y: -0.4 }, origin: { x: 'left', y: 'bottom' }, amount: 0.5, enabled: false, title: 'Changed', accent: '#ff0000', cover: '/cover.png',
   scale: { uniform: true, x: 2, y: 1.5 } };

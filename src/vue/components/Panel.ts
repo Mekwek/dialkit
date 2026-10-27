@@ -172,6 +172,7 @@ export const Panel = defineComponent({
         values: values.value,
         openFolder: props.accordion ? resolveOpenFolder(props.panel.controls, props.openFolder) : undefined,
         onOpenFolderChange: (path: string | null) => emit('openFolderChange', path),
+        animateControls: true,
       });
 
       const content = () => [

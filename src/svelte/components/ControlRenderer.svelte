@@ -18,8 +18,9 @@
   import { SHORTCUT_CTX } from './ShortcutListener.svelte';
   import type { ShortcutContextValue } from './ShortcutListener.svelte';
   import type { TransitionDurationControl } from './TransitionControl.svelte';
+  import { controlTransition } from './transitions';
 
-  let { panelId, control, values, transitionDuration, resetCount = 0, openFolder, onOpenFolderChange } = $props<{
+  let { panelId, control, values, transitionDuration, resetCount = 0, openFolder, onOpenFolderChange, animateControls = false } = $props<{
     panelId: string;
     control: ControlMeta;
     values: Record<string, DialValue>;
@@ -29,6 +30,8 @@
     /** Path of the one open top-level folder in accordion mode, or null when all are closed. */
     openFolder?: string | null;
     onOpenFolderChange?: (path: string | null) => void;
+    /** Slide controls in and out as their visibility rules change. */
+    animateControls?: boolean;
   }>();
 
   const shortcutCtx = getContext<ShortcutContextValue | undefined>(SHORTCUT_CTX);
@@ -112,9 +115,17 @@
     open={accordion ? openFolder === control.path : undefined}
     onOpenChange={accordion ? (open) => onOpenFolderChange?.(open ? control.path : null) : undefined}
   >
-    {#each control.children ?? [] as child (child.path)}
-      <ControlRenderer {panelId} control={child} {values} {transitionDuration} resetCount={resetCount + folderResets} />
-    {/each}
+    {#if animateControls}
+      {#each control.children ?? [] as child (child.path)}
+        <div class="dialkit-control-wrapper" transition:controlTransition>
+          <ControlRenderer {panelId} control={child} {values} {transitionDuration} resetCount={resetCount + folderResets} animateControls />
+        </div>
+      {/each}
+    {:else}
+      {#each control.children ?? [] as child (child.path)}
+        <ControlRenderer {panelId} control={child} {values} {transitionDuration} resetCount={resetCount + folderResets} />
+      {/each}
+    {/if}
   </Folder>
 {:else if control.type === 'text'}
   <TextControl

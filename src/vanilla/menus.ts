@@ -309,7 +309,7 @@ export function mountShortcutsMenu(host: HTMLElement, initial: {
     for (const [path, shortcut] of Object.entries(panel?.shortcuts ?? {})) {
       const row = element('div', 'dialkit-shortcuts-row');
       const interaction = shortcut.interaction ?? 'scroll';
-      row.append(element('span', 'dialkit-shortcuts-row-key', formatToggleShortcut(shortcut)), element('span', 'dialkit-shortcuts-row-label', findControl(panel!.controls, path)?.label ?? path), element('span', 'dialkit-shortcuts-row-mode', interaction === 'scroll-only' ? 'scroll' : `key+${interaction}`));
+      row.append(element('span', 'dialkit-shortcuts-row-key', formatToggleShortcut(shortcut)), element('span', 'dialkit-shortcuts-row-label', DialStore.getControl(props.panelId, path)?.label ?? path), element('span', 'dialkit-shortcuts-row-mode', interaction === 'scroll-only' ? 'scroll' : `key+${interaction}`));
       list.append(row);
     }
     popup.append(list, element('div', 'dialkit-shortcuts-hint', 'See pill badges on controls for keys'));

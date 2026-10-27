@@ -250,6 +250,22 @@ const values = useDialKit("Card", {
 
 Spring and easing controls draw a folder of their own, and its header gets the same button without `_reset`: it shows once the curve or its mode differs from the default, and restores both. The store methods take the control's path, as in `DialStore.resetFolder("card", "enter")` for an `enter` spring.
 
+### Conditional controls
+
+```tsx
+import { withVisibility } from "dialkit";
+
+const values = useDialKit("Card", {
+  outline: true,
+  outlineWidth: withVisibility([2, 0, 8], { field: "outline", is: true }),
+  shadow: withVisibility({ blur: [12, 0, 40] }, { field: "outline", not: true }),
+});
+```
+
+`withVisibility(control, rule)` wraps any control or folder. It shows while the control at `field` has (`is`) or lacks (`not`) one of the given values; both take a value or a list. `field` is a full dot path, such as `"shadow.enabled"`. Hidden controls keep their values, appear in resolved values, and ignore keyboard shortcuts. A folder whose controls are all hidden is hidden too. A rule that watches a missing control logs a warning once when the panel registers or its config changes.
+
+`DialStore.getControl(panelId, path)` returns a control's metadata, including one hidden by its visibility rule.
+
 ## Controllers
 
 Use `useDialKitController` in React and Vue, or `createDialKitController` in Solid, Svelte, and vanilla. Vanilla's `createDialKit` is an alias for its controller factory.
@@ -409,4 +425,4 @@ const config = {
 type Values = ResolvedValues<typeof config>;
 ```
 
-The public types include control configs, `TransitionConfig`, `DialKitController`, `DialKitValueUpdates`, `ControlMeta`, `PanelConfig`, and `Preset`. Timeline config and value types are exported alongside them.
+The public types include control configs, `TransitionConfig`, `DialKitController`, `DialKitValueUpdates`, `ControlMeta`, `PanelConfig`, `Preset`, `VisibleWhen`, `VisibleWhenValue`, and `ControlWithVisibility`. Timeline config and value types are exported alongside them.

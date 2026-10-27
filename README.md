@@ -174,6 +174,23 @@ Spring and easing controls share an editor with **Easing**, **Time**, and **Phys
 
 See the [control reference](https://github.com/joshpuckett/dialkit/blob/main/docs/reference.md#controls) for configuration and editing details.
 
+### Conditional controls
+
+Wrap any control or folder in `withVisibility` to show it only while another control has a given value. It slides in and out as the value changes.
+
+```tsx
+import { withVisibility } from "dialkit";
+
+const values = useDialKit("Card", {
+  outline: true,
+  outlineWidth: withVisibility([2, 0, 8], { field: "outline", is: true }),
+  layout: { type: "select", options: ["stack", "grid", "carousel"] },
+  columns: withVisibility([3, 1, 6, 1], { field: "layout", not: ["stack", "carousel"] }),
+});
+```
+
+`is` and `not` take a value or a list of values. `field` is the watched control's path, such as `"shadow.enabled"` inside a folder. Hidden controls keep their values, still appear in the returned values, and ignore their shortcuts.
+
 ## Panel API
 
 Each panel takes a name, a control config, and optional settings:

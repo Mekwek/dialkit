@@ -53,7 +53,7 @@ export { default as VersionGallery } from './components/VersionGallery.svelte';
 export { default as DialTimeline } from './components/Timeline/DialTimeline.svelte';
 
 // Store exports (via dialkit/store subpath — svelte-package doesn't bundle, so relative paths to src/store would break in dist)
-export { DialStore } from 'dialkit/store';
+export { DialStore, withVisibility } from 'dialkit/store';
 export type {
   SpringConfig,
   EasingConfig,
@@ -82,4 +82,7 @@ export type {
   ResolvedValues,
   ControlMeta,
   PanelConfig,
+  VisibleWhen,
+  VisibleWhenValue,
+  ControlWithVisibility,
 } from 'dialkit/store';

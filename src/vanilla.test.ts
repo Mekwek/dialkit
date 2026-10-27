@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { runInNewContext } from 'node:vm';
 import { build } from 'esbuild';
-import { createDialKit, createDialKitController, createDialTimeline, DialStore, TimelineStore } from './vanilla';
+import { createDialKit, createDialKitController, createDialTimeline, DialStore, TimelineStore, withVisibility } from './vanilla';
 import type { DialConfig } from './store/DialStore';
 
 const config = { group: {
@@ -12,6 +12,7 @@ const config = { group: {
   origin: { type: 'anchor', default: { y: 'top' } },
   spring: { type: 'spring', visualDuration: 0.3, bounce: 0.2 },
   easing: { type: 'easing', duration: 0.5, ease: [0, 0, 1, 1] }, run: { type: 'action' },
+  shade: withVisibility([0.5, 0, 1], { field: 'group.enabled', is: true }),
 } } satisfies DialConfig;
 
 describe('vanilla adapter', () => {
@@ -20,7 +21,7 @@ describe('vanilla adapter', () => {
     const kit = createDialKit('Vanilla', config, { onAction: action => actions.push(action) });
     try {
       assert.equal(createDialKitController, createDialKit);
-      assert.deepEqual(kit.values.group, { amount: 0.25, enabled: true, title: 'Hello', choice: 'a', accent: '#ff5500', cover: '', position: { x: 0.5, y: 0 }, origin: { x: 'center', y: 'top' }, spring: config.group.spring, easing: config.group.easing, run: config.group.run });
+      assert.deepEqual(kit.values.group, { amount: 0.25, enabled: true, title: 'Hello', choice: 'a', accent: '#ff5500', cover: '', position: { x: 0.5, y: 0 }, origin: { x: 'center', y: 'top' }, spring: config.group.spring, easing: config.group.easing, run: config.group.run, shade: 0.5 });
       let calls = 0;
       const stop = kit.subscribe(values => { calls++; assert.equal(values.group.amount, kit.values.group.amount); });
       assert.equal(calls, 1);
@@ -29,6 +30,8 @@ describe('vanilla adapter', () => {
       assert.deepEqual(kit.values.group.position, { x: -0.5, y: 0.2 });
       assert.deepEqual(kit.values.group.origin, { x: 'right', y: 'bottom' });
       assert.equal(kit.values.group.enabled, false);
+      assert.equal(kit.values.group.shade, 0.5);
+      assert.ok(!DialStore.getPanel(kit.id)!.controls[0].children!.some(control => control.path === 'group.shade'));
       DialStore.triggerAction(kit.id, 'group.run'); assert.deepEqual(actions, ['group.run']);
       stop(); kit.resetValues(); assert.equal(calls, 2); assert.equal(kit.values.group.amount, 0.25);
     } finally { kit.destroy(); }
@@ -92,6 +95,17 @@ describe('vanilla adapter', () => {
       kit.setValue('amount', 0.9);
       kit.updateConfig({ amount: [0.2, 0, 0.6, 0.1] });
       assert.equal(kit.values.amount, 0.6); kit.resetValues(); assert.equal(kit.values.amount, 0.2);
+    } finally { kit.destroy(); }
+  });
+
+  it('removes deleted controls, including a conditional one, from the store on updateConfig', () => {
+    const kit = createDialKit('Removal', { outline: true, width: withVisibility([2, 0, 8], { field: 'outline', is: true }), opacity: [0.5, 0, 1] } as DialConfig);
+    try {
+      kit.updateConfig({ outline: true, opacity: [0.5, 0, 1] });
+      assert.deepEqual(DialStore.getPanel(kit.id)!.controls.map(control => control.path), ['outline', 'opacity']);
+      assert.equal(DialStore.getValues(kit.id).width, undefined);
+      kit.updateConfig({ outline: true });
+      assert.deepEqual(kit.values, { outline: true });
     } finally { kit.destroy(); }
   });
 

@@ -1,5 +1,7 @@
-import { useContext, useState } from 'react';
+import { useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { DialStore, ControlMeta, DialValue, SpringConfig, TransitionConfig } from '../store/DialStore';
+import { mergeControls } from '../control-presence';
 import { ShortcutContext } from './ShortcutListener';
 import { Folder } from './Folder';
 import { Slider } from './Slider';
@@ -31,11 +33,49 @@ interface ControlRendererProps {
   /** Path of the one open top-level folder in accordion mode, or null when all are closed. */
   openFolder?: string | null;
   onOpenFolderChange?: (path: string | null) => void;
+  /** Slide controls in and out as their visibility rules change. */
+  animateControls?: boolean;
+}
+
+// A control fades with its height, and collapsing it also closes the row gap below it.
+// It clips only while sliding, so a settled control's popovers and focus rings are not cut off.
+const hiddenControl = { opacity: 0, height: 0, marginBottom: 'calc(var(--dial-row-gap) * -1)', overflowY: 'clip' as const };
+const shownControl = { opacity: 1, height: 'auto', marginBottom: 'calc(var(--dial-row-gap) * 0)', overflowY: 'clip' as const, transitionEnd: { overflowY: 'visible' as const } };
+
+/** Slides controls in as they appear, and out where they were as they leave. */
+function AnimatedControls({ controls, children }: { controls: ControlMeta[]; children: (control: ControlMeta) => ReactNode }) {
+  const [rows, setRows] = useState({ controls, rendered: controls });
+  const mounted = useRef(false);
+  useEffect(() => { mounted.current = true; }, []);
+
+  if (rows.controls !== controls) setRows({ controls, rendered: mergeControls(rows.rendered, controls) });
+  const present = new Set(controls.map(control => control.path));
+  const remove = (path: string) => setRows(current => ({
+    ...current,
+    rendered: current.rendered.filter(control => control.path !== path || current.controls.some(shown => shown.path === path)),
+  }));
+
+  return rows.rendered.map((control) => (
+    <AnimatePresence key={control.path} initial={mounted.current} onExitComplete={() => remove(control.path)}>
+      {present.has(control.path) && (
+        <motion.div
+          key={control.path}
+          className="dialkit-control-wrapper"
+          initial={hiddenControl}
+          animate={shownControl}
+          exit={hiddenControl}
+          transition={{ type: 'spring', visualDuration: 0.25, bounce: 0.1 }}
+        >
+          {children(control)}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  ));
 }
 
 // Renders a ControlMeta tree with the standard DialKit controls.
 // Shared by the panel and the timeline clip popover.
-export function ControlRenderer({ panelId, controls, values, transitionDuration, openFolder, onOpenFolderChange }: ControlRendererProps) {
+export function ControlRenderer({ panelId, controls, values, transitionDuration, openFolder, onOpenFolderChange, animateControls = false }: ControlRendererProps) {
   const shortcutCtx = useContext(ShortcutContext);
   // Counts folder resets, so sliders can spring to the values a reset sets.
   const [resetCount, setResetCount] = useState(0);
@@ -48,6 +88,10 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration,
       DialStore.resetFolder(panelId, control.path);
     },
   } : {};
+
+  const renderControls = (controls: ControlMeta[], topLevel = false) => animateControls
+    ? <AnimatedControls controls={controls}>{(control) => renderControl(control, topLevel)}</AnimatedControls>
+    : controls.map((control) => renderControl(control, topLevel));
 
   const renderControl = (control: ControlMeta, topLevel = false) => {
     const value = values[control.path];
@@ -133,7 +177,7 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration,
             open={accordion ? openFolder === control.path : undefined}
             onOpenChange={accordion ? (open) => onOpenFolderChange?.(open ? control.path : null) : undefined}
           >
-            {control.children?.map((child) => renderControl(child))}
+            {renderControls(control.children ?? [])}
           </Folder>
         );
       }
@@ -224,5 +268,5 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration,
     }
   };
 
-  return <>{controls.map((control) => renderControl(control, true))}</>;
+  return <>{renderControls(controls, true)}</>;
 }

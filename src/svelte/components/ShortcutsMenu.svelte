@@ -78,19 +78,11 @@
     const shortcuts = Object.entries(currentPanel.shortcuts);
     if (shortcuts.length === 0) return [];
 
-    return shortcuts.map(([path, shortcut]) => {
-      const findLabel = (controls: typeof currentPanel.controls): string => {
-        for (const c of controls) {
-          if (c.path === path) return c.label;
-          if (c.type === 'folder' && c.children) {
-            const found = findLabel(c.children);
-            if (found) return found;
-          }
-        }
-        return path;
-      };
-      return { path, shortcut, label: findLabel(currentPanel.controls) };
-    });
+    return shortcuts.map(([path, shortcut]) => ({
+      path,
+      shortcut,
+      label: DialStore.getControl(currentPanel.id, path)?.label ?? path,
+    }));
   });
 </script>
 

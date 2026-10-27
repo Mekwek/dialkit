@@ -1,4 +1,5 @@
 import { Fragment, defineComponent, h, type PropType } from 'vue';
+import { AnimatePresence, motion } from 'motion-v';
 import { DialStore } from '../../store/DialStore';
 import type { ControlMeta, DialValue, SpringConfig, TransitionConfig } from '../../store/DialStore';
 import { ColorControl } from './ColorControl';
@@ -18,6 +19,11 @@ import { Toggle } from './Toggle';
 import { TransitionControl, type TransitionDurationControl } from './TransitionControl';
 import { inject, ref } from 'vue';
 
+// A control fades with its height, and collapsing it also closes the row gap below it.
+// It clips only while sliding, so a settled control's popovers and focus rings are not cut off.
+const hiddenControl = { opacity: 0, height: 0, marginBottom: 'calc(var(--dial-row-gap) * -1)', overflowY: 'clip' as const };
+const shownControl = { opacity: 1, height: 'auto', marginBottom: 'calc(var(--dial-row-gap) * 0)', overflowY: 'clip' as const, transitionEnd: { overflowY: 'visible' as const } };
+
 export const ControlRenderer = defineComponent({
   name: 'DialKitControlRenderer',
   props: {
@@ -27,6 +33,8 @@ export const ControlRenderer = defineComponent({
     transitionDuration: Object as PropType<TransitionDurationControl>,
     /** Path of the one open top-level folder in accordion mode, or null when all are closed. */
     openFolder: { type: String as PropType<string | null>, default: undefined },
+    /** Slide controls in and out as their visibility rules change. */
+    animateControls: Boolean,
   },
   emits: ['openFolderChange'],
   setup(props, { emit }) {
@@ -41,6 +49,18 @@ export const ControlRenderer = defineComponent({
         DialStore.resetFolder(props.panelId, control.path);
       },
     } : {};
+    const renderControls = (controls: ControlMeta[], topLevel = false) => props.animateControls
+      ? [h(AnimatePresence, { initial: false }, {
+        default: () => controls.map((control) => h(motion.div, {
+          key: control.path,
+          class: 'dialkit-control-wrapper',
+          initial: hiddenControl,
+          animate: shownControl,
+          exit: hiddenControl,
+          transition: { type: 'spring', visualDuration: 0.25, bounce: 0.1 },
+        }, () => [renderControl(control, topLevel)])),
+      })]
+      : controls.map((control) => renderControl(control, topLevel));
     const renderControl = (control: ControlMeta, topLevel = false): ReturnType<typeof h> | null => {
       const value = props.values[control.path];
       switch (control.type) {
@@ -108,7 +128,7 @@ export const ControlRenderer = defineComponent({
             ...resetProps(control),
             open: accordion ? props.openFolder === control.path : undefined,
             onOpenChange: accordion ? (open: boolean) => emit('openFolderChange', open ? control.path : null) : undefined,
-          }, { default: () => (control.children ?? []).map((child) => renderControl(child)) });
+          }, { default: () => renderControls(control.children ?? []) });
         }
         case 'text':
           return h(TextControl, {
@@ -172,6 +192,6 @@ export const ControlRenderer = defineComponent({
           return null;
       }
     };
-    return () => h(Fragment, null, props.controls.map((control) => renderControl(control, true)));
+    return () => h(Fragment, null, renderControls(props.controls, true));
   },
 });

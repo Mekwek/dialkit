@@ -56,6 +56,7 @@ export default defineConfig([
       'preset-menu': 'src/preset-menu.ts',
       'text-autosize': 'src/text-autosize.ts',
       'pointer-focus': 'src/pointer-focus.ts',
+      'transition-math': 'src/transition-math.ts',
       'shortcut-utils': 'src/shortcut-utils.ts',
       'version-gallery': 'src/version-gallery.ts',
       accordion: 'src/accordion.ts',
