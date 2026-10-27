@@ -26,6 +26,7 @@ useDialTimeline(name, config, options);
 | `persist` | Save timing edits and presets; accepts the panel storage options | `false` |
 | `autoplay` | Play on mount | `true` |
 | `loop` | Wrap to 0 with `true`, or to a time with `{ from: seconds }` | `false` |
+| `track` | `"rows"` for a row per clip, `"single"` for one shared track | `"rows"` |
 
 The returned values include `time`, `playing`, `duration`, and the methods `play()`, `pause()`, `replay()`, and `seek(seconds)`. `replay()` starts from 0. In vanilla, these methods also live on the controller; use `subscribe(callback)` for frame updates and `destroy()` for cleanup.
 
@@ -59,6 +60,8 @@ const config = {
 For time-based springs and easings, the bar sets the duration: resizing it retimes the transition. For physics springs, duration is derived from the spring's settling time. Those bars show `~` and are resized by editing their physics.
 
 When `duration` is omitted, DialKit uses the transition's duration or spring settling time. A clip with values but no transition uses `{ type: "spring", bounce: 0.2 }`.
+
+The dock names a clip after its key, formatted. Set `label` to show another name, for example when clips are keyed by an ID.
 
 ### Clip values
 
@@ -157,6 +160,16 @@ const config = {
 
 Groups organize the editor. Your app decides how values from different clips combine on an element.
 
+## Single track
+
+Clips that play one after another can share one track:
+
+```tsx
+const timeline = useDialTimeline("Story", config, { track: "single" });
+```
+
+Each bar shows its name and fills in as the playhead crosses it. Dragging or resizing a clip, or editing its duration, stops at the clip before or after it. A single track holds plain clips only; when a config has groups, sequences, property tracks, or looping clips, DialKit warns and uses rows.
+
 ## Loops and duration
 
 A clip's `loop: true` repeats its cycle until the timeline ends. To return to its starting state, write a sequence whose last step reaches that state. There is no mirror mode.
@@ -168,6 +181,8 @@ const timeline = useDialTimeline("Hero", config, { loop: { from: 1.4 } });
 ```
 
 `true` wraps to 0. `{ from: 1.4 }` plays the introduction once, then wraps to 1.4 seconds. Looping clips retain their phase across wraps. Seeking returns to the first-pass state at that time.
+
+The dock's Loop button turns looping on and off. Turning a `{ from }` loop back on wraps to the same time. The choice lasts until the `loop` option turns looping on or off. Copy does not carry it; set `loop` in code to keep it.
 
 A top-level `duration` sets the minimum editing window. Otherwise the timeline fits its content. It grows if edits make a clip extend past the current end.
 
@@ -186,7 +201,7 @@ The dock sits at the bottom of the viewport and works independently of the param
 | `defaultOpen` | `true` | Start timeline sections expanded |
 | `productionEnabled` | Development only; always enabled in vanilla | Render the editor |
 
-The toolbar includes play/pause, replay, presets, Copy, and collapse. When `DialRoot` is also mounted, its timeline button shows or hides the dock. Visibility does not affect playback. In vanilla, use `dock.setVisible(boolean)` or controlled `dock.update({ visible, onVisibilityChange })`.
+Play/pause, replay, and loop sit at the left of the toolbar; presets, Copy, and collapse sit at the right. When `DialRoot` is also mounted, its timeline button shows or hides the dock. Visibility does not affect playback. In vanilla, use `dock.setVisible(boolean)` or controlled `dock.update({ visible, onVisibilityChange })`.
 
 | Gesture | Effect |
 | --- | --- |
@@ -197,6 +212,7 @@ The toolbar includes play/pause, replay, presets, Copy, and collapse. When `Dial
 | Horizontal scroll while zoomed | Pan the visible range |
 | Drag a clip | Change its start time |
 | Drag clip edges or segment boundaries | Change duration |
+| Cmd + drag a plain clip or its edges (Ctrl on Windows and Linux) | Snap its start or end to other clips' edges and the paused playhead |
 | Click a clip or segment | Edit values and transition |
 | Drag the dock's top edge | Resize its height |
 

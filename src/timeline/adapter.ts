@@ -2,6 +2,7 @@ import type { DialKitPersistOptions } from '../store/DialStore';
 import type { TimelineMeta, TimelineTransport } from '../store/TimelineStore';
 import { loopSpan } from '../store/TimelineStore';
 import {
+  canShareTrack,
   computeClipState,
   type DialTimelineValues,
   type ParsedTimeline,
@@ -20,6 +21,13 @@ export interface DialTimelineOptions {
    * play once and looping clips keep cycling forever. Defaults to false.
    */
   loop?: boolean | { from: number };
+  /**
+   * `'single'` lines every clip up on one track: clips play one after
+   * another, and dragging one stops at its neighbors. Holds plain clips
+   * only — groups, steps, props and looping clips need `'rows'`, the
+   * default.
+   */
+  track?: 'rows' | 'single';
 }
 
 export type TimelineActions = {
@@ -47,7 +55,8 @@ export function buildTimelineMeta(
   name: string,
   duration: number,
   parsed: ParsedTimeline,
-  loop: DialTimelineOptions['loop']
+  loop: DialTimelineOptions['loop'],
+  track: DialTimelineOptions['track'] = 'rows'
 ): TimelineMeta {
   const resolvedLoop = resolveTimelineLoop(loop);
   return {
@@ -56,8 +65,23 @@ export function buildTimelineMeta(
     duration,
     loop: resolvedLoop.enabled,
     loopStart: resolvedLoop.start,
+    track: track === 'single' && singleTrackFits(name, parsed) ? 'single' : 'rows',
     clips: parsed.clips,
   };
+}
+
+// Warn once per parsed config — meta is rebuilt on every edit.
+const warnedSingleTrack = new WeakSet<ParsedTimeline>();
+
+function singleTrackFits(name: string, parsed: ParsedTimeline): boolean {
+  if (canShareTrack(parsed.clips)) return true;
+  if (!warnedSingleTrack.has(parsed)) {
+    warnedSingleTrack.add(parsed);
+    console.warn(
+      `[dialkit] Timeline "${name}": track: 'single' holds plain clips only (no groups, steps, props or looping clips) — using rows.`
+    );
+  }
+  return false;
 }
 
 /**

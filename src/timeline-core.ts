@@ -86,6 +86,8 @@ type TimelineClipBase = {
   duration?: number;
   transition?: TransitionConfig;
   loop?: boolean | TimelineClipLoop;
+  /** The name shown in the dock. Defaults to the config key, formatted. */
+  label?: string;
 };
 
 // The three clip shapes are mutually exclusive, encoded with optional-never
@@ -592,7 +594,7 @@ export function parseTimelineConfig(config: TimelineConfig): ParsedTimeline {
 
     clips.push({
       key: path,
-      label: formatLabel(childKey),
+      label: typeof clip.label === 'string' && clip.label ? clip.label : formatLabel(childKey),
       color: TIMELINE_CLIP_COLORS[index % TIMELINE_CLIP_COLORS.length],
       loop: normalizeLoopMode(clip.loop),
       group,
@@ -1310,6 +1312,121 @@ export function clampStepResize(
 ): number {
   const max = Math.max(TIMELINE_MIN_CLIP_DURATION, timelineDuration - at - otherStepsTotal);
   return clamp(round2(duration), TIMELINE_MIN_CLIP_DURATION, max);
+}
+
+// ── Single track and snapping ──
+
+/** A track holds plain clips only: no layer groups, sequences, property
+ * tracks or looping clips, which need rows of their own. */
+export function canShareTrack(clips: TimelineClipMeta[]): boolean {
+  return clips.every(
+    (clip) => !clip.group && !clip.stepKeys?.length && !clip.tracks?.length && clip.loop === 'off'
+  );
+}
+
+export type TimelineClipSpan = { key: string; at: number; duration: number };
+
+/** Every clip's place on the timeline, from flat stored values. */
+export function timelineClipSpans(
+  values: Record<string, DialValue>,
+  clips: TimelineClipMeta[],
+  timelineDuration: number
+): TimelineClipSpan[] {
+  return clips.map((clip) => {
+    const { at, duration } = computeClipStaticFromValues(values, clip, timelineDuration);
+    return { key: clip.key, at, duration };
+  });
+}
+
+/** Where a dragged clip may go, and what a snapping drag lands on. */
+export type TimelineClipDragBounds = {
+  /** Earliest start: 0, or the end of the clip before it on a single track. */
+  start: number;
+  /** Latest end: the timeline end, or the start of the clip after it on a single track. */
+  end: number;
+  /** Every other clip's start and end, plus the playhead when given. */
+  targets: number[];
+};
+
+export function timelineClipDragBounds(
+  spans: TimelineClipSpan[],
+  key: string,
+  timelineDuration: number,
+  options: { singleTrack?: boolean; playhead?: number } = {}
+): TimelineClipDragBounds {
+  const index = spans.findIndex((span) => span.key === key);
+  const self = spans[index];
+  let start = 0;
+  let end = timelineDuration;
+  const targets = new Set<number>();
+  spans.forEach((span, i) => {
+    if (i === index) return;
+    targets.add(round2(span.at));
+    targets.add(round2(span.at + span.duration));
+    if (!options.singleTrack || !self) return;
+    // Neighbors bound the drag but never the clip's current place, so a
+    // config that starts out overlapping can still be pulled apart.
+    const before = span.at < self.at || (span.at === self.at && i < index);
+    if (before) start = Math.max(start, Math.min(span.at + span.duration, self.at));
+    else end = Math.min(end, Math.max(span.at, self.at + self.duration));
+  });
+  if (options.playhead !== undefined) targets.add(options.playhead);
+  return { start, end, targets: [...targets].sort((a, b) => a - b) };
+}
+
+/** The candidate closest to `wanted` within [min, max], if any. */
+function nearestWithin(candidates: number[], wanted: number, min: number, max: number): number | undefined {
+  let best: number | undefined;
+  for (const candidate of candidates) {
+    if (candidate < min - 1e-9 || candidate > max + 1e-9) continue;
+    if (best === undefined || Math.abs(candidate - wanted) < Math.abs(best - wanted)) best = candidate;
+  }
+  return best;
+}
+
+/**
+ * Moving a clip or one of its edges by `delta` seconds, kept inside
+ * `bounds`. With the whole timeline as bounds this is exactly
+ * `clampClipMove`, `clampClipResizeEnd` and `clampClipResizeStart`. With
+ * `snap` the clip's start or end lands only on a target — the reachable one
+ * closest to the pointer — and moves freely when none is reachable.
+ */
+export function dragTimelineClip(
+  mode: 'move' | 'start' | 'end',
+  clip: { at: number; duration: number },
+  delta: number,
+  bounds: TimelineClipDragBounds,
+  snap = false
+): { at: number; duration: number } {
+  const { at, duration } = clip;
+  if (mode === 'move') {
+    const max = Math.max(bounds.start, bounds.end - duration);
+    const wanted = at + delta;
+    const landed = snap
+      ? nearestWithin(bounds.targets.flatMap((t) => [t, t - duration]), wanted, bounds.start, max)
+      : undefined;
+    return { at: clamp(round2(landed ?? wanted), bounds.start, max), duration };
+  }
+  if (mode === 'end') {
+    const max = bounds.end - at;
+    const wanted = duration + delta;
+    const landed = snap
+      ? nearestWithin(bounds.targets.map((t) => t - at), wanted, TIMELINE_MIN_CLIP_DURATION, max)
+      : undefined;
+    return { at, duration: clamp(round2(landed ?? wanted), TIMELINE_MIN_CLIP_DURATION, max) };
+  }
+  const max = at + duration - TIMELINE_MIN_CLIP_DURATION;
+  const wanted = at + delta;
+  const landed = snap ? nearestWithin(bounds.targets, wanted, bounds.start, max) : undefined;
+  const next = clamp(round2(landed ?? wanted), bounds.start, max);
+  return { at: next, duration: round2(at + duration - next) };
+}
+
+/** How much of a clip the playhead has crossed, 0 to 1. A clip with no
+ * length counts as played once the playhead reaches it. */
+export function timelineClipProgress(time: number, at: number, duration: number): number {
+  if (duration <= 0) return time >= at ? 1 : 0;
+  return clamp((time - at) / duration, 0, 1);
 }
 
 /** Copy-for-agent export: strip editor-only state, normalize shape-only
