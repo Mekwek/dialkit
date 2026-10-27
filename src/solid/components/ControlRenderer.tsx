@@ -11,6 +11,8 @@ import { ColorControl } from './ColorControl';
 import { ImageControl } from './ImageControl';
 import { DialPad } from './DialPad';
 import type { DialPadValue } from '../../dial-pad';
+import { hasActionHints } from '../../hints';
+import { createHints } from '../primitives';
 import { Folder } from './Folder';
 import { SelectControl } from './SelectControl';
 import { Slider } from './Slider';
@@ -29,6 +31,9 @@ interface ControlRendererProps {
 export function ControlRenderer(props: ControlRendererProps) {
   const shortcut = useShortcutContext();
 
+  // Hinted action buttons are the renderer's own rows; each control mounts its own.
+  createHints(() => hasActionHints(props.controls));
+
   const renderControl = (control: ControlMeta) => {
     const value = () => props.values[control.path];
     switch (control.type) {
@@ -36,6 +41,7 @@ export function ControlRenderer(props: ControlRendererProps) {
         return (
           <Slider
             label={control.label}
+            hint={control.hint}
             value={value() as number}
             onChange={(next) => DialStore.updateValue(props.panelId, control.path, next)}
             min={control.min}
@@ -49,6 +55,7 @@ export function ControlRenderer(props: ControlRendererProps) {
         return (
           <Toggle
             label={control.label}
+            hint={control.hint}
             checked={value() as boolean}
             onChange={(next) => DialStore.updateValue(props.panelId, control.path, next)}
             shortcut={control.shortcut}
@@ -61,6 +68,7 @@ export function ControlRenderer(props: ControlRendererProps) {
             panelId={props.panelId}
             path={control.path}
             label={control.label}
+            hint={control.hint}
             spring={value() as SpringConfig}
             onChange={(next) => DialStore.updateValue(props.panelId, control.path, next)}
           />
@@ -71,6 +79,7 @@ export function ControlRenderer(props: ControlRendererProps) {
             panelId={props.panelId}
             path={control.path}
             label={control.label}
+            hint={control.hint}
             value={value() as TransitionConfig}
             onChange={(next) => DialStore.updateValue(props.panelId, control.path, next)}
             durationControl={props.transitionDuration}
@@ -78,7 +87,7 @@ export function ControlRenderer(props: ControlRendererProps) {
         );
       case 'folder':
         return (
-          <Folder title={control.label} defaultOpen={control.defaultOpen ?? true}>
+          <Folder title={control.label} defaultOpen={control.defaultOpen ?? true} hint={control.hint}>
             <For each={control.children ?? []}>{renderControl}</For>
           </Folder>
         );
@@ -86,6 +95,7 @@ export function ControlRenderer(props: ControlRendererProps) {
         return (
           <TextControl
             label={control.label}
+            hint={control.hint}
             value={value() as string}
             onChange={(next) => DialStore.updateValue(props.panelId, control.path, next)}
             placeholder={control.placeholder}
@@ -95,6 +105,7 @@ export function ControlRenderer(props: ControlRendererProps) {
         return (
           <SelectControl
             label={control.label}
+            hint={control.hint}
             value={value() as string}
             options={control.options ?? []}
             onChange={(next) => DialStore.updateValue(props.panelId, control.path, next)}
@@ -104,6 +115,7 @@ export function ControlRenderer(props: ControlRendererProps) {
         return (
           <ColorControl
             label={control.label}
+            hint={control.hint}
             value={value() as string}
             onChange={(next) => DialStore.updateValue(props.panelId, control.path, next)}
           />
@@ -113,6 +125,7 @@ export function ControlRenderer(props: ControlRendererProps) {
           <ImageControl
             options={control.options}
             label={control.label}
+            hint={control.hint}
             value={value() as string}
             onChange={(next) => DialStore.updateValue(props.panelId, control.path, next)}
           />
@@ -121,6 +134,7 @@ export function ControlRenderer(props: ControlRendererProps) {
         return (
           <DialPad
             label={control.label}
+            hint={control.hint}
             value={value() as DialPadValue}
             x={control.pad?.x}
             y={control.pad?.y}
@@ -130,7 +144,7 @@ export function ControlRenderer(props: ControlRendererProps) {
         );
       case 'action':
         return (
-          <button class="dialkit-button" onClick={() => DialStore.triggerAction(props.panelId, control.path)}>
+          <button class="dialkit-button" data-hint={control.hint} onClick={() => DialStore.triggerAction(props.panelId, control.path)}>
             {control.label}
           </button>
         );

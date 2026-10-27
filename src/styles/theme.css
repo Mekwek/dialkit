@@ -41,6 +41,10 @@
   --dial-shadow-collapsed: 0 4px 16px rgba(0, 0, 0, 0.25);
   --dial-shadow-dropdown: 0 8px 24px rgba(0, 0, 0, 0.4);
 
+  /* Hints */
+  --dial-hint-max-width: 255px;
+  --dial-hint-dim: 0.7; /* How much the rest of the panel fades while a hint shows: 0 none, 1 hidden */
+
   /* Fonts */
   font-family: system-ui, -apple-system, 'SF Pro Display', sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -213,7 +217,9 @@
   border-bottom: 1px solid var(--dial-surface-subtle);
 }
 
-.dialkit-folder:last-child:not(.dialkit-folder-root) {
+/* The hint tip (.dialkit-hint-tip) can follow a panel's last folder or row.
+   It draws its own divider, so what comes before it still counts as last. */
+.dialkit-folder:nth-last-child(1 of :not(.dialkit-hint-tip)):not(.dialkit-folder-root) {
   padding-bottom: 0;
   margin-bottom: 0;
 }
@@ -349,7 +355,7 @@
   padding-bottom: 0;
 }
 
-.dialkit-folder:not(.dialkit-folder-root):last-child {
+.dialkit-folder:not(.dialkit-folder-root):nth-last-child(1 of :not(.dialkit-hint-tip)) {
   border-bottom: none;
   margin-bottom: 0;
 }
@@ -1755,6 +1761,123 @@
   padding: 6px 8px 2px;
   border-top: 1px solid var(--dial-border);
   margin-top: 4px;
+}
+
+/* Hints: hold the hint key over a control to read what it does. */
+.dialkit-hint {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 10000;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: var(--dial-hint-max-width);
+  padding: 6px 8px;
+  border: 1px solid var(--dial-border);
+  border-radius: var(--dial-radius);
+  background: var(--dial-dropdown-bg);
+  box-shadow: var(--dial-shadow-dropdown);
+  color: var(--dial-text-primary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-wrap: pretty;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  scale: 0.9;
+  transform-origin: left bottom;
+  transition: opacity 0.12s ease-out, scale 0.12s ease-out, visibility 0s 0.12s;
+}
+
+/* The hint and the dim share one layer, in the top layer where the browser
+   has one, above an open picker or menu. The layer adds no box of its own:
+   these undo the browser's popover style. */
+.dialkit-hint-layer {
+  position: fixed;
+  inset: 0 auto auto 0;
+  width: 0;
+  height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: visible;
+  background: none;
+  color: inherit;
+  pointer-events: none;
+  /* A zoomed panel scales the layer from its corner (hints.ts). */
+  transform-origin: 0 0;
+}
+
+.dialkit-hint[data-below] {
+  transform-origin: left top;
+}
+
+.dialkit-hint[data-open] {
+  opacity: 1;
+  visibility: visible;
+  scale: 1;
+  transition: opacity 0.12s ease-out, scale 0.12s ease-out, translate 0.15s ease-out;
+}
+
+/* The rest of the panel fades toward its background, except the row whose
+   hint shows: a box over the row casts a shadow over everything else. */
+.dialkit-hint-dim {
+  position: absolute;
+  z-index: 9999;
+  display: none;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.dialkit-hint-dim-hole {
+  position: absolute;
+  top: 0;
+  left: 0;
+  box-shadow: 0 0 0 100vmax color-mix(in srgb, var(--dial-glass-bg) calc(var(--dial-hint-dim) * 100%), transparent);
+  transition: transform 0.15s ease-out, width 0.15s ease-out, height 0.15s ease-out;
+}
+
+.dialkit-hint-dim[data-open] {
+  display: block;
+  animation: dialkit-hint-dim-in 0.12s ease-out;
+}
+
+/* On release, it fades out where it is. */
+.dialkit-hint-dim[data-leaving] {
+  display: block;
+  opacity: 0;
+  transition: opacity 0.12s ease-out;
+}
+
+@keyframes dialkit-hint-dim-in { from { opacity: 0; } }
+
+/* Under a divider like the panel title's. */
+.dialkit-hint-tip {
+  margin: 4px 0 0;
+  padding: 10px 0 2px;
+  border-top: 1px solid var(--dial-surface-subtle);
+  color: var(--dial-text-label);
+  opacity: 0.8;
+  font-size: 12px;
+  line-height: 1.4;
+  text-wrap: pretty;
+}
+
+.dialkit-hint-tip-key {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 5px;
+  border: 1px solid var(--dial-border);
+  border-radius: 4px;
+  font: inherit;
+  line-height: 16px;
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialkit-hint, .dialkit-hint[data-open] { scale: none; transition: none; }
+  .dialkit-hint-dim, .dialkit-hint-dim-hole { animation: none; transition: none; }
 }
 
 /* ── Light Theme ── */

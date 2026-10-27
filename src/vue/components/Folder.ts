@@ -3,6 +3,8 @@ import { createPanelSectionTransition, measurePanelHeight, observePanelHeader } 
 import { computed, defineComponent, h, onMounted, onUnmounted, ref, watch, type PropType, type VNodeChild } from 'vue';
 import { AnimatePresence, motion } from 'motion-v';
 import { ICON_CLOSE, ICON_CHEVRON, ICON_PANEL } from '../../icons';
+import { HINTS } from '../../hints';
+import { useHints } from '../useHints';
 
 export const Folder = defineComponent({
   name: 'DialKitFolder',
@@ -21,9 +23,13 @@ export const Folder = defineComponent({
       type: Number,
       default: 0,
     },
+    hint: { type: String, required: false },
   },
   emits: ['openChange'],
   setup(props, { emit, slots }) {
+    // A panel's own header, which closes the panel, has a hint by default.
+    const headerHint = computed(() => props.hint ?? (props.isRoot && !props.inline ? HINTS.panel : undefined));
+    useHints(() => !!headerHint.value);
     const localOpen = ref(props.defaultOpen);
     const isOpen = computed(() => props.open ?? localOpen.value);
     const isCollapsed = computed(() => !isOpen.value);
@@ -90,7 +96,7 @@ export const Folder = defineComponent({
       class: `dialkit-folder-header ${props.isRoot ? 'dialkit-panel-header' : ''}`,
       onClick: handleToggle,
     }, [
-      h('div', { class: 'dialkit-folder-header-top', role: props.inline && props.isRoot ? undefined : 'button', tabindex: props.inline && props.isRoot ? undefined : 0, 'aria-label': props.title, 'aria-expanded': isOpen.value, onKeydown: (e: KeyboardEvent) => activateOnKey(e, handleToggle) }, [
+      h('div', { class: 'dialkit-folder-header-top', 'data-hint': headerHint.value, role: props.inline && props.isRoot ? undefined : 'button', tabindex: props.inline && props.isRoot ? undefined : 0, 'aria-label': props.title, 'aria-expanded': isOpen.value, onKeydown: (e: KeyboardEvent) => activateOnKey(e, handleToggle) }, [
         props.isRoot
           ? (isOpen.value
               ? h('div', { class: 'dialkit-folder-title-row' }, [

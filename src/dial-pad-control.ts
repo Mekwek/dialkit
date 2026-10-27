@@ -1,9 +1,11 @@
 import { PAD_GRID_DIVISIONS, normalizePadValue, padGridIntersection, padValueFromKey, padValueFromPoint, resolvePadAxis, snapPadAxis, type DialPadConfig, type DialPadValue } from './dial-pad';
+import { setHint } from './hints';
 
 export type DialPadProps = Omit<DialPadConfig, 'type'> & {
   label: string;
   value: DialPadValue;
   onChange: (value: DialPadValue) => void;
+  hint?: string;
 };
 
 let nextId = 0;
@@ -98,13 +100,12 @@ export function mountDialPad(host: HTMLElement, initial: DialPadProps) {
 
   function render() {
     label.textContent = props.label;
-    label.title = props.label;
+    setHint(root, props.hint);
     const names = { x: props.labels?.x ?? 'X', y: props.labels?.y ?? 'Y' };
     surface.setAttribute('aria-label', `${props.label}: ${names.x} ${value.x}, ${names.y} ${value.y}`);
     inputs.forEach(({ axis, name, input }) => {
       const range = resolvePadAxis(props[axis]);
       name.textContent = names[axis];
-      name.title = names[axis];
       input.setAttribute('aria-label', `${props.label} ${names[axis]}`);
       input.setAttribute('aria-valuemin', String(range.min));
       input.setAttribute('aria-valuemax', String(range.max));
@@ -216,6 +217,6 @@ export function mountDialPad(host: HTMLElement, initial: DialPadProps) {
       value = normalizePadValue(next.value, props);
       render();
     },
-    destroy() { endDrag(); root.remove(); },
+    destroy() { endDrag(); setHint(root, undefined); root.remove(); },
   };
 }

@@ -14,6 +14,7 @@ import { useDialKitController as useVueDialKitController } from './vue/useDialKi
 import { DialStore, type DialConfig } from './store/DialStore';
 
 const config = { group: {
+  _hints: { amount: 'How much of the effect to apply.' },
   position: { type: 'pad' }, amount: [0.25, 0, 1], enabled: true,
   title: { type: 'text', default: 'Example' }, choice: { type: 'select', options: [] },
   accent: { type: 'color' }, cover: { type: 'image' },

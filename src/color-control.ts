@@ -1,8 +1,9 @@
 import { clamp, colorFormat, colorToRgb, fitGamut, formatColor, maxChroma, parseColor, type Color } from './color';
 import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition } from './dropdown-position';
 import { handleSegmentKey } from './control-keyboard';
+import { HINTS, isHintKey, setHint } from './hints';
 
-export type ColorControlProps = { label: string; value: string; onChange: (value: string) => void };
+export type ColorControlProps = { label: string; value: string; onChange: (value: string) => void; hint?: string };
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {
   const el = document.createElement(tag);
@@ -40,9 +41,9 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
 
   const render = () => {
     label.textContent = props.label;
+    setHint(row, props.hint);
     valueInput.setAttribute('aria-label', `${props.label} color value`);
     if (document.activeElement !== valueInput) valueInput.value = props.value;
-    valueInput.title = props.value;
     swatch.style.setProperty('--dial-color', props.value);
     swatch.setAttribute('aria-label', `Pick ${props.label.toLowerCase()} color`);
     updatePicker();
@@ -61,7 +62,6 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
     const parsed = parseColor(input.value);
     if (!parsed) {
       input.setAttribute('aria-invalid', 'true');
-      input.title = 'Enter a hex, RGB, HSL, OKLCH, or Display P3 color';
       return false;
     }
     input.removeAttribute('aria-invalid');
@@ -91,6 +91,7 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
     stopPosition?.();
     stopPosition = undefined;
     cancelAnimationFrame(paintFrame);
+    if (popup) popup.querySelectorAll<HTMLElement>('[data-hint]').forEach(part => setHint(part, undefined));
     popup?.remove();
     popup = undefined;
     updatePicker = () => {};
@@ -126,18 +127,20 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
     const marker = element('span', 'dialkit-color-marker');
     marker.setAttribute('aria-hidden', 'true');
     plane.append(canvas, marker);
+    setHint(plane, HINTS.colorPlane);
     const tracks = element('div', 'dialkit-color-tracks');
-    function track(name: string, max: number, step: number, className: string) {
+    function track(name: string, max: number, step: number, className: string, hint: string) {
       const line = element('label', 'dialkit-color-track-row');
       const nameEl = element('span', '', name);
       const input = element('input', `dialkit-color-track ${className}`);
       input.type = 'range'; input.min = '0'; input.max = String(max); input.step = String(step);
       input.setAttribute('aria-label', name);
       line.append(nameEl, input); tracks.append(line);
+      setHint(line, hint);
       return input;
     }
-    const hue = track('Hue', 360, 0.1, 'dialkit-color-hue');
-    const opacity = track('Opacity', 100, 1, 'dialkit-color-opacity');
+    const hue = track('Hue', 360, 0.1, 'dialkit-color-hue', HINTS.colorHue);
+    const opacity = track('Opacity', 100, 1, 'dialkit-color-opacity', HINTS.colorOpacity);
     hue.addEventListener('input', () => {
       const h = Number(hue.value);
       // Hue changes keep the field handle in place and match the strip preview.
@@ -228,7 +231,6 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
         if (active) formatPill.style.transform = `translateX(${i * 100}%)`;
       });
       if (document.activeElement !== output) { output.value = props.value; output.removeAttribute('aria-invalid'); }
-      output.title = props.value;
       cancelAnimationFrame(paintFrame);
       paintFrame = requestAnimationFrame(paint);
     };
@@ -265,7 +267,8 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
           close();
         }
       }
-      e.stopPropagation();
+      // The hint key goes on to the hint listeners.
+      if (!isHintKey(e)) e.stopPropagation();
     });
     popup.append(formatRow, plane, tracks, output);
     root.append(popup);
@@ -297,6 +300,6 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
       props = next;
       render();
     },
-    destroy() { close(); row.remove(); },
+    destroy() { close(); setHint(row, undefined); row.remove(); },
   };
 }

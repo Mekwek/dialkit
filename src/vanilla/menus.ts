@@ -4,6 +4,7 @@ import { openDropdownOnKey } from '../control-keyboard';
 import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition } from '../dropdown-position';
 import { findControl, formatToggleShortcut } from '../shortcut-utils';
 import { ICON_CHEVRON, ICON_TRASH, ICON_PLUS, ICON_CHECK } from '../icons';
+import { HINTS, setHint } from '../hints';
 import { element, icon, type Mounted } from './dom';
 export function popupMenu(trigger: HTMLButtonElement, className: string, kind: 'select' | 'presets' | 'help', populate: (popup: HTMLElement) => void) {
   let popup: HTMLDivElement | undefined;
@@ -75,6 +76,7 @@ export interface SelectControlProps {
     label: string;
   })[];
   onChange: (value: string) => void;
+  hint?: string;
 }
 export function mountSelectControl(host: HTMLElement, initial: SelectControlProps): Mounted<SelectControlProps> {
   let props = initial;
@@ -101,6 +103,7 @@ export function mountSelectControl(host: HTMLElement, initial: SelectControlProp
   });
   function render() {
     label.textContent = props.label;
+    setHint(row, props.hint);
     value.textContent = options().find(o => o.value === props.value)?.label ?? props.value;
     trigger.disabled = !props.options.length;
     menu.refresh();
@@ -112,6 +115,7 @@ export function mountSelectControl(host: HTMLElement, initial: SelectControlProp
       render();
     }, destroy() {
       menu.destroy();
+      setHint(row, undefined);
       row.remove();
     }
   };
@@ -128,6 +132,7 @@ export function mountPresetManager(host: HTMLElement, initial: PresetManagerProp
   const trigger = element('button', 'dialkit-preset-trigger');
   const label = element('span', 'dialkit-preset-label');
   trigger.setAttribute('aria-label', 'Versions');
+  setHint(trigger, HINTS.versions);
   trigger.append(label, icon(ICON_CHEVRON, 'dialkit-select-chevron'));
   row.append(trigger);
   host.append(row);
@@ -179,6 +184,7 @@ export function mountPresetManager(host: HTMLElement, initial: PresetManagerProp
       render();
     }, destroy() {
       menu.destroy();
+      setHint(trigger, undefined);
       row.remove();
     }
   };
@@ -190,8 +196,7 @@ export function mountShortcutsMenu(host: HTMLElement, initial: {
 }> {
   let props = initial;
   const trigger = element('button', 'dialkit-shortcuts-trigger');
-  trigger.title = 'Keyboard shortcuts';
-  trigger.setAttribute('aria-label', trigger.title);
+  trigger.setAttribute('aria-label', 'Keyboard shortcuts');
   trigger.append(icon(['M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z', 'M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8']));
   host.append(trigger);
   const menu = popupMenu(trigger, 'dialkit-shortcuts-dropdown', 'help', popup => {

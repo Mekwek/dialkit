@@ -6,7 +6,7 @@ export function ColorControl(props: ColorControlProps) {
   let control: ReturnType<typeof mountColorControl> | undefined;
   onMount(() => {
     control = mountColorControl(host, { ...props });
-    createEffect(() => control?.update({ label: props.label, value: props.value, onChange: props.onChange }));
+    createEffect(() => control?.update({ label: props.label, value: props.value, onChange: props.onChange, hint: props.hint }));
   });
   onCleanup(() => control?.destroy());
   return <div ref={host} class="dialkit-color-host" />;

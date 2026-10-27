@@ -5,6 +5,8 @@ import { AnimatePresence, motion } from 'motion-v';
 import { ICON_CHEVRON, ICON_TRASH, ICON_PLUS, ICON_CHECK } from '../../icons';
 import { DialStore } from '../../store/DialStore';
 import type { Preset } from '../../store/DialStore';
+import { HINTS } from '../../hints';
+import { useHints } from '../useHints';
 
 export const PresetManager = defineComponent({
   name: 'DialKitPresetManager',
@@ -21,6 +23,7 @@ export const PresetManager = defineComponent({
     },
   },
   setup(props) {
+    useHints(() => true);
     const isOpen = ref(false);
     const pos = ref({ top: 0, left: 0, width: 0 });
 
@@ -102,7 +105,7 @@ export const PresetManager = defineComponent({
         'data-open': String(isOpen.value),
         'data-has-preset': String(!!activePreset()),
         type: 'button', 'aria-haspopup': 'menu', 'aria-expanded': isOpen.value,
-        'aria-label': 'Versions', onKeydown: (e: KeyboardEvent) => openDropdownOnKey(e, open),
+        'aria-label': 'Versions', 'data-hint': HINTS.versions, onKeydown: (e: KeyboardEvent) => openDropdownOnKey(e, open),
       }, [
         h('span', { class: 'dialkit-preset-label' }, activePreset()?.name ?? DialStore.getBaseName(props.panelId)),
         h(motion.svg, {

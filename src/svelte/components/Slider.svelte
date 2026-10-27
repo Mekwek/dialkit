@@ -5,6 +5,7 @@
   import { Spring } from 'svelte/motion';
   import type { ShortcutConfig } from 'dialkit/store';
   import { decimalsForStep, roundValue, snapToDecile, formatSliderShortcut } from '../../shortcut-utils';
+  import { createHints } from '../hints.svelte.js';
 
   let {
     label,
@@ -16,6 +17,7 @@
     unit,
     shortcut,
     shortcutActive = false,
+    hint,
   } = $props<{
     label: string;
     value: number;
@@ -26,7 +28,9 @@
     unit?: string;
     shortcut?: ShortcutConfig;
     shortcutActive?: boolean;
+    hint?: string;
   }>();
+  createHints(() => !!hint);
 
   const CLICK_THRESHOLD = 3;
   const DEAD_ZONE = 32;
@@ -275,7 +279,7 @@
   const handleStyle = $derived(`left:max(5px, calc(${fillPercent.current}% - 9px));opacity:${handleOpacityMv.current};transform:translateY(-50%) scaleX(${handleScaleXMv.current}) scaleY(${handleScaleYMv.current});`);
 </script>
 
-<div bind:this={wrapperRef} class="dialkit-slider-wrapper">
+<div bind:this={wrapperRef} class="dialkit-slider-wrapper" data-hint={hint}>
   <div
     class={`dialkit-slider ${isActive ? 'dialkit-slider-active' : ''}`}
     bind:this={trackRef}

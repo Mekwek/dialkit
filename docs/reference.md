@@ -156,6 +156,8 @@ Actions call `onAction` with their full dot path. They are not writable values. 
 
 Folders can nest. `_collapsed: true` starts a folder closed; it is UI metadata and is omitted from resolved values. Use `defaultCollapsed` in panel options to close the entire panel.
 
+`_hints` maps the keys of a folder's controls, nested folders included, to a short sentence. Hold H over a control, or with it focused, to show its hint; the rest of the panel dims. Like `_collapsed`, it is omitted from resolved values.
+
 ## Controllers
 
 Use `useDialKitController` in React and Vue, or `createDialKitController` in Solid, Svelte, and vanilla. Vanilla's `createDialKit` is an alias for its controller factory.
@@ -243,6 +245,7 @@ DialStore.getPanelOpen("card");
 | Color picker | Tab moves between controls; arrows adjust the focused control; Escape closes |
 | Image picker | Arrows move through images; Enter/Space selects; Escape closes |
 | Bézier handles | Arrows move by 0.01; Shift + Arrow by 0.1; Escape cancels a drag |
+| Hints | Hold H over a control, or with a control focused, to show its hint |
 
 Menus return focus to their trigger on selection or Escape. Tab and Shift + Tab resume the owning panel's tab order.
 
@@ -271,7 +274,7 @@ For sliders, hold the key and scroll, drag horizontally, or move the pointer acc
 
 ## Custom layouts
 
-Adapters export individual controls, including `Slider`, `Toggle`, `TextControl`, `SelectControl`, `ColorControl`, `ImageControl`, `DialPad`, `TransitionControl`, `Folder`, and `ButtonGroup`. `ControlRenderer` renders a control metadata tree. Keep custom controls inside an element with `class="dialkit-root"` and set `data-theme` to `"system"`, `"light"`, or `"dark"`.
+Adapters export individual controls, including `Slider`, `Toggle`, `TextControl`, `SelectControl`, `ColorControl`, `ImageControl`, `DialPad`, `TransitionControl`, `Folder`, and `ButtonGroup`. `ControlRenderer` renders a control metadata tree. Keep custom controls inside an element with `class="dialkit-root"` and set `data-theme` to `"system"`, `"light"`, or `"dark"`. Hints work here with no extra setup: `ControlRenderer` passes `_hints` to its controls, and each control takes a `hint` prop. Hold H over one to read it while the rest of its root dims.
 
 In vanilla, each control takes a host element and props:
 

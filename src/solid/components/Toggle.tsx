@@ -2,6 +2,7 @@ import { Show } from 'solid-js';
 import { SegmentedControl } from './SegmentedControl';
 import type { ShortcutConfig } from '../../store/DialStore';
 import { formatToggleShortcut } from '../../shortcut-utils';
+import { createHints } from '../primitives';
 
 interface ToggleProps {
   label: string;
@@ -9,11 +10,13 @@ interface ToggleProps {
   onChange: (checked: boolean) => void;
   shortcut?: ShortcutConfig;
   shortcutActive?: boolean;
+  hint?: string;
 }
 
 export function Toggle(props: ToggleProps) {
+  createHints(() => !!props.hint);
   return (
-    <div class="dialkit-labeled-control">
+    <div class="dialkit-labeled-control" data-hint={props.hint}>
       <span class="dialkit-labeled-control-label">
         {props.label}
         <Show when={props.shortcut}>

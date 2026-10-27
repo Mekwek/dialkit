@@ -1,12 +1,14 @@
 import type { ImageOption } from './store/DialStore';
 import { adjacentTabStop } from './control-keyboard';
 import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition } from './dropdown-position';
+import { HINTS, isHintKey, setHint } from './hints';
 
 export type ImageControlProps = {
   label: string;
   value: string;
   options?: ImageOption[];
   onChange: (value: string) => void;
+  hint?: string;
 };
 
 type NamedImage = { value: string; label: string };
@@ -66,8 +68,8 @@ function preview(className: string) {
   img.hidden = true;
   frame.append(fallback, img);
   let current: string | undefined;
-  img.addEventListener('load', () => { img.hidden = false; fallback.hidden = true; frame.removeAttribute('title'); });
-  img.addEventListener('error', () => { img.hidden = true; fallback.hidden = false; frame.title = 'Image unavailable'; });
+  img.addEventListener('load', () => { img.hidden = false; fallback.hidden = true; });
+  img.addEventListener('error', () => { img.hidden = true; fallback.hidden = false; });
   return {
     frame,
     update(value: string) {
@@ -75,7 +77,6 @@ function preview(className: string) {
       current = value;
       img.hidden = true;
       fallback.hidden = false;
-      frame.removeAttribute('title');
       if (value) img.src = value;
       else img.removeAttribute('src');
     },
@@ -111,6 +112,7 @@ export function mountImageControl(host: HTMLElement, initial: ImageControlProps,
   const choices = () => imageOptions(props.options, uploaded, props.value);
   const render = () => {
     label.textContent = props.label;
+    setHint(trigger, props.hint);
     name.textContent = choices().find(item => item.value === props.value)?.label ?? 'No image';
     trigger.setAttribute('aria-label', `Choose ${props.label.toLowerCase()} image: ${name.textContent}`);
     thumbnail.update(props.value);
@@ -128,6 +130,7 @@ export function mountImageControl(host: HTMLElement, initial: ImageControlProps,
     fileInput.onchange = null;
     stopPosition?.();
     stopPosition = undefined;
+    if (popup) popup.querySelectorAll<HTMLElement>('[data-hint]').forEach(part => setHint(part, undefined));
     popup?.remove();
     popup = undefined;
     updatePicker = () => {};
@@ -159,6 +162,7 @@ export function mountImageControl(host: HTMLElement, initial: ImageControlProps,
     const clear = element('button', 'dialkit-image-clear', 'Remove');
     clear.addEventListener('click', () => { commit(''); if (!inline) close(true); });
     heading.append(title, clear);
+    setHint(clear, HINTS.imageClear);
     const grid = element('div', 'dialkit-image-grid');
     grid.setAttribute('role', 'group');
     grid.setAttribute('aria-label', 'Available images');
@@ -166,6 +170,7 @@ export function mountImageControl(host: HTMLElement, initial: ImageControlProps,
     const upload = element('button', 'dialkit-button dialkit-image-upload');
     const uploadText = element('span', '', 'Upload image');
     upload.append(icon('upload'), uploadText);
+    setHint(upload, HINTS.imageUpload);
     const status = element('div', 'dialkit-image-status');
     status.setAttribute('role', 'status');
     status.hidden = true;
@@ -261,7 +266,8 @@ export function mountImageControl(host: HTMLElement, initial: ImageControlProps,
     });
     popup.addEventListener('keydown', event => {
       if (inline) return;
-      event.stopPropagation();
+      // The hint key goes on to the hint listeners.
+      if (!isHintKey(event)) event.stopPropagation();
       if (event.key === 'Escape') { event.preventDefault(); close(true); }
       if (event.key === 'Tab') {
         const first = clear.hidden ? buttons.find(button => button.tabIndex === 0) ?? upload : clear;
@@ -286,7 +292,6 @@ export function mountImageControl(host: HTMLElement, initial: ImageControlProps,
         buttons = items.map(item => {
           const button = element('button', 'dialkit-image-option');
           button.setAttribute('aria-label', item.label);
-          button.title = item.label;
           const thumb = preview('dialkit-image-option-preview');
           thumb.update(item.value);
           button.append(thumb.frame);
@@ -326,7 +331,7 @@ export function mountImageControl(host: HTMLElement, initial: ImageControlProps,
   };
   trigger.addEventListener('click', open);
   trigger.addEventListener('keydown', event => {
-    event.stopPropagation();
+    if (!isHintKey(event)) event.stopPropagation();
     if (event.key === 'Escape') { event.preventDefault(); close(); }
     if (event.key === 'ArrowDown' && !popup) { event.preventDefault(); open(); }
   });
@@ -338,6 +343,6 @@ export function mountImageControl(host: HTMLElement, initial: ImageControlProps,
       props = next;
       render();
     },
-    destroy() { close(); fileInput.onchange = null; trigger.remove(); fileInput.remove(); },
+    destroy() { close(); fileInput.onchange = null; setHint(trigger, undefined); trigger.remove(); fileInput.remove(); },
   };
 }

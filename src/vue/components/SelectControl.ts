@@ -3,6 +3,7 @@ import { openDropdownOnKey } from '../../control-keyboard';
 import { Teleport, defineComponent, h, onMounted, ref, watch, type PropType } from 'vue';
 import { AnimatePresence, motion } from 'motion-v';
 import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition, type DropdownPosition } from '../../dropdown-position';
+import { useHints } from '../useHints';
 
 type SelectOption = string | { value: string; label: string };
 
@@ -25,9 +26,11 @@ export const SelectControl = defineComponent({
       type: Array as PropType<SelectOption[]>,
       required: true,
     },
+    hint: { type: String, required: false },
   },
   emits: ['change'],
   setup(props, { emit }) {
+    useHints(() => !!props.hint);
     const isOpen = ref(false);
     const pos = ref<DropdownPosition | null>(null);
     const portalTarget = ref<HTMLElement | null>(null);
@@ -102,7 +105,7 @@ export const SelectControl = defineComponent({
       portalTarget.value = getDialKitPortalRoot(triggerRef.value) ?? document.body;
     });
 
-    return () => h('div', { class: 'dialkit-select-row' }, [
+    return () => h('div', { class: 'dialkit-select-row', 'data-hint': props.hint }, [
       h('button', {
         ref: triggerRef,
         class: 'dialkit-select-trigger',
