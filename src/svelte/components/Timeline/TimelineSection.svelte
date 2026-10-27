@@ -622,7 +622,7 @@
     {/if}
 
     <div class="dialkit-timeline-actions">
-      <PresetManager panelId={meta.id} {presets} {activePresetId} />
+      <PresetManager panelId={meta.id} {presets} {activePresetId} noun="sequence" />
       <button
         class="dialkit-toolbar-add"
         onclick={handleCopy}

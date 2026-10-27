@@ -185,7 +185,7 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
   const loop = button('Loop', ICON_LOOP, () => TimelineStore.setLoop(meta.id, !meta.loop));
   loop.classList.add('dialkit-timeline-toolbar-toggle', 'dialkit-timeline-loop');
   playback.append(play, replay, loop);
-  const presetProps = () => ({ panelId: meta.id, presets: DialStore.getPresets(meta.id), activePresetId: DialStore.getActivePresetId(meta.id) });
+  const presetProps = () => ({ panelId: meta.id, presets: DialStore.getPresets(meta.id), activePresetId: DialStore.getActivePresetId(meta.id), noun: 'sequence' as const });
   const presets = mountPresetManager(actions, presetProps());
   let copyTimer: ReturnType<typeof setTimeout> | undefined;
   let destroyed = false;

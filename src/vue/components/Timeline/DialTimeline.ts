@@ -816,7 +816,7 @@ const TimelineSection = defineComponent({
           onNavigate: centerViewAt,
         }) : null,
         h('div', { class: 'dialkit-timeline-actions' }, [
-          h(PresetManager, { panelId: props.meta.id, presets: presets.value, activePresetId: activePresetId.value }),
+          h(PresetManager, { panelId: props.meta.id, presets: presets.value, activePresetId: activePresetId.value, noun: 'sequence' }),
           h('button', {
             class: 'dialkit-toolbar-add',
             title: 'Copy parameters',

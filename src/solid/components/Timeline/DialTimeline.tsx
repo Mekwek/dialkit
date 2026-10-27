@@ -879,6 +879,7 @@ function TimelineSection(props: {
             panelId={props.meta.id}
             presets={presets()}
             activePresetId={activePresetId()}
+            noun="sequence"
           />
           <button
             class="dialkit-toolbar-add"

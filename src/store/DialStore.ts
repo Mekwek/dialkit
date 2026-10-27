@@ -137,6 +137,7 @@ export type Preset = {
   id: string;
   name: string;
   values: Record<string, DialValue>;
+  locked?: boolean;
 };
 
 export type DialKitPersistOptions = boolean | {
@@ -519,9 +520,9 @@ class DialStoreClass {
 
     const validUpdates: Record<string, DialValue> = {};
     const activeId = this.activePreset.get(panelId);
-    const target = activeId
-      ? this.presets.get(panelId)?.find(preset => preset.id === activeId)?.values
-      : this.baseValues.get(panelId);
+    const active = activeId ? this.presets.get(panelId)?.find(preset => preset.id === activeId) : undefined;
+    // A locked version keeps its saved values; edits still apply to the panel.
+    const target = activeId ? (active?.locked ? undefined : active?.values) : this.baseValues.get(panelId);
 
     for (const [path, value] of Object.entries(updates)) {
       if (!Object.prototype.hasOwnProperty.call(panel.values, path)) {
@@ -656,13 +657,17 @@ class DialStoreClass {
     this.actionListeners.get(panelId)?.forEach(fn => fn(path));
   }
 
-  saveNewPreset(panelId: string): string {
+  /**
+   * Saves the current values as the next numbered version: "V2", "V3"…, or under its own
+   * `prefix` ("Sequence 2" in a timeline). Older saves used "Version N"; both count toward the next V.
+   */
+  saveNewPreset(panelId: string, prefix?: string): string {
+    const pattern = prefix ? new RegExp(`^${prefix} (\\d+)$`) : /^(?:V|Version )(\d+)$/;
     const highest = this.getPresets(panelId).reduce((max, preset) => {
-      // Older saves used "Version N"; both count toward the next number.
-      const match = /^(?:V|Version )(\d+)$/.exec(preset.name);
+      const match = pattern.exec(preset.name);
       return match ? Math.max(max, Number(match[1])) : max;
     }, 1);
-    return this.savePreset(panelId, `V${highest + 1}`);
+    return this.savePreset(panelId, prefix ? `${prefix} ${highest + 1}` : `V${highest + 1}`);
   }
 
   savePreset(panelId: string, name: string): string {
@@ -706,6 +711,7 @@ class DialStoreClass {
 
   deletePreset(panelId: string, presetId: string): void {
     const presets = this.presets.get(panelId) ?? [];
+    if (presets.find(p => p.id === presetId)?.locked) return;
     this.presets.set(panelId, presets.filter(p => p.id !== presetId));
 
     // Clear active if deleted
@@ -748,6 +754,25 @@ class DialStoreClass {
   /** Display name of the base version (the values before any saved preset). */
   getBaseName(panelId: string): string {
     return this.baseNames.get(panelId) ?? 'V1';
+  }
+
+  setPresetLocked(panelId: string, presetId: string, locked: boolean): void {
+    const presets = this.presets.get(panelId) ?? [];
+    const preset = presets.find(p => p.id === presetId);
+    if (!preset || !!preset.locked === locked) return;
+    this.setPresets(panelId, presets.map(p => (p.id === presetId ? { ...p, locked } : p)));
+  }
+
+  reorderPresets(panelId: string, presetIds: string[]): void {
+    const presets = this.presets.get(panelId) ?? [];
+    const rank = new Map(presetIds.map((id, index) => [id, index]));
+    // Versions missing from presetIds keep their relative order after the listed ones.
+    const ordered = presets
+      .map((preset, index) => ({ preset, rank: rank.get(preset.id) ?? presetIds.length + index }))
+      .sort((a, b) => a.rank - b.rank)
+      .map(({ preset }) => preset);
+    if (ordered.every((preset, index) => preset === presets[index])) return;
+    this.setPresets(panelId, ordered);
   }
 
   getPresets(panelId: string): Preset[] {
@@ -850,6 +875,18 @@ class DialStoreClass {
     }
 
     return nextValues;
+  }
+
+  private setPresets(panelId: string, presets: Preset[]): void {
+    this.presets.set(panelId, presets);
+
+    // Force re-render by creating new snapshot reference
+    const panel = this.panels.get(panelId);
+    if (panel) {
+      this.snapshots.set(panelId, { ...panel.values });
+    }
+    this.persistPanel(panelId);
+    this.notify(panelId);
   }
 
   private reconcilePresets(

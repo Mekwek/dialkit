@@ -33,6 +33,17 @@ describe('new version creation', () => {
     } finally { DialStore.unregisterPanel(id); }
   });
 
+  it('numbers versions under their own prefix', () => {
+    const id = 'new-version-prefix';
+    DialStore.registerPanel(id, id, { amount: 1 });
+    try {
+      DialStore.saveNewPreset(id, 'Sequence');
+      DialStore.saveNewPreset(id);
+      DialStore.saveNewPreset(id, 'Sequence');
+      assert.deepEqual(DialStore.getPresets(id).map(p => p.name), ['Sequence 2', 'V2', 'Sequence 3']);
+    } finally { DialStore.unregisterPanel(id); }
+  });
+
   it('can create a version again after deleting the last saved version', () => {
     const id = 'new-version-delete-last';
     DialStore.registerPanel(id, id, { amount: 1 });

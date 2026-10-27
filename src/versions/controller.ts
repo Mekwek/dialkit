@@ -5,7 +5,7 @@ import { DialStore } from '../store/DialStore';
 import { openVersionGrid, type GridVersion, type VersionGridHandle } from './grid';
 import { BASE_VERSION, captureViewport, ThumbnailStore, versionKey } from './thumbnails';
 
-export type VersionEntry = GridVersion & { presetId: string | null };
+export type VersionEntry = GridVersion & { presetId: string | null; locked?: boolean };
 
 const SETTLE_DELAY_MS = 900;
 
@@ -19,6 +19,7 @@ export function listVersions(panelId: string): VersionEntry[] {
       key: preset.id,
       presetId: preset.id,
       name: preset.name,
+      locked: preset.locked,
       thumbnail: thumbnails[preset.id],
     })),
   ];
@@ -34,7 +35,8 @@ export function renameVersion(panelId: string, key: string, name: string): void 
 }
 
 export function deleteVersion(panelId: string, key: string): void {
-  if (key === BASE_VERSION) return;
+  // The base version stays, and a locked version can't be deleted until it's unlocked.
+  if (key === BASE_VERSION || DialStore.getPresets(panelId).find((p) => p.id === key)?.locked) return;
   DialStore.deletePreset(panelId, key);
   ThumbnailStore.delete(panelId, key);
 }

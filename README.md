@@ -206,6 +206,8 @@ Read `dial.values` in React, Svelte, and vanilla; `dial.values()` in Solid; or `
 
 Captures are made in the browser with no dependencies and never leave it. WebGL canvases are supported; web fonts render with system fallbacks. For the classic version menu instead, set `versions="menu"` on the root (`createDialRoot({ versions: "menu" })` in vanilla). Timelines always use the menu. Behavior is the same across React, Solid, Svelte, Vue, and vanilla JavaScript.
 
+In the version menu, a checkmark identifies the current version and **New version** (**New sequence** in a timeline) saves and selects a new one. Each saved version has a menu icon that opens **Rename**, **Lock**, and **Delete**; drag a version (long-press it first on touch), or press Alt+Arrow keys on it, to reorder. A locked version keeps its saved values: edits still move the controls but are not saved into it, and it cannot be deleted until unlocked, from the menu or its thumbnail.
+
 Use a stable `id` to retain values across unmounts. Add `persist: true` to retain them across page reloads:
 
 ```tsx
@@ -214,7 +216,7 @@ const values = useDialKit("Card", {
 }, { id: "card", persist: true });
 ```
 
-Persistence includes values, saved versions, their thumbnails, and the active version. It uses `localStorage` with the key `dialkit:card` in this example. Panel open state stays in memory and is not persisted. See [storage options](https://github.com/joshpuckett/dialkit/blob/main/docs/reference.md#persistence) for custom keys, session storage, and saving values without presets.
+Persistence includes values, saved versions (with their names, order, and locks), their thumbnails, and the active version. It uses `localStorage` with the key `dialkit:card` in this example. Panel open state stays in memory and is not persisted. See [storage options](https://github.com/joshpuckett/dialkit/blob/main/docs/reference.md#persistence) for custom keys, session storage, and saving values without presets.
 
 ## Panel layout
 
