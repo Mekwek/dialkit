@@ -582,7 +582,7 @@
           {#each ICON_REPLAY as path}<path d={path} fill="currentColor" />{/each}
         </svg>
       </button>
-      <PresetManager panelId={meta.id} {presets} {activePresetId} />
+      <PresetManager panelId={meta.id} {presets} {activePresetId} noun="sequence" />
       <button
         class="dialkit-toolbar-add dialkit-toolbar-primary"
         onclick={handleCopy}

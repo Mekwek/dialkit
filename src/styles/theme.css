@@ -1471,6 +1471,9 @@
 }
 
 .dialkit-preset-item {
+  /* The row's fill, which its actions repeat where they cover the name. */
+  --dial-preset-row-bg: transparent;
+  position: relative;
   box-sizing: border-box;
   height: 32px;
   display: flex;
@@ -1488,11 +1491,13 @@
 }
 
 .dialkit-preset-item:hover {
-  background: var(--dial-surface-hover);
+  --dial-preset-row-bg: var(--dial-surface-hover);
+  background: var(--dial-preset-row-bg);
 }
 
 .dialkit-preset-item[data-active="true"] {
-  background: var(--dial-surface-active);
+  --dial-preset-row-bg: var(--dial-surface-active);
+  background: var(--dial-preset-row-bg);
 }
 
 .dialkit-preset-name {
@@ -1517,7 +1522,53 @@
   color: var(--dial-text-primary);
 }
 
-.dialkit-preset-delete {
+.dialkit-preset-item > .dialkit-preset-input {
+  height: 24px;
+  margin: 0 -7px;
+  padding: 0 6px;
+}
+
+/* The actions sit over the end of the name, so the name keeps the whole row and stops before the
+   icon shown at rest. They sit 2px in from the row's edges, clear of its focus ring. */
+.dialkit-preset-item:has(> .dialkit-preset-actions) .dialkit-preset-name {
+  padding-right: 24px;
+}
+
+.dialkit-preset-actions {
+  position: absolute;
+  top: 2px;
+  right: 6px;
+  bottom: 2px;
+  display: flex;
+  align-items: center;
+}
+
+/* The row's fill behind the actions, fading out over the name: the menu, then the row's own fill. */
+.dialkit-preset-actions::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 0 -20px;
+  background: linear-gradient(var(--dial-preset-row-bg), var(--dial-preset-row-bg)), var(--dial-dropdown-bg);
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 20px);
+  mask-image: linear-gradient(to right, transparent, #000 20px);
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+
+.dialkit-preset-item:hover .dialkit-preset-actions::before,
+.dialkit-preset-item:focus-within .dialkit-preset-actions::before {
+  opacity: 1;
+}
+
+.dialkit-preset-actions > * {
+  position: relative;
+}
+
+.dialkit-preset-rename,
+.dialkit-preset-lock,
+.dialkit-preset-delete,
+.dialkit-preset-more {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1527,23 +1578,72 @@
   background: transparent;
   border: none;
   cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.15s;
+  overflow: hidden;
+  opacity: 0.6;
+  transition: width 0.15s, opacity 0.15s;
   flex-shrink: 0;
 }
 
-.dialkit-preset-item:hover .dialkit-preset-delete {
+/* Rename, lock and delete fold behind the menu icon until it is hovered or focused.
+   A locked row shows its lock in the menu icon's place, and rename on hover. */
+.dialkit-preset-rename,
+.dialkit-preset-lock,
+.dialkit-preset-delete {
+  width: 0;
+  opacity: 0;
+}
+
+/* The icon shown at rest comes first in the keyboard order and sits at the row's end. */
+.dialkit-preset-more,
+.dialkit-preset-item[data-locked="true"] .dialkit-preset-lock {
+  order: 1;
+}
+
+.dialkit-preset-more svg {
+  stroke-width: 3;
+}
+
+.dialkit-preset-actions:hover > button,
+.dialkit-preset-actions:focus-within > button,
+:where(.dialkit-preset-item[data-locked="true"]:hover, .dialkit-preset-item[data-locked="true"]:focus-within) .dialkit-preset-rename {
+  width: 24px;
   opacity: 0.6;
 }
 
-.dialkit-preset-item:focus-within .dialkit-preset-delete { opacity: 0.6; }
-.dialkit-preset-item:focus-within { background: var(--dial-surface-hover); }
-
-.dialkit-preset-delete:hover {
-  opacity: 1 !important;
+.dialkit-preset-actions:hover > .dialkit-preset-more,
+.dialkit-preset-actions:focus-within > .dialkit-preset-more {
+  opacity: 1;
 }
 
-.dialkit-preset-delete svg {
+/* A locked row's lock shows at full strength, and at the other icons' level while the row is in use. */
+:where(.dialkit-preset-item[data-locked="true"]) .dialkit-preset-lock {
+  width: 24px;
+  opacity: 1;
+}
+
+:where(.dialkit-preset-item[data-locked="true"]:hover, .dialkit-preset-item[data-locked="true"]:focus-within) .dialkit-preset-lock {
+  opacity: 0.6;
+}
+
+.dialkit-preset-item:focus-within { --dial-preset-row-bg: var(--dial-surface-hover); background: var(--dial-preset-row-bg); }
+
+/* The name runs under the actions, which would cover the end of its focus ring: the ring goes
+   round the whole row instead. */
+.dialkit-preset-item > .dialkit-preset-name:focus-visible {
+  outline: none;
+}
+
+.dialkit-preset-item:has(> .dialkit-preset-name:focus-visible) {
+  outline: 2px solid var(--dial-focus-ring);
+  outline-offset: -2px;
+}
+
+.dialkit-preset-actions > button:hover,
+.dialkit-preset-actions > button:focus-visible {
+  opacity: 1;
+}
+
+.dialkit-preset-actions svg {
   transition: color 150ms ease;
   width: 14px;
   height: 14px;
@@ -1553,6 +1653,44 @@
 
 .dialkit-preset-delete:hover svg {
   color: #ff3b30;
+}
+
+/* A swipe scrolls the menu; a long-press starts a reorder drag. */
+.dialkit-preset-item[data-preset-id] {
+  touch-action: pan-y;
+}
+
+.dialkit-preset-dropdown[data-dragging],
+.dialkit-preset-dropdown[data-dragging] * {
+  cursor: grabbing;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.dialkit-preset-dropdown[data-dragging] .dialkit-preset-item[data-preset-id] {
+  transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+/* The dragged row lifts: a solid hover fill over the menu's own colour, so
+   the rows it passes never show through, and a shadow under it. */
+.dialkit-preset-dropdown[data-dragging] .dialkit-preset-item[data-dragging] {
+  --dial-preset-row-bg: var(--dial-surface-hover);
+  position: relative;
+  z-index: 2;
+  background: var(--dial-preset-row-bg);
+  box-shadow:
+    inset 0 0 0 100vmax var(--dial-preset-row-bg),
+    inset 0 0 0 100vmax var(--dial-dropdown-bg),
+    0 6px 16px rgba(0, 0, 0, 0.28);
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialkit-preset-dropdown[data-dragging] .dialkit-preset-item[data-preset-id],
+  .dialkit-preset-rename,
+  .dialkit-preset-lock,
+  .dialkit-preset-delete,
+  .dialkit-preset-more { transition: none; }
 }
 
 .dialkit-preset-save-btn {
@@ -2884,6 +3022,11 @@ span.dialkit-version-thumb-label {
 .dialkit-version-thumb:hover .dialkit-version-thumb-delete,
 .dialkit-version-thumb-delete:focus-visible {
   opacity: 1;
+}
+
+/* A locked version (locked from the version menu) can't be deleted. */
+.dialkit-version-thumb[data-locked="true"] .dialkit-version-thumb-delete {
+  display: none;
 }
 
 .dialkit-versions-actions {

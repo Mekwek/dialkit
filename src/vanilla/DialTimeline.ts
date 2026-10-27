@@ -184,7 +184,7 @@ function mountSection(host: HTMLElement, initial: TimelineMeta, options: DialTim
     TimelineStore.replay(meta.id);
   });
   actions.append(play, replay);
-  const presetProps = () => ({ panelId: meta.id, presets: DialStore.getPresets(meta.id), activePresetId: DialStore.getActivePresetId(meta.id) });
+  const presetProps = () => ({ panelId: meta.id, presets: DialStore.getPresets(meta.id), activePresetId: DialStore.getActivePresetId(meta.id), noun: 'sequence' as const });
   const presets = mountPresetManager(actions, presetProps());
   let copyTimer: ReturnType<typeof setTimeout> | undefined;
   let destroyed = false;

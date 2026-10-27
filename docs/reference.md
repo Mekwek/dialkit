@@ -204,9 +204,9 @@ const values = useDialKit("Card", { radius: [24, 0, 64] }, {
 
 `storage` defaults to `"localStorage"`; `presets` defaults to `true`. With `presets: false`, only values are persisted. Open state is retained in memory for stable IDs but is never written to storage.
 
-**Save version** saves and selects a new version. Selecting **V1** restores the editable base values. Hover a thumbnail to delete it. **Copy** places the values and a configuration-update instruction on the clipboard. With `versions="menu"` on the root, the toolbar shows the classic version menu instead.
+**Save version** saves and selects a new version. Selecting **V1** restores the editable base values. Hover a thumbnail to delete it. **Copy** places the values and a configuration-update instruction on the clipboard. With `versions="menu"` on the root, the toolbar shows the classic version menu instead; it can also rename, lock, delete, and reorder saved versions. A locked version ignores edits and cannot be deleted. Timelines always use the menu, and name new versions **Sequence 2**, **Sequence 3**, and so on.
 
-For custom preset interfaces, use `DialStore.savePreset`, `loadPreset`, `deletePreset`, `renamePreset`, `getPresets`, `getActivePresetId`, and `clearActivePreset`. `renamePreset(id, null, name)` renames V1.
+For custom preset interfaces, use `DialStore.savePreset`, `loadPreset`, `deletePreset`, `renamePreset`, `reorderPresets`, `setPresetLocked`, `getPresets`, `getActivePresetId`, and `clearActivePreset`. `renamePreset(id, null, name)` renames V1.
 
 ### Version thumbnails
 

@@ -2,6 +2,8 @@ import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition } fr
 import { adjacentTabStop, optionKeyIndex } from './control-keyboard';
 
 let dropdownId = 0;
+/** Widest a version menu grows for long names before they truncate. */
+const PRESET_MENU_MAX_WIDTH = 280;
 
 /** Shared focus/selection behavior; framework adapters continue to own values and rendering. */
 export function observeDropdownKeyboard(trigger: HTMLElement, getPopup: () => HTMLElement | null | undefined, close: () => void, kind: 'select' | 'presets' | 'help' = 'select'): () => void {
@@ -20,7 +22,7 @@ export function observeDropdownKeyboard(trigger: HTMLElement, getPopup: () => HT
     popup.tabIndex = -1;
     trigger.setAttribute('aria-controls', popup.id);
 
-    const selector = kind === 'select' ? '.dialkit-select-option' : '.dialkit-preset-name, .dialkit-preset-delete, .dialkit-preset-create';
+    const selector = kind === 'select' ? '.dialkit-select-option' : '.dialkit-preset-name, .dialkit-preset-more, .dialkit-preset-rename, .dialkit-preset-lock, .dialkit-preset-delete, .dialkit-preset-create';
     let active: HTMLElement | undefined;
     let activeIndex = 0;
     let query = '';
@@ -49,7 +51,8 @@ export function observeDropdownKeyboard(trigger: HTMLElement, getPopup: () => HT
         if (kind === 'select') el.setAttribute('aria-selected', el.dataset.selected ?? 'false');
         else if (el.classList.contains('dialkit-preset-name')) el.setAttribute('aria-checked', el.parentElement?.dataset.active ?? 'false');
       });
-      if (active && !active.isConnected && !leaving) focusItem(activeIndex);
+      // Recover focus when the focused item is removed; a rename input keeps its own.
+      if (active && !leaving && !popup.contains(document.activeElement)) focusItem(activeIndex);
     };
     refresh();
     const observer = new MutationObserver(refresh);
@@ -58,6 +61,7 @@ export function observeDropdownKeyboard(trigger: HTMLElement, getPopup: () => HT
     const restore = () => { leaving = true; trigger.focus({ preventScroll: true }); };
     const keydown = (event: KeyboardEvent) => {
       if (event.altKey || event.metaKey || event.ctrlKey || event.isComposing) return;
+      if (event.target instanceof HTMLInputElement && event.key !== 'Tab') return;
       if (event.key === 'Tab') {
         // Resume the normal document tab order at the owning control, not at its portal.
         const next = adjacentTabStop(trigger, event.shiftKey);
@@ -93,10 +97,13 @@ export function observeDropdownKeyboard(trigger: HTMLElement, getPopup: () => HT
     };
     const click = (event: MouseEvent) => {
       const target = (event.target as HTMLElement).closest(selector);
-      if (target && !target.classList.contains('dialkit-preset-delete')) restore();
+      // Picking a version or switching a lock hands focus back to the menu button; rename and delete keep it in the menu.
+      if (target && (target.classList.contains('dialkit-preset-lock') || !target.closest('.dialkit-preset-actions'))) restore();
     };
     const focusin = (event: FocusEvent) => {
       const target = event.target as Node;
+      const index = items().indexOf(target as HTMLElement);
+      if (index >= 0) { active = target as HTMLElement; activeIndex = index; }
       if (!leaving && !popup.contains(target) && !trigger.contains(target)) { leaving = true; close(); }
     };
     popup.addEventListener('keydown', keydown);
@@ -116,7 +123,14 @@ export function observeDropdownKeyboard(trigger: HTMLElement, getPopup: () => HT
       }
       const position = () => {
         const pos = getDropdownPosition(trigger, root ?? document.body, { fixed: true, dropdownHeight: popup.scrollHeight + 2, width: kind === 'help' ? 280 : trigger.getBoundingClientRect().width });
-        Object.assign(popup.style, { position: 'fixed', top: `${pos.top}px`, left: `${pos.left}px`, right: 'auto', width: `${pos.width}px`, minWidth: '0', maxHeight: `${pos.maxHeight}px` });
+        Object.assign(popup.style, { position: 'fixed', top: `${pos.top}px`, left: `${pos.left}px`, right: 'auto', maxHeight: `${pos.maxHeight}px` });
+        // A version menu grows for long names, from the trigger's width up to a cap
+        // or the viewport's right edge, past which the names truncate; every other
+        // popup matches the trigger.
+        if (kind === 'presets') {
+          const maxWidth = Math.max(pos.width, Math.min(PRESET_MENU_MAX_WIDTH, window.innerWidth - pos.left - 8));
+          Object.assign(popup.style, { width: 'auto', minWidth: `${pos.width}px`, maxWidth: `${maxWidth}px` });
+        } else Object.assign(popup.style, { width: `${pos.width}px`, minWidth: '0' });
       };
       stopPosition = observeDropdownPosition(trigger, position, () => popup);
     }

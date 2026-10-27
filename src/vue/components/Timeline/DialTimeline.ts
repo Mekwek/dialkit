@@ -715,7 +715,7 @@ const TimelineSection = defineComponent({
         h('div', { class: 'dialkit-timeline-actions' }, [
           h(PlayPauseButton, { id: props.meta.id }),
           h(ReplayButton, { onReplay: handleReplay }),
-          h(PresetManager, { panelId: props.meta.id, presets: presets.value, activePresetId: activePresetId.value }),
+          h(PresetManager, { panelId: props.meta.id, presets: presets.value, activePresetId: activePresetId.value, noun: 'sequence' }),
           h('button', {
             class: 'dialkit-toolbar-add dialkit-toolbar-primary',
             title: 'Copy parameters',
