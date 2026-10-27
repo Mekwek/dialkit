@@ -51,6 +51,9 @@ export { ColorControl } from './components/ColorControl';
 export { ImageControl } from './components/ImageControl';
 export { DialPad } from './components/DialPad';
 export type { DialPadProps } from './dial-pad-control';
+export { BackgroundControl } from './components/BackgroundControl';
+export type { BackgroundControlProps } from './background-control';
+export { backgroundGradientCss, backgroundMediaCss, paintGradient } from './background';
 export { PresetManager } from './components/PresetManager';
 export { VersionGallery } from './components/VersionGallery';
 export { ShortcutsMenu } from './components/ShortcutsMenu';
@@ -69,6 +72,20 @@ export type {
   DialPadAxis,
   DialPadConfig,
   DialPadValue,
+  BackgroundConfig,
+  BackgroundValue,
+  BackgroundValueUpdate,
+  BackgroundGradient,
+  BackgroundMedia,
+  BackgroundMediaDisplay,
+  BackgroundMediaFit,
+  BackgroundMediaRatio,
+  BackgroundMode,
+  GradientHandles,
+  GradientPoint,
+  GradientStop,
+  GradientShape,
+  SavedGradient,
   TextConfig,
   DialKitPersistOptions,
   ShortcutConfig,

@@ -44,6 +44,8 @@ export default defineConfig([
       'image-control': 'src/image-control.ts',
       'dial-pad-control': 'src/dial-pad-control.ts',
       'dial-pad': 'src/dial-pad.ts',
+      'background-control': 'src/background-control.ts',
+      background: 'src/background.ts',
       'easing-control': 'src/easing-control.ts',
       'easing-geometry': 'src/easing-geometry.ts',
       'control-keyboard': 'src/control-keyboard.ts',

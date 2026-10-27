@@ -4,7 +4,9 @@ import type { ControlMeta, DialValue, SpringConfig, TransitionConfig } from '../
 import { ColorControl } from './ColorControl';
 import { ImageControl } from './ImageControl';
 import { DialPad } from './DialPad';
+import { BackgroundControl } from './BackgroundControl';
 import type { DialPadValue } from '../../dial-pad';
+import type { BackgroundValue } from '../../background';
 import { Folder } from './Folder';
 import { SelectControl } from './SelectControl';
 import { ShortcutKey } from './ShortcutListener';
@@ -114,6 +116,20 @@ export const ControlRenderer = defineComponent({
             y: control.pad?.y,
             labels: control.pad?.labels,
             onChange: (next: DialPadValue) => DialStore.updateValue(props.panelId, control.path, next),
+          });
+        case 'background':
+          return h(Folder, {
+            key: control.path,
+            title: control.label,
+            defaultOpen: true,
+          }, {
+            default: () => h(BackgroundControl, {
+              panelId: props.panelId,
+              label: control.label,
+              value: value as BackgroundValue,
+              upload: control.background?.upload,
+              onChange: (next: BackgroundValue) => DialStore.updateValue(props.panelId, control.path, next),
+            }),
           });
         case 'action':
           return h('button', {

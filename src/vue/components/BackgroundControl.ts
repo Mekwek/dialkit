@@ -1,0 +1,23 @@
+import { defineComponent, h, onMounted, onUnmounted, ref, watchEffect, type PropType } from 'vue';
+import type { BackgroundValue } from '../../background';
+import { mountBackgroundControl } from '../../background-control';
+
+export const BackgroundControl = defineComponent({
+  name: 'DialKitBackgroundControl',
+  props: {
+    panelId: { type: String, required: true },
+    label: { type: String, required: true },
+    value: { type: Object as PropType<BackgroundValue>, required: true },
+    upload: Function as PropType<(file: File) => Promise<string>>,
+  },
+  emits: ['change'],
+  setup(props, { emit }) {
+    const host = ref<HTMLElement>();
+    let control: ReturnType<typeof mountBackgroundControl> | undefined;
+    const options = () => ({ panelId: props.panelId, label: props.label, value: props.value, upload: props.upload, onChange: (value: BackgroundValue) => emit('change', value) });
+    onMounted(() => { control = mountBackgroundControl(host.value!, options()); });
+    watchEffect(() => { const next = options(); control?.update(next); });
+    onUnmounted(() => control?.destroy());
+    return () => h('div', { ref: host, class: 'dialkit-background-host' });
+  },
+});

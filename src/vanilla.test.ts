@@ -4,11 +4,12 @@ import { runInNewContext } from 'node:vm';
 import { build } from 'esbuild';
 import { createDialKit, createDialKitController, createDialTimeline, DialStore, TimelineStore } from './vanilla';
 import type { DialConfig } from './store/DialStore';
+import { defaultBackgroundValue } from './background';
 
 const config = { group: {
   amount: [0.25, 0, 1, 0.05], enabled: true, title: { type: 'text', default: 'Hello' },
   choice: { type: 'select', options: ['a', 'b'] }, accent: { type: 'color', default: '#ff5500' },
-  cover: { type: 'image' }, position: { type: 'pad', x: [0.5, -1, 1, 0.1] },
+  cover: { type: 'image' }, position: { type: 'pad', x: [0.5, -1, 1, 0.1] }, backdrop: { type: 'background' },
   spring: { type: 'spring', visualDuration: 0.3, bounce: 0.2 },
   easing: { type: 'easing', duration: 0.5, ease: [0, 0, 1, 1] }, run: { type: 'action' },
 } } satisfies DialConfig;
@@ -19,13 +20,14 @@ describe('vanilla adapter', () => {
     const kit = createDialKit('Vanilla', config, { onAction: action => actions.push(action) });
     try {
       assert.equal(createDialKitController, createDialKit);
-      assert.deepEqual(kit.values.group, { amount: 0.25, enabled: true, title: 'Hello', choice: 'a', accent: '#ff5500', cover: '', position: { x: 0.5, y: 0 }, spring: config.group.spring, easing: config.group.easing, run: config.group.run });
+      assert.deepEqual(kit.values.group, { amount: 0.25, enabled: true, title: 'Hello', choice: 'a', accent: '#ff5500', cover: '', position: { x: 0.5, y: 0 }, backdrop: defaultBackgroundValue(), spring: config.group.spring, easing: config.group.easing, run: config.group.run });
       let calls = 0;
       const stop = kit.subscribe(values => { calls++; assert.equal(values.group.amount, kit.values.group.amount); });
       assert.equal(calls, 1);
-      kit.setValues({ group: { amount: 0.8, enabled: false, position: { x: -0.5, y: 0.2 }, title: 'Changed' } });
+      kit.setValues({ group: { amount: 0.8, enabled: false, position: { x: -0.5, y: 0.2 }, backdrop: { mode: 'gradient' }, title: 'Changed' } });
       assert.equal(calls, 2);
       assert.deepEqual(kit.values.group.position, { x: -0.5, y: 0.2 });
+      assert.deepEqual(kit.values.group.backdrop, { ...defaultBackgroundValue(), mode: 'gradient' });
       assert.equal(kit.values.group.enabled, false);
       DialStore.triggerAction(kit.id, 'group.run'); assert.deepEqual(actions, ['group.run']);
       stop(); kit.resetValues(); assert.equal(calls, 2); assert.equal(kit.values.group.amount, 0.25);

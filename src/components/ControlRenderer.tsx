@@ -11,7 +11,9 @@ import { SelectControl } from './SelectControl';
 import { ColorControl } from './ColorControl';
 import { ImageControl } from './ImageControl';
 import { DialPad } from './DialPad';
+import { BackgroundControl } from './BackgroundControl';
 import type { DialPadValue } from '../dial-pad';
+import type { BackgroundValue } from '../background';
 
 interface ControlRendererProps {
   panelId: string;
@@ -149,6 +151,19 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration 
             labels={control.pad?.labels}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
           />
+        );
+
+      case 'background':
+        return (
+          <Folder key={control.path} title={control.label} defaultOpen={true}>
+            <BackgroundControl
+              panelId={panelId}
+              label={control.label}
+              value={value as BackgroundValue}
+              upload={control.background?.upload}
+              onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
+            />
+          </Folder>
         );
 
       case 'action':

@@ -1,4 +1,4 @@
-import { springParams, springProgress, springSettleDuration } from '../transition-math';
+import { springParams, springProgress, springSettleDuration } from './transition-math';
 /** Native animations use the same spring math as the curve preview and timeline. */
 export function animateSpring(node: HTMLElement, frame: (progress: number) => Keyframe, visualDuration = 0.35, bounce = 0.1): Animation | undefined {
   if (typeof node.animate !== 'function' || window.matchMedia('(prefers-reduced-motion: reduce)').matches)
