@@ -79,24 +79,11 @@ export function ShortcutsMenu({ panelId }: ShortcutsMenuProps) {
   if (shortcuts.length === 0) return null;
 
   // Build shortcut rows with labels from controls
-  const rows = shortcuts.map(([path, shortcut]) => {
-    // Find control label
-    const findLabel = (controls: typeof panel.controls): string => {
-      for (const c of controls) {
-        if (c.path === path) return c.label;
-        if (c.type === 'folder' && c.children) {
-          const found = findLabel(c.children);
-          if (found) return found;
-        }
-      }
-      return path;
-    };
-    return {
-      path,
-      shortcut,
-      label: findLabel(panel.controls),
-    };
-  });
+  const rows = shortcuts.map(([path, shortcut]) => ({
+    path,
+    shortcut,
+    label: DialStore.getControl(panel.id, path)?.label ?? path,
+  }));
 
   return (
     <>

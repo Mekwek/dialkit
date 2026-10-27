@@ -159,7 +159,7 @@ export const Panel = defineComponent({
 
       const content = () => [
         gallery ? h(VersionGallery, { panelId: props.panel.id, theme: props.theme }) : null,
-        h(ControlRenderer, { panelId: props.panel.id, controls: props.panel.controls, values: values.value }),
+        h(ControlRenderer, { panelId: props.panel.id, controls: props.panel.controls, values: values.value, animateControls: true }),
       ];
 
       if (props.variant === 'section') {

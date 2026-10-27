@@ -71,7 +71,7 @@ export function Panel({ panel, defaultOpen = true, inline = false, onOpenChange,
       {versions !== 'menu' && (
         <VersionGallery panelId={panel.id} theme={theme} />
       )}
-      <ControlRenderer panelId={panel.id} controls={panel.controls} values={values} />
+      <ControlRenderer panelId={panel.id} controls={panel.controls} values={values} animateControls />
     </>
   );
 
