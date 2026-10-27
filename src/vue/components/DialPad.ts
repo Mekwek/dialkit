@@ -10,12 +10,14 @@ export const DialPad = defineComponent({
     x: Array as unknown as PropType<DialPadAxis>,
     y: Array as unknown as PropType<DialPadAxis>,
     labels: Object as PropType<DialPadConfig['labels']>,
+    hideLabel: Boolean,
+    dragLabels: Boolean,
   },
   emits: ['change'],
   setup(props, { emit }) {
     const host = ref<HTMLElement>();
     let control: ReturnType<typeof mountDialPad> | undefined;
-    const options = () => ({ label: props.label, value: props.value, x: props.x, y: props.y, labels: props.labels, onChange: (value: DialPadValue) => emit('change', value) });
+    const options = () => ({ label: props.label, value: props.value, x: props.x, y: props.y, labels: props.labels, hideLabel: props.hideLabel, dragLabels: props.dragLabels, onChange: (value: DialPadValue) => emit('change', value) });
     onMounted(() => { control = mountDialPad(host.value!, options()); });
     watchEffect(() => { const next = options(); control?.update(next); });
     onUnmounted(() => control?.destroy());

@@ -108,6 +108,8 @@
     x={control.pad?.x}
     y={control.pad?.y}
     labels={control.pad?.labels}
+    hideLabel={control.pad?.hideLabel}
+    dragLabels={control.pad?.dragLabels}
     onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
   />
 {:else if control.type === 'action'}
