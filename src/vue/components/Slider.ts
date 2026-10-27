@@ -2,7 +2,7 @@ import { handleSliderKey } from '../../control-keyboard';
 import { defineComponent, h, computed, nextTick, onMounted, onUnmounted, ref, watch, type PropType } from 'vue';
 import { animate, motionValue } from 'motion-v';
 import type { ShortcutConfig } from '../../store/DialStore';
-import { decimalsForStep, roundValue, snapToDecile, formatSliderShortcut } from '../../shortcut-utils';
+import { decimalsForStep, isWordUnit, roundValue, snapToDecile, formatSliderShortcut } from '../../shortcut-utils';
 
 const CLICK_THRESHOLD = 3;
 const DEAD_ZONE = 32;
@@ -454,7 +454,15 @@ export const Slider = defineComponent({
               if (isValueEditable.value) event.stopPropagation();
             },
             style: { cursor: isValueEditable.value ? 'text' : 'default' },
-          }, displayValue.value),
+          }, [
+            displayValue.value,
+            props.unit
+              ? h('span', {
+                  class: 'dialkit-slider-unit',
+                  'data-spaced': isWordUnit(props.unit) || undefined,
+                }, props.unit)
+              : null,
+          ]),
       ]),
     ]);
   },

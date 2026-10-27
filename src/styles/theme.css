@@ -726,6 +726,14 @@
   padding-bottom: 1px;
 }
 
+.dialkit-slider-unit {
+  color: var(--dial-text-tertiary);
+}
+
+.dialkit-slider-unit[data-spaced] {
+  margin-left: 2px;
+}
+
 .dialkit-slider-value-editable {
   border-bottom-color: var(--dial-text-label);
 }

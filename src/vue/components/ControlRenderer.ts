@@ -36,6 +36,7 @@ export const ControlRenderer = defineComponent({
             min: control.min,
             max: control.max,
             step: control.step,
+            unit: control.unit,
             shortcut: control.shortcut,
             shortcutActive: shortcut?.activePanelId.value === props.panelId && shortcut.activePath.value === control.path,
             onChange: (next: number) => DialStore.updateValue(props.panelId, control.path, next),

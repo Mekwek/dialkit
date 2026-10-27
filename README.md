@@ -146,6 +146,7 @@ Define controls with an object. Keys become labels; returned values keep the sam
 | --- | --- | --- |
 | Slider | `radius: [24, 0, 64]` | `number` |
 | Slider with step | `radius: [24, 0, 64, 2]` | `number` |
+| Slider with unit | `rotate: [0, -180, 180, 1, "°"]` | `number` |
 | Inferred slider | `scale: 1.2` | `number` |
 | Toggle | `visible: true` | `boolean` |
 | Text | `title: "Hello"` | `string` |
@@ -158,7 +159,7 @@ Define controls with an object. Keys become labels; returned values keep the sam
 | Action | `replay: { type: "action" }` | Calls `onAction(path)` |
 | Folder | `shadow: { blur: [12, 0, 40] }` | Nested values |
 
-Slider tuples use `[default, min, max, step?]`. Add `_collapsed: true` inside a folder to start it closed. Folder metadata is omitted from returned values.
+Slider tuples use `[default, min, max, step?, unit?]`; the unit shows after the value. Add `_collapsed: true` inside a folder to start it closed. Folder metadata is omitted from returned values.
 
 Spring and easing controls share an editor with **Easing**, **Time**, and **Physics** modes. Color controls accept hex, RGB, HSL, OKLCH, and Display P3. Image controls support local uploads up to 10 MB; files stay in the browser.
 

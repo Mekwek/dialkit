@@ -5,7 +5,7 @@ import type { ControlMeta, ShortcutConfig } from './store/DialStore';
 
 // ── Math helpers ──
 
-export { decimalsForStep, roundValue } from './numeric';
+export { decimalsForStep, isWordUnit, roundValue } from './numeric';
 import { roundValue } from './numeric';
 
 export function getEffectiveStep(control: ControlMeta, shortcut: ShortcutConfig): number {

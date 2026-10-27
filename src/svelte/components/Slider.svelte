@@ -4,7 +4,7 @@
   import { tick } from 'svelte';
   import { Spring } from 'svelte/motion';
   import type { ShortcutConfig } from 'dialkit/store';
-  import { decimalsForStep, roundValue, snapToDecile, formatSliderShortcut } from '../../shortcut-utils';
+  import { decimalsForStep, isWordUnit, roundValue, snapToDecile, formatSliderShortcut } from '../../shortcut-utils';
 
   let {
     label,
@@ -351,7 +351,7 @@
         onmousedown={(e) => isValueEditable && e.stopPropagation()}
         style:cursor={isValueEditable ? 'text' : 'default'}
       >
-        {displayValue}
+        {displayValue}{#if unit}<span class="dialkit-slider-unit" data-spaced={isWordUnit(unit) || undefined}>{unit}</span>{/if}
       </span>
     {/if}
   </div>

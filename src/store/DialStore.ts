@@ -57,11 +57,11 @@ export type TextConfig = {
 export type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue;
 
 export type DialConfig = {
-  [key: string]: DialValue | [number, number, number, number?] | DialConfig;
+  [key: string]: DialValue | [number, number, number, number?, string?] | DialConfig;
 };
 
 export type ResolvedValues<T extends DialConfig> = {
-  [K in keyof T]: T[K] extends [number, number, number, number?]
+  [K in keyof T]: T[K] extends [number, number, number, number?, string?]
     ? number
     : T[K] extends SpringConfig
       ? TransitionConfig
@@ -81,7 +81,7 @@ export type ResolvedValues<T extends DialConfig> = {
 };
 
 export type DialKitValueUpdates<T extends DialConfig> = {
-  [K in keyof T as K extends '_collapsed' ? never : K]?: T[K] extends [number, number, number, number?]
+  [K in keyof T as K extends '_collapsed' ? never : K]?: T[K] extends [number, number, number, number?, string?]
     ? number
     : T[K] extends SpringConfig | EasingConfig
       ? TransitionConfig
@@ -113,6 +113,7 @@ export type ControlMeta = {
   min?: number;
   max?: number;
   step?: number;
+  unit?: string;
   children?: ControlMeta[];
   defaultOpen?: boolean;
   options?: (string | { value: string; label: string })[];
@@ -247,7 +248,7 @@ function flattenConfigUpdates(
 
 export function isLeafConfigValue(value: unknown): boolean {
   return (
-    (Array.isArray(value) && value.length <= 4 && typeof value[0] === 'number') ||
+    (Array.isArray(value) && value.length <= 5 && typeof value[0] === 'number') ||
     typeof value === 'number' ||
     typeof value === 'boolean' ||
     typeof value === 'string' ||
@@ -1006,8 +1007,8 @@ class DialStoreClass {
         const shortcut = shortcuts?.[path];
         let control: ControlMeta | undefined;
 
-        if (Array.isArray(value) && value.length <= 4 && typeof value[0] === 'number') {
-          // Range tuple: [default, min, max]
+        if (Array.isArray(value) && value.length <= 5 && typeof value[0] === 'number') {
+          // Range tuple: [default, min, max, step?, unit?]
           control = {
             type: 'slider',
             path,
@@ -1015,6 +1016,7 @@ class DialStoreClass {
             min: value[1],
             max: value[2],
             step: value[3] ?? inferStep(value[1], value[2]),
+            unit: value[4],
             shortcut,
           };
         } else if (typeof value === 'number') {
