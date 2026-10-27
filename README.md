@@ -152,6 +152,7 @@ Define controls with an object. Keys become labels; returned values keep the sam
 | Text | `title: "Hello"` | `string` |
 | Color | `accent: "#a78bfa"` | CSS color string |
 | Select | `layout: { type: "select", options: ["stack", "grid"] }` | Selected string |
+| Segmented select | `layout: { type: "select", options: ["stack", "grid"], display: "segmented" }` | Selected string |
 | Image | `cover: { type: "image", options: ["/cover.jpg"] }` | URL or data URL |
 | XY pad | `position: { type: "pad" }` | `{ x, y }` |
 | Spring | `motion: { type: "spring", visualDuration: 0.3, bounce: 0.2 }` | `TransitionConfig` |
@@ -162,6 +163,8 @@ Define controls with an object. Keys become labels; returned values keep the sam
 Slider tuples use `[default, min, max, step?, unit?]`; the unit shows after the value. Add `_collapsed: true` inside a folder to start it closed. Folder metadata is omitted from returned values.
 
 An XY pad takes the same tuples for `x` and `y`; add `hideLabel: true` to let its axis fields fill the row, and `dragLabels: true` to drag an axis label to change its value.
+
+A segmented select shows a short list as one row of options. Add `hideLabel: true` to let the options fill the row, and give an option an `icon` to show in place of its text.
 
 Spring and easing controls share an editor with **Easing**, **Time**, and **Physics** modes. Color controls accept hex, RGB, HSL, OKLCH, and Display P3. Image controls support local uploads up to 10 MB; files stay in the browser.
 

@@ -52,7 +52,7 @@ export function mountControlRenderer(host: HTMLElement, initial: ControlRenderer
           mount(mountTextControl, () => ({ label: control.label, value: value() as string, placeholder: control.placeholder, onChange: change }));
           break;
         case 'select':
-          mount(mountSelectControl, () => ({ label: control.label, value: value() as string, options: control.options ?? [], onChange: change }));
+          mount(mountSelectControl, () => ({ label: control.label, value: value() as string, options: control.options ?? [], display: control.display, hideLabel: control.hideLabel, onChange: change }));
           break;
         case 'color':
           mount(mountColorControl, () => ({ label: control.label, value: value() as string, onChange: change }));

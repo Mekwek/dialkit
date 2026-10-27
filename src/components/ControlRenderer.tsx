@@ -115,6 +115,8 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration 
             value={value as string}
             options={control.options ?? []}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
+            display={control.display}
+            hideLabel={control.hideLabel}
           />
         );
 

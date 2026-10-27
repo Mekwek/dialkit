@@ -99,6 +99,8 @@ export function ControlRenderer(props: ControlRendererProps) {
             value={value() as string}
             options={control.options ?? []}
             onChange={(next) => DialStore.updateValue(props.panelId, control.path, next)}
+            display={control.display}
+            hideLabel={control.hideLabel}
           />
         );
       case 'color':

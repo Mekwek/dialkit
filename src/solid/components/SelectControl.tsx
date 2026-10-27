@@ -5,28 +5,54 @@ import { Portal } from 'solid-js/web';
 import { animate } from 'motion';
 import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition, type DropdownPosition } from '../../dropdown-position';
 import { ICON_CHEVRON } from '../../icons';
+import type { SelectConfig, SelectOption } from '../../store/DialStore';
 import { createDropdownDismiss, createDropdownPresence, type AnimationHandle } from '../primitives';
-
-type SelectOption = string | { value: string; label: string };
+import { SegmentedControl } from './SegmentedControl';
 
 interface SelectControlProps {
   label: string;
   value: string;
   options: SelectOption[];
   onChange: (value: string) => void;
+  display?: SelectConfig['display'];
+  hideLabel?: boolean;
 }
 
 function toTitleCase(s: string): string {
   return s.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function normalizeOptions(options: SelectOption[]): { value: string; label: string }[] {
+function normalizeOptions(options: SelectOption[]): Exclude<SelectOption, string>[] {
   return options.map((opt) =>
     typeof opt === 'string' ? { value: opt, label: toTitleCase(opt) } : opt
   );
 }
 
 export function SelectControl(props: SelectControlProps) {
+  return (
+    <Show when={props.display === 'segmented'} fallback={<SelectDropdown {...props} />}>
+      <SegmentedSelect {...props} />
+    </Show>
+  );
+}
+
+function SegmentedSelect(props: SelectControlProps) {
+  return (
+    <div class="dialkit-labeled-control" data-hide-label={props.hideLabel ? 'true' : undefined}>
+      <Show when={!props.hideLabel}>
+        <span class="dialkit-labeled-control-label">{props.label}</span>
+      </Show>
+      <SegmentedControl
+        options={normalizeOptions(props.options)}
+        value={props.value}
+        onChange={props.onChange}
+        label={props.label}
+      />
+    </div>
+  );
+}
+
+function SelectDropdown(props: SelectControlProps) {
   const [pos, setPos] = createSignal<DropdownPosition | null>(null);
   const [portalTarget, setPortalTarget] = createSignal<HTMLElement | null>(null);
   let triggerRef!: HTMLButtonElement;

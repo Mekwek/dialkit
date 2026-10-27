@@ -1,5 +1,10 @@
 // Shared SVG icon geometry — single source of truth across all framework adapters.
 
+/** Icons are a single path or a list of paths. */
+export function iconPaths(icon: string | readonly string[]): readonly string[] {
+  return typeof icon === 'string' ? [icon] : icon;
+}
+
 export const ICON_CHEVRON = 'M6 9.5L12 15.5L18 9.5';
 
 export const ICON_CLOSE = 'M6 6L18 18M18 6L6 18';
