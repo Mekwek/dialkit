@@ -6,6 +6,7 @@
   } from 'dialkit/timeline';
   import type { TimelineMeta } from 'dialkit/timeline';
   import Portal from '../../Portal.svelte';
+  import { observePointerFocus } from '../../../pointer-focus';
   import type { DialTheme } from '../DialRoot.svelte';
   import TimelineSection from './TimelineSection.svelte';
 
@@ -66,6 +67,10 @@
       defaultVisible,
       onVisibilityChange,
     });
+  });
+
+  $effect(() => {
+    if (productionEnabled) return observePointerFocus();
   });
 
   $effect(() => () => resizeCleanup?.());

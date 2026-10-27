@@ -43,6 +43,7 @@ import {
   ICON_REPLAY,
 } from '../../../icons';
 import { findControl } from '../../../shortcut-utils';
+import { observePointerFocus } from '../../../pointer-focus';
 import { ControlRenderer } from '../ControlRenderer';
 import { PresetManager } from '../PresetManager';
 import type { DialTheme } from '../DialRoot';
@@ -130,6 +131,9 @@ export const DialTimeline = defineComponent({
         timelines.value = TimelineStore.getTimelines();
       });
     });
+    watch(() => props.productionEnabled, (enabled, _, onCleanup) => {
+      if (enabled) onCleanup(observePointerFocus());
+    }, { immediate: true });
     watch(() => [props.visible, props.defaultVisible, props.onVisibilityChange] as const, () => {
       TimelineUiStore.updateController(controllerId, {
         visible: props.visible,

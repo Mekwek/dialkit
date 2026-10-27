@@ -1,4 +1,4 @@
-import { computed, defineComponent, h, nextTick, onMounted, onUnmounted, ref, Teleport } from 'vue';
+import { computed, defineComponent, h, nextTick, onMounted, onUnmounted, ref, Teleport, watch } from 'vue';
 import { DialStore } from '../../store/DialStore';
 import type { PanelConfig } from '../../store/DialStore';
 import { TimelineStore } from '../../store/TimelineStore';
@@ -8,6 +8,7 @@ import { Panel } from './Panel';
 import { ShortcutListener } from './ShortcutListener';
 import { TimelineToggleButton } from './Timeline/TimelineToggleButton';
 import type { DialVersions } from '../../versions/gallery';
+import { observePointerFocus } from '../../pointer-focus';
 import {
   blockPanelDragClick,
   capturePanelPointer,
@@ -212,6 +213,10 @@ export const DialRoot = defineComponent({
       });
       nextTick(connectObserver);
     });
+
+    watch(() => props.productionEnabled, (enabled, _, onCleanup) => {
+      if (enabled) onCleanup(observePointerFocus());
+    }, { immediate: true });
 
     onUnmounted(() => {
       unsubscribePanels?.();
