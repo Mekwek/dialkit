@@ -1509,6 +1509,35 @@
 .dialkit-anchor-cell[aria-checked="true"] .dialkit-anchor-dot { background: var(--dial-text-primary); }
 .dialkit-anchor-cell:focus-visible .dialkit-anchor-dot { box-shadow: 0 0 0 3px var(--dial-focus-ring); }
 @media (prefers-reduced-motion: reduce) { .dialkit-anchor-dot { transition: none; } }
+/* Field rows: a `_fields` folder's numbers side by side */
+.dialkit-fields { display: grid; gap: var(--dial-row-gap); min-width: 0; padding-top: var(--dial-row-gap); border-top: 1px solid var(--dial-surface-subtle); }
+/* The line above a row is a folder's divider: a row that opens its folder draws none, and a row right after another keeps neither the line nor the space. */
+.dialkit-folder-inner > .dialkit-fields:first-child, .dialkit-folder-inner > :first-child > .dialkit-fields { border-top: none; }
+.dialkit-fields + .dialkit-fields, .dialkit-fields-host + .dialkit-fields-host > .dialkit-fields { padding-top: 0; border-top: none; }
+.dialkit-fields-caption { display: flex; align-items: center; gap: 4px; min-width: 0; font-size: 13px; font-weight: 500; }
+.dialkit-fields-label { min-width: 0; color: var(--dial-text-label); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dialkit-fields-reset, .dialkit-fields-lock { flex-shrink: 0; display: grid; place-items: center; width: 20px; height: 20px; padding: 3px; border: 0; border-radius: 5px; background: none; color: var(--dial-text-tertiary); cursor: pointer; transition: color 0.15s, background 0.15s; }
+/* The icons center on the caption's lowercase letters, where a word looks centered, not on its capitals. */
+.dialkit-fields-reset, .dialkit-fields-lock { font: inherit; translate: 0 calc(0.5cap - 0.5ex - 0.04px); }
+.dialkit-fields-reset svg, .dialkit-fields-lock svg { width: 100%; height: 100%; }
+.dialkit-fields-reset:hover, .dialkit-fields-lock:hover, .dialkit-fields-reset:focus-visible, .dialkit-fields-lock:focus-visible { color: var(--dial-text-focus); background: var(--dial-surface-hover); }
+.dialkit-fields-lock { margin-left: auto; }
+/* The reset shows once a value differs from its default. It turns in the way its arrow points and, once the values are back, keeps turning that way as it leaves, on Motion's spring (visualDuration 0.2, bounce 0.35) written as a CSS curve. */
+.dialkit-fields-reset { --dial-fields-reset-spring: 453ms linear(0.0000, 0.0473, 0.1532, 0.2693, 0.4153, 0.5580, 0.6874, 0.7979, 0.8756, 0.9467, 0.9980, 1.0323, 1.0526, 1.0612, 1.0635, 1.0601, 1.0531, 1.0443, 1.0363, 1.0273, 1.0192, 1.0123, 1.0067, 1.0031, 0.9999, 0.9978, 0.9966, 0.9960, 0.9960, 0.9962, 0.9967, 0.9972, 0.9978, 0.9983, 0.9988, 0.9993, 0.9996, 0.9999, 1.0000, 1.0001, 1.0000); transition: color 0.15s, background 0.15s, opacity 140ms ease-out, scale var(--dial-fields-reset-spring), rotate var(--dial-fields-reset-spring), visibility 0s; }
+.dialkit-fields-reset:not([data-changed]) { visibility: hidden; opacity: 0; scale: 0.6; rotate: -180deg; pointer-events: none; transition: color 0.15s, background 0.15s, opacity 180ms ease-in, scale var(--dial-fields-reset-spring), rotate var(--dial-fields-reset-spring), visibility 0s linear 180ms; }
+.dialkit-fields-reset[data-changed] { animation: dialkit-fields-reset-in var(--dial-fields-reset-spring); }
+@keyframes dialkit-fields-reset-in { from { opacity: 0; scale: 0.6; rotate: 180deg; } 30% { opacity: 1; } }
+.dialkit-fields-lock[aria-pressed="true"] { color: var(--dial-text-focus); }
+.dialkit-fields-row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; }
+.dialkit-fields-field { display: flex; align-items: center; gap: 4px; min-width: 0; height: var(--dial-row-height); padding: 0 8px; border-radius: var(--dial-radius); background: var(--dial-surface); transition: background 0.15s; }
+.dialkit-fields-axis { flex-shrink: 0; min-width: 0; max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; color: var(--dial-text-label); cursor: ew-resize; touch-action: none; user-select: none; -webkit-user-select: none; }
+/* At rest a value is a button as wide as its text; typing happens in an input that fills the field. */
+.dialkit-fields-value { min-width: 0; margin-left: auto; padding: 0; border: 0; background: none; overflow: hidden; white-space: nowrap; color: var(--dial-text-label); text-align: right; font: 500 13px 'Geist Mono', monospace; cursor: text; }
+.dialkit-fields-input { min-width: 0; width: 100%; border: 0; padding: 0; background: transparent; color: var(--dial-text-focus); text-align: right; font: 500 13px 'Geist Mono', monospace; outline: none; }
+.dialkit-fields-field:hover, .dialkit-fields-field:focus-within, .dialkit-fields-field[data-scrubbing] { background: var(--dial-surface-hover); }
+.dialkit-fields-field[data-scrubbing] .dialkit-fields-value { color: var(--dial-text-focus); }
+.dialkit-fields-input:focus-visible { box-shadow: inset 0 -1px var(--dial-focus-ring); }
+@media (prefers-reduced-motion: reduce) { .dialkit-fields-reset, .dialkit-fields-reset:not([data-changed]) { rotate: none; animation: none; } }
 
 /* Color Control */
 .dialkit-color-control {

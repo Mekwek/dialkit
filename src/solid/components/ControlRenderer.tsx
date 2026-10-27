@@ -11,6 +11,7 @@ import { ColorControl } from './ColorControl';
 import { ImageControl } from './ImageControl';
 import { DialPad } from './DialPad';
 import { AnchorControl } from './AnchorControl';
+import { Fields } from './Fields';
 import type { DialPadValue } from '../../dial-pad';
 import type { AnchorValue } from '../../anchor';
 import { Folder } from './Folder';
@@ -80,6 +81,17 @@ export function ControlRenderer(props: ControlRendererProps) {
           />
         );
       case 'folder':
+        if (control.fields) {
+          return (
+            <Fields
+              label={control.label}
+              controls={control.children ?? []}
+              values={props.values}
+              defaults={DialStore.getDefaultValues(props.panelId)}
+              onChange={(next) => DialStore.updateValues(props.panelId, next)}
+            />
+          );
+        }
         return (
           <Folder title={control.label} defaultOpen={control.defaultOpen ?? true}>
             <For each={control.children ?? []}>{renderControl}</For>

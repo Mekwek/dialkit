@@ -92,7 +92,7 @@ export type ResolvedValues<T extends DialConfig> = {
 };
 
 export type DialKitValueUpdates<T extends DialConfig> = {
-  [K in keyof T as K extends '_collapsed' ? never : K]?: T[K] extends [number, number, number, number?, string?]
+  [K in keyof T as K extends '_collapsed' | '_fields' ? never : K]?: T[K] extends [number, number, number, number?, string?]
     ? number
     : T[K] extends SpringConfig | EasingConfig
       ? TransitionConfig
@@ -129,6 +129,8 @@ export type ControlMeta = {
   unit?: string;
   children?: ControlMeta[];
   defaultOpen?: boolean;
+  /** Folder only: `_fields: true` shows its numbers as one row of fields. */
+  fields?: boolean;
   options?: SelectOption[];
   display?: SelectConfig['display'];
   hideLabel?: boolean;
@@ -214,7 +216,7 @@ function resolveConfigValues(
   const result: Record<string, unknown> = {};
 
   for (const [key, configValue] of Object.entries(config)) {
-    if (key === '_collapsed') continue;
+    if (isFolderMetaKey(key)) continue;
     const path = prefix ? `${prefix}.${key}` : key;
 
     if (isLeafConfigValue(configValue)) {
@@ -234,7 +236,7 @@ function flattenConfigUpdates(
   values: Record<string, DialValue>
 ): void {
   for (const [key, configValue] of Object.entries(config)) {
-    if (key === '_collapsed' || !(key in updates)) continue;
+    if (isFolderMetaKey(key) || !(key in updates)) continue;
 
     const nextValue = updates[key];
     if (nextValue === undefined) continue;
@@ -260,6 +262,18 @@ function flattenConfigUpdates(
       flattenConfigUpdates(configValue as DialConfig, nextValue as Record<string, unknown>, path, values);
     }
   }
+}
+
+/** Folder metadata such as `_collapsed` configures the folder and is not a value. */
+export function isFolderMetaKey(key: string): boolean {
+  return key === '_collapsed' || key === '_fields';
+}
+
+/** A field row holds two to four numbers and at most one boolean, its lock. */
+function canShowFields(children: ControlMeta[]): boolean {
+  const axes = children.filter(child => child.type === 'slider').length;
+  const locks = children.filter(child => child.type === 'toggle').length;
+  return axes >= 2 && axes <= 4 && locks <= 1 && axes + locks === children.length;
 }
 
 export function isLeafConfigValue(value: unknown): boolean {
@@ -628,6 +642,10 @@ class DialStoreClass {
     // Return the snapshot for useSyncExternalStore compatibility
     // Use stable EMPTY_VALUES to avoid infinite loop in React 19
     return this.snapshots.get(panelId) ?? EMPTY_VALUES;
+  }
+
+  getDefaultValues(panelId: string): Record<string, DialValue> {
+    return this.defaultValues.get(panelId) ?? EMPTY_VALUES;
   }
 
   getPanels(kind?: 'panel' | 'timeline'): PanelConfig[] {
@@ -1025,7 +1043,7 @@ class DialStoreClass {
       const controls: ControlMeta[] = [];
 
       for (const [key, value] of Object.entries(config)) {
-        if (key === '_collapsed') continue;
+        if (isFolderMetaKey(key)) continue;
         const path = prefix ? `${prefix}.${key}` : key;
         const label = formatLabel(key);
         const shortcut = shortcuts?.[path];
@@ -1076,13 +1094,21 @@ class DialStoreClass {
           // Nested object becomes a folder
           const folderConfig = value as DialConfig;
           const defaultOpen = '_collapsed' in folderConfig ? !(folderConfig._collapsed as boolean) : true;
+          const children = visit(folderConfig, path);
           control = {
             type: 'folder',
             path,
             label,
             defaultOpen,
-            children: visit(folderConfig, path),
+            children,
           };
+          if (folderConfig._fields === true) {
+            if (canShowFields(children)) {
+              control.fields = true;
+            } else {
+              console.warn(`[dialkit] "${path}" sets _fields but needs two to four numbers and at most one boolean; showing it as a folder.`);
+            }
+          }
         }
         if (!control) continue;
         controls.push(control);

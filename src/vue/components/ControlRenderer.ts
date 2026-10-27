@@ -5,6 +5,7 @@ import { ColorControl } from './ColorControl';
 import { ImageControl } from './ImageControl';
 import { DialPad } from './DialPad';
 import { AnchorControl } from './AnchorControl';
+import { Fields } from './Fields';
 import type { DialPadValue } from '../../dial-pad';
 import type { AnchorValue } from '../../anchor';
 import { Folder } from './Folder';
@@ -72,6 +73,16 @@ export const ControlRenderer = defineComponent({
             onChange: (next: TransitionConfig) => DialStore.updateValue(props.panelId, control.path, next),
           });
         case 'folder':
+          if (control.fields) {
+            return h(Fields, {
+              key: control.path,
+              label: control.label,
+              controls: control.children ?? [],
+              values: props.values,
+              defaults: DialStore.getDefaultValues(props.panelId),
+              onChange: (next: Record<string, DialValue>) => DialStore.updateValues(props.panelId, next),
+            });
+          }
           return h(Folder, {
             key: control.path,
             title: control.label,
