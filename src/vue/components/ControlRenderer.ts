@@ -7,10 +7,12 @@ import { ImageControl } from './ImageControl';
 import { DialPad } from './DialPad';
 import { AnchorControl } from './AnchorControl';
 import { Fields } from './Fields';
+import { BackgroundControl } from './BackgroundControl';
 import type { DialPadValue } from '../../dial-pad';
 import type { AnchorValue } from '../../anchor';
 import { hasActionHints } from '../../hints';
 import { useHints } from '../useHints';
+import type { BackgroundValue } from '../../background';
 import { Folder } from './Folder';
 import { SelectControl } from './SelectControl';
 import { ShortcutKey } from './ShortcutListener';
@@ -188,6 +190,20 @@ export const ControlRenderer = defineComponent({
             hideLabel: control.pad?.hideLabel,
             dragLabels: control.pad?.dragLabels,
             onChange: (next: DialPadValue) => DialStore.updateValue(props.panelId, control.path, next),
+          });
+        case 'background':
+          return h(Folder, {
+            key: control.path,
+            title: control.label,
+            defaultOpen: true,
+          }, {
+            default: () => h(BackgroundControl, {
+              panelId: props.panelId,
+              label: control.label,
+              value: value as BackgroundValue,
+              upload: control.background?.upload,
+              onChange: (next: BackgroundValue) => DialStore.updateValue(props.panelId, control.path, next),
+            }),
           });
         case 'anchor':
           return h(AnchorControl, {

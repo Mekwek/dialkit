@@ -59,6 +59,8 @@ export default defineConfig([
       'anchor-control': 'src/anchor-control.ts',
       anchor: 'src/anchor.ts',
       'fields-control': 'src/fields-control.ts',
+      'background-control': 'src/background-control.ts',
+      background: 'src/background.ts',
       'easing-control': 'src/easing-control.ts',
       'easing-geometry': 'src/easing-geometry.ts',
       'transition-presets': 'src/transition-presets.ts',

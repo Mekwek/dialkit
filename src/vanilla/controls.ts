@@ -5,8 +5,8 @@ import { createPanelSectionTransition, observePanelHeader, observeScrollFades } 
 import { ICON_CLOSE, ICON_CHEVRON, ICON_PANEL, ICON_RESET } from '../icons';
 import { HINTS, setHint } from '../hints';
 import type { ShortcutConfig } from '../store/DialStore';
+import { animateSpring } from '../animation';
 import { element, icon, svg, type Mounted } from './dom';
-import { animateSpring } from './animation';
 export interface FolderProps {
   title: string;
   defaultOpen?: boolean;
@@ -322,6 +322,8 @@ export interface SliderProps {
   /** @internal A value that arrives with a new count springs into place, like a click on the track. */
   resetCount?: number;
   hint?: string;
+  /** A press moves the value to the pressed point at once, on the step's grid, instead of snapping it there on release. */
+  seekOnPress?: boolean;
 }
 export function mountSlider(host: HTMLElement, initial: SliderProps): Mounted<SliderProps> {
   let props = initial;
@@ -471,6 +473,10 @@ export function mountSlider(host: HTMLElement, initial: SliderProps): Mounted<Sl
     track.focus({ preventScroll: true });
     track.setPointerCapture(event.pointerId);
     drag = { id: event.pointerId, x: event.clientX, y: event.clientY, rect: wrapper.getBoundingClientRect(), moved: false };
+    if (props.seekOnPress) {
+      const { min, max, step } = range();
+      commit(roundValue(position(event.clientX), step, min, max));
+    }
     render();
   });
   track.addEventListener('pointermove', event => {
@@ -489,7 +495,7 @@ export function mountSlider(host: HTMLElement, initial: SliderProps): Mounted<Sl
   track.addEventListener('pointerup', event => {
     if (!drag || drag.id !== event.pointerId)
       return;
-    if (!drag.moved) {
+    if (!drag.moved && !props.seekOnPress) {
       const { min, max, step } = range();
       const raw = position(event.clientX);
       const next = (max - min) / step <= 10 ? min + Math.round((raw - min) / step) * step : snapToDecile(raw, min, max);

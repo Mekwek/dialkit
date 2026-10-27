@@ -156,6 +156,7 @@ Define controls with an object. Keys become labels; returned values keep the sam
 | Image | `cover: { type: "image", options: ["/cover.jpg"] }` | URL or data URL |
 | XY pad | `position: { type: "pad" }` | `{ x, y }` |
 | Anchor | `origin: { type: "anchor" }` | `{ x, y }` |
+| Background | `backdrop: { type: "background" }` | `BackgroundValue` |
 | Spring | `motion: { type: "spring", visualDuration: 0.3, bounce: 0.2 }` | `TransitionConfig` |
 | Easing | `motion: { type: "easing", duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }` | `TransitionConfig` |
 | Action | `replay: { type: "action" }` | Calls `onAction(path)` |
@@ -170,7 +171,7 @@ A segmented select shows a short list as one row of options. Add `hideLabel: tru
 
 Add `_fields: true` to a folder of two to four numbers to show them as one row of fields. Drag a field's label to scrub it, or click its value to type. A boolean in the same folder becomes a lock that scales the numbers together. Once a value changes, a reset appears beside the label.
 
-Spring and easing controls share an editor with **Easing**, **Time**, and **Physics** tabs above the curve. Easing mode edits the four Bézier values as fields and has an **Intensity** slider that strengthens or flattens the curve. The editor's **Presets** folder lists 40 named curves and 15 named springs, and its header names the one in use; **Custom** holds the ones you save, kept with a panel's presets when it persists. Hover the **···** in the header to copy a transition, or paste it into another one, mode included. Color controls accept hex, RGB, HSL, OKLCH, and Display P3; the picker edits in each, with a field per channel you can type, drag by its letter, or step with the arrow keys. Image controls support local uploads up to 10 MB; files stay in the browser. An anchor sets both axes with one click on a 3 × 3 grid: `x` is `"left"`, `"center"`, or `"right"`, and `y` is `"top"`, `"center"`, or `"bottom"`.
+Spring and easing controls share an editor with **Easing**, **Time**, and **Physics** tabs above the curve. Easing mode edits the four Bézier values as fields and has an **Intensity** slider that strengthens or flattens the curve. The editor's **Presets** folder lists 40 named curves and 15 named springs, and its header names the one in use; **Custom** holds the ones you save, kept with a panel's presets when it persists. Hover the **···** in the header to copy a transition, or paste it into another one, mode included. Color controls accept hex, RGB, HSL, OKLCH, and Display P3; the picker edits in each, with a field per channel you can type, drag by its letter, or step with the arrow keys. Image controls support local uploads up to 10 MB; files stay in the browser. A background is a solid color, a gradient (linear, radial, angular, or diamond, with up to eight stops, each with a position, a color, and an opacity), or an image or video; save a gradient to reuse it from any background in the panel. An anchor sets both axes with one click on a 3 × 3 grid: `x` is `"left"`, `"center"`, or `"right"`, and `y` is `"top"`, `"center"`, or `"bottom"`.
 
 See the [control reference](https://github.com/joshpuckett/dialkit/blob/main/docs/reference.md#controls) for configuration and editing details.
 
@@ -243,7 +244,7 @@ const values = useDialKit("Card", {
 }, { id: "card", persist: true });
 ```
 
-Persistence includes values, saved versions (with their names, order, and locks), their thumbnails, and the active version. It uses `localStorage` with the key `dialkit:card` in this example. Panel open state stays in memory and is not persisted. See [storage options](https://github.com/joshpuckett/dialkit/blob/main/docs/reference.md#persistence) for custom keys, session storage, and saving values without presets.
+Persistence includes values, saved versions (with their names, order, and locks), their thumbnails, the active version, and saved gradients. It uses `localStorage` with the key `dialkit:card` in this example. Panel open state stays in memory and is not persisted. See [storage options](https://github.com/joshpuckett/dialkit/blob/main/docs/reference.md#persistence) for custom keys, session storage, and saving values without presets.
 
 ## Panel layout
 

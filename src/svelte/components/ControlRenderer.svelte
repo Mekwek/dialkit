@@ -1,7 +1,7 @@
 <script lang="ts">
   import { getContext } from 'svelte';
   import { DialStore } from 'dialkit/store';
-  import type { ControlMeta, DialValue, SpringConfig, TransitionConfig, DialPadValue, AnchorValue } from 'dialkit/store';
+  import type { ControlMeta, DialValue, SpringConfig, TransitionConfig, DialPadValue, BackgroundValue, AnchorValue } from 'dialkit/store';
   import { createHints } from '../hints.svelte.js';
   import Slider from './Slider.svelte';
   import Toggle from './Toggle.svelte';
@@ -15,6 +15,7 @@
   import DialPad from './DialPad.svelte';
   import AnchorControl from './AnchorControl.svelte';
   import Fields from './Fields.svelte';
+  import BackgroundControl from './BackgroundControl.svelte';
   import ControlRenderer from './ControlRenderer.svelte';
   import { SHORTCUT_CTX } from './ShortcutListener.svelte';
   import type { ShortcutContextValue } from './ShortcutListener.svelte';
@@ -187,6 +188,16 @@
     value={controlValue as AnchorValue}
     onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
   />
+{:else if control.type === 'background'}
+  <Folder title={control.label} defaultOpen={true}>
+    <BackgroundControl
+      {panelId}
+      label={control.label}
+      value={controlValue as BackgroundValue}
+      upload={control.background?.upload}
+      onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
+    />
+  </Folder>
 {:else if control.type === 'action'}
   <button class="dialkit-button" data-hint={control.hint} onclick={() => DialStore.triggerAction(panelId, control.path)}>
     {control.label}

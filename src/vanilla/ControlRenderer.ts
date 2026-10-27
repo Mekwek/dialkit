@@ -2,8 +2,10 @@ import { DialStore, type ControlMeta, type DialValue, type SpringConfig, type Tr
 import { mountColorControl } from '../color-control';
 import { mountImageControl } from '../image-control';
 import { mountDialPad } from '../dial-pad-control';
+import { mountBackgroundControl } from '../background-control';
 import { mountFields } from '../fields-control';
 import type { DialPadValue } from '../dial-pad';
+import type { BackgroundValue } from '../background';
 import { mountAnchorControl } from '../anchor-control';
 import type { AnchorValue } from '../anchor';
 import { setHint } from '../hints';
@@ -12,7 +14,7 @@ import { mountSelectControl } from './menus';
 import { mountSpringControl, mountTransitionControl, type TransitionControlProps } from './transitions';
 import { subscribeShortcut, type ActiveShortcut } from './shortcuts';
 import { element, type Mounted } from './dom';
-import { animateSpring } from './animation';
+import { animateSpring } from '../animation';
 import { mergeControls } from '../control-presence';
 export interface ControlRendererProps {
   panelId: string;
@@ -47,7 +49,7 @@ export function mountControlRenderer(host: HTMLElement, initial: ControlRenderer
   let signature = '';
   // Counts folder resets, so sliders can spring to the values a reset sets.
   let resetCount = 0;
-  // The reset button of the folder a control draws: a `_reset` folder, a spring, or a transition.
+  // The reset button of the folder a control draws: a `_reset` folder, a spring, a transition, or a background.
   const resetProps = (control: ControlMeta) => control.reset ? {
     changed: DialStore.isFolderChanged(props.panelId, control.path),
     onReset: () => {
@@ -70,7 +72,7 @@ export function mountControlRenderer(host: HTMLElement, initial: ControlRenderer
     switch (control.type) {
       case 'folder': {
         if (control.fields) {
-          mount(mountFields, () => ({ label: control.label, controls: control.children ?? [], values: props.values, defaults: DialStore.getDefaultValues(props.panelId), onChange: (v: Record<string, DialValue>) => DialStore.updateValues(props.panelId, v) }));
+          mount(mountFields, () => ({ label: control.label, controls: control.children ?? [], values: props.values, defaults: DialStore.getDefaultValues(props.panelId), hint: control.hint, onChange: (v: Record<string, DialValue>) => DialStore.updateValues(props.panelId, v) }));
           return undefined;
         }
         // Accordion mode controls top-level folders; nested folders keep their own state.
@@ -105,8 +107,25 @@ export function mountControlRenderer(host: HTMLElement, initial: ControlRenderer
       case 'pad':
         mount(mountDialPad, () => ({ ...control.pad, label: control.label, hint: control.hint, value: value() as DialPadValue, onChange: change }));
         break;
+      case 'background': {
+        const folderProps = () => ({ title: control.label, hint: control.hint, ...resetProps(control) });
+        const folder = mountFolder(target, folderProps());
+        const backgroundProps = () => ({ panelId: props.panelId, label: control.label, value: value() as BackgroundValue, upload: control.background?.upload, onChange: change });
+        const background = mountBackgroundControl(folder.body, backgroundProps());
+        entries.push({
+          update() {
+            folder.update(folderProps());
+            background.update(backgroundProps());
+          },
+          destroy() {
+            background.destroy();
+            folder.destroy();
+          },
+        });
+        break;
+      }
       case 'anchor':
-        mount(mountAnchorControl, () => ({ label: control.label, value: value() as AnchorValue, onChange: change }));
+        mount(mountAnchorControl, () => ({ label: control.label, hint: control.hint, value: value() as AnchorValue, onChange: change }));
         break;
       case 'spring':
         mount(mountSpringControl, () => ({ panelId: props.panelId, path: control.path, label: control.label, hint: control.hint, spring: value() as SpringConfig, onChange: change, ...resetProps(control) }));

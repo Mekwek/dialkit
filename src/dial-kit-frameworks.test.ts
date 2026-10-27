@@ -13,23 +13,26 @@ import { SelectControl } from './components/SelectControl';
 import { useDialKitController } from './hooks/useDialKit';
 import { useDialKitController as useVueDialKitController } from './vue/useDialKit';
 import { DialStore, withVisibility, type DialConfig } from './store/DialStore';
+import { defaultBackgroundValue } from './background';
 
 const config = { group: {
   _hints: { amount: 'How much of the effect to apply.' },
   _reset: true, position: { type: 'pad' }, origin: { type: 'anchor' }, amount: [0.25, 0, 1], enabled: true,
   title: { type: 'text', default: 'Example' }, choice: { type: 'select', options: [] },
-  accent: { type: 'color' }, cover: { type: 'image' },
+  accent: { type: 'color' }, cover: { type: 'image' }, backdrop: { type: 'background', default: { mode: 'gradient' } },
   spring: { type: 'spring', visualDuration: 0.3, bounce: 0.2 },
   easing: { type: 'easing', duration: 0.5, ease: [0, 0, 1, 1] },
   run: { type: 'action' }, shade: withVisibility([0.5, 0, 1], { field: 'group.enabled', is: true }),
   scale: { _fields: true, uniform: false, x: [1, 0.1, 3, 0.01], y: [1, 0.1, 3, 0.01] },
 } } satisfies DialConfig;
+const backdrop = { ...defaultBackgroundValue(), mode: 'gradient' };
 const defaults = { position: { x: 0, y: 0 }, origin: { x: 'center', y: 'center' }, amount: 0.25, enabled: true, title: 'Example', choice: '',
-  accent: '#000000', cover: '', spring: config.group.spring, easing: config.group.easing, run: config.group.run, shade: 0.5,
+  accent: '#000000', cover: '', backdrop, spring: config.group.spring, easing: config.group.easing, run: config.group.run, shade: 0.5,
   scale: { uniform: false, x: 1, y: 1 } };
-const updates = { position: { x: 0.75, y: -0.4 }, origin: { x: 'left', y: 'bottom' }, amount: 0.5, enabled: false, title: 'Changed', accent: '#ff0000', cover: '/cover.png',
+// A background update may name only the fields it changes.
+const updates = { position: { x: 0.75, y: -0.4 }, origin: { x: 'left', y: 'bottom' }, amount: 0.5, enabled: false, title: 'Changed', accent: '#ff0000', cover: '/cover.png', backdrop: { color: '#ff0000' },
   scale: { uniform: true, x: 2, y: 1.5 } };
-const changed = { ...defaults, ...updates };
+const changed = { ...defaults, ...updates, backdrop: { ...backdrop, color: '#ff0000' } };
 
 describe('DialKit framework values', () => {
   it('updates and resets the React controller under StrictMode', () => {

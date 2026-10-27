@@ -3,8 +3,13 @@ import { parseColor } from '../color';
 import { normalizePadValue, type DialPadConfig, type DialPadValue } from '../dial-pad';
 import { normalizeAnchorValue, type AnchorConfig, type AnchorValue } from '../anchor';
 import { defaultTransitionPresets, type TransitionPresetOption } from '../transition-presets';
+import { cloneGradient, normalizeBackgroundValue, normalizeGradient, sameBackgroundValue, type BackgroundConfig, type BackgroundGradient, type BackgroundValue, type BackgroundValueUpdate, type SavedGradient } from '../background';
 export type { DialPadAxis, DialPadConfig, DialPadValue } from '../dial-pad';
 export type { AnchorConfig, AnchorValue } from '../anchor';
+export type {
+  BackgroundConfig, BackgroundGradient, BackgroundMedia, BackgroundMediaDisplay, BackgroundMediaFit, BackgroundMediaRatio, BackgroundMode, BackgroundValue, BackgroundValueUpdate,
+  GradientHandles, GradientPoint, GradientShape, GradientStop, SavedGradient,
+} from '../background';
 
 // Lightweight state store with subscriptions for dialkit
 
@@ -64,7 +69,7 @@ export type TextConfig = {
   placeholder?: string;
 };
 
-export type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue | AnchorConfig | AnchorValue;
+export type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue | BackgroundConfig | BackgroundValue | AnchorConfig | AnchorValue;
 
 export type DialConfig = {
   [key: string]: DialValue | [number, number, number, number?, string?] | DialConfig | ControlWithVisibility;
@@ -120,6 +125,8 @@ export type ResolvedValues<T extends DialConfig> = {
               ? string
               : T[K] extends DialPadConfig
                 ? DialPadValue
+                : T[K] extends BackgroundConfig
+                  ? BackgroundValue
                 : T[K] extends AnchorConfig
                   ? AnchorValue
                   : T[K] extends DialConfig
@@ -140,6 +147,8 @@ export type DialKitValueUpdates<T extends DialConfig> = {
           ? string
           : T[K] extends DialPadConfig
             ? DialPadValue
+            : T[K] extends BackgroundConfig
+              ? BackgroundValueUpdate
             : T[K] extends AnchorConfig
               ? AnchorValue
               : T[K] extends DialConfig
@@ -158,7 +167,7 @@ export type ShortcutConfig = {
 };
 
 export type ControlMeta = {
-  type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'image' | 'text' | 'pad' | 'anchor';
+  type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'image' | 'text' | 'pad' | 'background' | 'anchor';
   path: string;
   label: string;
   min?: number;
@@ -177,6 +186,7 @@ export type ControlMeta = {
   placeholder?: string;
   pad?: DialPadConfig;
   anchor?: AnchorConfig;
+  background?: BackgroundConfig;
   shortcut?: ShortcutConfig;
   visibleWhen?: VisibleWhen;
   /** A short sentence about the control, from its folder's `_hints`. */
@@ -244,6 +254,7 @@ type PersistedPanelState = {
   presets?: Preset[];
   activePresetId?: string | null;
   baseName?: string;
+  gradients?: SavedGradient[];
 };
 
 // Stable empty object for unregistered panels (React 19 useSyncExternalStore requirement)
@@ -384,6 +395,7 @@ export function isLeafConfigValue(value: unknown): boolean {
     isImageConfigValue(value) ||
     isTextConfigValue(value) ||
     isPadConfigValue(value) ||
+    isBackgroundConfigValue(value) ||
     isAnchorConfigValue(value)
   );
 }
@@ -397,6 +409,7 @@ function configDefaultValue(value: DialConfig[string]): DialValue {
   if (isTextConfigValue(value)) return value.default ?? '';
   if (isPadConfigValue(value)) return normalizePadValue(undefined, value);
   if (isAnchorConfigValue(value)) return normalizeAnchorValue(undefined, value);
+  if (isBackgroundConfigValue(value)) return normalizeBackgroundValue(value.default);
   return value as DialValue;
 }
 
@@ -405,8 +418,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function sameControlValue(previous: unknown, next: unknown, control?: ControlMeta): boolean {
-  return Object.is(previous, next) || ((control?.type === 'pad' || control?.type === 'anchor') &&
-    isRecord(previous) && isRecord(next) && previous.x === next.x && previous.y === next.y);
+  if (Object.is(previous, next)) return true;
+  if (control?.type === 'background') {
+    return isRecord(previous) && isRecord(next) && sameBackgroundValue(previous as BackgroundValue, next as BackgroundValue);
+  }
+  return (control?.type === 'pad' || control?.type === 'anchor') &&
+    isRecord(previous) && isRecord(next) && previous.x === next.x && previous.y === next.y;
 }
 
 /** Deep equality for stored values: springs, easings, and pads are compared by content. */
@@ -480,6 +497,10 @@ function isAnchorConfigValue(value: unknown): value is AnchorConfig {
   return hasType(value, 'anchor');
 }
 
+function isBackgroundConfigValue(value: unknown): value is BackgroundConfig {
+  return hasType(value, 'background');
+}
+
 function getFirstOptionValue(options: (string | { value: string; label: string })[]): string {
   const first = options[0];
   if (first === undefined) return '';
@@ -503,6 +524,7 @@ class DialStoreClass {
   private actionListeners: Map<string, Set<ActionListener>> = new Map();
   private presets: Map<string, Preset[]> = new Map();
   private activePreset: Map<string, string | null> = new Map();
+  private gradients: Map<string, SavedGradient[]> = new Map();
   private baseValues: Map<string, Record<string, DialValue>> = new Map();
   private baseNames: Map<string, string> = new Map();
   private defaultValues: Map<string, Record<string, DialValue>> = new Map();
@@ -554,6 +576,9 @@ class DialStoreClass {
     }
     if (!this.baseNames.has(id) && persisted?.baseName) {
       this.baseNames.set(id, persisted.baseName);
+    }
+    if (!this.gradients.has(id) && persisted?.gradients) {
+      this.gradients.set(id, persisted.gradients);
     }
 
     this.persistPanel(id);
@@ -620,6 +645,7 @@ class DialStoreClass {
       this.defaultValues.delete(id);
       this.presets.delete(id);
       this.activePreset.delete(id);
+      this.gradients.delete(id);
       this.persistConfigs.delete(id);
     }
 
@@ -688,6 +714,8 @@ class DialStoreClass {
 
       const next = control?.type === 'pad' ? normalizePadValue(value, control.pad)
         : control?.type === 'anchor' ? normalizeAnchorValue(value, control.anchor)
+        // Missing fields keep the current value, so a partial update changes only what it names.
+        : control?.type === 'background' ? normalizeBackgroundValue(value, panel.values[path] as BackgroundValue)
         : value;
       if (sameControlValue(panel.values[path], next, control) &&
         (!target || sameControlValue(target[path], next, control))) continue;
@@ -968,6 +996,27 @@ class DialStoreClass {
     return this.presets.get(panelId) ?? [];
   }
 
+  /** Saved gradients belong to the panel, and persist with it when it opts in. */
+  saveGradient(panelId: string, gradient: BackgroundGradient): string {
+    const id = `gradient-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    this.gradients.set(panelId, [...this.getSavedGradients(panelId), { id, gradient: cloneGradient(gradient) }]);
+    this.persistPanel(panelId);
+    this.notify(panelId);
+    return id;
+  }
+
+  deleteGradient(panelId: string, gradientId: string): void {
+    const gradients = this.getSavedGradients(panelId);
+    if (!gradients.some(saved => saved.id === gradientId)) return;
+    this.gradients.set(panelId, gradients.filter(saved => saved.id !== gradientId));
+    this.persistPanel(panelId);
+    this.notify(panelId);
+  }
+
+  getSavedGradients(panelId: string): SavedGradient[] {
+    return this.gradients.get(panelId) ?? [];
+  }
+
   getActivePresetId(panelId: string): string | null {
     return this.activePreset.get(panelId) ?? null;
   }
@@ -1162,6 +1211,10 @@ class DialStoreClass {
         ? parsed.presets.filter((preset): preset is Preset =>
           isRecord(preset) && typeof preset.id === 'string' && typeof preset.name === 'string' && isRecord(preset.values))
         : [];
+      const gradients = Array.isArray(parsed.gradients)
+        ? parsed.gradients.filter((saved): saved is SavedGradient => isRecord(saved) && typeof saved.id === 'string' && isRecord(saved.gradient))
+          .map(saved => ({ id: saved.id, gradient: normalizeGradient(saved.gradient) }))
+        : undefined;
       return {
         version: 1,
         values,
@@ -1169,6 +1222,7 @@ class DialStoreClass {
         presets,
         activePresetId: presets.some(preset => preset.id === parsed.activePresetId) ? parsed.activePresetId as string : null,
         baseName: config.presets && typeof parsed.baseName === 'string' ? parsed.baseName : undefined,
+        gradients,
       };
     } catch {
       return null;
@@ -1193,6 +1247,8 @@ class DialStoreClass {
       const baseName = this.baseNames.get(id);
       if (baseName) state.baseName = baseName;
     }
+    const gradients = this.gradients.get(id);
+    if (gradients?.length) state.gradients = gradients;
 
     try {
       storage.setItem(config.key, JSON.stringify(state));
@@ -1361,6 +1417,8 @@ class DialStoreClass {
           control = { type: 'pad', path, label, pad: value };
         } else if (isAnchorConfigValue(value)) {
           control = { type: 'anchor', path, label, anchor: value };
+        } else if (isBackgroundConfigValue(value)) {
+          control = { type: 'background', path, label, background: value };
         } else if (typeof value === 'string') {
           // Auto-detect: hex color vs text
           if (parseColor(value) && value !== 'transparent') {
@@ -1477,6 +1535,8 @@ class DialStoreClass {
         return normalizePadValue(existingValue, control.pad);
       case 'anchor':
         return normalizeAnchorValue(existingValue, control.anchor);
+      case 'background':
+        return normalizeBackgroundValue(existingValue, defaultValue as BackgroundValue);
       case 'select': {
         if (typeof existingValue !== 'string') {
           return defaultValue;

@@ -15,10 +15,12 @@ import { ImageControl } from './ImageControl';
 import { DialPad } from './DialPad';
 import { AnchorControl } from './AnchorControl';
 import { Fields } from './Fields';
+import { BackgroundControl } from './BackgroundControl';
 import type { DialPadValue } from '../dial-pad';
 import type { AnchorValue } from '../anchor';
 import { hasActionHints } from '../hints';
 import { useHints } from '../hooks/useHints';
+import type { BackgroundValue } from '../background';
 
 interface ControlRendererProps {
   panelId: string;
@@ -265,6 +267,19 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration,
             value={value as AnchorValue}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
           />
+        );
+
+      case 'background':
+        return (
+          <Folder key={control.path} title={control.label} defaultOpen={true}>
+            <BackgroundControl
+              panelId={panelId}
+              label={control.label}
+              value={value as BackgroundValue}
+              upload={control.background?.upload}
+              onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
+            />
+          </Folder>
         );
 
       case 'action':
