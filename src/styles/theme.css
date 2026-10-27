@@ -479,10 +479,8 @@
   border-image: var(--dial-nested-line-image);
 }
 
-/* The hint tip (.dialkit-hint-tip) can follow a panel's last folder or row.
-   It draws its own divider, so what comes before it still counts as last. */
-.dialkit-folder:not(.dialkit-folder-root):nth-last-child(1 of :not(.dialkit-hint-tip)):not(.dialkit-control-wrapper > *),
-.dialkit-control-wrapper:nth-last-child(1 of :not(.dialkit-hint-tip)) > .dialkit-folder {
+.dialkit-folder:not(.dialkit-folder-root):last-child:not(.dialkit-control-wrapper > *),
+.dialkit-control-wrapper:last-child > .dialkit-folder {
   border-bottom: none;
   margin-bottom: 0;
 }
@@ -515,13 +513,13 @@
 }
 
 /* The last folder of a panel ends on the panel's own bottom padding. */
-.dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder:nth-last-child(1 of :not(.dialkit-hint-tip)) > .dialkit-folder-content > .dialkit-folder-inner,
-.dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-control-wrapper:nth-last-child(1 of :not(.dialkit-hint-tip)) > .dialkit-folder > .dialkit-folder-content > .dialkit-folder-inner {
+.dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder:last-child > .dialkit-folder-content > .dialkit-folder-inner,
+.dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-control-wrapper:last-child > .dialkit-folder > .dialkit-folder-content > .dialkit-folder-inner {
   padding-bottom: 0;
 }
 
 /* A folder that ends with a folder ends on that folder's own spacing. */
-.dialkit-folder:not(.dialkit-folder-root) > .dialkit-folder-content > .dialkit-folder-inner:has(> .dialkit-folder:nth-last-child(1 of :not(.dialkit-hint-tip)), > .dialkit-control-wrapper:nth-last-child(1 of :not(.dialkit-hint-tip)) > .dialkit-folder) {
+.dialkit-folder:not(.dialkit-folder-root) > .dialkit-folder-content > .dialkit-folder-inner:has(> .dialkit-folder:last-child, > .dialkit-control-wrapper:last-child > .dialkit-folder) {
   padding-bottom: 0;
 }
 
