@@ -49,8 +49,6 @@ export const ICON_CLIPBOARD_PLAIN = {
 
 export const ICON_PLUS = ['M5 12H19M12 5V19'];
 
-export const ICON_MORE = ['M5 12h.01', 'M12 12h.01', 'M19 12h.01'];
-
 export const ICON_COPY = [
   'M9 11a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-7a2 2 0 0 1-2-2z',
   'M5 15a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2',
@@ -97,6 +95,7 @@ export const ICON_LOCK_OPEN = [
   ICON_LOCK[0],
   'M7 11V7a5 5 0 0 1 9.9-1',
 ];
+
 export const ICON_RESET = ['M4.5 12a7.5 7.5 0 1 0 2.2-5.3', 'M4.5 4.5v3.75h3.75'];
 
 export const ICON_PANEL = {
@@ -119,5 +118,3 @@ export const ICON_LINK = [
   'M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1',
   'M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1',
 ];
-
-export const ICON_RESET = ['M4.5 12a7.5 7.5 0 1 0 2.2-5.3', 'M4.5 4.5v3.75h3.75'];
