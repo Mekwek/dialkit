@@ -2,6 +2,7 @@ import { DialStore, type ControlMeta, type DialValue, type SpringConfig, type Tr
 import { mountColorControl } from '../color-control';
 import { mountImageControl } from '../image-control';
 import { mountDialPad } from '../dial-pad-control';
+import { mountFields } from '../fields-control';
 import type { DialPadValue } from '../dial-pad';
 import { mountFolder, mountSlider, mountTextControl, mountToggle } from './controls';
 import { mountSelectControl } from './menus';
@@ -34,6 +35,10 @@ export function mountControlRenderer(host: HTMLElement, initial: ControlRenderer
       }
       switch (control.type) {
         case 'folder': {
+          if (control.fields) {
+            mount(mountFields, () => ({ label: control.label, controls: control.children ?? [], values: props.values, defaults: DialStore.getDefaultValues(props.panelId), onChange: (v: Record<string, DialValue>) => DialStore.updateValues(props.panelId, v) }));
+            break;
+          }
           const folder = mountFolder(target, { title: control.label, defaultOpen: control.defaultOpen });
           mounted.push({
             update() {

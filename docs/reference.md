@@ -112,6 +112,30 @@ Each axis uses `[default, min, max, step?]`. Omitted axes default to `[0, -1, 1,
 
 X increases to the right; Y increases upward. Clicks near grid intersections snap to them. Hold Shift while dragging to lock an axis. Home or a double-click restores the configured defaults; Escape cancels an active drag.
 
+### Field rows
+
+```ts
+import type { DialConfig } from "dialkit";
+
+const config = {
+  scale: {
+    _fields: true,
+    uniform: false,
+    x: [1.25, 0.1, 3, 0.01],
+    y: [1.25, 0.1, 3, 0.01],
+    z: [1.25, 0.1, 3, 0.01],
+  },
+} satisfies DialConfig;
+```
+
+`_fields: true` shows a folder's numbers side by side, labelled by their keys. The values stay ordinary sliders: `values.scale.x` is a number, and presets and `setValues` work as they do in any folder. Shortcuts assigned to a field's path still adjust it, but the row shows no shortcut hint. A row has no header to fold, so `_collapsed` has no effect on it. A row holds two to four numbers and at most one boolean; any other folder ignores `_fields` and logs a warning.
+
+Drag a field's label to scrub one step per pixel, or ten with Shift. A value is a button: click it, or press Enter or Space on it, to type a value, step it with Up and Down, then press Enter to commit or Escape to cancel. Leaving the field also commits. Values are clamped and snapped to their step.
+
+Once any value in the row, the lock included, differs from its default, a reset appears beside the label. It puts the row's values back to their defaults and hides again; if it had focus, focus moves to the first field.
+
+The boolean is the row's lock. While it is on, editing one field scales every field by the same ratio, so `[1, 2, 0.5]` becomes `[1.5, 3, 0.75]` when X moves to 1.5. When the edited field starts at 0, the others move by the same amount instead. The change stops where the first field reaches its min or max, and dragging back moves it again right away. Values set from code or shortcuts are written as given.
+
 ### Transitions
 
 ```ts
@@ -228,6 +252,8 @@ DialStore.togglePanelOpen("card");
 DialStore.getPanelOpen("card");
 ```
 
+`DialStore.getDefaultValues("card")` returns the panel's config defaults, keyed by path like its values.
+
 `Folder` also accepts controlled `open` and `onOpenChange` (`@open-change` in Vue), or an initial `defaultOpen`. Inline roots fill their container, ignore `position`, and disable collapse-to-icon interaction.
 
 ## Keyboard
@@ -238,6 +264,7 @@ DialStore.getPanelOpen("card");
 | Slider | Arrows adjust one step; Shift + Arrow or Page Up/Down adjusts ten; Home/End goes to the bounds |
 | Numeric editor | Enter opens it from a slider; Enter commits, Escape cancels, Tab commits and advances |
 | XY pad | Arrows adjust axes; Shift + Arrow adjusts ten steps; Home resets; Escape cancels a drag |
+| Field row | Up/Down adjusts one step; Shift + Up/Down or Page Up/Down adjusts ten; Enter commits, Escape cancels |
 | Select or preset menu | Enter, Space, or Up/Down opens; arrows, Home/End, and typing navigate; Enter/Space selects; Escape closes |
 | Segmented control | Arrows select a segment; Home/End selects the first/last |
 | Color picker | Tab moves between controls; arrows adjust the focused control; Escape closes |
