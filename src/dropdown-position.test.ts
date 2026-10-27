@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, it } from 'node:test';
 import { getDropdownPosition } from './dropdown-position';
-import { measurePanelHeight } from './panel-size';
+import { createPanelSectionTransition, measurePanelHeight } from './panel-size';
 const originalWindow = globalThis.window;
 const originalStyle = globalThis.getComputedStyle;
-afterEach(() => { globalThis.window = originalWindow; globalThis.getComputedStyle = originalStyle; });
+const originalResizeObserver = globalThis.ResizeObserver;
+afterEach(() => { globalThis.window = originalWindow; globalThis.getComputedStyle = originalStyle; globalThis.ResizeObserver = originalResizeObserver; });
 const el = (left: number, top: number, width: number, height: number) => ({ getBoundingClientRect: () => ({ x: left, y: top, left, top, right: left + width, width, height, bottom: top + height }), closest: () => null, scrollTop: 0, scrollLeft: 0, clientTop: 0, clientLeft: 0 }) as HTMLElement;
 describe('popover layout', () => {
   it('constrains long menus and flips them using the rendered height', () => {
@@ -39,5 +40,23 @@ describe('popover layout', () => {
       globalThis.getComputedStyle = (() => ({ boxSizing, paddingTop: '10px', paddingBottom: '10px', borderTopWidth: '1px', borderBottomWidth: '1px' })) as typeof getComputedStyle;
       assert.equal(measurePanelHeight(content), boxSizing === 'border-box' ? 222 : 200);
     }
+  });
+});
+describe('pinned panel headers', () => {
+  it('publishes a section header height for the folders pinned below it', () => {
+    let resize = () => {};
+    globalThis.ResizeObserver = class { constructor(callback: () => void) { resize = callback; } observe() {} disconnect() {} } as unknown as typeof ResizeObserver;
+    const properties = new Map<string, string>();
+    const style = { setProperty: (name: string, value: string) => properties.set(name, value), removeProperty: (name: string) => properties.delete(name) };
+    const part = () => ({ style: { display: '', removeProperty() {} }, inert: false }) as unknown as HTMLElement;
+    const header = { offsetHeight: 90 } as HTMLElement;
+    const folder = { firstElementChild: header, style, querySelector: part } as unknown as HTMLElement;
+    const transition = createPanelSectionTransition(folder, true);
+    assert.equal(properties.get('--dial-panel-header-height'), '90px');
+    (header as { offsetHeight: number }).offsetHeight = 54;
+    resize();
+    assert.equal(properties.get('--dial-panel-header-height'), '54px');
+    transition.destroy();
+    assert.equal(properties.has('--dial-panel-header-height'), false);
   });
 });

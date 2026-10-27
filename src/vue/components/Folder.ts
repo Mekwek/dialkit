@@ -1,5 +1,5 @@
 import { activateOnKey } from '../../control-keyboard';
-import { createPanelSectionTransition, measurePanelHeight, observePanelHeader } from '../../panel-size';
+import { createPanelSectionTransition, measurePanelHeight, observePanelHeader, observeScrollFades } from '../../panel-size';
 import { computed, defineComponent, h, onMounted, onUnmounted, ref, watch, type PropType, type VNodeChild } from 'vue';
 import { AnimatePresence, motion } from 'motion-v';
 import { ICON_CLOSE, ICON_CHEVRON, ICON_PANEL } from '../../icons';
@@ -58,12 +58,14 @@ export const Folder = defineComponent({
 
     let ro: ResizeObserver | null = null;
     let stopHeader: (() => void) | undefined;
+    let stopFades: (() => void) | undefined;
 
     onMounted(() => {
       if (!props.isRoot || typeof ResizeObserver === 'undefined') return;
       const el = contentRef.value;
       if (!el) return;
       stopHeader = observePanelHeader(el);
+      stopFades = observeScrollFades(el);
 
       ro = new ResizeObserver(() => {
         if (isOpen.value) {
@@ -84,6 +86,7 @@ export const Folder = defineComponent({
     onUnmounted(() => {
       ro?.disconnect();
       stopHeader?.();
+      stopFades?.();
     });
 
     const renderHeader = () => h('div', {
