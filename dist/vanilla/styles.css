@@ -82,6 +82,8 @@
   --dial-layer-hidden-opacity: 0.4;
   --dial-layer-icon-size: 16px;
   --dial-layer-icon-gap: 2px;
+  /* A layer row's height: the panel's row height unless a host sets its own. */
+  --dial-layer-row-height: var(--dial-row-height);
   --dial-layer-delete-hover: #ff3b30;
   /* A row of two controls (`_row`): the space between its two columns, and
      between each label and its control. */
@@ -2233,10 +2235,10 @@
 
 /* ── Layer list (layer-list-control.ts) ── */
 .dialkit-layers { display: flex; flex-direction: column; gap: var(--dial-row-gap); }
-.dialkit-layers-add { width: 100%; }
+.dialkit-layers-add { width: 100%; height: var(--dial-layer-row-height); }
 .dialkit-layers-list { position: relative; display: flex; flex-direction: column; gap: var(--dial-row-gap); }
 .dialkit-layers-empty { padding: 4px 12px; font-size: 13px; color: var(--dial-text-tertiary); }
-.dialkit-layer { position: relative; display: flex; align-items: center; gap: 8px; height: var(--dial-row-height); padding: 0 6px 0 12px; box-sizing: border-box; border-radius: var(--dial-radius); background: var(--dial-layer-fill); cursor: pointer; user-select: none; transition: background 0.15s, box-shadow 0.15s; }
+.dialkit-layer { position: relative; display: flex; align-items: center; gap: 8px; height: var(--dial-layer-row-height); padding: 0 6px 0 12px; box-sizing: border-box; border-radius: var(--dial-radius); background: var(--dial-layer-fill); cursor: pointer; user-select: none; transition: background 0.15s, box-shadow 0.15s; }
 .dialkit-layer:hover { background: var(--dial-layer-hover-fill); }
 .dialkit-layer[data-selected] { background: var(--dial-layer-selected-fill); box-shadow: inset 0 0 0 1px var(--dial-layer-selected-border); }
 .dialkit-layer:focus-visible { outline: 2px solid var(--dial-focus-ring); outline-offset: -2px; }
