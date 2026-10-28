@@ -837,6 +837,10 @@ const TimelineSection = memo(function TimelineSection({
         ? e.deltaY
         : 0;
     if (horizontalDelta === 0) return;
+    // A host that smooths the pan bar with Lenis (which marks it with the
+    // "lenis" class) moves it from this same wheel: moving it here too
+    // would jump past the smooth scroll.
+    if (scroller.classList.contains('lenis')) return;
     e.preventDefault();
     scroller.scrollLeft += horizontalDelta;
   };

@@ -13276,6 +13276,7 @@ var TimelineSection = (0, import_react37.memo)(function TimelineSection2({
     if (!scroller || zoom <= 1) return;
     const horizontalDelta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.shiftKey ? e.deltaY : 0;
     if (horizontalDelta === 0) return;
+    if (scroller.classList.contains("lenis")) return;
     e.preventDefault();
     scroller.scrollLeft += horizontalDelta;
   };
