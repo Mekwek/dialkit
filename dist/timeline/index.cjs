@@ -657,7 +657,8 @@ function parseTimelineConfig(config) {
       ...lane ? { lane } : {},
       ...lane && laneLabel ? { laneLabel } : {},
       ...segments ? { segments } : {},
-      ...nonEmptyString(raw.hint) ? { hint: nonEmptyString(raw.hint) } : {}
+      ...nonEmptyString(raw.hint) ? { hint: nonEmptyString(raw.hint) } : {},
+      ...nonEmptyString(raw.panel) ? { panel: nonEmptyString(raw.panel) } : {}
     });
   });
   return { duration, dialConfig, clips };

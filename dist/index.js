@@ -1485,6 +1485,8 @@ var DialStoreClass = class {
     this.timelinePanelsSnapshot = [];
     this.listeners = /* @__PURE__ */ new Map();
     this.globalListeners = /* @__PURE__ */ new Set();
+    /** Names of the panels a timeline clip popover shows. See setPanelInPopover. */
+    this.panelsInPopover = /* @__PURE__ */ new Set();
     this.snapshots = /* @__PURE__ */ new Map();
     this.actionListeners = /* @__PURE__ */ new Map();
     this.presets = /* @__PURE__ */ new Map();
@@ -1877,6 +1879,19 @@ var DialStoreClass = class {
         this.listeners.delete(panelId);
       }
     };
+  }
+  /**
+   * Shows or hides a panel in a timeline clip popover (`panel` on a clip),
+   * by name. DialRoot leaves the panel out while a popover shows it.
+   */
+  setPanelInPopover(name, shown) {
+    if (this.panelsInPopover.has(name) === shown) return;
+    if (shown) this.panelsInPopover.add(name);
+    else this.panelsInPopover.delete(name);
+    this.notifyGlobal();
+  }
+  isPanelInPopover(name) {
+    return this.panelsInPopover.has(name);
   }
   subscribeGlobal(listener) {
     this.globalListeners.add(listener);
@@ -3391,7 +3406,7 @@ var isEditable = (target) => target instanceof HTMLElement && (target.isContentE
 var tooltips = [];
 var radiusOf = (element7) => Number.parseFloat(getComputedStyle(element7).borderTopLeftRadius) || 0;
 function dimAreaOf(row) {
-  return row.closest(".dialkit-color-popover") ?? row.closest(".dialkit-image-popover") ?? row.closest(".dialkit-timeline-popover") ?? row.closest(".dialkit-bg-popover") ?? row.closest(".dialkit-bg-shape-menu") ?? row.closest(".dialkit-panel-inner") ?? row.closest(".dialkit-folder-root") ?? row.closest(".dialkit-timeline-dock");
+  return row.closest(".dialkit-color-popover") ?? row.closest(".dialkit-image-popover") ?? row.closest(".dialkit-timeline-popover") ?? row.closest(".dialkit-bg-popover") ?? row.closest(".dialkit-bg-shape-menu") ?? row.closest("[data-hint-area]") ?? row.closest(".dialkit-panel-inner") ?? row.closest(".dialkit-folder-root") ?? row.closest(".dialkit-timeline-dock");
 }
 var hasTopLayer = () => typeof HTMLElement !== "undefined" && typeof HTMLElement.prototype.showPopover === "function";
 function raise(layer) {
@@ -11266,7 +11281,10 @@ function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover"
   const dragTargetRef = useRef23(null);
   const panelOpenStatesRef = useRef23(/* @__PURE__ */ new Map());
   const rootOpenRef = useRef23(null);
-  const rootEntries = useMemo2(() => partitionPanels(panels), [panels]);
+  const rootEntries = useMemo2(
+    () => partitionPanels(panels.filter((panel) => !DialStore.isPanelInPopover(panel.name))),
+    [panels]
+  );
   const rootKeys = useMemo2(() => rootEntries.map((entry) => entry.key), [rootEntries]);
   useEffect20(() => {
     setMounted(true);
@@ -11791,7 +11809,8 @@ function parseTimelineConfig(config) {
       ...lane ? { lane } : {},
       ...lane && laneLabel ? { laneLabel } : {},
       ...segments ? { segments } : {},
-      ...nonEmptyString(raw.hint) ? { hint: nonEmptyString(raw.hint) } : {}
+      ...nonEmptyString(raw.hint) ? { hint: nonEmptyString(raw.hint) } : {},
+      ...nonEmptyString(raw.panel) ? { panel: nonEmptyString(raw.panel) } : {}
     });
   });
   return { duration, dialConfig, clips };
@@ -13103,7 +13122,7 @@ var TimelineSection = memo(function TimelineSection2({
     const onPointerDown = (e) => {
       const target = e.target;
       if (!target) return;
-      if (target.closest(".dialkit-timeline-clip") || target.closest(".dialkit-timeline-popover")) {
+      if (target.closest(".dialkit-timeline-clip") || target.closest("[data-timeline-popover]")) {
         return;
       }
       setSelectedKeys((prev) => prev.size ? /* @__PURE__ */ new Set() : prev);
@@ -13143,7 +13162,8 @@ var TimelineSection = memo(function TimelineSection2({
     ));
   }, [meta.duration]);
   const bodyRef = useRef25(null);
-  const foldRef = useRef25(null);
+  const [foldSettled, setFoldSettled] = useState15(false);
+  if (!open && foldSettled) setFoldSettled(false);
   const wheelHandlerRef = useRef25(() => {
   });
   wheelHandlerRef.current = (e) => {
@@ -13310,11 +13330,24 @@ var TimelineSection = memo(function TimelineSection2({
   const { hintRow: rulerHintRow } = useHint(BAR_HINTS.ruler);
   const { hintRow: copyHintRow } = useHint(BAR_HINTS.copy);
   const closePopover = useCallback15(() => setPopover(null), []);
+  const popoverPanel = popover?.clip.panel;
+  useEffect22(() => {
+    if (!popoverPanel) return;
+    DialStore.setPanelInPopover(popoverPanel, true);
+    return () => DialStore.setPanelInPopover(popoverPanel, false);
+  }, [popoverPanel]);
+  const shownPanelRef = useRef25(void 0);
+  useEffect22(() => {
+    const previous = shownPanelRef.current;
+    shownPanelRef.current = popoverPanel;
+    if (!previous || previous === popoverPanel) return;
+    DialStore.getPanels("panel").find((panel) => panel.name === previous)?.onClose?.();
+  }, [popoverPanel]);
   const openClipPopover = useCallback15(
     (clip, rect, stepKey) => {
       const targetPath = stepKey ? `${clip.key}.${stepKey}` : clip.key;
       const exclude = stepKey ? void 0 : clipPopoverExclusions(clip);
-      if (getClipControls(meta.id, targetPath, exclude).length === 0) return;
+      if (!clip.panel && getClipControls(meta.id, targetPath, exclude).length === 0) return;
       setPopover(
         (prev) => prev?.clip.key === clip.key && prev?.stepKey === stepKey ? null : {
           clip,
@@ -13807,13 +13840,12 @@ var TimelineSection = memo(function TimelineSection2({
           {
             className: "dialkit-timeline-fold",
             initial: { height: 0, overflow: "clip" },
-            animate: { height: "auto" },
+            animate: { height: "auto", overflow: foldSettled ? "visible" : "clip" },
             exit: { height: 0, overflow: "clip" },
             transition: { type: "spring", visualDuration: 0.35, bounce: 0.1 },
             onAnimationComplete: (definition) => {
-              if (open && definition.height === "auto") foldRef.current?.style.setProperty("overflow", "visible");
+              if (open && definition.height === "auto") setFoldSettled(true);
             },
-            ref: foldRef,
             children: /* @__PURE__ */ jsxs19(
               "div",
               {
@@ -13922,6 +13954,8 @@ function ClipPopover({
     offsetLeft: window.visualViewport?.offsetLeft ?? 0,
     offsetTop: window.visualViewport?.offsetTop ?? 0
   }));
+  const hostPanels = useSyncExternalStore10(subscribePanels, readPanels, readPanels);
+  const hostPanel = popover.clip.panel ? hostPanels.find((panel) => panel.name === popover.clip.panel) : void 0;
   useLayoutEffect10(() => {
     const element7 = ref.current;
     if (!element7) return;
@@ -13931,7 +13965,7 @@ function ClipPopover({
     const body = element7.querySelector(".dialkit-timeline-popover-body");
     observer.observe(body ?? element7);
     return () => observer.disconnect();
-  }, [popover.clip.key, popover.stepKey]);
+  }, [popover.clip.key, popover.stepKey, hostPanel?.id]);
   useEffect22(() => {
     const updateViewport = () => setViewport({
       width: window.visualViewport?.width ?? window.innerWidth,
@@ -13951,7 +13985,7 @@ function ClipPopover({
   useEffect22(() => {
     const handlePointerDown = (e) => {
       const target = e.target;
-      if (ref.current?.contains(target)) return;
+      if (target.closest?.("[data-timeline-popover]")) return;
       if (target.closest?.(".dialkit-timeline-clip")) return;
       if (target.closest?.(".dialkit-timeline-label")) return;
       onClose();
@@ -13969,7 +14003,10 @@ function ClipPopover({
   const { clip, stepKey } = popover;
   let controls;
   let title;
-  if (stepKey) {
+  if (clip.panel) {
+    controls = [];
+    title = clip.label;
+  } else if (stepKey) {
     controls = getClipControls(panelId, `${clip.key}.${stepKey}`);
     if (stepKey === clip.stepKeys?.[0]) {
       const from = getControlAt(panelId, `${clip.key}.from`);
@@ -13983,7 +14020,7 @@ function ClipPopover({
     controls = getClipControls(panelId, clip.key, clipPopoverExclusions(clip));
     title = clip.label;
   }
-  if (controls.length === 0) return null;
+  if (!clip.panel && controls.length === 0) return null;
   const targetPath = stepKey ? `${clip.key}.${stepKey}` : clip.key;
   const durationMeta = getControlAt(panelId, `${targetPath}.duration`);
   const durationValue = durationMeta ? values[durationMeta.path] : void 0;
@@ -14026,7 +14063,7 @@ function ClipPopover({
     Math.max(viewport.offsetTop + 12, viewportBottom - renderedHeight - 12)
   );
   return createPortal5(
-    /* @__PURE__ */ jsx28("div", { className: "dialkit-root", "data-theme": theme, children: /* @__PURE__ */ jsxs19(
+    /* @__PURE__ */ jsx28("div", { className: "dialkit-root", "data-theme": theme, "data-timeline-popover": "", children: /* @__PURE__ */ jsxs19(
       "div",
       {
         ref,
@@ -14037,7 +14074,9 @@ function ClipPopover({
           top,
           width: popoverWidth,
           maxHeight: availableHeight,
-          visibility: naturalHeight > 0 ? "visible" : "hidden"
+          // Hidden until it is measured, and, for a host panel, until the
+          // panel has registered and filled it.
+          visibility: naturalHeight > 0 && (!clip.panel || hostPanel) ? "visible" : "hidden"
         },
         role: "dialog",
         "aria-label": `Edit ${title}`,
@@ -14046,7 +14085,7 @@ function ClipPopover({
             /* @__PURE__ */ jsx28("span", { className: "dialkit-timeline-popover-title", children: title }),
             /* @__PURE__ */ jsx28("button", { className: "dialkit-timeline-popover-close", onClick: onClose, "aria-label": "Close editor", ...closeHintRow, children: /* @__PURE__ */ jsx28("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", children: /* @__PURE__ */ jsx28("path", { d: "M6 6L18 18M18 6L6 18" }) }) })
           ] }),
-          /* @__PURE__ */ jsx28("div", { className: "dialkit-timeline-popover-body", children: /* @__PURE__ */ jsx28(
+          /* @__PURE__ */ jsx28("div", { className: "dialkit-timeline-popover-body", children: clip.panel ? hostPanel && /* @__PURE__ */ jsx28(PopoverPanelControls, { panelId: hostPanel.id }, hostPanel.id) : /* @__PURE__ */ jsx28(
             ControlRenderer,
             {
               panelId,
@@ -14060,6 +14099,41 @@ function ClipPopover({
       }
     ) }),
     document.body
+  );
+}
+var subscribePanels = (listener) => DialStore.subscribeGlobal(listener);
+var readPanels = () => DialStore.getPanels("panel");
+function PopoverPanelControls({ panelId }) {
+  const subscribe = useCallback15(
+    (listener) => DialStore.subscribe(panelId, listener),
+    [panelId]
+  );
+  const readPanel = useCallback15(() => DialStore.getPanel(panelId), [panelId]);
+  const readValues = useCallback15(() => DialStore.getValues(panelId), [panelId]);
+  const panel = useSyncExternalStore10(subscribe, readPanel, readPanel);
+  const values = useSyncExternalStore10(subscribe, readValues, readValues);
+  const accordion = panel?.folderMode === "accordion";
+  const [openFolder, setOpenFolder] = useState15(() => {
+    if (!accordion) return null;
+    const first = panel?.controls.find(
+      (control) => control.type === "folder" && !control.anchor && (control.defaultOpen ?? true)
+    );
+    return first?.path ?? null;
+  });
+  const onAccordionToggle = useCallback15((path, open) => {
+    setOpenFolder(open ? path : null);
+  }, []);
+  if (!panel) return null;
+  return /* @__PURE__ */ jsx28(
+    ControlRenderer,
+    {
+      panelId,
+      controls: panel.controls,
+      values,
+      animateControls: true,
+      accordionOpenPath: accordion ? openFolder : void 0,
+      onAccordionToggle: accordion ? onAccordionToggle : void 0
+    }
   );
 }
 function singleTrackNeighborCap(meta, values, clipKey) {
@@ -14608,6 +14682,7 @@ export {
   GRADIENT_SHAPES,
   HintStore,
   HintTip,
+  HintTooltip,
   ImageControl,
   LayerListControl,
   PresetManager,

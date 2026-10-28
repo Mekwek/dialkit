@@ -1220,15 +1220,19 @@
 }
 
 .dialkit-button {
-  flex: 1;
+  /* The auto basis keeps the row height below when a folder stacks its
+     rows in a column; a zero basis would shrink the button to its text. */
+  flex: 1 1 auto;
   /*
    * width: 100% lets the button stretch inside the motion.div wrapper
-   * that Panel.tsx puts around every control. The `flex: 1` above
+   * that Panel.tsx puts around every control. The `flex` above
    * remains for any direct-flex-child use case (a consumer rendering
    * the button outside of Panel.tsx).
    */
   width: 100%;
-  padding: 10px 16px;
+  /* As tall as every other row. */
+  height: var(--dial-row-height);
+  padding: 0 16px;
   font-family: inherit;
   font-size: 13px;
   font-weight: 500;
@@ -1385,11 +1389,12 @@
 
 /* The transition control: the Type control, the curve box or spring
    picture, the values, then the named presets (TransitionPresets.tsx). */
-.dialkit-transition { display: flex; flex-direction: column; gap: 6px; }
+/* Its rows sit the row gap apart, as the rows of any folder do. */
+.dialkit-transition { display: flex; flex-direction: column; gap: var(--dial-row-gap); }
 .dialkit-ease-fields { display: flex; gap: var(--dial-field-gap); min-width: 0; }
 /* The fields sit as close under the curve box as they sit to each other:
-   the column's 6px gap, less the difference. */
-.dialkit-transition .dialkit-ease-fields { gap: var(--dial-curve-gap); margin-top: calc(var(--dial-curve-gap) - 6px); }
+   the column's row gap, less the difference. */
+.dialkit-transition .dialkit-ease-fields { gap: var(--dial-curve-gap); margin-top: calc(var(--dial-curve-gap) - var(--dial-row-gap)); }
 /* The curve box and its fields read as one block: their facing corners
    and the corners between the fields use --dial-curve-join-radius. */
 .dialkit-transition .dialkit-easing-viz { border-bottom-left-radius: var(--dial-curve-join-radius); border-bottom-right-radius: var(--dial-curve-join-radius); }

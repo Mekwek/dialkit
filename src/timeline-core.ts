@@ -126,6 +126,13 @@ type TimelineClipBase = {
   hints?: Record<string, string>;
   /** The clip bar's own hint, shown while the hint key (H) is held over it. */
   hint?: string;
+  /**
+   * The name of a registered panel. A click on the bar opens that panel in
+   * the clip's popover, in place of the clip's own controls, and the panel
+   * leaves its own place while the popover shows it. Closing the popover
+   * closes the panel, as the panel's own close button does.
+   */
+  panel?: string;
 };
 
 /** The fixed in/out parts of a segmented clip, in seconds. */
@@ -713,6 +720,7 @@ export function parseTimelineConfig(config: TimelineConfig): ParsedTimeline {
       ...(lane && laneLabel ? { laneLabel } : {}),
       ...(segments ? { segments } : {}),
       ...(nonEmptyString(raw.hint) ? { hint: nonEmptyString(raw.hint) } : {}),
+      ...(nonEmptyString(raw.panel) ? { panel: nonEmptyString(raw.panel) } : {}),
     });
   });
 

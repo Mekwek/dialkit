@@ -111,7 +111,8 @@ const radiusOf = (element: Element) => Number.parseFloat(getComputedStyle(elemen
 /**
  * The area the dim covers: the color or image picker, clip popover, panel or
  * timeline bar a row sits in. A panel's outer box is the rounded one; its root folder inside can be
- * taller and scroll.
+ * taller and scroll. A host that draws its own box around DialKit rows marks
+ * it with `data-hint-area`.
  */
 function dimAreaOf(row: HTMLElement): Element | null {
   return (
@@ -120,6 +121,7 @@ function dimAreaOf(row: HTMLElement): Element | null {
     row.closest('.dialkit-timeline-popover') ??
     row.closest('.dialkit-bg-popover') ??
     row.closest('.dialkit-bg-shape-menu') ??
+    row.closest('[data-hint-area]') ??
     row.closest('.dialkit-panel-inner') ??
     row.closest('.dialkit-folder-root') ??
     row.closest('.dialkit-timeline-dock')
@@ -148,8 +150,9 @@ const GAP = 6;
 const MARGIN = 8;
 
 /**
- * The one hint on screen, and the dim behind it. DialRoot mounts it. It
- * listens for the hint key, except while a field takes typing.
+ * The one hint on screen, and the dim behind it. DialRoot mounts it; a host
+ * that draws DialKit rows without a DialRoot mounts it itself. It listens
+ * for the hint key, except while a field takes typing.
  */
 export function HintTooltip() {
   const shown = useSyncExternalStore(HintStore.subscribe, HintStore.getShown, HintStore.getShown);

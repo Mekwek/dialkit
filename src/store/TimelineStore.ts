@@ -33,6 +33,8 @@ export type TimelineClipMeta = {
   segments?: { in: number; out: number };
   /** The bar's hint, shown while the hint key is held over it. */
   hint?: string;
+  /** The registered panel the bar's popover shows (see the clip config). */
+  panel?: string;
 };
 
 export type TimelineMeta = {

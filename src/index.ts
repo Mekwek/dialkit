@@ -93,7 +93,7 @@ export { ShortcutsMenu } from './components/ShortcutsMenu';
 // saved curves and springs.
 export { TransitionLibrary } from './store/TransitionLibrary';
 export { HintStore } from './store/HintStore';
-export { HintTip } from './components/Hint';
+export { HintTip, HintTooltip } from './components/Hint';
 export type { CopiedTransition } from './store/TransitionLibrary';
 export { EASING_CURVES, SPRING_PRESETS } from './transition-presets';
 export type { CustomSpring, EasingCurve, SpringMode, SpringPreset } from './transition-presets';

@@ -1469,6 +1469,8 @@ var DialStoreClass = class {
     this.timelinePanelsSnapshot = [];
     this.listeners = /* @__PURE__ */ new Map();
     this.globalListeners = /* @__PURE__ */ new Set();
+    /** Names of the panels a timeline clip popover shows. See setPanelInPopover. */
+    this.panelsInPopover = /* @__PURE__ */ new Set();
     this.snapshots = /* @__PURE__ */ new Map();
     this.actionListeners = /* @__PURE__ */ new Map();
     this.presets = /* @__PURE__ */ new Map();
@@ -1861,6 +1863,19 @@ var DialStoreClass = class {
         this.listeners.delete(panelId);
       }
     };
+  }
+  /**
+   * Shows or hides a panel in a timeline clip popover (`panel` on a clip),
+   * by name. DialRoot leaves the panel out while a popover shows it.
+   */
+  setPanelInPopover(name, shown) {
+    if (this.panelsInPopover.has(name) === shown) return;
+    if (shown) this.panelsInPopover.add(name);
+    else this.panelsInPopover.delete(name);
+    this.notifyGlobal();
+  }
+  isPanelInPopover(name) {
+    return this.panelsInPopover.has(name);
   }
   subscribeGlobal(listener) {
     this.globalListeners.add(listener);
@@ -8750,7 +8765,8 @@ function parseTimelineConfig(config) {
       ...lane ? { lane } : {},
       ...lane && laneLabel ? { laneLabel } : {},
       ...segments ? { segments } : {},
-      ...nonEmptyString(raw.hint) ? { hint: nonEmptyString(raw.hint) } : {}
+      ...nonEmptyString(raw.hint) ? { hint: nonEmptyString(raw.hint) } : {},
+      ...nonEmptyString(raw.panel) ? { panel: nonEmptyString(raw.panel) } : {}
     });
   });
   return { duration, dialConfig, clips };

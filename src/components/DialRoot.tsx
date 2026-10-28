@@ -58,7 +58,11 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
   // synthetic `group:X` keys) because a grouped panel's open/close is
   // reported at the shell level, not per panel. Both the seeding effect and
   // `handlePanelOpenChange` read this list.
-  const rootEntries = useMemo(() => partitionPanels(panels), [panels]);
+  // A panel a timeline clip popover shows leaves its own place meanwhile.
+  const rootEntries = useMemo(
+    () => partitionPanels(panels.filter((panel) => !DialStore.isPanelInPopover(panel.name))),
+    [panels]
+  );
   const rootKeys = useMemo(() => rootEntries.map((entry) => entry.key), [rootEntries]);
 
   // Subscribe to registered editing surfaces. Timeline-backed panels render

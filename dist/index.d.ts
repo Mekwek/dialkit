@@ -788,6 +788,8 @@ declare class DialStoreClass {
     private timelinePanelsSnapshot;
     private listeners;
     private globalListeners;
+    /** Names of the panels a timeline clip popover shows. See setPanelInPopover. */
+    private panelsInPopover;
     private snapshots;
     private actionListeners;
     private presets;
@@ -880,6 +882,12 @@ declare class DialStoreClass {
     getPanels(kind?: 'panel' | 'timeline'): PanelConfig[];
     getPanel(id: string): PanelConfig | undefined;
     subscribe(panelId: string, listener: Listener$3): () => void;
+    /**
+     * Shows or hides a panel in a timeline clip popover (`panel` on a clip),
+     * by name. DialRoot leaves the panel out while a popover shows it.
+     */
+    setPanelInPopover(name: string, shown: boolean): void;
+    isPanelInPopover(name: string): boolean;
     subscribeGlobal(listener: Listener$3): () => void;
     subscribeActions(panelId: string, listener: ActionListener): () => void;
     triggerAction(panelId: string, path: string): void;
@@ -1059,6 +1067,8 @@ type TimelineClipMeta = {
     };
     /** The bar's hint, shown while the hint key is held over it. */
     hint?: string;
+    /** The registered panel the bar's popover shows (see the clip config). */
+    panel?: string;
 };
 type TimelineMeta = {
     id: string;
@@ -1211,6 +1221,13 @@ type TimelineClipBase = {
     hints?: Record<string, string>;
     /** The clip bar's own hint, shown while the hint key (H) is held over it. */
     hint?: string;
+    /**
+     * The name of a registered panel. A click on the bar opens that panel in
+     * the clip's popover, in place of the clip's own controls, and the panel
+     * leaves its own place while the popover shows it. Closing the popover
+     * closes the panel, as the panel's own close button does.
+     */
+    panel?: string;
 };
 /** The fixed in/out parts of a segmented clip, in seconds. */
 type TimelineClipSegments = {
@@ -1879,5 +1896,11 @@ declare const HintStore: HintStoreClass;
 declare function HintTip({ always }: {
     always?: boolean;
 }): react_jsx_runtime.JSX.Element | null;
+/**
+ * The one hint on screen, and the dim behind it. DialRoot mounts it; a host
+ * that draws DialKit rows without a DialRoot mounts it itself. It listens
+ * for the hint key, except while a field takes typing.
+ */
+declare function HintTooltip(): react.ReactPortal | null;
 
-export { type ActionConfig, AnchorGrid, type AnchorGridConfig, type BackgroundConfig, BackgroundControl, type BackgroundControlProps, type BackgroundGradient, type BackgroundHost, type BackgroundMedia, type BackgroundMediaDisplay, type BackgroundStop, type BackgroundValue, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type CopiedTransition, type CustomSpring, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, EASING_CURVES, type EasingConfig, type EasingCurve, EasingVisualization, FieldRow, type FieldsConfig, Folder, type FolderMode, GRADIENT_SHAPES, type GizmoBox, type GradientFrame, type GradientGizmoCallbacks, type GradientGizmoProps, type GradientHandles, type GradientPoint, type GradientShape, HintStore, HintTip, type HintsConfig, type ImageConfig, ImageControl, type ImageOption, type InlineLabelsConfig, type LabelsConfig, type LayerActionKind, type LayerItem, LayerListControl, type LayerListControlProps, type LayersConfig, type LayersValue, type PadGroupConfig, type PanelConfig, type Preset, PresetManager, type RangeConfig, type ResolvedValues, type RowConfig, SPRING_PRESETS, type SavedGradient, type SelectAddConfig, type SelectConfig, SelectControl, type SelectOption$1 as SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, type SpringMode, type SpringPreset, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipMeta, type TimelineClipTrackMeta, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelineMeta, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, TimelineStore, type TimelineTransport, Toggle, type TransitionConfig, TransitionControl, TransitionLibrary, type UseDialOptions, type UseDialTimelineOptions, type VisibleWhen, type VisibleWhenValue, backgroundGradientCss, defaultBackgroundValue, defaultGradientHandles, dragGradientCentre, dragGradientEnd, dragGradientWidth, formatClock, formatGizmoAngle, getBackgroundHost, getSavedGradients, gizmoAngle, gizmoPoints, gradientFrame, gradientParamAt, layerAction, legacyGradientHandles, mountGradientGizmo, normalizeBackgroundValue, normalizeLayersValue, paintBackgroundPreview, parseLayerAction, rotateGradientHandles, setBackgroundHost, setSavedGradients, stopPlacement, stopPositionAt, subscribeBackgroundHost, switchGradientShape, unwrapVisibility, useDialKit, useDialKitController, useDialTimeline, withVisibility };
+export { type ActionConfig, AnchorGrid, type AnchorGridConfig, type BackgroundConfig, BackgroundControl, type BackgroundControlProps, type BackgroundGradient, type BackgroundHost, type BackgroundMedia, type BackgroundMediaDisplay, type BackgroundStop, type BackgroundValue, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type CopiedTransition, type CustomSpring, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, EASING_CURVES, type EasingConfig, type EasingCurve, EasingVisualization, FieldRow, type FieldsConfig, Folder, type FolderMode, GRADIENT_SHAPES, type GizmoBox, type GradientFrame, type GradientGizmoCallbacks, type GradientGizmoProps, type GradientHandles, type GradientPoint, type GradientShape, HintStore, HintTip, HintTooltip, type HintsConfig, type ImageConfig, ImageControl, type ImageOption, type InlineLabelsConfig, type LabelsConfig, type LayerActionKind, type LayerItem, LayerListControl, type LayerListControlProps, type LayersConfig, type LayersValue, type PadGroupConfig, type PanelConfig, type Preset, PresetManager, type RangeConfig, type ResolvedValues, type RowConfig, SPRING_PRESETS, type SavedGradient, type SelectAddConfig, type SelectConfig, SelectControl, type SelectOption$1 as SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, type SpringMode, type SpringPreset, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipMeta, type TimelineClipTrackMeta, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelineMeta, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, TimelineStore, type TimelineTransport, Toggle, type TransitionConfig, TransitionControl, TransitionLibrary, type UseDialOptions, type UseDialTimelineOptions, type VisibleWhen, type VisibleWhenValue, backgroundGradientCss, defaultBackgroundValue, defaultGradientHandles, dragGradientCentre, dragGradientEnd, dragGradientWidth, formatClock, formatGizmoAngle, getBackgroundHost, getSavedGradients, gizmoAngle, gizmoPoints, gradientFrame, gradientParamAt, layerAction, legacyGradientHandles, mountGradientGizmo, normalizeBackgroundValue, normalizeLayersValue, paintBackgroundPreview, parseLayerAction, rotateGradientHandles, setBackgroundHost, setSavedGradients, stopPlacement, stopPositionAt, subscribeBackgroundHost, switchGradientShape, unwrapVisibility, useDialKit, useDialKitController, useDialTimeline, withVisibility };

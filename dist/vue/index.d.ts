@@ -775,6 +775,8 @@ declare class DialStoreClass {
     private timelinePanelsSnapshot;
     private listeners;
     private globalListeners;
+    /** Names of the panels a timeline clip popover shows. See setPanelInPopover. */
+    private panelsInPopover;
     private snapshots;
     private actionListeners;
     private presets;
@@ -867,6 +869,12 @@ declare class DialStoreClass {
     getPanels(kind?: 'panel' | 'timeline'): PanelConfig[];
     getPanel(id: string): PanelConfig | undefined;
     subscribe(panelId: string, listener: Listener): () => void;
+    /**
+     * Shows or hides a panel in a timeline clip popover (`panel` on a clip),
+     * by name. DialRoot leaves the panel out while a popover shows it.
+     */
+    setPanelInPopover(name: string, shown: boolean): void;
+    isPanelInPopover(name: string): boolean;
     subscribeGlobal(listener: Listener): () => void;
     subscribeActions(panelId: string, listener: ActionListener): () => void;
     triggerAction(panelId: string, path: string): void;
@@ -1016,6 +1024,13 @@ type TimelineClipBase = {
     hints?: Record<string, string>;
     /** The clip bar's own hint, shown while the hint key (H) is held over it. */
     hint?: string;
+    /**
+     * The name of a registered panel. A click on the bar opens that panel in
+     * the clip's popover, in place of the clip's own controls, and the panel
+     * leaves its own place while the popover shows it. Closing the popover
+     * closes the panel, as the panel's own close button does.
+     */
+    panel?: string;
 };
 /** The fixed in/out parts of a segmented clip, in seconds. */
 type TimelineClipSegments = {

@@ -286,6 +286,8 @@ type TimelineClipMeta = {
     };
     /** The bar's hint, shown while the hint key is held over it. */
     hint?: string;
+    /** The registered panel the bar's popover shows (see the clip config). */
+    panel?: string;
 };
 type TimelineMeta = {
     id: string;
@@ -456,6 +458,13 @@ type TimelineClipBase = {
     hints?: Record<string, string>;
     /** The clip bar's own hint, shown while the hint key (H) is held over it. */
     hint?: string;
+    /**
+     * The name of a registered panel. A click on the bar opens that panel in
+     * the clip's popover, in place of the clip's own controls, and the panel
+     * leaves its own place while the popover shows it. Closing the popover
+     * closes the panel, as the panel's own close button does.
+     */
+    panel?: string;
 };
 /** The fixed in/out parts of a segmented clip, in seconds. */
 type TimelineClipSegments = {

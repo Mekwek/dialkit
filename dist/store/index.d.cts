@@ -795,6 +795,8 @@ declare class DialStoreClass {
     private timelinePanelsSnapshot;
     private listeners;
     private globalListeners;
+    /** Names of the panels a timeline clip popover shows. See setPanelInPopover. */
+    private panelsInPopover;
     private snapshots;
     private actionListeners;
     private presets;
@@ -887,6 +889,12 @@ declare class DialStoreClass {
     getPanels(kind?: 'panel' | 'timeline'): PanelConfig[];
     getPanel(id: string): PanelConfig | undefined;
     subscribe(panelId: string, listener: Listener): () => void;
+    /**
+     * Shows or hides a panel in a timeline clip popover (`panel` on a clip),
+     * by name. DialRoot leaves the panel out while a popover shows it.
+     */
+    setPanelInPopover(name: string, shown: boolean): void;
+    isPanelInPopover(name: string): boolean;
     subscribeGlobal(listener: Listener): () => void;
     subscribeActions(panelId: string, listener: ActionListener): () => void;
     triggerAction(panelId: string, path: string): void;
