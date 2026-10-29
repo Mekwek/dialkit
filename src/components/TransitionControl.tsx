@@ -313,7 +313,7 @@ export function TransitionControl({
           </>
         )}
         {durationSlider}
-        <Folder title="Curve" defaultOpen={false} meta={presetName} hint={HINTS.curve}>
+        <Folder title="Presets" defaultOpen={false} meta={presetName} hint={HINTS.curve}>
           {presetPicker}
         </Folder>
       </div>

@@ -6071,7 +6071,7 @@ function TransitionControl({
       /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Slider, { label: "Mass", value: spring.mass ?? 1, onChange: (v) => handleSpringUpdate("mass", v), min: 0.1, max: 10, step: 0.1, hint: HINTS.mass })
     ] }),
     durationSlider,
-    /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Folder, { title: "Curve", defaultOpen: false, meta: presetName, hint: HINTS.curve, children: presetPicker })
+    /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Folder, { title: "Presets", defaultOpen: false, meta: presetName, hint: HINTS.curve, children: presetPicker })
   ] });
   if (bare) return body;
   return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Folder, { title: label, defaultOpen: true, onReset, changed, hint, actions: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(TransitionCopyMenu, { panelId, path, value }), children: body });
