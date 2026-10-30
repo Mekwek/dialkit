@@ -14697,6 +14697,7 @@ export {
   TimelineStore,
   Toggle,
   TransitionControl,
+  TransitionCopyMenu,
   TransitionLibrary,
   backgroundGradientCss,
   defaultBackgroundValue,

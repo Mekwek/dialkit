@@ -44,6 +44,7 @@ export { ButtonGroup } from './components/ButtonGroup';
 export { SpringControl } from './components/SpringControl';
 export { SpringVisualization } from './components/SpringVisualization';
 export { TransitionControl } from './components/TransitionControl';
+export { TransitionCopyMenu } from './components/TransitionCopy';
 export { EasingVisualization } from './components/EasingVisualization';
 export { TextControl } from './components/TextControl';
 export { SelectControl } from './components/SelectControl';
