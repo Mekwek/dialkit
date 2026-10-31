@@ -5,7 +5,8 @@ import { Children, isValidElement, type ReactElement, type ReactNode } from 'rea
 import { createElement } from 'react';
 import { Slider } from './components/Slider';
 import { TransitionControl } from './components/TransitionControl';
-import { DialStore, type DialConfig, type TransitionConfig } from './store/DialStore';
+import { DialStore, type DialConfig, type SpringConfig, type TransitionConfig } from './store/DialStore';
+import { clampPhysicsParam, springParams, springSettleDuration } from './transition-math';
 
 // A CommonJS module whose named export Node cannot see from ESM.
 const { createRenderer: createShallowRenderer } = createRequire(import.meta.url)('react-test-renderer/shallow') as typeof import('react-test-renderer/shallow');
@@ -61,5 +62,46 @@ describe('TransitionControl', () => {
       const owned = drawBody(id, 'easing', { durationControl: { value: 0.3, onChange: () => {}, max: 1.5 } });
       assert.equal(slider(owned, 'Duration').max, 1.5);
     } finally { DialStore.unregisterPanel(id); }
+  });
+
+  it('stops each physics slider where the settle time meets the cap', () => {
+    const id = 'transition-settle-cap';
+    const config = { enter: { type: 'spring', stiffness: 200, damping: 25, mass: 1 } } satisfies DialConfig;
+    const settle = () => springSettleDuration(springParams(DialStore.getValue(id, 'enter') as SpringConfig));
+    try {
+      DialStore.registerPanel(id, 'Cap', config);
+      // 200 / 25 / 1 settles in 0.42s; mass 3 would take 1.27s.
+      slider(drawBody(id, 'enter', { physicsSettleCap: 0.6 }), 'Mass').onChange(3);
+      assert.equal(settle(), 0.6);
+      // Without a cap the slider goes where it is dragged.
+      slider(drawBody(id, 'enter'), 'Mass').onChange(3);
+      assert.equal((DialStore.getValue(id, 'enter') as SpringConfig).mass, 3);
+    } finally { DialStore.unregisterPanel(id); }
+  });
+});
+
+describe('clampPhysicsParam', () => {
+  const spring = { type: 'spring', stiffness: 200, damping: 25, mass: 1 } satisfies SpringConfig;
+  const settleWith = (key: 'stiffness' | 'damping' | 'mass', value: number, base: SpringConfig = spring) =>
+    springSettleDuration(springParams({ ...base, [key]: value }));
+
+  it('keeps a value whose settle fits the cap', () => {
+    assert.equal(clampPhysicsParam(spring, 'mass', 1.2, 0.6), 1.2);
+  });
+
+  it('stops at the crossing, in either direction a value lengthens the settle', () => {
+    const mass = clampPhysicsParam(spring, 'mass', 3, 0.6);
+    assert.ok(mass > 1 && mass < 3);
+    assert.equal(settleWith('mass', mass), 0.6);
+    // Very low damping swings long: lowering it also stops at the cap.
+    const damping = clampPhysicsParam(spring, 'damping', 2, 0.6);
+    assert.ok(damping > 2 && damping < 25);
+    assert.ok(settleWith('damping', damping) <= 0.6);
+  });
+
+  it('past the cap, allows a change that shortens the settle and holds one that lengthens it', () => {
+    const over = { ...spring, mass: 3 };
+    assert.equal(clampPhysicsParam(over, 'mass', 2, 0.6), 2);
+    assert.equal(clampPhysicsParam(over, 'mass', 4, 0.6), 3);
   });
 });

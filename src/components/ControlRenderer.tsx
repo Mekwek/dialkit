@@ -37,6 +37,8 @@ interface ControlRendererProps {
     /** Replaces the curve's own Duration hint. */
     hint?: string;
   };
+  /** Longest settle a physics spring may reach. See TransitionControl. */
+  physicsSettleCap?: number;
   /** Path of the one open top-level folder in accordion mode, or null when all are closed. */
   openFolder?: string | null;
   onOpenFolderChange?: (path: string | null) => void;
@@ -91,7 +93,7 @@ export function loneTransition(rows: ControlMeta[]): ControlMeta | undefined {
 
 // Renders a ControlMeta tree with the standard DialKit controls.
 // Shared by the panel and the timeline clip popover.
-export function ControlRenderer({ panelId, controls, values, transitionDuration, openFolder, onOpenFolderChange, animateControls = false }: ControlRendererProps) {
+export function ControlRenderer({ panelId, controls, values, transitionDuration, physicsSettleCap, openFolder, onOpenFolderChange, animateControls = false }: ControlRendererProps) {
   const shortcutCtx = useContext(ShortcutContext);
   // The reset button of the folder a control draws: a `_reset` folder, a spring, a transition, or a background.
   const resetProps = (control: ControlMeta) => control.reset ? {
@@ -166,6 +168,7 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration,
             value={value as TransitionConfig}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
             durationControl={transitionDuration}
+            physicsSettleCap={physicsSettleCap}
             bare={bare}
             {...resetProps(control)}
           />

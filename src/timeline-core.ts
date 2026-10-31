@@ -1354,6 +1354,8 @@ export type TimelineClipDragBounds = {
   start: number;
   /** Latest end: the timeline end, or the start of the clip after it on a single track. */
   end: number;
+  /** Single track: the start of the clip after it, when there is one. */
+  next?: number;
   /** Every other clip's start and end, plus the playhead when given. */
   targets: number[];
 };
@@ -1368,6 +1370,7 @@ export function timelineClipDragBounds(
   const self = spans[index];
   let start = 0;
   let end = timelineDuration;
+  let next: number | undefined;
   const targets = new Set<number>();
   spans.forEach((span, i) => {
     if (i === index) return;
@@ -1378,10 +1381,14 @@ export function timelineClipDragBounds(
     // config that starts out overlapping can still be pulled apart.
     const before = span.at < self.at || (span.at === self.at && i < index);
     if (before) start = Math.max(start, Math.min(span.at + span.duration, self.at));
-    else end = Math.min(end, Math.max(span.at, self.at + self.duration));
+    else {
+      const bound = Math.max(span.at, self.at + self.duration);
+      end = Math.min(end, bound);
+      next = Math.min(next ?? bound, bound);
+    }
   });
   if (options.playhead !== undefined) targets.add(options.playhead);
-  return { start, end, targets: [...targets].sort((a, b) => a - b) };
+  return { start, end, ...(next !== undefined && { next }), targets: [...targets].sort((a, b) => a - b) };
 }
 
 /** The candidate closest to `wanted` within [min, max], if any. */

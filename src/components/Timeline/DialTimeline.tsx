@@ -1224,6 +1224,9 @@ const TimelineSection = memo(function TimelineSection({
           maxDuration={singleTrack && !popover.stepKey
             ? getDragBounds(popover.clip.key).end - computeClipStaticFromValues(values, popover.clip, meta.duration).at
             : undefined}
+          physicsSettleCap={singleTrack && !popover.stepKey
+            ? physicsSettleCapFor(getDragBounds(popover.clip.key), computeClipStaticFromValues(values, popover.clip, meta.duration).at)
+            : undefined}
           onClose={closePopover}
         />
       )}
@@ -1243,6 +1246,7 @@ function ClipPopover({
   values,
   theme,
   maxDuration,
+  physicsSettleCap,
   onClose,
 }: {
   panelId: string;
@@ -1251,6 +1255,8 @@ function ClipPopover({
   theme: DialTheme;
   /** On a single track a clip grows only up to the next one. */
   maxDuration?: number;
+  /** On a single track a physics spring settles before the next clip starts. */
+  physicsSettleCap?: number;
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -1414,12 +1420,20 @@ function ClipPopover({
             controls={controls}
             values={displayValues}
             transitionDuration={transitionDuration}
+            physicsSettleCap={physicsSettleCap}
           />
         </div>
       </div>
     </div>,
     document.body
   );
+}
+
+// A physics spring sets its own bar length, so its sliders stop where the
+// settle time meets the next clip. The last clip has no cap: a spring that
+// outgrows the timeline extends it.
+function physicsSettleCapFor(bounds: TimelineClipDragBounds, at: number): number | undefined {
+  return bounds.next === undefined ? undefined : Math.max(TIMELINE_MIN_CLIP_DURATION, bounds.next - at);
 }
 
 // A clip-level popover hides its step folders (each leg has its own popover)

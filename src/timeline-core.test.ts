@@ -405,6 +405,13 @@ describe('single track', () => {
     near(dragTimelineClip('end', span('c'), 9, bounds('c')).duration, 4.5);
   });
 
+  it('names the start of the next clip on a single track only', () => {
+    assert.equal(bounds('a').next, 2);
+    assert.equal(bounds('b').next, 5.5);
+    assert.equal(bounds('c').next, undefined);
+    assert.equal(timelineClipDragBounds(spans, 'a', 10).next, undefined);
+  });
+
   it('rows leave every clip the whole timeline', () => {
     const rows = timelineClipDragBounds(spans, 'b', 10);
     assert.equal(rows.start, 0);
