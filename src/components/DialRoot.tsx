@@ -1,9 +1,10 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { DialStore, PanelConfig } from '../store/DialStore';
 import { TimelineStore } from '../store/TimelineStore';
 import { isAccordionPanel, pruneOpenFolders } from '../accordion';
 import { isDevDefault } from '../env';
+import { filterRootPanels, groupRootKey, layoutRootPanels, type PanelRootEntry, type PanelRootFilter } from '../panel-groups';
 import { Folder } from './Folder';
 import { Panel } from './Panel';
 import type { DialVersions } from '../versions/gallery';
@@ -26,6 +27,12 @@ interface DialRootProps {
   versions?: DialVersions;
   accordion?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /**
+   * Draws only some panels, so several roots can share one store:
+   * `{ ungrouped: true }` the panels without a `group`, `{ groups: ['X'] }`
+   * the panels in the listed groups, or both. Without it, every panel.
+   */
+  include?: PanelRootFilter;
 }
 
 // A panel a timeline clip popover shows leaves its own place meanwhile.
@@ -36,13 +43,17 @@ function rootPanels(): PanelConfig[] {
     : panels;
 }
 
-export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'popover', theme = 'system', productionEnabled = isDevDefault, versions = 'thumbnails', accordion = false, onOpenChange }: DialRootProps) {
+export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'popover', theme = 'system', productionEnabled = isDevDefault, versions = 'thumbnails', accordion = false, onOpenChange, include }: DialRootProps) {
   if (!productionEnabled) return null;
-  const [panels, setPanels] = useState<PanelConfig[]>([]);
+  const [allPanels, setPanels] = useState<PanelConfig[]>([]);
   const [timelineCount, setTimelineCount] = useState(0);
   const [mounted, setMounted] = useState(false);
   const inline = mode === 'inline';
   const [shellOpen, setShellOpen] = useState(inline || defaultOpen);
+  const shellOpenRef = useRef(shellOpen);
+  // Open state per group shell, by group name, so a grouped panel asked to
+  // open can open the shell that holds it.
+  const [groupOpen, setGroupOpen] = useState<Record<string, boolean>>({});
 
   // Drag state
   const panelRef = useRef<HTMLDivElement>(null);
@@ -82,19 +93,41 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
     };
   }, []);
 
+  // The panels this root draws (`include`), and the shells they draw in.
+  const includeKey = JSON.stringify(include ?? null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const panels = useMemo(() => filterRootPanels(allPanels, include), [allPanels, includeKey]);
+  const slots = useMemo(() => layoutRootPanels(panels, { placeBeside: !inline }), [panels, inline]);
+  // The panels without a group, and the open-state keys of every other
+  // shell: a group's, or a panel drawn on its own beside the column.
+  const ungroupedIds = useMemo(() => panels.filter(panel => !panel.group && !panel.beside).map(panel => panel.id), [panels]);
+  const otherKeys = useMemo(() => slots.flatMap(({ entry, beside }) => [
+    ...(entry.kind === 'group' ? [entry.key] : entry.kind === 'panel' && entry.panel.beside ? [entry.key] : []),
+    ...beside.map(panel => panel.id),
+  ]), [slots]);
+  const mergedUngrouped = slots.some(({ entry }) => entry.kind === 'shell');
+
   useEffect(() => {
-    setOpenFolders(prev => pruneOpenFolders(prev, panels.map(panel => panel.id)));
-  }, [panels]);
+    setOpenFolders(prev => pruneOpenFolders(prev, allPanels.map(panel => panel.id)));
+  }, [allPanels]);
 
   useEffect(() => {
     const fallbackOpen = inline || defaultOpen;
     const nextStates = new Map<string, boolean>();
-    for (const panel of panels) {
-      nextStates.set(panel.id, panelOpenStatesRef.current.get(panel.id) ?? DialStore.getPanelOpen(panel.id) ?? fallbackOpen);
+    for (const key of [...ungroupedIds, ...otherKeys]) {
+      nextStates.set(key, panelOpenStatesRef.current.get(key) ?? DialStore.getPanelOpen(key) ?? fallbackOpen);
     }
     panelOpenStatesRef.current = nextStates;
     rootOpenRef.current = Array.from(nextStates.values()).some(Boolean);
-  }, [defaultOpen, inline, panels]);
+  }, [defaultOpen, inline, ungroupedIds, otherKeys]);
+
+  /** Whether any shell is open: the panels without a group, then every other shell. */
+  const anyShellOpen = useCallback((ungroupedOpen?: boolean) => {
+    const fallbackOpen = inline || defaultOpen;
+    const stateOf = (key: string) => panelOpenStatesRef.current.get(key) ?? fallbackOpen;
+    const ungrouped = ungroupedOpen ?? (mergedUngrouped ? shellOpenRef.current : ungroupedIds.some(stateOf));
+    return ungrouped || otherKeys.some(stateOf);
+  }, [defaultOpen, inline, mergedUngrouped, ungroupedIds, otherKeys]);
 
   // Watch for panel open/close — snap to corner on open, restore drag position on close
   useEffect(() => {
@@ -168,30 +201,46 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
     dragTargetRef.current = null;
   }, []);
 
-  const handlePanelOpenChange = useCallback((panelId: string, open: boolean) => {
-    panelOpenStatesRef.current.set(panelId, open);
-    const fallbackOpen = inline || defaultOpen;
-    const nextRootOpen = panels.some((panel) => (
-      panelOpenStatesRef.current.get(panel.id) ?? fallbackOpen
-    ));
+  // A shell drawn as one panel reports by its panel id; a group shell by its group key.
+  const handlePanelOpenChange = useCallback((key: string, open: boolean) => {
+    panelOpenStatesRef.current.set(key, open);
+    const nextRootOpen = anyShellOpen();
 
     if (rootOpenRef.current === nextRootOpen) return;
     rootOpenRef.current = nextRootOpen;
     onOpenChange?.(nextRootOpen);
-  }, [defaultOpen, inline, onOpenChange, panels]);
+  }, [anyShellOpen, onOpenChange]);
 
+  // The "DialKit" shell: the panels without a group, or the timeline alone.
   const handleRootOpenChange = useCallback((open: boolean) => {
     setShellOpen(open);
-    if (rootOpenRef.current === open) return;
-    rootOpenRef.current = open;
-    onOpenChange?.(open);
-  }, [onOpenChange]);
+    shellOpenRef.current = open;
+    const nextRootOpen = anyShellOpen(open);
+    if (rootOpenRef.current === nextRootOpen) return;
+    rootOpenRef.current = nextRootOpen;
+    onOpenChange?.(nextRootOpen);
+  }, [anyShellOpen, onOpenChange]);
 
+  const handleGroupOpenChange = useCallback((group: string, open: boolean) => {
+    setGroupOpen(prev => (prev[group] === open ? prev : { ...prev, [group]: open }));
+    handlePanelOpenChange(groupRootKey(group), open);
+  }, [handlePanelOpenChange]);
+
+  // A panel asked to open from code opens the shell that holds it.
   useEffect(() => DialStore.subscribePanelOpen((id, open) => {
-    if (!panels.some(panel => panel.id === id)) return;
-    if (panels.length > 1 && open) handleRootOpenChange(true);
-    else if (panels.length === 1) handlePanelOpenChange(id, open);
-  }), [panels, handleRootOpenChange, handlePanelOpenChange]);
+    for (const { entry, beside } of slots) {
+      if (beside.some(panel => panel.id === id) || (entry.kind === 'panel' && entry.panel.id === id)) {
+        handlePanelOpenChange(id, open);
+        return;
+      }
+      if (entry.kind !== 'panel' && entry.panels.some(panel => panel.id === id)) {
+        if (!open) return;
+        if (entry.kind === 'shell') handleRootOpenChange(true);
+        else handleGroupOpenChange(entry.group, true);
+        return;
+      }
+    }
+  }), [slots, handleRootOpenChange, handlePanelOpenChange, handleGroupOpenChange]);
 
   // Don't render on server
   if (!mounted || typeof window === 'undefined') {
@@ -213,6 +262,71 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
   const originY = getPanelOriginY(activePosition, dragOffset);
   const hasMultiplePanels = panels.length > 1;
   const timelineToggle = timelineCount > 0 ? <TimelineToggleButton /> : null;
+  // A panel with `beside` sits next to its shell, toward the middle of the
+  // screen: left of a root docked on the right, right of one on the left.
+  const besideSide = originX === 'left' ? 'right' : 'left';
+
+  const panelProps = (panel: PanelConfig) => ({
+    panel,
+    accordion: isAccordionPanel(panel, accordion),
+    openFolder: openFolders[panel.id],
+    onOpenFolderChange: (path: string | null) => setOpenFolder(panel.id, path),
+    versions,
+    theme,
+  });
+
+  // Every shell is a root folder; the timeline toggle rides in the first one.
+  const renderEntry = (entry: PanelRootEntry, first: boolean) => {
+    const toggle = first ? timelineToggle : null;
+    if (entry.kind === 'panel') {
+      return (
+        <Panel
+          key={entry.key}
+          {...panelProps(entry.panel)}
+          defaultOpen={inline || defaultOpen}
+          inline={inline}
+          toolbarExtra={toggle}
+          onOpenChange={(open) => handlePanelOpenChange(entry.panel.id, open)}
+        />
+      );
+    }
+    // A group panel with groupHeader puts its toolbar in the group's header and has no section.
+    const header = entry.kind === 'group' ? entry.panels.find(panel => panel.groupHeader) : undefined;
+    const sections = entry.panels.filter(panel => panel !== header);
+    return (
+      <div key={entry.key} className="dialkit-panel-wrapper" data-merged="true" data-group={entry.kind === 'group' ? entry.group : undefined}>
+        <Folder
+          title={entry.kind === 'group' ? entry.group : 'DialKit'}
+          open={entry.kind === 'group' ? groupOpen[entry.group] ?? (inline || defaultOpen) : shellOpen}
+          defaultOpen={inline || defaultOpen}
+          isRoot={true}
+          inline={inline}
+          onOpenChange={entry.kind === 'group' ? (open) => handleGroupOpenChange(entry.group, open) : handleRootOpenChange}
+          toolbar={header ? <Panel {...panelProps(header)} variant="toolbar" toolbarExtra={toggle} /> : toggle}
+        >
+          {sections.map((panel) => (
+            <Panel key={panel.id} {...panelProps(panel)} defaultOpen={true} variant="section" />
+          ))}
+        </Folder>
+      </div>
+    );
+  };
+
+  const panelNodes = slots.flatMap(({ entry, beside }, index) => [
+    renderEntry(entry, index === 0),
+    ...beside.map((panel) => (
+      <Panel
+        key={panel.id}
+        {...panelProps(panel)}
+        beside={besideSide}
+        defaultOpen={defaultOpen}
+        onOpenChange={(open) => handlePanelOpenChange(panel.id, open)}
+      />
+    )),
+  ]);
+  // The merged shell's look (theme.css) once covered the whole root; with
+  // several shells, each merged one carries `data-merged` instead.
+  const onlyShell = slots.length === 1 && slots[0].beside.length === 0;
 
   const content = (
   <ShortcutListener>
@@ -224,7 +338,8 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
         data-origin-x={inline ? undefined : originX}
         data-origin-y={inline ? undefined : originY}
         data-mode={mode}
-        data-multiple={hasMultiplePanels ? 'true' : undefined}
+        data-multiple={hasMultiplePanels && onlyShell ? 'true' : undefined}
+        data-stacked={!inline && slots.length > 1 ? 'true' : undefined}
         data-accordion={accordion ? 'true' : undefined}
         style={dragStyle}
         onPointerDown={!inline ? handlePointerDown : undefined}
@@ -246,48 +361,8 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
               <div className="dialkit-timeline-toolkit-only">Timeline</div>
             </Folder>
           </div>
-        ) : hasMultiplePanels ? (
-          <div className="dialkit-panel-wrapper">
-            <Folder
-              title="DialKit"
-              open={shellOpen}
-              defaultOpen={inline || defaultOpen}
-              isRoot={true}
-              inline={inline}
-              onOpenChange={handleRootOpenChange}
-              toolbar={timelineToggle}
-            >
-              {panels.map((panel) => (
-                <Panel
-                  key={panel.id}
-                  panel={panel}
-                  defaultOpen={true}
-                  accordion={isAccordionPanel(panel, accordion)}
-                  openFolder={openFolders[panel.id]}
-                  onOpenFolderChange={(path) => setOpenFolder(panel.id, path)}
-                  variant="section"
-                  versions={versions}
-                  theme={theme}
-                />
-              ))}
-            </Folder>
-          </div>
         ) : (
-          panels.map((panel) => (
-            <Panel
-              key={panel.id}
-              panel={panel}
-              defaultOpen={inline || defaultOpen}
-              inline={inline}
-              accordion={isAccordionPanel(panel, accordion)}
-              openFolder={openFolders[panel.id]}
-              onOpenFolderChange={(path) => setOpenFolder(panel.id, path)}
-              toolbarExtra={timelineToggle}
-              versions={versions}
-              theme={theme}
-              onOpenChange={(open) => handlePanelOpenChange(panel.id, open)}
-            />
-          ))
+          panelNodes
         )}
       </div>
     </div>

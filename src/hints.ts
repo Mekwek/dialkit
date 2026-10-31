@@ -2,6 +2,9 @@ import { DialStore, type ControlMeta } from './store/DialStore';
 
 type Listener = () => void;
 
+/** How HintStore's `show` and `hide` reach the mounted hint listeners. */
+type HintDisplay = { show(element: HTMLElement, text: string): void; hide(element?: HTMLElement): void };
+
 /** `y` is the hint's edge that faces its row: its bottom when above, its top when below. */
 export type HintPosition = { left: number; y: number; above: boolean };
 
@@ -22,6 +25,8 @@ const ALIGN = '.dialkit-panel-toolbar, .dialkit-panel-section-toolbar';
  */
 export const HINTS = {
   panel: 'Closes the panel to a small button. Click the button to open it again.',
+  /** A panel's header when its host closes the panel (`onClose`). */
+  panelClose: 'Closes the panel.',
   copy: "Copies the panel's values as text, ready to paste into code.",
   sectionReset: 'Sets every control in this section back to its default.',
   saveVersion: 'Saves the current values as a new version, with a picture of the page.',
@@ -76,6 +81,38 @@ class HintStoreClass {
   private tipSeen = false;
   private key = 'h';
   private listeners = new Set<Listener>();
+  /** The mounted hint listeners' own show and hide, while they run. */
+  private display: HintDisplay | undefined;
+  /** Keeps the listeners mounted while a host's hint shows. */
+  private hostHint: { destroy(): void } | undefined;
+
+  /**
+   * Shows `text` above `element` without the hint key, as a host does after
+   * the pointer rests on an element for a moment (500ms in theca). The
+   * element must sit inside a `.dialkit-root`. The hint stays until
+   * `hide(element)`, a held key shows another, or the pointer leaves the
+   * window.
+   */
+  show(text: string, element: HTMLElement): void {
+    if (!text) return;
+    this.hostHint ??= mountHints();
+    this.display?.show(element, text);
+  }
+
+  /** Hides the hint, if `element` is the one it shows for, or any hint without one. */
+  hide(element?: HTMLElement): void {
+    this.display?.hide(element);
+    this.hostHint?.destroy();
+    this.hostHint = undefined;
+  }
+
+  /** Called by the mounted listeners: how `show` and `hide` reach them. */
+  attachDisplay(display: HintDisplay): () => void {
+    this.display = display;
+    return () => {
+      if (this.display === display) this.display = undefined;
+    };
+  }
 
   /** The key held to show hints, H by default. */
   getKey(): string {
@@ -298,12 +335,19 @@ function listen(): () => void {
   let described: HTMLElement | null = null;
   // The dim of a hint that just hid, while it fades out.
   let fading: ReturnType<typeof setTimeout> | undefined;
+  // A row a host showed a hint for (HintStore.show), with its text.
+  let hosted: { row: HTMLElement; text: string } | null = null;
 
   // Follows the shown row as the panel around it changes size, and notices
   // when the row goes away.
   const observer = new ResizeObserver(() => place());
   // Follows the shown row's hint when it changes or goes away.
-  const mutations = new MutationObserver(() => (shown?.dataset.hint ? show(shown) : hide()));
+  // A host's hint keeps its own text.
+  const mutations = new MutationObserver(() => {
+    if (shown && shown === hosted?.row) return;
+    if (shown?.dataset.hint) show(shown);
+    else hide();
+  });
 
   const rowOf = (target: EventTarget | null): HTMLElement | null => {
     if (!(target instanceof Element)) return null;
@@ -387,9 +431,9 @@ function listen(): () => void {
     dim.removeAttribute('data-leaving');
   };
 
-  const show = (row: HTMLElement) => {
-    const text = row.dataset.hint;
+  const show = (row: HTMLElement, text = row.dataset.hint) => {
     if (!text) return;
+    if (hosted && hosted.row !== row) hosted = null;
     settleDim();
     if (row !== shown) {
       shown?.removeAttribute('data-hint-shown');
@@ -432,10 +476,12 @@ function listen(): () => void {
       dim.setAttribute('data-open', '');
     }
     area?.setAttribute('data-hinting', '');
-    hinted = true;
+    // A host's hint shows without the key, so it does not fold the tip away.
+    if (!hosted) hinted = true;
   };
 
   const hide = () => {
+    hosted = null;
     if (!shown) return;
     shown.removeAttribute('data-hint-shown');
     undescribe();
@@ -503,6 +549,17 @@ function listen(): () => void {
     if (document.visibilityState === 'hidden') release();
   };
 
+  const detachDisplay = HintStore.attachDisplay({
+    show(row, text) {
+      if (!row.isConnected || !row.closest('.dialkit-root')) return;
+      hosted = { row, text };
+      show(row, text);
+    },
+    hide(row) {
+      if (!row || shown === row) hide();
+    },
+  });
+
   window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('keyup', handleKeyUp);
   window.addEventListener('blur', release);
@@ -515,7 +572,9 @@ function listen(): () => void {
   if (topLayer) document.addEventListener('toggle', handleToggle, true);
 
   return () => {
+    detachDisplay();
     release();
+    hide();
     settleDim();
     window.removeEventListener('keydown', handleKeyDown);
     window.removeEventListener('keyup', handleKeyUp);

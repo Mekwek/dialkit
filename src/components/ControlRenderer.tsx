@@ -14,11 +14,14 @@ import { SelectControl } from './SelectControl';
 import { ColorControl } from './ColorControl';
 import { ImageControl } from './ImageControl';
 import { DialPad } from './DialPad';
+import { PadGroup } from './PadGroup';
 import { AnchorControl } from './AnchorControl';
 import { Fields } from './Fields';
 import { BackgroundControl } from './BackgroundControl';
+import { LayerListControl } from './LayerListControl';
 import type { DialPadValue } from '../dial-pad';
 import type { AnchorValue } from '../anchor';
+import { layerAction, type LayersValue } from '../layers';
 import { hasActionHints } from '../hints';
 import { useHints } from '../hooks/useHints';
 import type { BackgroundValue } from '../background';
@@ -184,8 +187,32 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration,
               values={values}
               defaults={DialStore.getResetValues(panelId)}
               hint={control.hint}
+              decimals={control.decimals}
               onChange={(v) => DialStore.updateValues(panelId, v)}
             />
+          );
+        }
+        if (control.padGroup) {
+          return <PadGroup key={control.path} panelId={panelId} control={control} values={values} />;
+        }
+        // A row draws its two controls side by side. --dial-row-label-style
+        // picks where the labels sit (theme.css): 1, a title above each
+        // control; 2, inside the controls, with `_inlineLabels` names.
+        if (control.row) {
+          return (
+            <div key={control.path} className="dialkit-row-group">
+              {(control.children ?? []).slice(0, 2).map((child) => {
+                const inline = control.inlineLabels?.[child.path.slice(control.path.length + 1)];
+                // Segmented options fill their cell, as a row of their own does.
+                const shown = child.type === 'select' && child.display === 'segmented' ? { ...child, hideLabel: true } : child;
+                return (
+                  <div key={child.path} className="dialkit-row-cell" data-inline-label={inline === '' ? 'none' : undefined}>
+                    <span className="dialkit-row-label">{child.label}</span>
+                    {renderControl(inline ? { ...shown, label: inline } : shown)}
+                  </div>
+                );
+              })}
+            </div>
           );
         }
         // Accordion mode controls top-level folders; nested folders keep their own state.
@@ -268,6 +295,7 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration,
             x={control.pad?.x}
             y={control.pad?.y}
             labels={control.pad?.labels}
+            mapping={control.pad?.mapping}
             hideLabel={control.pad?.hideLabel}
             dragLabels={control.pad?.dragLabels}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
@@ -282,6 +310,21 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration,
             hint={control.hint}
             value={value as AnchorValue}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
+          />
+        );
+
+      case 'layers':
+        return (
+          <LayerListControl
+            key={control.path}
+            label={control.label}
+            hint={control.hint}
+            value={value as LayersValue}
+            addLabel={control.layers?.addLabel}
+            addDisabled={control.layers?.addDisabled}
+            empty={control.layers?.empty}
+            onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
+            onAction={(kind, id) => DialStore.triggerAction(panelId, layerAction(control.path, kind, id))}
           />
         );
 

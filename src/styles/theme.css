@@ -45,6 +45,34 @@
   --dial-row-height: 36px;
   --dial-row-gap: 6px;
   --dial-preset-list-height: 156px; /* Four rows of a transition's presets; a longer list scrolls */
+  /* A row of two controls (`_row`): the space between its two columns, and
+     between each label and its control. */
+  --dial-row-column-gap: var(--dial-row-gap);
+  --dial-row-label-gap: 6px;
+  /* Where a row's labels sit: 1 a title above each control, 2 inside the
+     controls. */
+  --dial-row-label-style: 2;
+  /* The layer list's rows (layer-list-control.ts). They point at theme
+     values, so the light theme's values apply to them too. The hidden row's
+     fill is the row fill at half strength: a darker row on the dark theme,
+     a lighter one on the light theme. */
+  --dial-layer-fill: var(--dial-surface);
+  --dial-layer-hover-fill: var(--dial-surface-hover);
+  --dial-layer-selected-fill: var(--dial-surface-active);
+  /* The selected row matches a color row with its picker open: the same fill, border and text. */
+  --dial-layer-selected-border: var(--dial-border-hover);
+  /* A hidden row keeps the normal row fill at this percent of its strength. */
+  --dial-layer-hidden-fill-amount: 50;
+  --dial-layer-hidden-fill: color-mix(in srgb, var(--dial-layer-fill) calc(var(--dial-layer-hidden-fill-amount) * 1%), transparent);
+  /* The eye of a row whose layer is on the canvas: brighter than the other icons, less than under the pointer. */
+  --dial-layer-eye-on-canvas: var(--dial-text-secondary);
+  /* How strong a hidden row's name and icons are, from 0 to 1. */
+  --dial-layer-hidden-opacity: 0.4;
+  --dial-layer-icon-size: 16px;
+  --dial-layer-icon-gap: 2px;
+  /* A layer row's height: the panel's row height unless a host sets its own. */
+  --dial-layer-row-height: var(--dial-row-height);
+  --dial-layer-delete-hover: #ff3b30;
   --dial-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
   --dial-shadow-collapsed: 0 4px 16px rgba(0, 0, 0, 0.25);
   --dial-shadow-dropdown: 0 8px 24px rgba(0, 0, 0, 0.4);
@@ -69,6 +97,43 @@
   z-index: 9999;
   max-height: calc(100vh - 32px);
   overflow: visible;
+}
+
+/* Several shells (panel groups) stack in one column, on the root's side. */
+.dialkit-panel[data-stacked] {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--dial-panel-stack-gap, 8px);
+}
+
+.dialkit-panel[data-stacked][data-origin-x="left"] {
+  align-items: flex-start;
+}
+
+/* A panel with `beside` comes right after the shell it names, out of the
+ * column: level with the root's top edge and past its side toward the
+ * middle of the screen, so the shells in the column keep their place and
+ * size. On a narrow screen it goes under that shell instead. */
+.dialkit-panel-wrapper[data-beside] {
+  position: absolute;
+  top: 0;
+}
+
+.dialkit-panel-wrapper[data-beside="left"] {
+  right: calc(100% + var(--dial-panel-beside-gap, 8px));
+}
+
+.dialkit-panel-wrapper[data-beside="right"] {
+  left: calc(100% + var(--dial-panel-beside-gap, 8px));
+}
+
+@media (max-width: 640px) {
+  .dialkit-panel-wrapper[data-beside] {
+    position: static;
+    display: flex;
+    margin-top: var(--dial-panel-beside-gap, 8px);
+  }
 }
 
 /* Inline mode */
@@ -532,42 +597,42 @@
   margin-top: 0;
 }
 
-.dialkit-panel[data-multiple="true"] .dialkit-panel-inner:not([data-collapsed="true"]) {
+:is(.dialkit-panel[data-multiple="true"], .dialkit-panel-wrapper[data-merged]) .dialkit-panel-inner:not([data-collapsed="true"]) {
   padding: 0 12px;
 }
 
-.dialkit-panel[data-multiple="true"] .dialkit-panel-inner:not([data-collapsed="true"]) .dialkit-panel-icon {
+:is(.dialkit-panel[data-multiple="true"], .dialkit-panel-wrapper[data-merged]) .dialkit-panel-inner:not([data-collapsed="true"]) .dialkit-panel-icon {
   top: 14px;
 }
 
-.dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-panel-header {
+:is(.dialkit-panel[data-multiple="true"], .dialkit-panel-wrapper[data-merged]) .dialkit-folder-root > .dialkit-panel-header {
   padding-top: 0;
   padding-bottom: 0;
   margin-bottom: 0;
 }
 
-.dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-panel-header > .dialkit-folder-header-top,
-.dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder > .dialkit-folder-header > .dialkit-folder-header-top {
+:is(.dialkit-panel[data-multiple="true"], .dialkit-panel-wrapper[data-merged]) .dialkit-folder-root > .dialkit-panel-header > .dialkit-folder-header-top,
+:is(.dialkit-panel[data-multiple="true"], .dialkit-panel-wrapper[data-merged]) .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder > .dialkit-folder-header > .dialkit-folder-header-top {
   height: 44px;
   padding: 0;
 }
 
-.dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder > .dialkit-folder-header {
+:is(.dialkit-panel[data-multiple="true"], .dialkit-panel-wrapper[data-merged]) .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder > .dialkit-folder-header {
   height: auto;
 }
 
-.dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner {
+:is(.dialkit-panel[data-multiple="true"], .dialkit-panel-wrapper[data-merged]) .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner {
   gap: 0;
 }
 
-.dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder {
+:is(.dialkit-panel[data-multiple="true"], .dialkit-panel-wrapper[data-merged]) .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder {
   margin: 0;
   padding-bottom: 0;
   border-top: 1px solid var(--dial-divider);
   border-bottom: none;
 }
 
-.dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder > .dialkit-folder-header .dialkit-folder-title {
+:is(.dialkit-panel[data-multiple="true"], .dialkit-panel-wrapper[data-merged]) .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder > .dialkit-folder-header .dialkit-folder-title {
   font-size: 15px;
   font-weight: 600;
   line-height: 20px;
@@ -575,24 +640,24 @@
   transform: translateZ(0);
 }
 
-.dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder > .dialkit-folder-header > .dialkit-folder-reset {
+:is(.dialkit-panel[data-multiple="true"], .dialkit-panel-wrapper[data-merged]) .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder > .dialkit-folder-header > .dialkit-folder-reset {
   font-size: 15px;
 }
 
-.dialkit-panel[data-multiple="true"] .dialkit-folder-title-root {
+:is(.dialkit-panel[data-multiple="true"], .dialkit-panel-wrapper[data-merged]) .dialkit-folder-title-root {
   line-height: 20px;
 }
 
-.dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder:first-child {
+:is(.dialkit-panel[data-multiple="true"], .dialkit-panel-wrapper[data-merged]) .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder:first-child {
   border-top: none;
   margin-top: 0;
 }
 
-.dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder + .dialkit-folder {
+:is(.dialkit-panel[data-multiple="true"], .dialkit-panel-wrapper[data-merged]) .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder + .dialkit-folder {
   margin-top: 0;
 }
 
-.dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder > .dialkit-folder-content > .dialkit-folder-inner {
+:is(.dialkit-panel[data-multiple="true"], .dialkit-panel-wrapper[data-merged]) .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder > .dialkit-folder-content > .dialkit-folder-inner {
   padding-top: 0;
   padding-bottom: 12px;
 }
@@ -752,7 +817,7 @@
   pointer-events: none;
 }
 
-.dialkit-panel[data-multiple="true"] .dialkit-panel-inner:not([data-collapsed="true"], .dialkit-panel-inline) > .dialkit-folder-root::after {
+:is(.dialkit-panel[data-multiple="true"], .dialkit-panel-wrapper[data-merged]) .dialkit-panel-inner:not([data-collapsed="true"], .dialkit-panel-inline) > .dialkit-folder-root::after {
   bottom: 0;
 }
 
@@ -2083,6 +2148,54 @@
 .dialkit-anchor-cell[aria-checked="true"] .dialkit-anchor-dot { background: var(--dial-text-primary); }
 .dialkit-anchor-cell:focus-visible .dialkit-anchor-dot { box-shadow: 0 0 0 3px var(--dial-focus-ring); }
 @media (prefers-reduced-motion: reduce) { .dialkit-anchor-dot { transition: none; } }
+/* ── Layer list (layer-list-control.ts) ── */
+.dialkit-layers { display: flex; flex-direction: column; gap: var(--dial-row-gap); }
+/* The add button spans the list, drawn with a dashed edge. */
+.dialkit-layers-add { width: 100%; height: var(--dial-layer-row-height); padding: 0 12px; text-align: center; border: 1px dashed var(--dial-border); border-radius: var(--dial-radius); background: none; color: var(--dial-text-label); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; transition: color 0.15s, border-color 0.15s; }
+.dialkit-layers-add:hover:not(:disabled) { color: var(--dial-text-focus); border-color: var(--dial-border-hover); }
+.dialkit-layers-add:disabled { cursor: default; opacity: 0.6; }
+.dialkit-layers-add:focus-visible { outline: 2px solid var(--dial-focus-ring); outline-offset: -2px; }
+.dialkit-layers-list { position: relative; display: flex; flex-direction: column; gap: var(--dial-row-gap); }
+.dialkit-layers-empty { padding: 4px 12px; font-size: 13px; color: var(--dial-text-tertiary); }
+.dialkit-layer { position: relative; display: flex; align-items: center; gap: 8px; height: var(--dial-layer-row-height); padding: 0 6px 0 12px; box-sizing: border-box; border-radius: var(--dial-radius); background: var(--dial-layer-fill); cursor: pointer; user-select: none; transition: background 0.15s, box-shadow 0.15s; }
+.dialkit-layer:hover { background: var(--dial-layer-hover-fill); }
+.dialkit-layer[data-selected] { background: var(--dial-layer-selected-fill); box-shadow: inset 0 0 0 1px var(--dial-layer-selected-border); }
+.dialkit-layer:focus-visible { outline: 2px solid var(--dial-focus-ring); outline-offset: -2px; }
+.dialkit-layer-name { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 13px; font-weight: 500; color: var(--dial-text-label); transition: color 0.15s, opacity 0.15s; }
+.dialkit-layer:hover .dialkit-layer-name { color: var(--dial-text-focus); }
+.dialkit-layer[data-selected] .dialkit-layer-name { color: var(--dial-text-primary); }
+.dialkit-layer-actions { display: flex; align-items: center; gap: var(--dial-layer-icon-gap); flex-shrink: 0; transition: opacity 0.15s; }
+.dialkit-layer-button { display: grid; place-items: center; width: calc(var(--dial-layer-icon-size) + 8px); height: calc(var(--dial-layer-icon-size) + 8px); padding: 4px; box-sizing: border-box; border: 0; border-radius: 6px; background: none; color: var(--dial-text-tertiary); cursor: pointer; transition: color 0.15s, background 0.15s; }
+.dialkit-layer-button svg { width: 100%; height: 100%; }
+.dialkit-layer-button:hover { color: var(--dial-text-focus); }
+.dialkit-layer-delete:hover { color: var(--dial-layer-delete-hover); }
+.dialkit-layer[data-on-canvas] .dialkit-layer-eye { color: var(--dial-layer-eye-on-canvas); }
+.dialkit-layer[data-on-canvas] .dialkit-layer-eye:hover { color: var(--dial-text-focus); }
+.dialkit-layer-button:focus-visible { outline: 2px solid var(--dial-focus-ring); outline-offset: -2px; }
+/* A row hidden with its eye: a darker fill, a dim name and dim icons. Under the pointer the icons come back to full
+   strength, so the eye that shows the row again is easy to hit. */
+.dialkit-layer[data-hidden] { background: var(--dial-layer-hidden-fill); }
+.dialkit-layer[data-hidden] .dialkit-layer-name { opacity: var(--dial-layer-hidden-opacity); }
+.dialkit-layer[data-hidden] .dialkit-layer-actions { opacity: var(--dial-layer-hidden-opacity); }
+.dialkit-layer[data-hidden] .dialkit-layer-actions:hover { opacity: 1; }
+.dialkit-layer[data-hidden][data-selected] { background: var(--dial-layer-selected-fill); }
+/* Reordering: the dragged row follows the pointer above the others, and the rows it passes slide aside. */
+.dialkit-layers-list[data-dragging] .dialkit-layer { cursor: grabbing; transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1), background 0.15s; }
+.dialkit-layers-list[data-dragging]:not([data-settling]) .dialkit-layer[data-dragging] { transition: none; }
+/* The dragged row is solid, so the rows it passes never show through: its
+   fill over the panel's own colour, as two inner layers, with a lift
+   shadow. Solid from the first frame. */
+.dialkit-layer[data-dragging] {
+  z-index: 1;
+  background: var(--dial-glass-bg);
+  box-shadow:
+    inset 0 0 0 1px var(--dial-layer-selected-border),
+    inset 0 0 0 100vmax var(--dial-layer-selected-fill),
+    inset 0 0 0 100vmax var(--dial-glass-bg),
+    0 6px 16px rgba(0, 0, 0, 0.28);
+}
+@media (prefers-reduced-motion: reduce) { .dialkit-layers-list[data-dragging] .dialkit-layer { transition: none; } }
+
 /* Field rows: a `_fields` folder's numbers side by side */
 .dialkit-fields { display: grid; gap: var(--dial-row-gap); min-width: 0; padding-top: var(--dial-row-gap); border-top: 1px solid var(--dial-divider); }
 /* Inside a folder the line is dashed, like a nested folder's divider. */
@@ -2104,6 +2217,34 @@
 .dialkit-fields-reset[data-changed] { animation: dialkit-fields-reset-in var(--dial-fields-reset-spring); }
 @keyframes dialkit-fields-reset-in { from { opacity: 0; scale: 0.6; rotate: 180deg; } 30% { opacity: 1; } }
 .dialkit-fields-lock[aria-pressed="true"] { color: var(--dial-text-focus); }
+
+/* A row (`_row`): two controls side by side. --dial-row-label-style picks
+ * where their labels sit:
+ *  1. A title above each control, like Weight and Size in a type tool. The
+ *     controls hide their own label; it stays their accessible name. The
+ *     space above the titles and the title line's height match the
+ *     X / Y / Z group's caption (.dialkit-fields).
+ *  2. Inside the controls, as a full row has it, with the `_inlineLabels`
+ *     names: a cell named '' shows only its value. A value too long for
+ *     its half ends in an ellipsis. */
+.dialkit-row-group { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--dial-row-column-gap); }
+.dialkit-row-cell { display: flex; flex-direction: column; min-width: 0; }
+.dialkit-row-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 20px; color: var(--dial-text-label); font-size: 13px; font-weight: 500; }
+@container style(--dial-row-label-style: 1) {
+  .dialkit-row-group { padding-top: var(--dial-row-gap); }
+  .dialkit-row-cell { gap: var(--dial-row-label-gap); }
+  .dialkit-row-cell :is(.dialkit-select-label, .dialkit-slider-label, .dialkit-color-label, .dialkit-text-label, .dialkit-labeled-control-label) { display: none; }
+  .dialkit-row-cell .dialkit-select-right { flex: 1; min-width: 0; justify-content: space-between; }
+  .dialkit-row-cell .dialkit-slider-value { margin-left: auto; }
+}
+@container style(--dial-row-label-style: 2) {
+  .dialkit-row-label { display: none; }
+  .dialkit-row-cell .dialkit-select-trigger { gap: 8px; }
+  .dialkit-row-cell .dialkit-select-right { min-width: 0; }
+  .dialkit-row-cell .dialkit-select-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dialkit-row-cell[data-inline-label="none"] .dialkit-select-label { display: none; }
+  .dialkit-row-cell[data-inline-label="none"] .dialkit-select-right { flex: 1; justify-content: space-between; }
+}
 .dialkit-fields-row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; }
 .dialkit-fields-field { display: flex; align-items: center; gap: 4px; min-width: 0; height: var(--dial-row-height); padding: 0 8px; border-radius: var(--dial-radius); background: var(--dial-surface); transition: background 0.15s; }
 .dialkit-fields-axis { flex-shrink: 0; min-width: 0; max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; color: var(--dial-text-label); cursor: ew-resize; touch-action: none; user-select: none; -webkit-user-select: none; }

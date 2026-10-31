@@ -12,6 +12,11 @@ export interface UseDialStorePanelOptions {
   presetsLockable?: boolean;
   hint?: string;
   folderMode?: FolderMode;
+  onClose?: () => void;
+  toolbar?: boolean;
+  group?: string;
+  groupHeader?: boolean;
+  beside?: string;
 }
 
 // Serialize with a referential short-circuit: consumers can re-render at 60Hz
@@ -48,6 +53,11 @@ export function useDialStorePanel(
   const serializedShortcuts = useSerialized(options.shortcuts);
   const serializedPersist = useSerialized(options.persist);
 
+  // The store keeps one close handler per panel, so a host passing a new
+  // function on each render neither rebuilds the panel nor calls a stale one.
+  const hasOnClose = options.onClose !== undefined;
+  const handleClose = useCallback(() => optionsRef.current.onClose?.(), []);
+
   // Register on mount
   useEffect(() => {
     DialStore.registerPanel(panelId, name, configRef.current, optionsRef.current.shortcuts, {
@@ -59,9 +69,14 @@ export function useDialStorePanel(
       presetsLockable: optionsRef.current.presetsLockable,
       hint: optionsRef.current.hint,
       folderMode: optionsRef.current.folderMode,
+      onClose: optionsRef.current.onClose ? handleClose : undefined,
+      toolbar: optionsRef.current.toolbar,
+      group: optionsRef.current.group,
+      groupHeader: optionsRef.current.groupHeader,
+      beside: optionsRef.current.beside,
     });
     return () => DialStore.unregisterPanel(panelId);
-  }, [hasStableId, panelId, name]);
+  }, [hasStableId, panelId, name, handleClose]);
 
   // Push structure changes without re-registering
   const mountedRef = useRef(false);
@@ -79,9 +94,14 @@ export function useDialStorePanel(
       presetsLockable: optionsRef.current.presetsLockable,
       hint: optionsRef.current.hint,
       folderMode: optionsRef.current.folderMode,
+      onClose: optionsRef.current.onClose ? handleClose : undefined,
+      toolbar: optionsRef.current.toolbar,
+      group: optionsRef.current.group,
+      groupHeader: optionsRef.current.groupHeader,
+      beside: optionsRef.current.beside,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasStableId, panelId, name, serializedConfig, serializedShortcuts, serializedPersist, options.presetsEditable, options.presetsLockable, options.hint, options.folderMode]);
+  }, [hasStableId, panelId, name, serializedConfig, serializedShortcuts, serializedPersist, options.presetsEditable, options.presetsLockable, options.hint, options.folderMode, hasOnClose, options.toolbar, options.group, options.groupHeader, options.beside]);
 
   const subscribe = useCallback(
     (callback: () => void) => DialStore.subscribe(panelId, callback),

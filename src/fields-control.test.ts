@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { createFieldLock, resetFields, scaleFields } from './fields-control';
+import { createFieldLock, fieldText, resetFields, scaleFields } from './fields-control';
 import { DialStore, flattenDialValueUpdates, resolveDialValues, type DialConfig } from './store/DialStore';
 
 const ranges = [
@@ -45,6 +45,30 @@ describe('field rows', () => {
       console.warn = warn;
       DialStore.unregisterPanel(id);
     }
+  });
+
+  it('reads _fields options, and shows at most their decimals', () => {
+    const config = {
+      position: { _fields: { decimals: 0 }, x: [1.5, -10, 10, 0.01], y: [-0.4, -10, 10, 0.01] },
+      scale: { _fields: true, x: [1, 0, 10, 0.1], y: [1, 0, 10, 0.1] },
+    } satisfies DialConfig;
+    const id = 'fields-decimals';
+    try {
+      DialStore.registerPanel(id, 'Fields', config);
+      const [position, scale] = DialStore.getPanel(id)!.controls;
+      assert.equal(position.fields, true);
+      assert.equal(position.decimals, 0);
+      assert.equal(scale.fields, true);
+      assert.equal('decimals' in scale, false);
+      // Only the display rounds: the value keeps its precision.
+      assert.deepEqual(resolveDialValues(config, DialStore.getValues(id)), { position: { x: 1.5, y: -0.4 }, scale: { x: 1, y: 1 } });
+    } finally { DialStore.unregisterPanel(id); }
+    const range = { min: -10, max: 10, step: 0.01 };
+    assert.equal(fieldText(1.5, range), '1.50');
+    assert.equal(fieldText(1.5, range, 0), '2');
+    assert.equal(fieldText(1.234, range, 1), '1.2');
+    assert.equal(fieldText(-0.4, range, 0), '0');
+    assert.equal(fieldText(1.5, range, 4), '1.50');
   });
 
   it('resets only the values that differ from their defaults', () => {

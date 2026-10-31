@@ -395,6 +395,84 @@ describe('hints', () => {
     });
   });
 
+  it('shows a host hint without the key, until the host hides it', async () => {
+    await withDom(async ({ body, listeners, fire }) => {
+      const tooltip = (root: FakeElement) => partIn(root, 'dialkit-hint');
+      const { root, row, control } = layout(body, 'dialkit-folder-root');
+      const tab = new FakeElement('BUTTON', 'host-tab');
+      root.append(tab);
+      const outside = new FakeElement('BUTTON');
+      body.append(outside);
+      const element = (el: FakeElement) => el as unknown as HTMLElement;
+
+      // Nothing is mounted until a host shows a hint.
+      assert.equal(listeners.size, 0);
+      HintStore.show('Coming soon.', element(tab));
+      assert.equal(tooltip(root)?.textContent, 'Coming soon.');
+      assert.equal(tooltip(root)?.hasAttribute('data-open'), true);
+      assert.equal(tab.hasAttribute('data-hint-shown'), true);
+
+      // A hide for another element leaves it; a hide for this one hides it.
+      HintStore.hide(element(row));
+      assert.equal(tooltip(root)?.hasAttribute('data-open'), true);
+      HintStore.hide(element(tab));
+      assert.equal(tooltip(root)?.hasAttribute('data-open'), false);
+      assert.equal(tab.hasAttribute('data-hint-shown'), false);
+      await settle();
+      assert.equal(listeners.size, 0, 'the listeners go with the host hint');
+
+      // The key shows a row's own hint over a host hint.
+      HintStore.show('Coming soon.', element(tab));
+      fire('pointerover', { target: control });
+      fire('keydown', { key: 'h' });
+      assert.equal(tooltip(root)?.textContent, 'Hint in dialkit-folder-root');
+      fire('keyup', { key: 'h' });
+      assert.equal(tooltip(root)?.hasAttribute('data-open'), false);
+      HintStore.hide(element(tab));
+
+      // An element outside every DialKit root shows nothing.
+      HintStore.show('Nowhere.', element(outside));
+      assert.equal(outside.children.length, 0);
+      assert.equal(outside.hasAttribute('data-hint-shown'), false);
+      HintStore.hide(element(outside));
+      await settle();
+      assert.equal(listeners.size, 0);
+    });
+  });
+
+  it('shows hints for a host column marked data-hint-area, with the key and on a host hover', async () => {
+    // Theca's docked editor: one .dialkit-root around the page, a column
+    // shell marked data-hint-area, and tab buttons with their own hints.
+    await withDom(async ({ body, fire }) => {
+      const root = new FakeElement('DIV', 'dialkit-root');
+      const column = new FakeElement('DIV', 'editor-shell');
+      column.setAttribute('data-hint-area', '');
+      const tab = new FakeElement('BUTTON', 'dialkit-segmented-button');
+      tab.setAttribute('data-hint', 'Shows the effects.');
+      column.append(tab);
+      root.append(column);
+      body.append(root);
+      const element = tab as unknown as HTMLElement;
+      const hints = mountHints();
+      try {
+        fire('pointerover', { target: tab });
+        fire('keydown', { key: 'h' });
+        assert.equal(partIn(root, 'dialkit-hint')?.textContent, 'Shows the effects.');
+        assert.equal(column.hasAttribute('data-hinting'), true, 'the column dims, not the whole page');
+        fire('keyup', { key: 'h' });
+        assert.equal(column.hasAttribute('data-hinting'), false);
+
+        HintStore.show('Coming soon.', element);
+        assert.equal(partIn(root, 'dialkit-hint')?.textContent, 'Coming soon.');
+        assert.equal(column.hasAttribute('data-hinting'), true);
+        HintStore.hide(element);
+        assert.equal(partIn(root, 'dialkit-hint')?.hasAttribute('data-open'), false);
+        assert.equal(column.hasAttribute('data-hinting'), false);
+      } finally { hints.destroy(); }
+      await settle();
+    });
+  });
+
   it('mounts nothing on the server', () => {
     assert.equal(typeof document, 'undefined');
     assert.doesNotThrow(() => mountHints().destroy());

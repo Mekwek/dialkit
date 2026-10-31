@@ -138,6 +138,16 @@ X increases to the right; Y increases upward. Clicks near grid intersections sna
 
 `hideLabel: true` removes the label box beside the axis fields, so the two fields fill the row; the label still names the pad for assistive technology. `dragLabels: true` lets you drag an axis label left or right to change its value by one step per pixel, or ten with Shift; Escape cancels the drag. Clicking the label without dragging still opens the number for typing, and Up/Down arrows in the number step it.
 
+`mapping: "centered"` puts each axis's default in the middle of the square: min to default fills one half, default to max the other. Use it when the default is not halfway between min and max, such as a scale from 0.1 to 3 with a default of 1.
+
+Set `_pad` on a folder of two numbers to show them as one pad while each keeps its own path: X drives the first number and Y the second, and `values.spread.h` stays a number. `_pad: true` uses the defaults; an object takes `labels`, `mapping`, `hideLabel` and `dragLabels`. The pad's default is each number's reset value. A folder without two numbers ignores `_pad` and logs a warning.
+
+```ts
+const config = {
+  spread: { _pad: { labels: { x: "H", y: "V" }, mapping: "centered" }, h: [1, 0.1, 3, 0.01], v: [1, 0.1, 3, 0.01] },
+} satisfies DialConfig;
+```
+
 ### Anchors
 
 ```ts
@@ -174,11 +184,55 @@ const config = {
 
 `_fields: true` shows a folder's numbers side by side, labelled by their keys. The values stay ordinary sliders: `values.scale.x` is a number, and presets and `setValues` work as they do in any folder. Shortcuts assigned to a field's path still adjust it, but the row shows no shortcut hint. A row has no header to fold, so `_collapsed` has no effect on it. A row holds two to four numbers and at most one boolean; any other folder ignores `_fields` and logs a warning.
 
+`_fields: { decimals: 0 }` shows each field with at most that many decimals, for values such as world positions where a whole number is precise enough to read. Only the display rounds: the value keeps its precision, and a click on the number opens it with every decimal its step has.
+
 Drag a field's label to scrub one step per pixel, or ten with Shift. A value is a button: click it, or press Enter or Space on it, to type a value, step it with Up and Down, then press Enter to commit or Escape to cancel. Leaving the field also commits. Values are clamped and snapped to their step.
 
 Once any value in the row, the lock included, differs from its default, a reset appears beside the label. It puts the row's values back to their defaults and hides again; if it had focus, focus moves to the first field.
 
 The boolean is the row's lock. While it is on, editing one field scales every field by the same ratio, so `[1, 2, 0.5]` becomes `[1.5, 3, 0.75]` when X moves to 1.5. When the edited field starts at 0, the others move by the same amount instead. The change stops where the first field reaches its min or max, and dragging back moves it again right away. Values set from code or shortcuts are written as given.
+
+### Rows
+
+```ts
+const config = {
+  type: {
+    _row: true,
+    _inlineLabels: { weight: "" },
+    weight: { type: "select", options: ["Regular", "Bold"] },
+    size: [40, 1, 1000, 1],
+  },
+} satisfies DialConfig;
+```
+
+`_row: true` shows a folder's first two controls side by side, with no folder header. Each value keeps its own path: `values.type.size` is a number. The theme variable `--dial-row-label-style` picks where the labels sit: `2` (the default) inside the controls, as a full row has them, and `1` as a title above each control. With labels inside, `_inlineLabels` maps a child key to a shorter name, or to `""` to show only the value; the title above keeps the full name. A segmented select fills its half of the row. `--dial-row-column-gap` sets the space between the two halves.
+
+### Layer lists
+
+```ts
+import { parseLayerAction } from "dialkit";
+
+const config = {
+  layers: {
+    type: "layers",
+    default: { items: [{ id: "title", label: "Title" }], selected: "title" },
+    addLabel: "+ Text",
+    empty: "No text yet.",
+  },
+} satisfies DialConfig;
+
+useDialKit("Text", config, {
+  onAction: (action) => {
+    const row = parseLayerAction("layers", action);
+    if (row?.kind === "add") addLayer();
+    if (row?.kind === "duplicate") duplicateLayer(row.id!);
+    if (row?.kind === "delete") deleteLayer(row.id!);
+  },
+});
+```
+
+A layer list shows a wide add button, then one row per layer, top first. Its value is `{ items, selected }`: each item has an `id`, a `label`, and optionally `hidden` and `offCanvas` (a reason the layer is not on the canvas, shown as the row's hint and with a dimmer eye). The app owns the layers and writes the whole value. The list writes back the three things a user changes in place: the selection, a row's eye, and the order (drag a row, or Alt+Up and Alt+Down). Add, duplicate and delete create or remove layers, so they arrive as actions: `parseLayerAction(path, action)` reads them, and `layerAction(path, kind, id?)` builds one. `addDisabled: true` turns the add button off, and `--dial-layer-row-height` sets the row height. `normalizeLayersValue` makes any value valid: rows without an id or label drop, a repeated id keeps its first row, and a selection that names no row becomes `null`.
+
 
 ### Backgrounds
 
@@ -399,6 +453,16 @@ DialStore.getPanelOpen("card");
 
 `DialStore.getDefaultValues("card")` returns the panel's config defaults, keyed by path like its values.
 
+With the panel option `onClose`, the X in an open panel's header calls it instead of closing the panel to a small button, so the host can remove the panel, as a selection panel does when it clears the selection. `toolbar: false` drops the versions and copy buttons from the panel's header. Both apply to a panel drawn on its own, not to a section of a shared shell. React only for now.
+
+### Panel groups
+
+By default, one panel shows on its own and two or more share one "DialKit" shell, each as a section. The panel option `group` gives panels a shell of their own: panels with the same `group` are sections of a shell titled by the group, apart from the "DialKit" shell. Shells stack in one column in the order their first panel registered (`--dial-panel-stack-gap` sets the space between them). In a group, `groupHeader: true` puts that panel's toolbar (versions and copy) in the group shell's header instead of a section of its own.
+
+`beside` names a group, or the one panel without a group, that a panel opens next to: out of the column, toward the middle of the screen, level with the root's top edge (`--dial-panel-beside-gap` sets the space). On a narrow screen it goes under the column. A panel whose `beside` names nothing that is shown, or that sits in an inline root, shows as a shell of its own; a panel with `beside` never joins the "DialKit" shell, and a panel in a group stays in its group.
+
+`DialRoot`'s `include` draws only some panels, so several roots can share one store: `include={{ ungrouped: true }}` draws the panels without a group, `include={{ groups: ["Scene"] }}` the panels in the listed groups, and both together draw both. React only for now.
+
 `Folder` also accepts controlled `open` and `onOpenChange` (`@open-change` in Vue), or an initial `defaultOpen`. Inline roots fill their container, ignore `position`, and disable collapse-to-icon interaction.
 
 ## Keyboard
@@ -451,6 +515,8 @@ For sliders, hold the key and scroll, drag horizontally, or move the pointer acc
 ## Custom layouts
 
 Adapters export individual controls, including `Slider`, `Toggle`, `TextControl`, `SelectControl`, `ColorControl`, `ImageControl`, `DialPad`, `AnchorControl`, `BackgroundControl`, `TransitionControl`, `Folder`, and `ButtonGroup`. `BackgroundControl` also takes the `panelId` whose saved gradients it shows, and has no visible title of its own; panels place it in a folder named by its label. `ControlRenderer` renders a control metadata tree; pass `openFolder` and `onOpenFolderChange` (`@open-folder-change` in Vue) to control its top-level folders as an accordion. Keep custom controls inside an element with `class="dialkit-root"` and set `data-theme` to `"system"`, `"light"`, or `"dark"`. Without a `DialRoot` or `DialTimeline` mounted, text fields also show the focus ring when clicked, a clicked folder header keeps the focus, and a slider's number input keeps a fixed width. Hints work here with no extra setup: `ControlRenderer` passes `_hints` to its controls, and each control takes a `hint` prop. Hold H over one to read it while the rest of its root dims.
+
+A host can show a hint without the key, for example once the pointer has rested on an element for a moment: `HintStore.show(text, element)` shows `text` above `element`, which must sit inside a `.dialkit-root`, and `HintStore.hide(element)` hides it. The host picks the delay. Holding the key over another control replaces the hint, and the hint also hides when the pointer leaves the window.
 In vanilla, each control takes a host element and props:
 
 ```js

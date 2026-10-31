@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, it } from 'node:test';
-import { getDropdownPosition } from './dropdown-position';
+import { getDropdownPosition, opensAbove } from './dropdown-position';
 import { createPanelSectionTransition, measurePanelHeight } from './panel-size';
 const originalWindow = globalThis.window;
 const originalStyle = globalThis.getComputedStyle;
@@ -58,5 +58,15 @@ describe('pinned panel headers', () => {
     assert.equal(properties.get('--dial-panel-header-height'), '54px');
     transition.destroy();
     assert.equal(properties.has('--dial-panel-header-height'), false);
+  });
+});
+
+describe('opensAbove', () => {
+  it('opens a menu above its trigger only when the room below is too short and the room above is larger', () => {
+    // 116px of menu: four rows and padding.
+    assert.equal(opensAbove({ top: 100, bottom: 136 }, 116, 800), false);
+    assert.equal(opensAbove({ top: 700, bottom: 736 }, 116, 800), true);
+    // Short below, but shorter above: it stays below.
+    assert.equal(opensAbove({ top: 40, bottom: 76 }, 116, 120), false);
   });
 });

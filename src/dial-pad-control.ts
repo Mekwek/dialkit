@@ -1,4 +1,4 @@
-import { PAD_GRID_DIVISIONS, normalizePadValue, padAxisLabel, padGridIntersection, padValueFromDrag, padValueFromKey, padValueFromPoint, resolvePadAxis, snapPadAxis, type DialPadConfig, type DialPadValue } from './dial-pad';
+import { PAD_GRID_DIVISIONS, normalizePadValue, padAxisLabel, padFraction, padGridIntersection, padValueFromDrag, padValueFromKey, padValueFromPoint, resolvePadAxis, snapPadAxis, type DialPadConfig, type DialPadValue } from './dial-pad';
 import { setHint } from './hints';
 
 export type DialPadProps = Omit<DialPadConfig, 'type'> & {
@@ -159,7 +159,7 @@ export function mountDialPad(host: HTMLElement, initial: DialPadProps) {
       input.setAttribute('aria-valuemax', String(range.max));
       input.setAttribute('aria-valuenow', String(value[axis]));
       if (document.activeElement !== input) input.value = String(value[axis]);
-      const fraction = (value[axis] - range.min) / (range.max - range.min);
+      const fraction = padFraction(value[axis], range, props.mapping);
       point.style[axis === 'x' ? 'left' : 'top'] = `${(axis === 'x' ? fraction : 1 - fraction) * 100}%`;
     });
   }

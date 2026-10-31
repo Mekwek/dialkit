@@ -2,10 +2,12 @@ import { roundValue } from '../numeric';
 import { parseColor } from '../color';
 import { normalizePadValue, type DialPadConfig, type DialPadValue } from '../dial-pad';
 import { normalizeAnchorValue, type AnchorConfig, type AnchorValue } from '../anchor';
+import { normalizeLayersValue, sameLayersValue, type LayersConfig, type LayersValue } from '../layers';
 import { defaultTransitionPresets, type TransitionPresetOption } from '../transition-presets';
 import { cloneGradient, normalizeBackgroundValue, normalizeGradient, sameBackgroundValue, type BackgroundConfig, type BackgroundGradient, type BackgroundValue, type BackgroundValueUpdate, type SavedGradient } from '../background';
 export type { DialPadAxis, DialPadConfig, DialPadValue } from '../dial-pad';
 export type { AnchorConfig, AnchorValue } from '../anchor';
+export type { LayerItem, LayersConfig, LayersValue, LayerActionKind } from '../layers';
 export type {
   BackgroundConfig, BackgroundGradient, BackgroundMedia, BackgroundMediaDisplay, BackgroundMediaFit, BackgroundMediaRatio, BackgroundMode, BackgroundValue, BackgroundValueUpdate,
   GradientHandles, GradientPoint, GradientShape, GradientStop, SavedGradient,
@@ -80,15 +82,73 @@ export type TextConfig = {
   placeholder?: string;
 };
 
-export type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue | BackgroundConfig | BackgroundValue | AnchorConfig | AnchorValue;
+export type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue | BackgroundConfig | BackgroundValue | AnchorConfig | AnchorValue | LayersConfig | LayersValue;
 
 /**
  * Folder keys that configure the folder instead of adding a control:
- * `_collapsed`, `_fields`, `_reset`, `_hints` (a sentence per child key) and
- * `_labels` (the text a child's row shows in place of its key's own words).
+ * `_collapsed`, `_fields`, `_reset`, `_hints` (a sentence per child key),
+ * `_labels` (the text a child's row shows in place of its key's own words),
+ * `_row` and `_inlineLabels` (see {@link RowConfig}), and `_pad` (see
+ * {@link PadGroupConfig}).
  */
-const FOLDER_META_KEYS = ['_collapsed', '_fields', '_reset', '_hints', '_labels'] as const;
+const FOLDER_META_KEYS = ['_collapsed', '_fields', '_reset', '_hints', '_labels', '_row', '_inlineLabels', '_pad'] as const;
+
+/**
+ * A row: set `_row: true` on a folder with two controls. The folder shows
+ * no header; its two controls sit side by side, each with its label above
+ * it, like Weight and Size in a type tool. Each value keeps its own path.
+ */
+export type RowConfig = Record<string, never>;
+
+/**
+ * The names a row's controls show when its labels sit inside the controls
+ * (`--dial-row-label-style: 2`): set `_inlineLabels` on the `_row` folder,
+ * from a child key to a shorter name, or `''` to show only the value. The
+ * title above each control keeps the full name.
+ */
+export type InlineLabelsConfig = Record<string, string>;
+
+/**
+ * A pad group: set `_pad: true` (or these options) on a folder whose first
+ * two number children are a pair. The folder shows as one pad: X drives the
+ * first value, Y the second, and each value keeps its own path.
+ */
+export type PadGroupConfig = Pick<DialPadConfig, 'labels' | 'mapping' | 'hideLabel' | 'dragLabels'>;
+
+function padGroupConfigOf(value: unknown): PadGroupConfig | undefined {
+  if (value === true) return {};
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) return value as PadGroupConfig;
+  return undefined;
+}
+
+/**
+ * A field row: `_fields: true`, or these options. See {@link ControlMeta.fields}.
+ */
+export type FieldsConfig = {
+  /**
+   * Most decimals a field shows. The value keeps its precision: only the
+   * display rounds, and a click on the number shows the exact value.
+   */
+  decimals?: number;
+};
+
+function fieldsConfigOf(value: unknown): FieldsConfig | undefined {
+  if (value === true) return {};
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) return value as FieldsConfig;
+  return undefined;
+}
+
+function inlineLabelsOf(value: unknown): InlineLabelsConfig | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  return Object.fromEntries(Object.entries(value).filter(([, name]) => typeof name === 'string'));
+}
 type FolderMetaKey = (typeof FOLDER_META_KEYS)[number];
+
+/**
+ * A slider: `[default, min, max, step?, unit?]`. The unit shows after the
+ * value: `[12, -180, 180, 1, '°']` shows "12°".
+ */
+export type RangeConfig = [number, number, number, number?, string?];
 
 export type DialConfig = {
   [key: string]: DialValue | [number, number, number, number?, string?] | DialConfig | ControlWithVisibility;
@@ -148,6 +208,8 @@ export type ResolvedValues<T extends DialConfig> = {
                   ? BackgroundValue
                 : T[K] extends AnchorConfig
                   ? AnchorValue
+                : T[K] extends LayersConfig
+                  ? LayersValue
                   : T[K] extends DialConfig
                     ? ResolvedValues<T[K]>
                     : T[K];
@@ -170,6 +232,8 @@ export type DialKitValueUpdates<T extends DialConfig> = {
               ? BackgroundValueUpdate
             : T[K] extends AnchorConfig
               ? AnchorValue
+            : T[K] extends LayersConfig
+              ? LayersValue
               : T[K] extends DialConfig
                 ? DialKitValueUpdates<T[K]>
                 : T[K];
@@ -186,7 +250,7 @@ export type ShortcutConfig = {
 };
 
 export type ControlMeta = {
-  type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'image' | 'text' | 'pad' | 'background' | 'anchor';
+  type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'image' | 'text' | 'pad' | 'background' | 'anchor' | 'layers';
   path: string;
   label: string;
   min?: number;
@@ -197,8 +261,16 @@ export type ControlMeta = {
   defaultOpen?: boolean;
   /** The folder drawn for this control shows a reset button: `_reset` folders, springs, transitions, and backgrounds. */
   reset?: boolean;
-  /** Folder only: `_fields: true` shows its numbers as one row of fields. */
+  /** Folder only: `_fields` (`true` or {@link FieldsConfig}) shows its numbers as one row of fields. */
   fields?: boolean;
+  /** Fields only: the most decimals a field shows, from `_fields: { decimals }`. See {@link FieldsConfig}. */
+  decimals?: number;
+  /** Folder only: `_row` shows the folder's two controls side by side. See {@link RowConfig}. */
+  row?: RowConfig;
+  /** Row only: the names its controls show inside. See {@link InlineLabelsConfig}. */
+  inlineLabels?: InlineLabelsConfig;
+  /** Folder only: `_pad` shows the folder's first two numbers as one pad. See {@link PadGroupConfig}. */
+  padGroup?: PadGroupConfig;
   options?: SelectOption[];
   display?: SelectConfig['display'];
   hideLabel?: boolean;
@@ -208,6 +280,8 @@ export type ControlMeta = {
   pad?: DialPadConfig;
   anchor?: AnchorConfig;
   background?: BackgroundConfig;
+  /** Layers only: the config, with its default made valid. Its add, duplicate and delete send `layerAction` paths. */
+  layers?: LayersConfig & { default: LayersValue };
   shortcut?: ShortcutConfig;
   visibleWhen?: VisibleWhen;
   /** A short sentence about the control, from its folder's `_hints`. */
@@ -239,6 +313,35 @@ export type PanelConfig = {
    * follows its DialRoot's `accordion`.
    */
   folderMode?: FolderMode;
+  /**
+   * Called by the X in the panel's header, instead of closing the panel to
+   * a small button: the host removes the panel (a selection panel clears
+   * the selection).
+   */
+  onClose?: () => void;
+  /**
+   * `false` drops the toolbar (versions and copy) from the panel's header.
+   * Default `true`.
+   */
+  toolbar?: boolean;
+  /**
+   * A group name. Panels that share one draw as sections of their own shell,
+   * titled by the group, apart from the shell of the panels without a group.
+   */
+  group?: string;
+  /**
+   * In a group, `true` puts this panel's toolbar (versions and copy) in the
+   * group shell's header, and drops its section.
+   */
+  groupHeader?: boolean;
+  /**
+   * The name of a group, or of the one panel without a group, that this
+   * panel opens next to: out of the column, on the side toward the middle of
+   * the screen, level with that shell's top edge. Without that shell, or in
+   * an inline root, the panel shows as a shell of its own. A panel in a
+   * group stays in its group.
+   */
+  beside?: string;
 };
 
 type Listener = () => void;
@@ -294,6 +397,35 @@ export type DialStorePanelOptions = {
    * follows its DialRoot's `accordion`.
    */
   folderMode?: FolderMode;
+  /**
+   * Called by the X in the panel's header, instead of closing the panel to
+   * a small button: the host removes the panel (a selection panel clears
+   * the selection).
+   */
+  onClose?: () => void;
+  /**
+   * `false` drops the toolbar (versions and copy) from the panel's header.
+   * Default `true`.
+   */
+  toolbar?: boolean;
+  /**
+   * A group name. Panels that share one draw as sections of their own shell,
+   * titled by the group, apart from the shell of the panels without a group.
+   */
+  group?: string;
+  /**
+   * In a group, `true` puts this panel's toolbar (versions and copy) in the
+   * group shell's header, and drops its section.
+   */
+  groupHeader?: boolean;
+  /**
+   * The name of a group, or of the one panel without a group, that this
+   * panel opens next to: out of the column, on the side toward the middle of
+   * the screen, level with that shell's top edge. Without that shell, or in
+   * an inline root, the panel shows as a shell of its own. A panel in a
+   * group stays in its group.
+   */
+  beside?: string;
 };
 
 type PersistConfig = {
@@ -451,7 +583,8 @@ export function isLeafConfigValue(value: unknown): boolean {
     isTextConfigValue(value) ||
     isPadConfigValue(value) ||
     isBackgroundConfigValue(value) ||
-    isAnchorConfigValue(value)
+    isAnchorConfigValue(value) ||
+    isLayersConfigValue(value)
   );
 }
 
@@ -465,6 +598,7 @@ function configDefaultValue(value: DialConfig[string]): DialValue {
   if (isPadConfigValue(value)) return normalizePadValue(undefined, value);
   if (isAnchorConfigValue(value)) return normalizeAnchorValue(undefined, value);
   if (isBackgroundConfigValue(value)) return normalizeBackgroundValue(value.default);
+  if (isLayersConfigValue(value)) return normalizeLayersValue(value.default);
   return value as DialValue;
 }
 
@@ -474,6 +608,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function sameControlValue(previous: unknown, next: unknown, control?: ControlMeta): boolean {
   if (Object.is(previous, next)) return true;
+  if (control?.type === 'layers') return sameLayersValue(previous, next);
   if (control?.type === 'background') {
     return isRecord(previous) && isRecord(next) && sameBackgroundValue(previous as BackgroundValue, next as BackgroundValue);
   }
@@ -568,10 +703,35 @@ function isBackgroundConfigValue(value: unknown): value is BackgroundConfig {
   return hasType(value, 'background');
 }
 
+function isLayersConfigValue(value: unknown): value is LayersConfig {
+  return hasType(value, 'layers');
+}
+
 function getFirstOptionValue(options: (string | { value: string; label: string })[]): string {
   const first = options[0];
   if (first === undefined) return '';
   return typeof first === 'string' ? first : first.value;
+}
+
+type ParsedConfig = ReturnType<DialStoreClass['parseConfig']>;
+
+/** Distinct configs remembered per panel id before the oldest is dropped. */
+const PARSED_CONFIG_CACHE_LIMIT = 16;
+
+/**
+ * The cache key of a config and its shortcuts, or undefined when the config
+ * holds a function (such as a background `upload`): JSON drops functions, so
+ * two configs with different functions would share a key.
+ */
+function parsedConfigKey(config: DialConfig, shortcuts?: Record<string, ShortcutConfig>): string | undefined {
+  let hasFunction = false;
+  const key = JSON.stringify(config, (_key, value: unknown) => {
+    if (typeof value === 'function') hasFunction = true;
+    return value;
+  });
+  // Registration stores `shortcuts ?? {}` and an update reads it back, so an
+  // absent map and an empty one key the same.
+  return hasFunction ? undefined : `${key}\n${JSON.stringify(shortcuts ?? {})}`;
 }
 
 class DialStoreClass {
@@ -610,9 +770,19 @@ class DialStoreClass {
   private transitionStorageLoaded: Set<PersistConfig['storage']> = new Set();
   private copiedTransition: CopiedTransition | null = null;
   private transitionListeners: Set<Listener> = new Set();
+  /**
+   * Parsed configs per panel id, by `parsedConfigKey`. A host that swaps
+   * between a few configs (layout presets) registers the same shapes again
+   * and again; a parsed tree is never changed after its parse, so it can be
+   * shared.
+   */
+  private parsedConfigs = new Map<string, Map<string, ParsedConfig>>();
+  /** The cache key of the config each registered panel holds. */
+  private panelConfigKeys = new Map<string, string | undefined>();
 
   registerPanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, options: DialStorePanelOptions = {}): void {
-    const { controls, controlsByPath, defaultValues, resetKeys, conditional } = this.parseConfig(id, config, shortcuts);
+    const { key, parsed: { controls, controlsByPath, defaultValues, resetKeys, conditional } } = this.parseCached(id, config, shortcuts);
+    this.panelConfigKeys.set(id, key);
     if (!this.panelOpenStates.has(id) && options.defaultCollapsed !== undefined) {
       this.panelOpenStates.set(id, !options.defaultCollapsed);
     }
@@ -636,7 +806,8 @@ class DialStoreClass {
     const panel: PanelConfig = {
       id, name, controls, values, shortcuts: shortcuts ?? {}, kind: options.kind,
       presetsEditable: options.presetsEditable, presetsLockable: options.presetsLockable, hint: options.hint,
-      folderMode: options.folderMode,
+      folderMode: options.folderMode, onClose: options.onClose, toolbar: options.toolbar,
+      group: options.group, groupHeader: options.groupHeader, beside: options.beside,
     };
     this.panels.set(id, panel);
     this.controlsByPanel.set(panel, controlsByPath);
@@ -672,8 +843,29 @@ class DialStoreClass {
       return;
     }
 
-    const { controls, controlsByPath, defaultValues, resetKeys, conditional } = this.parseConfig(id, config, shortcuts ?? existing.shortcuts);
+    const { key, parsed: { controls, controlsByPath, defaultValues, resetKeys, conditional } } = this.parseCached(id, config, shortcuts ?? existing.shortcuts);
+    const unchanged = key !== undefined &&
+      this.panelConfigKeys.get(id) === key &&
+      name === existing.name &&
+      (options.kind ?? existing.kind) === existing.kind &&
+      (options.presetsEditable ?? existing.presetsEditable) === existing.presetsEditable &&
+      (options.presetsLockable ?? existing.presetsLockable) === existing.presetsLockable &&
+      (options.hint ?? existing.hint) === existing.hint &&
+      (options.folderMode ?? existing.folderMode) === existing.folderMode &&
+      (options.onClose ?? existing.onClose) === existing.onClose &&
+      (options.toolbar ?? existing.toolbar) === existing.toolbar &&
+      (options.group ?? existing.group) === existing.group &&
+      (options.groupHeader ?? existing.groupHeader) === existing.groupHeader &&
+      (options.beside ?? existing.beside) === existing.beside;
     this.configurePanelRetention(id, options);
+    if (unchanged) {
+      // Same config, same options: nothing the panel draws can differ, so
+      // skip the rebuild and the notify (a host re-render would otherwise
+      // reach every panel through the global listeners).
+      this.persistPanel(id);
+      return;
+    }
+    this.panelConfigKeys.set(id, key);
     const nextValues = this.reconcileValues(defaultValues, existing.values, controlsByPath);
 
     const nextPanel: PanelConfig = {
@@ -682,6 +874,11 @@ class DialStoreClass {
       presetsLockable: options.presetsLockable ?? existing.presetsLockable,
       hint: options.hint ?? existing.hint,
       folderMode: options.folderMode ?? existing.folderMode,
+      onClose: options.onClose ?? existing.onClose,
+      toolbar: options.toolbar ?? existing.toolbar,
+      group: options.group ?? existing.group,
+      groupHeader: options.groupHeader ?? existing.groupHeader,
+      beside: options.beside ?? existing.beside,
     };
     this.panels.set(id, nextPanel);
     this.controlsByPanel.set(nextPanel, controlsByPath);
@@ -734,6 +931,8 @@ class DialStoreClass {
       this.activePreset.delete(id);
       this.gradients.delete(id);
       this.persistConfigs.delete(id);
+      this.parsedConfigs.delete(id);
+      this.panelConfigKeys.delete(id);
     }
 
     this.notifyGlobal();
@@ -801,6 +1000,7 @@ class DialStoreClass {
 
       const next = control?.type === 'pad' ? normalizePadValue(value, control.pad)
         : control?.type === 'anchor' ? normalizeAnchorValue(value, control.anchor)
+        : control?.type === 'layers' ? normalizeLayersValue(value)
         // Missing fields keep the current value, so a partial update changes only what it names.
         : control?.type === 'background' ? normalizeBackgroundValue(value, panel.values[path] as BackgroundValue)
         : value;
@@ -1599,6 +1799,35 @@ class DialStoreClass {
     this.globalListeners.forEach(fn => fn());
   }
 
+  /**
+   * Parses through the panel's cache. The result is stored only after a
+   * parse succeeds, so an invalid config still throws before the store
+   * changes.
+   */
+  private parseCached(id: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>): { key: string | undefined; parsed: ParsedConfig } {
+    const key = parsedConfigKey(config, shortcuts);
+    if (key === undefined) return { key, parsed: this.parseConfig(id, config, shortcuts) };
+    let cache = this.parsedConfigs.get(id);
+    const hit = cache?.get(key);
+    if (cache && hit) {
+      // Insert again, so the map's order tracks recency for the drop below.
+      cache.delete(key);
+      cache.set(key, hit);
+      return { key, parsed: hit };
+    }
+    const parsed = this.parseConfig(id, config, shortcuts);
+    if (!cache) {
+      cache = new Map();
+      this.parsedConfigs.set(id, cache);
+    }
+    cache.set(key, parsed);
+    if (cache.size > PARSED_CONFIG_CACHE_LIMIT) {
+      const oldest = cache.keys().next().value;
+      if (oldest !== undefined) cache.delete(oldest);
+    }
+    return { key, parsed };
+  }
+
   /** Compile controls, defaults, and the lookup index in one walk. */
   private parseConfig(panelId: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>) {
     const defaultValues: Record<string, DialValue> = {};
@@ -1652,6 +1881,8 @@ class DialStoreClass {
           control = { type: 'text', path, label, placeholder: value.placeholder };
         } else if (isPadConfigValue(value)) {
           control = { type: 'pad', path, label, pad: value };
+        } else if (isLayersConfigValue(value)) {
+          control = { type: 'layers', path, label, layers: { ...value, default: normalizeLayersValue(value.default) } };
         } else if (isAnchorConfigValue(value)) {
           control = { type: 'anchor', path, label, anchor: value };
         } else if (isBackgroundConfigValue(value)) {
@@ -1676,9 +1907,24 @@ class DialStoreClass {
             reset: folderConfig._reset === true,
             children,
           };
-          if (folderConfig._fields === true) {
+          const padGroup = padGroupConfigOf(folderConfig._pad);
+          if (padGroup) {
+            if (children.filter(child => child.type === 'slider').length >= 2) {
+              control.padGroup = padGroup;
+            } else {
+              console.warn(`[dialkit] "${path}" sets _pad but needs two numbers; showing it as a folder.`);
+            }
+          }
+          if (folderConfig._row === true) {
+            control.row = {};
+            const inlineLabels = inlineLabelsOf(folderConfig._inlineLabels);
+            if (inlineLabels) control.inlineLabels = inlineLabels;
+          }
+          const fields = fieldsConfigOf(folderConfig._fields);
+          if (fields) {
             if (canShowFields(children)) {
               control.fields = true;
+              if (typeof fields.decimals === 'number' && Number.isFinite(fields.decimals)) control.decimals = fields.decimals;
             } else {
               console.warn(`[dialkit] "${path}" sets _fields but needs two to four numbers and at most one boolean; showing it as a folder.`);
             }
@@ -1772,6 +2018,9 @@ class DialStoreClass {
         return normalizePadValue(existingValue, control.pad);
       case 'anchor':
         return normalizeAnchorValue(existingValue, control.anchor);
+      case 'layers':
+        // The app owns the rows: a valid stored value is kept, else the default.
+        return normalizeLayersValue(existingValue, control.layers?.default);
       case 'background':
         return normalizeBackgroundValue(existingValue, defaultValue as BackgroundValue);
       case 'select': {

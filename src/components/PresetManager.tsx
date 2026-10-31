@@ -9,6 +9,7 @@ import { versionHints } from '../hints';
 import { useHints } from '../hooks/useHints';
 import { ICON_CHEVRON, ICON_TRASH, ICON_PLUS, ICON_CHECK, ICON_MORE, ICON_PENCIL, ICON_LOCK, ICON_LOCK_OPEN } from '../icons';
 import { usePresenceResync } from '../hooks/usePresenceResync';
+import { opensAbove } from '../dropdown-position';
 
 interface PresetManagerProps {
   panelId: string;
@@ -28,7 +29,7 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, noun = 
   useHints(true);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0, above: false });
   const [editingId, setEditingId] = useState<string | null>(null);
   const resyncPresence = usePresenceResync();
 
@@ -37,11 +38,14 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, noun = 
   const open = useCallback(() => {
     const rect = triggerRef.current?.getBoundingClientRect();
     if (rect) {
-      setPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+      // Opens above the trigger when there is no room below, as a select's
+      // dropdown does: 8px of padding, and 36px a row with the base version's.
+      const above = opensAbove(rect, 8 + (presets.length + 1) * 36, window.innerHeight);
+      setPos({ top: above ? rect.top - 4 : rect.bottom + 4, left: rect.left, width: rect.width, above });
     }
     setEditingId(null);
     setIsOpen(true);
-  }, []);
+  }, [presets.length]);
 
   const close = useCallback(() => setIsOpen(false), []);
 
@@ -124,10 +128,16 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, noun = 
             <motion.div
               ref={dropdownRef}
               className="dialkit-root dialkit-preset-dropdown"
-              style={{ position: 'fixed', top: pos.top, left: pos.left, minWidth: pos.width }}
-              initial={{ opacity: 0, y: 4, scale: 0.97 }}
+              style={{
+                position: 'fixed',
+                left: pos.left,
+                minWidth: pos.width,
+                // Above, the menu hangs from its bottom edge, so a list of any height ends at the trigger.
+                ...(pos.above ? { bottom: window.innerHeight - pos.top, transformOrigin: 'bottom' } : { top: pos.top, transformOrigin: 'top' }),
+              }}
+              initial={{ opacity: 0, y: pos.above ? -4 : 4, scale: 0.97 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 4, scale: 0.97, pointerEvents: 'none' as any }}
+              exit={{ opacity: 0, y: pos.above ? -4 : 4, scale: 0.97, pointerEvents: 'none' as any }}
               transition={{ type: 'spring', visualDuration: 0.15, bounce: 0 }}
             >
               <div

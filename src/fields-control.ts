@@ -15,6 +15,11 @@ export type FieldsProps = {
   onChange: (values: Record<string, DialValue>) => void;
   /** A short sentence shown while H is held over the row. */
   hint?: string;
+  /**
+   * Most decimals a field shows at rest. The value keeps its precision:
+   * only the display rounds, and typing starts from the exact value.
+   */
+  decimals?: number;
 };
 
 type FieldRange = { min: number; max: number; step: number };
@@ -79,6 +84,17 @@ export function createFieldLock() {
       anchor = undefined;
     },
   };
+}
+
+/**
+ * A field's value at rest: the decimals its step has, or at most
+ * `decimals` of them, and never -0 once rounded.
+ */
+export function fieldText(value: number, { min, max, step }: FieldRange, decimals?: number): string {
+  const own = decimalsForStep(step, min, max);
+  if (decimals === undefined || decimals >= own) return value.toFixed(own);
+  const text = value.toFixed(Math.max(0, Math.floor(decimals)));
+  return Number(text) === 0 ? text.replace('-', '') : text;
 }
 
 /** The updates that put every value in the row back to its default; empty when none changed. */
@@ -162,10 +178,12 @@ export function mountFields(host: HTMLElement, initial: FieldsProps) {
     const value = values[control.path];
     return typeof value === 'number' ? value : rangeOf(control).min;
   };
+  /** The value to type over: every decimal its step has. */
   const format = (control: ControlMeta) => {
     const { min, max, step } = rangeOf(control);
     return read(control).toFixed(decimalsForStep(step, min, max));
   };
+  const display = (control: ControlMeta) => fieldText(read(control), rangeOf(control), props.decimals);
 
   function emit(updates: Record<string, DialValue>) {
     if (Object.keys(updates).length === 0) return;
@@ -354,11 +372,12 @@ export function mountFields(host: HTMLElement, initial: FieldsProps) {
     axes().forEach((control, index) => {
       const { field, axis, value, input } = fields[index];
       const text = format(control);
+      const shown = display(control);
       axis.textContent = control.label;
       // A field's own hint, from the row's `_hints`, wins over the row's.
       setHint(field, control.hint);
-      value.textContent = text;
-      value.setAttribute('aria-label', `${props.label} ${control.label}: ${text}`);
+      value.textContent = shown;
+      value.setAttribute('aria-label', `${props.label} ${control.label}: ${shown}`);
       // A value changed elsewhere, such as by a scrub, shows in an input with nothing typed yet.
       if (input && input.value === input.defaultValue && input.value !== text) {
         input.value = input.defaultValue = text;

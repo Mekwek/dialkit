@@ -36,6 +36,10 @@ export function Slider({
   shortcutActive,
   hint,
 }: SliderProps) {
+  // While a panel rebuilds, its controls and values can disagree for one
+  // render: a slider with no value shows its minimum instead of throwing on
+  // value.toFixed below.
+  if (typeof value !== 'number' || !Number.isFinite(value)) value = min;
   useHints(!!hint);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);

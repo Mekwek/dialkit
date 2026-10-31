@@ -22,13 +22,16 @@ interface PanelProps {
   openFolder?: string | null;
   onOpenFolderChange?: (path: string | null) => void;
   onOpenChange?: (open: boolean) => void;
-  variant?: 'root' | 'section';
+  /** `'toolbar'` draws only the toolbar, for a group shell's header (`groupHeader`). */
+  variant?: 'root' | 'section' | 'toolbar';
   toolbarExtra?: ReactNode;
   versions?: DialVersions;
   theme?: 'light' | 'dark' | 'system';
+  /** A root panel with `beside`, placed next to the shell it names: the side of that shell it sits on. */
+  beside?: 'left' | 'right';
 }
 
-export function Panel({ panel, defaultOpen = true, inline = false, accordion = false, openFolder, onOpenFolderChange, onOpenChange, variant = 'root', toolbarExtra, versions = 'thumbnails', theme }: PanelProps) {
+export function Panel({ panel, defaultOpen = true, inline = false, accordion = false, openFolder, onOpenFolderChange, onOpenChange, variant = 'root', toolbarExtra, versions = 'thumbnails', theme, beside }: PanelProps) {
   const [copied, setCopied] = useState(false);
   useHints(true);
   const copyTimeout = useRef<ReturnType<typeof setTimeout>>();
@@ -155,6 +158,9 @@ export function Panel({ panel, defaultOpen = true, inline = false, accordion = f
     </>
   );
 
+  // In a group shell's header (groupHeader): the toolbar alone, no section.
+  if (variant === 'toolbar') return toolbar;
+
   if (variant === 'section') {
     return (
       <Folder title={panel.name} open={isOpen} onOpenChange={handleOpenChange} toolbar={toolbar} hint={panel.hint}>
@@ -164,8 +170,8 @@ export function Panel({ panel, defaultOpen = true, inline = false, accordion = f
   }
 
   return (
-    <div className="dialkit-panel-wrapper">
-      <Folder title={panel.name} open={isOpen} isRoot={true} inline={inline} onOpenChange={handleOpenChange} toolbar={toolbar} hint={panel.hint}>
+    <div className="dialkit-panel-wrapper" data-beside={beside}>
+      <Folder title={panel.name} open={isOpen} isRoot={true} inline={inline} onOpenChange={handleOpenChange} onClose={panel.onClose} toolbar={panel.toolbar === false ? undefined : toolbar} hint={panel.hint}>
         {renderControls()}
       </Folder>
     </div>

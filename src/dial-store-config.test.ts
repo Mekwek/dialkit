@@ -4,7 +4,9 @@ import { describe, it } from 'node:test';
 import { Children, createElement, type ReactElement, type ReactNode } from 'react';
 import { ControlRenderer } from './components/ControlRenderer';
 import { SelectControl } from './components/SelectControl';
-import { DialStore, flattenDialValueUpdates, resolveDialValues, type DialConfig, type EasingConfig } from './store/DialStore';
+import { Folder } from './components/Folder';
+import { Slider } from './components/Slider';
+import { DialStore, flattenDialValueUpdates, resolveDialValues, type DialConfig, type EasingConfig, type RangeConfig } from './store/DialStore';
 
 // A CommonJS module whose named export Node cannot see from ESM.
 const { createRenderer: createShallowRenderer } = createRequire(import.meta.url)('react-test-renderer/shallow') as typeof import('react-test-renderer/shallow');
@@ -424,6 +426,125 @@ describe('DialStore config lifecycle', () => {
       shallow.unmount();
       unsubscribe();
     } finally { DialStore.unregisterPanel(id); }
+  });
+
+  it('keeps a _row folder with its two controls and their own paths', () => {
+    const id = 'config-row';
+    const config = {
+      type: {
+        _row: true,
+        _inlineLabels: { weight: '', size: 'Px' },
+        weight: { type: 'select', options: ['regular', 'bold'], default: 'regular' },
+        size: [40, 1, 1000, 1],
+      },
+    } satisfies DialConfig;
+    try {
+      DialStore.registerPanel(id, 'Row', config);
+      const folder = DialStore.getPanel(id)!.controls[0];
+      assert.deepEqual(folder.row, {});
+      assert.deepEqual(folder.inlineLabels, { weight: '', size: 'Px' });
+      assert.deepEqual(folder.children!.map((child) => `${child.type} ${child.path}`), ['select type.weight', 'slider type.size']);
+      DialStore.updateValues(id, { 'type.weight': 'bold', 'type.size': 120 });
+      assert.deepEqual([DialStore.getValue(id, 'type.weight'), DialStore.getValue(id, 'type.size')], ['bold', 120]);
+      assert.equal(DialStore.getValue(id, 'type._row'), undefined);
+      assert.equal(DialStore.getValue(id, 'type._inlineLabels'), undefined);
+      assert.deepEqual(resolveDialValues(config, DialStore.getValues(id)), { type: { weight: 'bold', size: 120 } });
+    } finally { DialStore.unregisterPanel(id); }
+  });
+
+  it('draws a _row folder as two cells, each with its title and its inline name', () => {
+    const id = 'config-row-render';
+    try {
+      DialStore.registerPanel(id, 'Row', {
+        type: {
+          _row: true,
+          _inlineLabels: { weight: '', size: 'Px' },
+          weight: { type: 'select', options: ['regular', 'bold'], default: 'regular' },
+          size: [40, 1, 1000, 1],
+        },
+        plain: { a: 1 },
+      });
+      const shallow = createShallowRenderer();
+      shallow.render(createElement(ControlRenderer, { panelId: id, controls: DialStore.getPanel(id)!.controls, values: DialStore.getValues(id) }));
+      const [row, folder] = Children.toArray((shallow.getRenderOutput() as ReactElement<{ children: ReactNode }>).props.children) as ReactElement<{ className?: string; children?: ReactNode }>[];
+      assert.equal(row.props.className, 'dialkit-row-group');
+      const cells = Children.toArray(row.props.children) as ReactElement<{ className: string; 'data-inline-label'?: string; children: ReactNode }>[];
+      assert.deepEqual(cells.map((cell) => cell.props['data-inline-label']), ['none', undefined]);
+      const [weightTitle, weight] = Children.toArray(cells[0].props.children) as ReactElement<{ children?: ReactNode; label?: string }>[];
+      const [sizeTitle, size] = Children.toArray(cells[1].props.children) as ReactElement<{ children?: ReactNode; label?: string }>[];
+      // The title above keeps the full name; the control shows the inline one.
+      assert.deepEqual([weightTitle.props.children, sizeTitle.props.children], ['Weight', 'Size']);
+      assert.deepEqual([weight.props.label, size.props.label], ['Weight', 'Px']);
+      assert.equal(folder.type, Folder);
+      shallow.unmount();
+    } finally { DialStore.unregisterPanel(id); }
+  });
+
+  it('takes a RangeConfig tuple as a slider', () => {
+    const angle: RangeConfig = [12, -180, 180, 1, '°'];
+    const config = { angle } satisfies DialConfig;
+    assert.deepEqual(resolveDialValues(config, {}), { angle: 12 });
+  });
+
+  it('draws a slider with no value at its minimum instead of throwing', () => {
+    const shallow = createShallowRenderer();
+    const value = undefined as unknown as number;
+    assert.doesNotThrow(() => shallow.render(createElement(Slider, { label: 'Size', value, onChange: () => {}, min: 2, max: 10, step: 1 })));
+    assert.match(JSON.stringify(shallow.getRenderOutput(), (key, v: unknown) => (key === '_owner' || key === '_store' ? undefined : v)), /"aria-valuenow":2/);
+    shallow.unmount();
+  });
+
+  it('keeps onClose and toolbar per panel, and through an update', () => {
+    const plain = 'config-close-plain';
+    const closable = 'config-close-given';
+    let closed = 0;
+    const onClose = () => { closed += 1; };
+    try {
+      DialStore.registerPanel(plain, 'Plain', { a: 1 });
+      assert.equal(DialStore.getPanel(plain)!.onClose, undefined);
+      assert.equal(DialStore.getPanel(plain)!.toolbar, undefined);
+
+      DialStore.registerPanel(closable, 'Closable', { a: 1 }, undefined, { onClose, toolbar: false });
+      DialStore.getPanel(closable)!.onClose!();
+      assert.equal(closed, 1);
+      assert.equal(DialStore.getPanel(closable)!.toolbar, false);
+
+      // The same handler is no change, so the store does not rebuild the panel.
+      const before = DialStore.getPanel(closable);
+      DialStore.updatePanel(closable, 'Closable', { a: 1 }, undefined, { onClose });
+      assert.equal(DialStore.getPanel(closable), before);
+
+      // An update without the options keeps them.
+      DialStore.updatePanel(closable, 'Closable', { a: 1, b: 2 });
+      assert.equal(DialStore.getPanel(closable)!.onClose, onClose);
+      assert.equal(DialStore.getPanel(closable)!.toolbar, false);
+    } finally {
+      DialStore.unregisterPanel(plain);
+      DialStore.unregisterPanel(closable);
+    }
+  });
+
+  it('closes a panel through its host when the open header has onClose', () => {
+    let closed = 0;
+    const opened: boolean[] = [];
+    const find = (node: unknown, className: string): ReactElement<{ onClick?: () => void; 'data-hint'?: string; children?: ReactNode }> | undefined => {
+      if (!node || typeof node !== 'object') return undefined;
+      const element = node as ReactElement<{ className?: string; children?: ReactNode }>;
+      if (typeof element.props?.className === 'string' && element.props.className.split(' ').includes(className)) return element as ReactElement<{ onClick?: () => void }>;
+      for (const child of Children.toArray(element.props?.children)) {
+        const found = find(child, className);
+        if (found) return found;
+      }
+      return undefined;
+    };
+    const shallow = createShallowRenderer();
+    shallow.render(createElement(Folder, { title: 'Text', isRoot: true, open: true, onOpenChange: (open: boolean) => opened.push(open), onClose: () => { closed += 1; }, children: null }));
+    const header = find(shallow.getRenderOutput(), 'dialkit-folder-header');
+    header?.props.onClick?.();
+    assert.equal(closed, 1);
+    assert.deepEqual(opened, [], 'the panel does not fold into a button');
+    assert.equal(find(shallow.getRenderOutput(), 'dialkit-folder-header-top')?.props['data-hint'], 'Closes the panel.');
+    shallow.unmount();
   });
 
   it('does not retain an extra registration when an invalid config is rejected', () => {
