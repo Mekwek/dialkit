@@ -483,4 +483,19 @@ describe('DialStore config lifecycle', () => {
       assert.equal(DialStore.getTransitionMode(id, 'enter'), 'simple');
     } finally { DialStore.unregisterPanel(id); }
   });
+
+  it('tells global listeners when a clip popover takes a panel and gives it back', () => {
+    let notified = 0;
+    const unsubscribe = DialStore.subscribeGlobal(() => notified++);
+    try {
+      assert.equal(DialStore.isPanelInPopover('Text Settings'), false);
+      DialStore.setPanelInPopover('Text Settings', true);
+      DialStore.setPanelInPopover('Text Settings', true);
+      assert.equal(DialStore.isPanelInPopover('Text Settings'), true);
+      assert.equal(notified, 1);
+      DialStore.setPanelInPopover('Text Settings', false);
+      assert.equal(DialStore.isPanelInPopover('Text Settings'), false);
+      assert.equal(notified, 2);
+    } finally { unsubscribe(); }
+  });
 });

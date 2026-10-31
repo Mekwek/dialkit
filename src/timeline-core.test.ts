@@ -541,6 +541,17 @@ describe('snapping drags', () => {
   });
 });
 
+describe('clip panels', () => {
+  it('names the host panel a clip popover shows', () => {
+    const parsed = parseTimelineConfig({
+      text: { at: 0, duration: 1, panel: ' Text Settings ' },
+      blank: { at: 1, duration: 1, panel: ' ' },
+    } as unknown as TimelineConfig);
+    assert.equal(parsed.clips[0].panel, 'Text Settings');
+    assert.equal('panel' in parsed.clips[1], false);
+  });
+});
+
 describe('single track reorder', () => {
   // A [0,2] butted by B [2,4], a 1.5s gap, then C [5.5,7.5].
   const spans = [

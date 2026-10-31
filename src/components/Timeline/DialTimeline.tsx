@@ -35,6 +35,7 @@ import { buildCopyInstruction } from '../../copy-instruction';
 import { isDevDefault } from '../../env';
 import { ICON_CHEVRON, ICON_CHECK, ICON_CLIPBOARD_PLAIN, ICON_LOOP, ICON_PAUSE, ICON_PLAY, ICON_REPLAY } from '../../icons';
 import { findControl } from '../../shortcut-utils';
+import { isAccordionPanel, resolveOpenFolder } from '../../accordion';
 import { observePointerFocus } from '../../pointer-focus';
 import { ControlRenderer } from '../ControlRenderer';
 import { PresetManager } from '../PresetManager';
@@ -831,12 +832,35 @@ const TimelineSection = memo(function TimelineSection({
 
   const closePopover = useCallback(() => setPopover(null), []);
 
+  // The host panel the popover shows (`panel` on the clip) leaves its own
+  // place meanwhile.
+  const popoverPanel = popover?.clip.panel;
+  useEffect(() => {
+    if (!popoverPanel) return;
+    DialStore.setPanelInPopover(popoverPanel, true);
+    return () => DialStore.setPanelInPopover(popoverPanel, false);
+  }, [popoverPanel]);
+
+  // When the popover stops showing that panel, the panel closes, as its own
+  // close button would; otherwise it would come back in its own place. A
+  // panel without an onClose stays open.
+  const shownPanelRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const previous = shownPanelRef.current;
+    shownPanelRef.current = popoverPanel;
+    if (!previous || previous === popoverPanel) return;
+    const shown = DialStore.getPanels('panel').find((panel) => panel.name === previous);
+    if (shown && 'onClose' in shown && typeof shown.onClose === 'function') shown.onClose();
+  }, [popoverPanel]);
+
   const openClipPopover = useCallback(
     (clip: TimelineClipMeta, rect: DOMRect, stepKey?: string) => {
       const targetPath = stepKey ? `${clip.key}.${stepKey}` : clip.key;
       const exclude = stepKey ? undefined : clipPopoverExclusions(clip);
-      // Guard clips whose folder has not registered yet.
-      if (getClipControls(meta.id, targetPath, exclude).length === 0) return;
+      // Guard clips whose folder has not registered yet. A clip that shows a
+      // host panel opens at once: the panel may register only after the
+      // click (the host's onClipClick), and the popover waits for it.
+      if (!clip.panel && getClipControls(meta.id, targetPath, exclude).length === 0) return;
       setPopover((prev) =>
         prev?.clip.key === clip.key && prev?.stepKey === stepKey
           ? null
@@ -1352,6 +1376,14 @@ function ClipPopover({
     offsetTop: window.visualViewport?.offsetTop ?? 0,
   }));
 
+  // A clip that shows a host panel: that panel, once it has registered.
+  const hostPanels = useSyncExternalStore(subscribePanels, readPanels, readPanels);
+  const hostPanel = popover.clip.panel
+    ? hostPanels.find((panel) => panel.name === popover.clip.panel)
+    : undefined;
+
+  // Measures again when the host panel arrives, before that frame paints,
+  // so the popover is never placed for its title alone.
   useLayoutEffect(() => {
     const element = ref.current;
     if (!element) return;
@@ -1361,7 +1393,7 @@ function ClipPopover({
     const body = element.querySelector('.dialkit-timeline-popover-body');
     observer.observe(body ?? element);
     return () => observer.disconnect();
-  }, [popover.clip.key, popover.stepKey]);
+  }, [popover.clip.key, popover.stepKey, hostPanel?.id]);
 
   useEffect(() => {
     const updateViewport = () => setViewport({
@@ -1383,7 +1415,8 @@ function ClipPopover({
   useEffect(() => {
     const handlePointerDown = (e: PointerEvent) => {
       const target = e.target as HTMLElement;
-      if (ref.current?.contains(target)) return;
+      // The popover's root also holds the menus its controls open.
+      if (target.closest?.('[data-timeline-popover]')) return;
       // Let clip clicks handle their own toggle/switch
       if (target.closest?.('.dialkit-timeline-clip')) return;
       if (target.closest?.('.dialkit-timeline-label')) return;
@@ -1403,7 +1436,10 @@ function ClipPopover({
   const { clip, stepKey } = popover;
   let controls: ControlMeta[];
   let title: string;
-  if (stepKey) {
+  if (clip.panel) {
+    controls = [];
+    title = clip.label;
+  } else if (stepKey) {
     controls = getClipControls(panelId, `${clip.key}.${stepKey}`);
     // The first leg starts from the clip's `from` — show it where you edit
     // the leg, just above its targets.
@@ -1421,7 +1457,7 @@ function ClipPopover({
     controls = getClipControls(panelId, clip.key, clipPopoverExclusions(clip));
     title = clip.label;
   }
-  if (controls.length === 0) return null;
+  if (!clip.panel && controls.length === 0) return null;
 
   const targetPath = stepKey ? `${clip.key}.${stepKey}` : clip.key;
   const durationMeta = getControlAt(panelId, `${targetPath}.duration`);
@@ -1477,7 +1513,7 @@ function ClipPopover({
   );
 
   return createPortal(
-    <div className="dialkit-root" data-theme={theme}>
+    <div className="dialkit-root" data-theme={theme} data-timeline-popover="">
       <div
         ref={ref}
         className="dialkit-timeline-popover"
@@ -1487,7 +1523,9 @@ function ClipPopover({
           top,
           width: popoverWidth,
           maxHeight: availableHeight,
-          visibility: naturalHeight > 0 ? 'visible' : 'hidden',
+          // Hidden until measured and, for a host panel, until it has
+          // registered and filled the popover.
+          visibility: naturalHeight > 0 && (!clip.panel || hostPanel) ? 'visible' : 'hidden',
         }}
         role="dialog"
         aria-label={`Edit ${title}`}
@@ -1501,17 +1539,50 @@ function ClipPopover({
           </button>
         </div>
         <div className="dialkit-timeline-popover-body">
-          <ControlRenderer
-            panelId={panelId}
-            controls={controls}
-            values={displayValues}
-            transitionDuration={transitionDuration}
-            physicsSettleCap={physicsSettleCap}
-          />
+          {clip.panel ? (
+            hostPanel && <PopoverPanelControls key={hostPanel.id} panelId={hostPanel.id} />
+          ) : (
+            <ControlRenderer
+              panelId={panelId}
+              controls={controls}
+              values={displayValues}
+              transitionDuration={transitionDuration}
+              physicsSettleCap={physicsSettleCap}
+            />
+          )}
         </div>
       </div>
     </div>,
     document.body
+  );
+}
+
+const subscribePanels = (listener: () => void) => DialStore.subscribeGlobal(listener);
+const readPanels = () => DialStore.getPanels('panel');
+
+/**
+ * A host panel's controls in a clip popover (`panel` on the clip), drawn as
+ * the panel draws them, its folder mode included. A config change registers
+ * the panel again, so this reads the panel, not only its values.
+ */
+function PopoverPanelControls({ panelId }: { panelId: string }) {
+  const subscribe = useCallback((listener: () => void) => DialStore.subscribe(panelId, listener), [panelId]);
+  const readPanel = useCallback(() => DialStore.getPanel(panelId), [panelId]);
+  const readValues = useCallback(() => DialStore.getValues(panelId), [panelId]);
+  const panel = useSyncExternalStore(subscribe, readPanel, readPanel);
+  const values = useSyncExternalStore(subscribe, readValues, readValues);
+  const [openFolder, setOpenFolder] = useState<string | null | undefined>(undefined);
+  if (!panel) return null;
+  const accordion = isAccordionPanel(panel, false);
+  return (
+    <ControlRenderer
+      panelId={panelId}
+      controls={panel.controls}
+      values={values}
+      openFolder={accordion ? resolveOpenFolder(panel.controls, openFolder) : undefined}
+      onOpenFolderChange={accordion ? setOpenFolder : undefined}
+      animateControls
+    />
   );
 }
 

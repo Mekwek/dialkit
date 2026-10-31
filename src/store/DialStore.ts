@@ -587,6 +587,8 @@ class DialStoreClass {
   private timelinePanelsSnapshot: PanelConfig[] = [];
   private listeners: Map<string, Set<Listener>> = new Map();
   private globalListeners: Set<Listener> = new Set();
+  /** Names of the panels a timeline clip popover shows. See setPanelInPopover. */
+  private panelsInPopover = new Set<string>();
   private snapshots: Map<string, Record<string, DialValue>> = new Map();
   private actionListeners: Map<string, Set<ActionListener>> = new Map();
   private resetListeners: Map<string, Set<ResetListener>> = new Map();
@@ -1035,6 +1037,21 @@ class DialStoreClass {
   subscribeGlobal(listener: Listener): () => void {
     this.globalListeners.add(listener);
     return () => this.globalListeners.delete(listener);
+  }
+
+  /**
+   * Shows or hides a panel, by name, in a timeline clip popover (`panel` on
+   * a clip). DialRoot leaves the panel out while a popover shows it.
+   */
+  setPanelInPopover(name: string, shown: boolean): void {
+    if (this.panelsInPopover.has(name) === shown) return;
+    if (shown) this.panelsInPopover.add(name);
+    else this.panelsInPopover.delete(name);
+    this.notifyGlobal();
+  }
+
+  isPanelInPopover(name: string): boolean {
+    return this.panelsInPopover.has(name);
   }
 
   subscribeActions(panelId: string, listener: ActionListener): () => void {
