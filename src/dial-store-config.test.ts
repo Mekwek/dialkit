@@ -349,6 +349,50 @@ describe('DialStore config lifecycle', () => {
     } finally { DialStore.unregisterPanel(id); }
   });
 
+  it('resets and compares the paths a host lists, telling the folder it names first', () => {
+    const id = 'config-reset-paths';
+    const config = {
+      scale: { _fields: true, uniform: true, x: [1, 0, 10, 0.1], y: [1, 0, 10, 0.1] },
+      camera: { _reset: true, distance: [10, 0, 50, 1] },
+      other: [5, 0, 10],
+    } satisfies DialConfig;
+    const heard: Array<[string, unknown]> = [];
+    try {
+      DialStore.registerPanel(id, 'Config', config);
+      const unsubscribe = DialStore.subscribeResets(id, (folder) => heard.push([folder, DialStore.getValue(id, 'camera.distance')]));
+      assert.equal(DialStore.hasChanges(id, ['scale.x', 'other']), false);
+      DialStore.updateValues(id, { 'scale.x': 4, 'scale.uniform': false, other: 8 });
+      assert.equal(DialStore.hasChanges(id, ['scale.x']), true);
+      assert.equal(DialStore.hasChanges(id, ['camera.distance', 'missing']), false);
+      const resets = DialStore.getResetCount();
+      DialStore.resetPaths(id, ['scale.uniform', 'scale.x', 'scale.y', 'missing']);
+      assert.equal(DialStore.getResetCount(), resets + 1);
+      assert.deepEqual(DialStore.getValues(id), { 'scale.uniform': true, 'scale.x': 1, 'scale.y': 1, 'camera.distance': 10, other: 8 });
+      assert.deepEqual(heard, []);
+
+      // Rows of one folder drawn by a host: the folder's listeners hear first.
+      DialStore.updateValues(id, { 'camera.distance': 30, other: 9 });
+      DialStore.resetPaths(id, ['camera.distance', 'other'], { folder: 'camera' });
+      assert.deepEqual(heard, [['camera', 30]]);
+      assert.equal(DialStore.getValue(id, 'camera.distance'), 10);
+      assert.equal(DialStore.getValue(id, 'other'), 5);
+
+      // Host reset values: a path they leave out is never reset and never changed.
+      DialStore.setResetValues(id, { 'camera.distance': 20 });
+      DialStore.updateValue(id, 'other', 9);
+      assert.equal(DialStore.hasChanges(id, ['other']), false);
+      assert.equal(DialStore.hasChanges(id, ['camera.distance']), true);
+      DialStore.resetPaths(id, ['camera.distance', 'other']);
+      assert.equal(DialStore.getValue(id, 'camera.distance'), 20);
+      assert.equal(DialStore.getValue(id, 'other'), 9);
+      assert.equal(DialStore.hasChanges(id, ['camera.distance', 'other']), false);
+      unsubscribe();
+    } finally { DialStore.unregisterPanel(id); }
+    // An unknown panel resets and reports nothing.
+    DialStore.resetPaths(id, ['other']);
+    assert.equal(DialStore.hasChanges(id, ['other']), false);
+  });
+
   it('does not retain an extra registration when an invalid config is rejected', () => {
     const id = 'config-rejected-owner';
     DialStore.registerPanel(id, 'Original', { amount: 1 });

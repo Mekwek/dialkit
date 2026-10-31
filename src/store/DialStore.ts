@@ -790,6 +790,27 @@ class DialStoreClass {
   }
 
   /**
+   * Put the given paths back to their reset values (see `setResetValues`),
+   * for a host that draws rows from several folders or panels. A path with
+   * no reset value is left as it is. With `folder`, reset listeners hear
+   * that folder's path first, as they do for `resetFolder`.
+   */
+  resetPaths(panelId: string, paths: string[], options: { folder?: string } = {}): void {
+    const targets = this.resetTargets(panelId);
+    if (!this.panels.has(panelId) || !targets) return;
+    if (options.folder !== undefined) this.notifyReset(panelId, options.folder);
+    this.writeResetValues(panelId, paths, targets);
+  }
+
+  /** True when a value at one of the paths differs from its reset value. */
+  hasChanges(panelId: string, paths: string[]): boolean {
+    const panel = this.panels.get(panelId);
+    const targets = this.resetTargets(panelId);
+    if (!panel || !targets) return false;
+    return paths.some((path) => path in targets && !sameValue(panel.values[path], targets[path]));
+  }
+
+  /**
    * The values a reset returns to, by path, when they are not the config's
    * defaults: for example when the host passes saved values as defaults, so
    * a panel opens on them, but a reset goes back to its own defaults. Each
