@@ -51,6 +51,7 @@ export type { AnchorControlProps } from '../anchor-control';
 export { default as BackgroundControl } from './components/BackgroundControl.svelte';
 export type { BackgroundControlProps } from '../background-control';
 export { backgroundGradientCss, backgroundMediaCss, paintGradient } from '../background';
+export * from '../background-api';
 export { default as PresetManager } from './components/PresetManager.svelte';
 export { default as VersionGallery } from './components/VersionGallery.svelte';
 export { default as DialTimeline } from './components/Timeline/DialTimeline.svelte';

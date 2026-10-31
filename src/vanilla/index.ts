@@ -25,6 +25,7 @@ export type { AnchorControlProps } from '../anchor-control';
 export { mountBackgroundControl, mountBackgroundControl as BackgroundControl } from '../background-control';
 export type { BackgroundControlProps } from '../background-control';
 export { backgroundGradientCss, backgroundMediaCss, paintGradient } from '../background';
+export * from '../background-api';
 export { mountEasingVisualization, mountEasingVisualization as EasingVisualization } from '../easing-control';
 export type { EasingVisualizationProps } from '../easing-control';
 export { mountShortcutListener } from './shortcuts';

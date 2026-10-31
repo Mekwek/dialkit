@@ -60,6 +60,7 @@ export type { AnchorControlProps } from './anchor-control';
 export { BackgroundControl } from './components/BackgroundControl';
 export type { BackgroundControlProps } from './background-control';
 export { backgroundGradientCss, backgroundMediaCss, paintGradient } from './background';
+export * from './background-api';
 export { PresetManager } from './components/PresetManager';
 export { VersionGallery } from './components/VersionGallery';
 export { ShortcutsMenu } from './components/ShortcutsMenu';

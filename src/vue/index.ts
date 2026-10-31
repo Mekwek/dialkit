@@ -44,6 +44,7 @@ export { DialPad } from './components/DialPad';
 export { AnchorControl } from './components/AnchorControl';
 export { BackgroundControl } from './components/BackgroundControl';
 export { backgroundGradientCss, backgroundMediaCss, paintGradient } from '../background';
+export * from '../background-api';
 export { PresetManager } from './components/PresetManager';
 export { VersionGallery } from './components/VersionGallery';
 export { ControlRenderer } from './components/ControlRenderer';
