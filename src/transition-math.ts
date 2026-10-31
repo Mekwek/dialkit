@@ -72,6 +72,38 @@ export function springSettleDuration(params: SpringParams): number {
 }
 
 /**
+ * One physics value (stiffness, damping or mass) held so the spring settles
+ * within `cap` seconds: the value stops where the settle time meets the cap.
+ * Settle time does not move one way with every value (very low damping
+ * swings long, very high damping creeps long), so the crossing is searched
+ * between the current value and the requested one. A change that shortens
+ * a settle already past the cap is always allowed, since it is the only way
+ * back under.
+ */
+export function clampPhysicsParam(
+  current: SpringConfig,
+  key: 'stiffness' | 'damping' | 'mass',
+  requested: number,
+  cap: number
+): number {
+  const settleWith = (value: number) => springSettleDuration(springParams({ ...current, [key]: value }));
+  const requestedSettle = settleWith(requested);
+  if (requestedSettle <= cap) return requested;
+  const currentValue = springParams(current)[key];
+  const currentSettle = settleWith(currentValue);
+  if (requestedSettle < currentSettle) return requested;
+  if (currentSettle > cap) return currentValue;
+  let good = currentValue;
+  let bad = requested;
+  for (let i = 0; i < 24; i++) {
+    const mid = (good + bad) / 2;
+    if (settleWith(mid) <= cap) good = mid;
+    else bad = mid;
+  }
+  return good;
+}
+
+/**
  * When Motion stops a spring that moves a value by `distance`: once it is
  * within Motion's rest distance of the target and, if it bounces, slower
  * than its rest speed. Both are finer for a small change, such as an

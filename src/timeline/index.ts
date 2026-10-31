@@ -3,7 +3,7 @@ export {
   buildTimelineValues,
   resolveTimelineLoop,
 } from './adapter';
-export type { DialTimelineOptions, TimelineActions } from './adapter';
+export type { DialTimelineOptions, TimelineActions, TimelineMetaExtras } from './adapter';
 
 export {
   clampClipMove,
@@ -20,11 +20,19 @@ export {
   formatSeconds,
   formatStepLabel,
   normalizeTimelineValuesForCopy,
+  parseClipSegments,
   parseTimelineConfig,
+  pressTimelineSelection,
+  segmentedMinDuration,
+  segmentWidths,
+  singleTrackLanes,
+  timelineBlockMove,
   timelineClipDragBounds,
   timelineClipProgress,
   timelineClipSpans,
   timelinePopoverDisplayValues,
+  timelineReorderAts,
+  timelineReorderSlot,
   transitionToCss,
   TIMELINE_MIN_CLIP_DURATION,
 } from '../timeline-core';
@@ -35,6 +43,7 @@ export type {
   TimelineClipCss,
   TimelineClipDragBounds,
   TimelineClipLoop,
+  TimelineClipSegments,
   TimelineClipSpan,
   TimelineClipStatic,
   TimelineClipValues,

@@ -189,7 +189,7 @@ export function mountTransitionControl(host: HTMLElement, initial: TransitionCon
       slider('Mass', 'mass', 1, 0.1, 10, 0.1, HINTS.mass);
     }
     if (!springOnly && !props.hideDuration && mode !== 'advanced')
-      slider('Duration', mode === 'easing' ? 'duration' : 'visualDuration', 0.3, 0.1, mode === 'easing' ? 2 : 5, 0.05, mode === 'easing' ? HINTS.easingDuration : HINTS.springDuration, true);
+      slider('Duration', mode === 'easing' ? 'duration' : 'visualDuration', 0.3, 0.1, 5, 0.05, mode === 'easing' ? HINTS.easingDuration : HINTS.springDuration, true);
     if (presetsFolder) {
       body.append(presetsFolder.element);
       presets ??= mountTransitionPresets(presetsFolder.body, presetProps());

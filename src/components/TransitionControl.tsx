@@ -1,4 +1,5 @@
 import { createEaseIntensity } from '../easing-geometry';
+import { clampPhysicsParam } from '../transition-math';
 import { mountEaseFields, type EaseFieldsProps } from '../easing-control';
 import { SpringConfig, EasingConfig, TransitionConfig, DialStore, type CopiedTransition } from '../store/DialStore';
 import { TRANSITION_HINTS, transitionPresetName } from '../transition-presets';
@@ -31,6 +32,13 @@ interface TransitionControlProps {
     /** Replaces the curve's own Duration hint. */
     hint?: string;
   };
+  /**
+   * Longest settle (seconds) the physics values may give the spring. Each
+   * physics slider stops where the settle time meets it, worked out from
+   * the other two values as they are, so moving one moves where the others
+   * stop. A timeline clip passes the room before the next clip.
+   */
+  physicsSettleCap?: number;
   /** Shows a reset button in the header. See Folder.onReset. */
   onReset?: () => void;
   changed?: boolean;
@@ -55,6 +63,7 @@ export function TransitionControl({
   onChange,
   hideDuration = false,
   durationControl,
+  physicsSettleCap,
   onReset,
   changed,
   hint,
@@ -124,7 +133,10 @@ export function TransitionControl({
       onChange({ ...rest, [key]: val });
     } else {
       const { visualDuration, bounce, ...rest } = spring;
-      onChange({ ...rest, [key]: val });
+      const next = physicsSettleCap !== undefined && (key === 'stiffness' || key === 'damping' || key === 'mass')
+        ? clampPhysicsParam(rest, key, val, physicsSettleCap)
+        : val;
+      onChange({ ...rest, [key]: next });
     }
   };
 
@@ -137,7 +149,7 @@ export function TransitionControl({
         else handleSpringUpdate('visualDuration', next);
       })}
       min={durationControl?.min ?? 0.1}
-      max={durationControl?.max ?? (isEasing ? 2 : 5)}
+      max={durationControl?.max ?? 5}
       step={durationControl?.step ?? 0.05}
       unit="s"
       hint={durationControl?.hint ?? (isEasing ? HINTS.easingDuration : HINTS.springDuration)}

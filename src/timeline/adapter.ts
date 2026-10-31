@@ -35,7 +35,25 @@ export interface DialTimelineOptions {
    * default.
    */
   track?: 'rows' | 'single';
+  /**
+   * Single track only: the bar that opens the timeline holds its start. It
+   * cannot be dragged along the lane and has no start handle, so the
+   * timeline never opens with a lead gap. Its end handle still sets its
+   * length, and whichever bar ends up first holds the pin. Lane clips never
+   * take it. Defaults to false. React dock only for now.
+   */
+  pinStart?: boolean;
+  /**
+   * Called with a clip's key when its bar is clicked (pressed and released
+   * without a drag), before the dock opens the clip's popover. Fires for
+   * every clip. To mark the clip the host is editing, name it with
+   * `TimelineStore.setHighlight(id, key)`. React dock only for now.
+   */
+  onClipClick?: (key: string) => void;
 }
+
+/** Meta a host sets beside the config, for `buildTimelineMeta`. */
+export type TimelineMetaExtras = Pick<DialTimelineOptions, 'pinStart' | 'onClipClick'>;
 
 export type TimelineActions = {
   play: () => void;
@@ -63,17 +81,21 @@ export function buildTimelineMeta(
   duration: number,
   parsed: ParsedTimeline,
   loop: DialTimelineOptions['loop'],
-  track: DialTimelineOptions['track'] = 'rows'
+  track: DialTimelineOptions['track'] = 'rows',
+  extras: TimelineMetaExtras = {}
 ): TimelineMeta {
   const resolvedLoop = resolveTimelineLoop(loop);
+  const single = track === 'single' && singleTrackFits(name, parsed);
   return {
     id,
     name,
     duration,
     loop: resolvedLoop.enabled,
     loopStart: resolvedLoop.start,
-    track: track === 'single' && singleTrackFits(name, parsed) ? 'single' : 'rows',
+    track: single ? 'single' : 'rows',
     clips: parsed.clips,
+    ...(single && extras.pinStart ? { pinStart: true } : {}),
+    ...(extras.onClipClick ? { onClipClick: extras.onClipClick } : {}),
   };
 }
 

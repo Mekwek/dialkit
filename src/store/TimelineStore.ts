@@ -21,8 +21,19 @@ export type TimelineClipMeta = {
   stepKeys?: string[];
   /** Independent property tracks of a props clip — full rows when expanded. */
   tracks?: TimelineClipTrackMeta[];
+  /** Seconds the clip keeps acting past its bar. Counted into the
+   * timeline's end; a single track draws it as a fading tail. */
+  tail?: number;
+  /** Single track: the extra row this clip lives on (unset = main lane). */
+  lane?: string;
+  /** Single track: the row label of `lane`. */
+  laneLabel?: string;
+  /** Single track: fixed in and out parts (seconds); resizing edits only idle. */
+  segments?: { in: number; out: number };
   /** The bar's hint, shown while the hint key is held over it. */
   hint?: string;
+  /** The registered panel the bar's popover shows (see the clip config). */
+  panel?: string;
 };
 
 export type TimelineMeta = {
@@ -36,7 +47,21 @@ export type TimelineMeta = {
   /** `rows` (the default) gives each clip a row; `single` lines every
    * clip up on one track, one after another. */
   track?: 'rows' | 'single';
+  /** Single track: the bar that opens the main lane holds its start (see
+   * the `pinStart` option). */
+  pinStart?: boolean;
   clips: TimelineClipMeta[];
+  /**
+   * The key of the clip the host is editing, or null. Not the selection and
+   * not the playhead: the clip a panel points at can differ from the one
+   * under the playhead. Set it with `setHighlight`, not through the config,
+   * since it changes while the timeline runs and the config is rebuilt when
+   * the clips change. A single track marks that bar.
+   */
+  highlightedClip?: string | null;
+  /** Called with a clip's key when its bar is clicked (the `onClipClick`
+   * option). The React dock calls it. */
+  onClipClick?: (key: string) => void;
 };
 
 export type TimelineTransport = {
@@ -176,6 +201,17 @@ class TimelineStoreClass {
     this.notifyGlobal();
   }
 
+  /** Names the clip the host is editing, or clears it with null. Kept
+   * across meta updates (see `TimelineMeta.highlightedClip`). */
+  setHighlight(id: string, clipKey: string | null): void {
+    const meta = this.timelines.get(id);
+    if (!meta || (meta.highlightedClip ?? null) === clipKey) return;
+    this.timelines.set(id, { ...meta, highlightedClip: clipKey });
+    this.listCache = null;
+    this.notify(id);
+    this.notifyGlobal();
+  }
+
   seek(id: string, time: number): void {
     const transport = this.transports.get(id);
     if (!transport || !Number.isFinite(time)) return;
@@ -229,7 +265,12 @@ class TimelineStoreClass {
     const toggle = this.loopToggles.get(meta.id);
     if (toggle && toggle.authored !== meta.loop) this.loopToggles.delete(meta.id);
     const loop = this.loopToggles.get(meta.id)?.loop ?? meta.loop;
-    const safeMeta = { ...meta, duration, loop, loopStart };
+    // The highlight is set with setHighlight, never through the config, so
+    // a rebuilt meta keeps it unless it names one itself.
+    const highlightedClip = meta.highlightedClip !== undefined
+      ? meta.highlightedClip
+      : this.timelines.get(meta.id)?.highlightedClip ?? null;
+    const safeMeta = { ...meta, duration, loop, loopStart, highlightedClip };
     this.timelines.set(meta.id, safeMeta);
 
     const existing = this.transports.get(meta.id);

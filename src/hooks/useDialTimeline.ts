@@ -63,6 +63,12 @@ export function useDialTimeline<T extends TimelineConfig>(
 
   const { enabled: loopEnabled, start: loopStart } = resolveTimelineLoop(options?.loop);
 
+  // The click callback reaches the store through one stable wrapper, so a
+  // host passing a new inline function on every render does not push a new
+  // meta, and redraw the dock, each time.
+  const hasClipClick = typeof options?.onClipClick === 'function';
+  const handleClipClick = useCallback((key: string) => optionsRef.current?.onClipClick?.(key), []);
+
   const buildMeta = useCallback(
     () => buildTimelineMeta(
       panelId,
@@ -70,9 +76,10 @@ export function useDialTimeline<T extends TimelineConfig>(
       timelineDuration,
       parsedRef.current,
       loopEnabled ? { from: loopStart } : false,
-      options?.track
+      options?.track,
+      { pinStart: options?.pinStart, onClipClick: hasClipClick ? handleClipClick : undefined }
     ),
-    [panelId, name, timelineDuration, loopEnabled, loopStart, options?.track]
+    [panelId, name, timelineDuration, loopEnabled, loopStart, options?.track, options?.pinStart, hasClipClick, handleClipClick]
   );
 
   // Transport registration mirrors the panel lifecycle: register on mount,

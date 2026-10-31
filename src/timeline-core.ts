@@ -86,8 +86,32 @@ type TimelineClipBase = {
   duration?: number;
   transition?: TransitionConfig;
   loop?: boolean | TimelineClipLoop;
+  /**
+   * Seconds the clip's motion keeps running past its bar, such as staggered
+   * elements still settling. Read-only: no dial and no popover control. The
+   * timeline's end covers `at + duration + tail`, and a single track draws
+   * it as a fading tail behind the following bars.
+   */
+  tail?: number;
   /** The name shown in the dock. Defaults to the config key, formatted. */
   label?: string;
+  /**
+   * Single track: puts the clip on its own row below the main lane. Clips
+   * with the same `lane` share that row, without overlap; rows follow the
+   * order lanes first appear in the config. Lane clips never bound or snap
+   * against clips on another lane, never take the `pinStart` pin, and count
+   * toward the timeline's end like any clip. Ignored in rows mode, where
+   * every clip has a row of its own.
+   */
+  lane?: string;
+  /** The row label of the clip's `lane`. Falls back to the clip's `label`. */
+  laneLabel?: string;
+  /**
+   * Single track: draws the bar in three parts, `in` and `out` (seconds) at
+   * its ends and the idle part between them. Resizing either edge changes
+   * only the idle part, so the bar is never shorter than `in + out`.
+   */
+  segments?: TimelineClipSegments;
   /**
    * Hints for the clip's editor controls, by key: `at`, `duration`,
    * `transition`, `from` or `to`. Each shows while the hint key (H) is held
@@ -96,7 +120,18 @@ type TimelineClipBase = {
   hints?: Record<string, string>;
   /** The clip bar's own hint, shown while the hint key (H) is held over it. */
   hint?: string;
+  /**
+   * The name of a registered panel. A click on the bar opens that panel in
+   * the clip's popover, in place of the clip's own controls, and the panel
+   * leaves its own place while the popover shows it. Closing the popover
+   * closes the panel, as the panel's own close button does. React dock only
+   * for now.
+   */
+  panel?: string;
 };
+
+/** The fixed parts at each end of a segmented clip, in seconds. */
+export type TimelineClipSegments = { in: number; out: number };
 
 // The three clip shapes are mutually exclusive, encoded with optional-never
 // fields so TypeScript rejects ambiguous combinations (`steps` + `to`,
@@ -361,6 +396,52 @@ function defaultClipDuration(clip: TimelineClipConfig): number {
   return clip.from || clip.to ? transitionDefaultDuration(DEFAULT_CLIP_TRANSITION) : 0;
 }
 
+/** A clip's `segments`, both parts non-negative seconds. Undefined when
+ * missing, malformed, or both parts are zero. */
+export function parseClipSegments(value: unknown): TimelineClipSegments | undefined {
+  if (!isPlainObject(value)) return undefined;
+  const segIn = nonNegativeFinite(value.in);
+  const segOut = nonNegativeFinite(value.out);
+  return segIn + segOut > 0 ? { in: segIn, out: segOut } : undefined;
+}
+
+/** The shortest a bar may be: `in + out` for a segmented clip (rounded up to
+ * the 2-decimal edit step, so idle never dips below zero), the standard
+ * minimum otherwise. */
+export function segmentedMinDuration(segments: TimelineClipSegments | undefined): number {
+  return segments
+    ? Math.max(TIMELINE_MIN_CLIP_DURATION, Math.ceil((segments.in + segments.out) * 100 - 1e-6) / 100)
+    : TIMELINE_MIN_CLIP_DURATION;
+}
+
+/** How a bar of `duration` splits into in, idle and out. A bar shorter than
+ * `in + out` (a stale stored value) shrinks both parts in proportion, with
+ * no idle, so the parts never overflow the bar. */
+export function segmentWidths(
+  duration: number,
+  segments: TimelineClipSegments
+): { in: number; idle: number; out: number } {
+  const span = Math.max(0, duration);
+  const fixed = segments.in + segments.out;
+  if (fixed <= 0) return { in: 0, idle: span, out: 0 };
+  if (fixed > span) {
+    const scale = span / fixed;
+    return { in: segments.in * scale, idle: 0, out: segments.out * scale };
+  }
+  return { in: segments.in, idle: span - fixed, out: segments.out };
+}
+
+// A segmented clip's bar covers at least its in and out parts.
+function clipBarDuration(clip: TimelineClipConfig): number {
+  const base = defaultClipDuration(clip);
+  const segments = parseClipSegments(clip.segments);
+  return segments ? Math.max(base, segments.in + segments.out) : base;
+}
+
+function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
 export function normalizeLoopMode(value: unknown): TimelineClipLoop {
   // `mirror` no longer exists — sequences whose last step returns home
   // replaced it. Legacy values fold into `repeat`.
@@ -441,7 +522,7 @@ export function parseTimelineConfig(config: TimelineConfig): ParsedTimeline {
 
   let maxEnd = 0;
   for (const { clip } of entries) {
-    maxEnd = Math.max(maxEnd, nonNegativeFinite(clip.at) + defaultClipDuration(clip));
+    maxEnd = Math.max(maxEnd, nonNegativeFinite(clip.at) + clipBarDuration(clip) + nonNegativeFinite(clip.tail));
   }
 
   // Exact fit: the window ends when the content does, so a looping timeline
@@ -480,7 +561,7 @@ export function parseTimelineConfig(config: TimelineConfig): ParsedTimeline {
     const hasSteps = Boolean(clip.steps?.length) && !clip.props;
     const hasProps = Boolean(clip.props);
     const single = isTransitionConfig(clip.transition) ? clip.transition : undefined;
-    const total = defaultClipDuration(clip);
+    const total = clipBarDuration(clip);
     const defaultCurve = single ?? DEFAULT_CLIP_TRANSITION;
     const clipAt = nonNegativeFinite(clip.at);
 
@@ -601,6 +682,9 @@ export function parseTimelineConfig(config: TimelineConfig): ParsedTimeline {
 
     setDialPath(dialConfig, path, clipDial);
 
+    const lane = nonEmptyString(clip.lane);
+    const laneLabel = nonEmptyString(clip.laneLabel);
+    const segments = parseClipSegments(clip.segments);
     clips.push({
       key: path,
       label: typeof clip.label === 'string' && clip.label ? clip.label : formatLabel(childKey),
@@ -609,7 +693,12 @@ export function parseTimelineConfig(config: TimelineConfig): ParsedTimeline {
       group,
       stepKeys,
       tracks,
+      ...(nonNegativeFinite(clip.tail) > 0 ? { tail: nonNegativeFinite(clip.tail) } : {}),
+      ...(lane ? { lane } : {}),
+      ...(lane && laneLabel ? { laneLabel } : {}),
+      ...(segments ? { segments } : {}),
       ...(typeof clip.hint === 'string' && clip.hint ? { hint: clip.hint } : {}),
+      ...(nonEmptyString(clip.panel) ? { panel: nonEmptyString(clip.panel) } : {}),
     });
   });
 
@@ -798,8 +887,11 @@ export function computeStaticTimeline(
   flatValues: Record<string, DialValue>
 ): TimelineStaticState {
   let clips = computeStaticClips(parsed, flatValues);
+  // Tails count into the end as they do at parse time, so a live edit (the
+  // last bar dragged later) still leaves its settle window covered.
+  const tails = new Map(parsed.clips.map((clip) => [clip.key, clip.tail ?? 0]));
   const maxEnd = clips.reduce(
-    (end, clip) => Math.max(end, clip.at + clip.duration),
+    (end, clip) => Math.max(end, clip.at + clip.duration + (tails.get(clip.key) ?? 0)),
     parsed.duration
   );
   const duration = maxEnd > parsed.duration
@@ -1334,7 +1426,27 @@ export function canShareTrack(clips: TimelineClipMeta[]): boolean {
   );
 }
 
-export type TimelineClipSpan = { key: string; at: number; duration: number };
+export type TimelineClipSpan = {
+  key: string;
+  at: number;
+  duration: number;
+  /** Seconds the clip keeps acting past its bar (see the clip's `tail`). */
+  tail?: number;
+  /** The clip's `lane`; unset is the main lane. */
+  lane?: string;
+  /** The shortest the bar may be (see `segmentedMinDuration`). */
+  minDuration?: number;
+};
+
+/** The `lane` values of a clip list, in config order. The main lane (unset)
+ * is not one of them. */
+export function singleTrackLanes(clips: { lane?: string }[]): string[] {
+  const lanes: string[] = [];
+  for (const clip of clips) {
+    if (clip.lane !== undefined && !lanes.includes(clip.lane)) lanes.push(clip.lane);
+  }
+  return lanes;
+}
 
 /** Every clip's place on the timeline, from flat stored values. */
 export function timelineClipSpans(
@@ -1344,7 +1456,14 @@ export function timelineClipSpans(
 ): TimelineClipSpan[] {
   return clips.map((clip) => {
     const { at, duration } = computeClipStaticFromValues(values, clip, timelineDuration);
-    return { key: clip.key, at, duration };
+    return {
+      key: clip.key,
+      at,
+      duration,
+      ...(clip.tail ? { tail: clip.tail } : {}),
+      ...(clip.lane !== undefined ? { lane: clip.lane } : {}),
+      ...(clip.segments ? { minDuration: segmentedMinDuration(clip.segments) } : {}),
+    };
   });
 }
 
@@ -1352,9 +1471,15 @@ export function timelineClipSpans(
 export type TimelineClipDragBounds = {
   /** Earliest start: 0, or the end of the clip before it on a single track. */
   start: number;
-  /** Latest end: the timeline end, or the start of the clip after it on a single track. */
+  /** Latest end: the timeline end, or on a single track the start of the
+   * clip after it on its lane. The last clip of a single-track lane has no
+   * end (Infinity): dragging or resizing it past the end grows the timeline. */
   end: number;
-  /** Every other clip's start and end, plus the playhead when given. */
+  /** Single track: the start of the clip after it, when there is one. */
+  next?: number;
+  /** Every other clip's start and end, plus the playhead when given. On a
+   * single track, also the end of each tail that reaches past its bar, and
+   * only clips on the same lane count. */
   targets: number[];
 };
 
@@ -1367,21 +1492,30 @@ export function timelineClipDragBounds(
   const index = spans.findIndex((span) => span.key === key);
   const self = spans[index];
   let start = 0;
-  let end = timelineDuration;
+  let end = options.singleTrack && self ? Number.POSITIVE_INFINITY : timelineDuration;
+  let next: number | undefined;
   const targets = new Set<number>();
   spans.forEach((span, i) => {
     if (i === index) return;
+    // A single track's lanes never bound or snap against each other.
+    if (options.singleTrack && self && span.lane !== self.lane) return;
     targets.add(round2(span.at));
     targets.add(round2(span.at + span.duration));
-    if (!options.singleTrack || !self) return;
+    if (!options.singleTrack) return;
+    if ((span.tail ?? 0) > 0) targets.add(round2(span.at + span.duration + (span.tail ?? 0)));
+    if (!self) return;
     // Neighbors bound the drag but never the clip's current place, so a
     // config that starts out overlapping can still be pulled apart.
     const before = span.at < self.at || (span.at === self.at && i < index);
     if (before) start = Math.max(start, Math.min(span.at + span.duration, self.at));
-    else end = Math.min(end, Math.max(span.at, self.at + self.duration));
+    else {
+      const bound = Math.max(span.at, self.at + self.duration);
+      end = Math.min(end, bound);
+      next = Math.min(next ?? bound, bound);
+    }
   });
   if (options.playhead !== undefined) targets.add(options.playhead);
-  return { start, end, targets: [...targets].sort((a, b) => a - b) };
+  return { start, end, ...(next !== undefined && { next }), targets: [...targets].sort((a, b) => a - b) };
 }
 
 /** The candidate closest to `wanted` within [min, max], if any. */
@@ -1399,21 +1533,31 @@ function nearestWithin(candidates: number[], wanted: number, min: number, max: n
  * `bounds`. With the whole timeline as bounds this is exactly
  * `clampClipMove`, `clampClipResizeEnd` and `clampClipResizeStart`. With
  * `snap` the clip's start or end lands only on a target — the reachable one
- * closest to the pointer — and moves freely when none is reachable.
+ * closest to the pointer — and moves freely when none is reachable. A clip
+ * with a `tail` can also land its tail's end on a target, by a move or by
+ * its end edge. `minDuration` floors a resize (`segmentedMinDuration` for a
+ * segmented clip, so only its idle part shrinks).
  */
 export function dragTimelineClip(
   mode: 'move' | 'start' | 'end',
-  clip: { at: number; duration: number },
+  clip: { at: number; duration: number; tail?: number; minDuration?: number },
   delta: number,
   bounds: TimelineClipDragBounds,
   snap = false
 ): { at: number; duration: number } {
   const { at, duration } = clip;
+  const tail = clip.tail ?? 0;
+  const min = clip.minDuration ?? TIMELINE_MIN_CLIP_DURATION;
   if (mode === 'move') {
     const max = Math.max(bounds.start, bounds.end - duration);
     const wanted = at + delta;
     const landed = snap
-      ? nearestWithin(bounds.targets.flatMap((t) => [t, t - duration]), wanted, bounds.start, max)
+      ? nearestWithin(
+          bounds.targets.flatMap((t) => (tail > 0 ? [t, t - duration, t - duration - tail] : [t, t - duration])),
+          wanted,
+          bounds.start,
+          max
+        )
       : undefined;
     return { at: clamp(round2(landed ?? wanted), bounds.start, max), duration };
   }
@@ -1421,15 +1565,124 @@ export function dragTimelineClip(
     const max = bounds.end - at;
     const wanted = duration + delta;
     const landed = snap
-      ? nearestWithin(bounds.targets.map((t) => t - at), wanted, TIMELINE_MIN_CLIP_DURATION, max)
+      ? nearestWithin(
+          bounds.targets.flatMap((t) => (tail > 0 ? [t - at, t - at - tail] : [t - at])),
+          wanted,
+          min,
+          max
+        )
       : undefined;
-    return { at, duration: clamp(round2(landed ?? wanted), TIMELINE_MIN_CLIP_DURATION, max) };
+    return { at, duration: clamp(round2(landed ?? wanted), min, max) };
   }
-  const max = at + duration - TIMELINE_MIN_CLIP_DURATION;
+  const max = at + duration - min;
   const wanted = at + delta;
   const landed = snap ? nearestWithin(bounds.targets, wanted, bounds.start, max) : undefined;
   const next = clamp(round2(landed ?? wanted), bounds.start, max);
   return { at: next, duration: round2(at + duration - next) };
+}
+
+/**
+ * How a press on a single-track bar changes the selection. `toggle` (a
+ * Shift-click) adds or removes the bar. `select` (a plain press on the bar
+ * body) keeps a selection that holds the bar, so a drag moves all of it,
+ * and otherwise selects the bar alone. `edge` (a press on a resize handle)
+ * never changes it. Returns the same set when nothing changes.
+ */
+export function pressTimelineSelection(
+  selection: ReadonlySet<string>,
+  key: string,
+  press: 'toggle' | 'select' | 'edge'
+): ReadonlySet<string> {
+  if (press === 'edge') return selection;
+  if (press === 'select') return selection.has(key) ? selection : new Set([key]);
+  const next = new Set(selection);
+  if (next.has(key)) next.delete(key);
+  else next.add(key);
+  return next;
+}
+
+/**
+ * Moving the selected clips of one single-track lane together by `delta`
+ * seconds. Each selected clip stops at its unselected neighbors (never at
+ * its own current place, so clips that start out overlapping can still be
+ * pulled apart) and at 0; the last clip of the lane has no end. With `snap`
+ * the block lands its start, its bar end or its tail end on the reachable
+ * target closest to the pointer: an unselected clip's start, end or tail
+ * end, or the playhead when given. Returns the delta to apply to every
+ * selected clip.
+ */
+export function timelineBlockMove(
+  spans: TimelineClipSpan[],
+  keys: ReadonlySet<string>,
+  delta: number,
+  options: { snap?: boolean; playhead?: number } = {}
+): number {
+  const lane = [...spans].sort((a, b) => a.at - b.at);
+  let lo = Number.NEGATIVE_INFINITY;
+  let hi = Number.POSITIVE_INFINITY;
+  let start = Number.POSITIVE_INFINITY;
+  let barEnd = Number.NEGATIVE_INFINITY;
+  let tailEnd = Number.NEGATIVE_INFINITY;
+  const targets = new Set<number>();
+  lane.forEach((span, i) => {
+    const end = span.at + span.duration;
+    if (!keys.has(span.key)) {
+      targets.add(round2(span.at));
+      targets.add(round2(end));
+      if ((span.tail ?? 0) > 0) targets.add(round2(end + (span.tail ?? 0)));
+      return;
+    }
+    start = Math.min(start, span.at);
+    barEnd = Math.max(barEnd, end);
+    if ((span.tail ?? 0) > 0) tailEnd = Math.max(tailEnd, end + (span.tail ?? 0));
+    lo = Math.max(lo, -span.at);
+    const prev = lane.slice(0, i).reverse().find((other) => !keys.has(other.key));
+    if (prev) lo = Math.max(lo, Math.min(prev.at + prev.duration - span.at, 0));
+    const next = lane.slice(i + 1).find((other) => !keys.has(other.key));
+    if (next) hi = Math.min(hi, Math.max(next.at - end, 0));
+  });
+  if (!Number.isFinite(start)) return 0;
+  if (options.playhead !== undefined) targets.add(round2(options.playhead));
+  const points = tailEnd > barEnd + 1e-9 ? [start, barEnd, tailEnd] : [start, barEnd];
+  const landed = options.snap
+    ? nearestWithin([...targets].flatMap((target) => points.map((point) => target - point)), delta, lo, hi)
+    : undefined;
+  return round2(clamp(landed ?? delta, lo, hi));
+}
+
+/**
+ * Reorder on a single track: the clips `keys` move, as a run in their
+ * current order, to `slot`, an index among the OTHER clips (0 to their
+ * count), which keep their order. The gaps stay where they were by
+ * position, not with their clips: the n-th clip keeps the n-th gap. `spans`
+ * is one lane, sorted by `at`. Returns the new `at` of every clip, by key.
+ */
+export function timelineReorderAts(
+  spans: TimelineClipSpan[],
+  keys: readonly string[],
+  slot: number
+): Record<string, number> {
+  const gaps = spans.map((span, i) => (i === 0 ? span.at : span.at - (spans[i - 1].at + spans[i - 1].duration)));
+  const moved = spans.filter((span) => keys.includes(span.key));
+  const others = spans.filter((span) => !keys.includes(span.key));
+  const bounded = Math.max(0, Math.min(others.length, Math.round(slot)));
+  const order = [...others.slice(0, bounded), ...moved, ...others.slice(bounded)];
+  const ats: Record<string, number> = {};
+  let cursor = 0;
+  order.forEach((span, i) => {
+    const at = round2(cursor + gaps[i]);
+    ats[span.key] = at;
+    cursor = at + span.duration;
+  });
+  return ats;
+}
+
+/** Where lifted clips would land: the slot among the other clips of their
+ * lane before the first one whose middle lies past `time`. */
+export function timelineReorderSlot(spans: TimelineClipSpan[], keys: readonly string[], time: number): number {
+  const others = spans.filter((span) => !keys.includes(span.key));
+  const index = others.findIndex((span) => time < span.at + span.duration / 2);
+  return index < 0 ? others.length : index;
 }
 
 /** How much of a clip the playhead has crossed, 0 to 1. A clip with no

@@ -28,6 +28,14 @@ interface DialRootProps {
   onOpenChange?: (open: boolean) => void;
 }
 
+// A panel a timeline clip popover shows leaves its own place meanwhile.
+function rootPanels(): PanelConfig[] {
+  const panels = DialStore.getPanels('panel');
+  return panels.some((panel) => DialStore.isPanelInPopover(panel.name))
+    ? panels.filter((panel) => !DialStore.isPanelInPopover(panel.name))
+    : panels;
+}
+
 export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'popover', theme = 'system', productionEnabled = isDevDefault, versions = 'thumbnails', accordion = false, onOpenChange }: DialRootProps) {
   if (!productionEnabled) return null;
   const [panels, setPanels] = useState<PanelConfig[]>([]);
@@ -58,11 +66,11 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
   // in DialTimeline, but their presence adds a visibility toggle here.
   useEffect(() => {
     setMounted(true);
-    setPanels(DialStore.getPanels('panel'));
+    setPanels(rootPanels());
     setTimelineCount(TimelineStore.getTimelines().length);
 
     const unsubscribePanels = DialStore.subscribeGlobal(() => {
-      setPanels(DialStore.getPanels('panel'));
+      setPanels(rootPanels());
     });
     const unsubscribeTimelines = TimelineStore.subscribeGlobal(() => {
       setTimelineCount(TimelineStore.getTimelines().length);

@@ -126,4 +126,41 @@ describe('useDialTimeline (React)', () => {
     assert.equal(TimelineStore.getTimeline(id), undefined);
     assert.equal(DialStore.getPanel(id), undefined);
   });
+
+  it('passes the clip click and the start pin to the store, through one stable callback', () => {
+    const id = 'react-timeline-clip-click';
+    const config = {
+      a: { at: 0, duration: 1 },
+      b: { at: 1, duration: 1 },
+    } as TimelineConfig;
+    const clicks: string[] = [];
+    let renderer: ReactTestRenderer | undefined;
+
+    function ClickHarness({ round }: { round: number }) {
+      useDialTimeline('React Clip Click Test', config, {
+        id,
+        autoplay: false,
+        track: 'single',
+        pinStart: true,
+        // A new inline function on every render.
+        onClipClick: (key) => clicks.push(`${round}:${key}`),
+      });
+      return null;
+    }
+
+    try {
+      act(() => { renderer = create(createElement(ClickHarness, { round: 1 })); });
+      const first = TimelineStore.getTimeline(id);
+      assert.equal(first?.track, 'single');
+      assert.equal(first?.pinStart, true);
+      first?.onClipClick?.('a');
+      act(() => renderer?.update(createElement(ClickHarness, { round: 2 })));
+      // The meta did not change, and the click reaches the latest callback.
+      assert.equal(TimelineStore.getTimeline(id), first);
+      TimelineStore.getTimeline(id)?.onClipClick?.('b');
+      assert.deepEqual(clicks, ['1:a', '2:b']);
+    } finally {
+      act(() => renderer?.unmount());
+    }
+  });
 });
