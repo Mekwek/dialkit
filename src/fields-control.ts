@@ -20,6 +20,8 @@ export type FieldsProps = {
    * only the display rounds, and typing starts from the exact value.
    */
   decimals?: number;
+  /** Shows each value without trailing zeros: "1" for 1.00, "1.5" for 1.50. */
+  trim?: boolean;
 };
 
 type FieldRange = { min: number; max: number; step: number };
@@ -88,12 +90,15 @@ export function createFieldLock() {
 
 /**
  * A field's value at rest: the decimals its step has, or at most
- * `decimals` of them, and never -0 once rounded.
+ * `decimals` of them, and never -0 once rounded. With `trim`, without
+ * trailing zeros.
  */
-export function fieldText(value: number, { min, max, step }: FieldRange, decimals?: number): string {
+export function fieldText(value: number, { min, max, step }: FieldRange, decimals?: number, trim = false): string {
   const own = decimalsForStep(step, min, max);
-  if (decimals === undefined || decimals >= own) return value.toFixed(own);
-  const text = value.toFixed(Math.max(0, Math.floor(decimals)));
+  const capped = decimals !== undefined && decimals < own;
+  let text = value.toFixed(capped ? Math.max(0, Math.floor(decimals)) : own);
+  if (trim && text.includes('.')) text = text.replace(/0+$/, '').replace(/\.$/, '');
+  if (!capped && !trim) return text;
   return Number(text) === 0 ? text.replace('-', '') : text;
 }
 
@@ -178,12 +183,9 @@ export function mountFields(host: HTMLElement, initial: FieldsProps) {
     const value = values[control.path];
     return typeof value === 'number' ? value : rangeOf(control).min;
   };
-  /** The value to type over: every decimal its step has. */
-  const format = (control: ControlMeta) => {
-    const { min, max, step } = rangeOf(control);
-    return read(control).toFixed(decimalsForStep(step, min, max));
-  };
-  const display = (control: ControlMeta) => fieldText(read(control), rangeOf(control), props.decimals);
+  /** The value to type over: every decimal its step has (without trailing zeros with `trim`). */
+  const format = (control: ControlMeta) => fieldText(read(control), rangeOf(control), undefined, props.trim);
+  const display = (control: ControlMeta) => fieldText(read(control), rangeOf(control), props.decimals, props.trim);
 
   function emit(updates: Record<string, DialValue>) {
     if (Object.keys(updates).length === 0) return;

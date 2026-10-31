@@ -188,6 +188,8 @@ const config = {
 
 `_fields: { decimals: 0 }` shows each field with at most that many decimals, for values such as world positions where a whole number is precise enough to read. Only the display rounds: the value keeps its precision, and a click on the number opens it with every decimal its step has.
 
+`_fields: { trim: true }` shows each value without trailing zeros: `1` instead of `1.00`, `1.5` instead of `1.50`, and never `-0`. With `decimals` as well, `decimals` still caps the count. It is off by default.
+
 Drag a field's label to scrub one step per pixel, or ten with Shift. A value is a button: click it, or press Enter or Space on it, to type a value, step it with Up and Down, then press Enter to commit or Escape to cancel. Leaving the field also commits. Values are clamped and snapped to their step.
 
 Once any value in the row, the lock included, differs from its default, a reset appears beside the label. It puts the row's values back to their defaults and hides again; if it had focus, focus moves to the first field.

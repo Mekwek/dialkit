@@ -130,6 +130,11 @@ export type FieldsConfig = {
    * display rounds, and a click on the number shows the exact value.
    */
   decimals?: number;
+  /**
+   * Shows each value without trailing zeros: "1" for 1.00, "1.5" for 1.50,
+   * and never "-0". With `decimals`, that still caps the count. Default off.
+   */
+  trim?: boolean;
 };
 
 function fieldsConfigOf(value: unknown): FieldsConfig | undefined {
@@ -268,6 +273,8 @@ export type ControlMeta = {
   fields?: boolean;
   /** Fields only: the most decimals a field shows, from `_fields: { decimals }`. See {@link FieldsConfig}. */
   decimals?: number;
+  /** Fields only: values show without trailing zeros, from `_fields: { trim: true }`. See {@link FieldsConfig}. */
+  trim?: boolean;
   /** Folder only: `_row` shows the folder's two controls side by side. See {@link RowConfig}. */
   row?: RowConfig;
   /** Row only: the names its controls show inside. See {@link InlineLabelsConfig}. */
@@ -1929,6 +1936,7 @@ class DialStoreClass {
             if (canShowFields(children)) {
               control.fields = true;
               if (typeof fields.decimals === 'number' && Number.isFinite(fields.decimals)) control.decimals = fields.decimals;
+              if (fields.trim === true) control.trim = true;
             } else {
               console.warn(`[dialkit] "${path}" sets _fields but needs two to four numbers and at most one boolean; showing it as a folder.`);
             }

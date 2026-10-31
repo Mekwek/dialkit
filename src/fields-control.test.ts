@@ -71,6 +71,41 @@ describe('field rows', () => {
     assert.equal(fieldText(1.5, range, 4), '1.50');
   });
 
+  it('reads _fields: { trim }, and shows values without trailing zeros only with it', () => {
+    const config = {
+      scale: { _fields: { trim: true }, x: [1, 0, 10, 0.01], y: [1.5, 0, 10, 0.01] },
+      both: { _fields: { trim: true, decimals: 1 }, x: [1.25, 0, 10, 0.01], y: [1, 0, 10, 0.01] },
+      plain: { _fields: true, x: [1, 0, 10, 0.01], y: [1, 0, 10, 0.01] },
+    } satisfies DialConfig;
+    const id = 'fields-trim';
+    try {
+      DialStore.registerPanel(id, 'Fields', config);
+      const [scale, both, plain] = DialStore.getPanel(id)!.controls;
+      assert.equal(scale.trim, true);
+      assert.deepEqual([both.trim, both.decimals], [true, 1]);
+      assert.equal('trim' in plain, false, 'off by default');
+      assert.deepEqual(resolveDialValues(config, DialStore.getValues(id)), {
+        scale: { x: 1, y: 1.5 }, both: { x: 1.25, y: 1 }, plain: { x: 1, y: 1 },
+      });
+    } finally { DialStore.unregisterPanel(id); }
+    const range = { min: -10, max: 10, step: 0.01 };
+    assert.equal(fieldText(1, range, undefined, true), '1');
+    assert.equal(fieldText(1.5, range, undefined, true), '1.5');
+    assert.equal(fieldText(10, range, undefined, true), '10');
+    assert.equal(fieldText(-0.001, range, undefined, true), '0', 'never -0');
+    assert.equal(fieldText(-1.5, range, undefined, true), '-1.5');
+    // decimals still caps the count.
+    assert.equal(fieldText(1.26, range, 1, true), '1.3');
+    assert.equal(fieldText(1.04, range, 1, true), '1');
+    assert.equal(fieldText(-0.04, range, 1, true), '0');
+    // A whole-number step has no zeros to drop.
+    assert.equal(fieldText(100, { min: 0, max: 1000, step: 10 }, undefined, true), '100');
+    // A tiny step keeps its decimals as digits, not an exponent.
+    assert.equal(fieldText(0.0000001, { min: 0, max: 1, step: 0.0000001 }, undefined, true), '0.0000001');
+    // Without trim, nothing changes.
+    assert.equal(fieldText(1, range), '1.00');
+  });
+
   it('resets only the values that differ from their defaults', () => {
     const config = { scale: { _fields: true, uniform: false, x: [1, 0.1, 3, 0.01], y: [1, 0.1, 3, 0.01] } } satisfies DialConfig;
     const id = 'fields-reset';

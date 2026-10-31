@@ -188,6 +188,7 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration,
               defaults={DialStore.getResetValues(panelId)}
               hint={control.hint}
               decimals={control.decimals}
+              trim={control.trim}
               onChange={(v) => DialStore.updateValues(panelId, v)}
             />
           );
