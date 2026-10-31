@@ -26,11 +26,13 @@ import {
   timelineClipProgress,
   timelineClipSpans,
   timelinePopoverDisplayValues,
+  pressTimelineSelection,
+  timelineBlockMove,
   timelineReorderAts,
   timelineReorderSlot,
 } from '../../timeline-core';
 import type { TimelineClipDragBounds, TimelineClipLoop, TimelineClipSpan, TimelineStepStatic } from '../../timeline-core';
-import { clamp } from '../../transition-math';
+import { clamp, round2 } from '../../transition-math';
 import { buildCopyInstruction } from '../../copy-instruction';
 import { isDevDefault } from '../../env';
 import { ICON_CHEVRON, ICON_CHECK, ICON_CLIPBOARD_PLAIN, ICON_LOOP, ICON_PAUSE, ICON_PLAY, ICON_REPLAY } from '../../icons';
@@ -70,6 +72,8 @@ const ZOOM_DRAG_DISTANCE = 180;
 const ZOOM_WHEEL_DISTANCE = 240;
 const DEFAULT_DOCK_MAX_HEIGHT = 400;
 const MIN_DOCK_MAX_HEIGHT = 120;
+
+const NO_SELECTION: ReadonlySet<string> = new Set();
 
 const subscribeGlobalTimelines = (callback: () => void) => TimelineStore.subscribeGlobal(callback);
 const getTimelines = () => TimelineStore.getTimelines();
@@ -608,8 +612,12 @@ const TimelineSection = memo(function TimelineSection({
   const [open, setOpen] = useState(defaultOpen);
   const [copied, setCopied] = useState(false);
   const [popover, setPopover] = useState<PopoverState | null>(null);
-  // Single track: the bar last pressed stays selected until the empty lane is pressed.
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  // Single track: the selected bars. A press selects a bar alone, Shift-click
+  // adds or removes one, and a press anywhere but a bar or the popover
+  // clears them.
+  const [selectedKeys, setSelectedKeys] = useState<ReadonlySet<string>>(NO_SELECTION);
+  const selectedRef = useRef(selectedKeys);
+  selectedRef.current = selectedKeys;
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set());
   const [expandedTracks, setExpandedTracks] = useState<Set<string>>(() => new Set());
   const [zoom, setZoom] = useState(1);
@@ -873,7 +881,7 @@ const TimelineSection = memo(function TimelineSection({
     // The pan bar sits inside the body too; a press on it pans, never seeks.
     if (target.closest('.dialkit-timeline-scroll-row')) return;
     if (!e.shiftKey && target.closest('.dialkit-timeline-clip')) return;
-    setSelectedKey(null);
+    setSelectedKeys(NO_SELECTION);
     const rect = laneAreaRef.current?.getBoundingClientRect();
     if (!rect) return;
     e.preventDefault();
@@ -998,25 +1006,86 @@ const TimelineSection = memo(function TimelineSection({
     );
   }, [meta.clips, meta.duration, meta.id, singleTrack]);
 
+  // A press outside every bar and the popover (whose root also holds the
+  // menus its controls open) clears the selection. Capture, because a bar
+  // stops its own press from bubbling.
+  useEffect(() => {
+    if (!singleTrack) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest?.('.dialkit-timeline-clip, [data-timeline-popover]')) return;
+      setSelectedKeys((prev) => (prev.size ? NO_SELECTION : prev));
+    };
+    document.addEventListener('pointerdown', onPointerDown, true);
+    return () => document.removeEventListener('pointerdown', onPointerDown, true);
+  }, [singleTrack]);
+
+  // Single track: a press on a selected bar moves every selected bar of its
+  // lane together. The block is read once, at the press.
+  const blockRef = useRef<{ key: string; spans: TimelineClipSpan[]; keys: ReadonlySet<string>; locked: boolean } | null>(null);
+  const pressClip = (key: string, press: 'toggle' | 'select' | 'edge') => {
+    const next = pressTimelineSelection(selectedRef.current, key, press);
+    if (next !== selectedRef.current) {
+      selectedRef.current = next;
+      setSelectedKeys(next);
+    }
+    blockRef.current = null;
+    const clip = meta.clips.find((candidate) => candidate.key === key);
+    if (press !== 'select' || !clip) return;
+    const laneClips = meta.clips.filter((other) => other.lane === clip.lane);
+    const keys = new Set(laneClips.filter((other) => next.has(other.key)).map((other) => other.key));
+    if (keys.size < 2) return;
+    const spans = timelineClipSpans(DialStore.getValues(meta.id), laneClips, meta.duration);
+    // A block that holds the pinned opening bar holds still, as that bar does.
+    const opening = clip.lane === undefined && meta.pinStart && spans.length
+      ? spans.reduce((a, b) => (b.at < a.at ? b : a)).key
+      : null;
+    blockRef.current = { key, spans, keys, locked: opening !== null && keys.has(opening) };
+  };
+  const moveBlock = (key: string, dt: number, snap: boolean) => {
+    const block = blockRef.current;
+    if (!block || block.key !== key) return false;
+    if (block.locked) return true;
+    const transport = TimelineStore.getTransport(meta.id);
+    const delta = timelineBlockMove(block.spans, block.keys, dt, {
+      snap,
+      playhead: transport.playing ? undefined : transport.time,
+    });
+    const writes: Record<string, DialValue> = {};
+    for (const span of block.spans) {
+      if (block.keys.has(span.key)) writes[`${span.key}.at`] = round2(span.at + delta);
+    }
+    DialStore.updateValues(meta.id, writes);
+    return true;
+  };
+
   // Single track: lifting a bar past LIFT_PX turns its move into a reorder.
-  // The bar goes back to where it was pressed, a cue marks where it would
-  // land among the other bars of its lane, and the drop moves it there.
-  const [reorderCue, setReorderCue] = useState<{ key: string; lane: string | undefined; time: number | null } | null>(null);
-  const reorderRef = useRef<{ key: string; spans: TimelineClipSpan[]; slot: number | null } | null>(null);
+  // The bar (or the selected bars it belongs to) goes back to where it was
+  // pressed, a cue marks where it would land among the other bars of its
+  // lane, and the drop moves it there.
+  const [reorderCue, setReorderCue] = useState<{ keys: string[]; lane: string | undefined; time: number | null } | null>(null);
+  const reorderRef = useRef<{ keys: string[]; spans: TimelineClipSpan[]; slot: number | null } | null>(null);
   const liftClip = (clip: TimelineClipMeta) => {
+    const block = blockRef.current?.key === clip.key ? blockRef.current : null;
+    if (block) {
+      const restore: Record<string, DialValue> = {};
+      for (const span of block.spans) if (block.keys.has(span.key)) restore[`${span.key}.at`] = span.at;
+      DialStore.updateValues(meta.id, restore);
+    }
     const laneClips = meta.clips.filter((other) => other.lane === clip.lane);
     const spans = timelineClipSpans(DialStore.getValues(meta.id), laneClips, meta.duration).sort((a, b) => a.at - b.at);
-    reorderRef.current = { key: clip.key, spans, slot: null };
-    setReorderCue({ key: clip.key, lane: clip.lane, time: null });
+    const keys = block ? spans.filter((span) => block.keys.has(span.key)).map((span) => span.key) : [clip.key];
+    reorderRef.current = { keys, spans, slot: null };
+    setReorderCue({ keys, lane: clip.lane, time: null });
   };
   const hoverReorder = (clientX: number) => {
     const reorder = reorderRef.current;
     const rect = laneAreaRef.current?.getBoundingClientRect();
     if (!reorder || !rect || pxPerSecond <= 0) return;
     const time = safeViewStart + (clientX - rect.left) / pxPerSecond;
-    const slot = timelineReorderSlot(reorder.spans, reorder.key, time);
+    const slot = timelineReorderSlot(reorder.spans, reorder.keys, time);
     reorder.slot = slot;
-    const others = reorder.spans.filter((span) => span.key !== reorder.key);
+    const others = reorder.spans.filter((span) => !reorder.keys.includes(span.key));
     const last = others[others.length - 1];
     const cueTime = others[slot]?.at ?? (last ? last.at + last.duration : 0);
     setReorderCue((prev) => (prev && prev.time !== cueTime ? { ...prev, time: cueTime } : prev));
@@ -1027,7 +1096,7 @@ const TimelineSection = memo(function TimelineSection({
     setReorderCue(null);
     if (!reorder || reorder.slot === null) return;
     const writes: Record<string, DialValue> = {};
-    for (const [key, at] of Object.entries(timelineReorderAts(reorder.spans, reorder.key, reorder.slot))) {
+    for (const [key, at] of Object.entries(timelineReorderAts(reorder.spans, reorder.keys, reorder.slot))) {
       writes[`${key}.at`] = at;
     }
     DialStore.updateValues(meta.id, writes);
@@ -1098,16 +1167,17 @@ const TimelineSection = memo(function TimelineSection({
                 single
                 pinned={clip.key === pinnedKey}
                 highlighted={clip.key === meta.highlightedClip}
-                lifted={reorderCue?.key === clip.key}
+                lifted={reorderCue?.keys.includes(clip.key) ?? false}
                 onLift={liftClip}
                 onReorderHover={hoverReorder}
                 onReorderDrop={dropReorder}
                 pxPerSecond={pxPerSecond}
                 viewStart={safeViewStart}
                 timelineDuration={meta.duration}
-                selected={selectedKey === clip.key || popover?.clip.key === clip.key}
+                selected={selectedKeys.has(clip.key) || popover?.clip.key === clip.key}
                 getDragBounds={getDragBounds}
-                onSelect={setSelectedKey}
+                onPress={pressClip}
+                onBlockMove={moveBlock}
                 onClick={handleBarClick}
                 onDrag={closePopover}
               />
@@ -1789,7 +1859,8 @@ function TimelineClip({
   selected,
   selectedStepKey,
   getDragBounds,
-  onSelect,
+  onPress,
+  onBlockMove,
   onClick,
   onDrag,
 }: {
@@ -1826,8 +1897,12 @@ function TimelineClip({
   selected: boolean;
   selectedStepKey?: string;
   getDragBounds: (clipKey: string) => TimelineClipDragBounds;
-  /** Single track: pressing the bar, not an edge, selects it. */
-  onSelect?: (clipKey: string) => void;
+  /** Single track: a press on the bar. `toggle` is a Shift-click on its
+   * body, `select` a plain press on it, `edge` a press on a resize handle. */
+  onPress?: (clipKey: string, press: 'toggle' | 'select' | 'edge') => void;
+  /** Single track: moves the selected bars together when this bar belongs
+   * to a selection of two or more on its lane. Returns false otherwise. */
+  onBlockMove?: (clipKey: string, dt: number, snap: boolean) => boolean;
   onClick: (clip: TimelineClipMeta, rect: DOMRect, stepKey?: string) => void;
   onDrag: () => void;
 }) {
@@ -1839,7 +1914,8 @@ function TimelineClip({
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      if (e.shiftKey) return;
+      // Rows: Shift-press scrubs, so it reaches the track.
+      if (e.shiftKey && !onPress) return;
       e.stopPropagation();
       const target = e.target as HTMLElement;
       let mode: DragState['mode'] = 'move';
@@ -1852,7 +1928,13 @@ function TimelineClip({
         const edge = target.dataset?.edge as 'start' | 'end' | undefined;
         if (edge) mode = edge;
       }
-      if (mode === 'move') onSelect?.(clip.key);
+      // Single track: Shift-click toggles the bar in the selection, with no
+      // drag and no popover.
+      if (e.shiftKey) {
+        if (mode === 'move') onPress?.(clip.key, 'toggle');
+        return;
+      }
+      onPress?.(clip.key, mode === 'move' ? 'select' : 'edge');
       dragRef.current = {
         mode,
         boundaryIndex,
@@ -1868,7 +1950,7 @@ function TimelineClip({
       };
       e.currentTarget.setPointerCapture(e.pointerId);
     },
-    [at, clip.key, duration, fixedDuration, getDragBounds, onSelect, pinned, steps]
+    [at, clip.key, duration, fixedDuration, getDragBounds, onPress, pinned, steps]
   );
 
   const handlePointerMove = useCallback(
@@ -1909,6 +1991,8 @@ function TimelineClip({
           `${clip.key}.${steps[index].key ?? ''}.duration`,
           clampStepResize(drag.stepDurations[index] + dt, drag.at, others, timelineDuration)
         );
+      } else if (drag.mode === 'move' && onBlockMove?.(clip.key, dt, e.metaKey || e.ctrlKey)) {
+        // The selected bars moved together.
       } else if (!delayMode && drag.mode !== 'boundary' && !(drag.mode === 'start' && steps)) {
         // Clip bars. Cmd (Ctrl elsewhere) snaps to other clips and the playhead.
         const next = dragTimelineClip(
@@ -1953,7 +2037,7 @@ function TimelineClip({
         });
       }
     },
-    [baseAt, clip, delayMode, onDrag, onLift, onReorderHover, pxPerSecond, steps, tail, timelineId, timelineDuration]
+    [baseAt, clip, delayMode, onBlockMove, onDrag, onLift, onReorderHover, pxPerSecond, steps, tail, timelineId, timelineDuration]
   );
 
   const handlePointerUp = useCallback(

@@ -29,6 +29,8 @@ import {
   timelineClipProgress,
   timelineClipSpans,
   timelinePopoverDisplayValues,
+  pressTimelineSelection,
+  timelineBlockMove,
   timelineReorderAts,
   timelineReorderSlot,
 } from './timeline-core';
@@ -563,18 +565,72 @@ describe('single track reorder', () => {
 
   it('moves a clip to a slot and keeps the gap pattern by position', () => {
     // B before A: slot 0 among the others [A, C].
-    assert.deepEqual(timelineReorderAts(spans, 'b', 0), { b: 0, a: 2, c: 5.5 });
+    assert.deepEqual(timelineReorderAts(spans, ['b'], 0), { b: 0, a: 2, c: 5.5 });
     // A after C (slot 2): the gaps stay [0, 0, 1.5] by position.
-    assert.deepEqual(timelineReorderAts(spans, 'a', 2), { b: 0, c: 2, a: 5.5 });
+    assert.deepEqual(timelineReorderAts(spans, ['a'], 2), { b: 0, c: 2, a: 5.5 });
     // Its own slot changes nothing.
-    assert.deepEqual(timelineReorderAts(spans, 'c', 2), { a: 0, b: 2, c: 5.5 });
+    assert.deepEqual(timelineReorderAts(spans, ['c'], 2), { a: 0, b: 2, c: 5.5 });
+  });
+
+  it('moves a selected run together, in its order', () => {
+    // A and C after B: the run keeps A before C.
+    assert.deepEqual(timelineReorderAts(spans, ['a', 'c'], 1), { b: 0, a: 2, c: 5.5 });
+    assert.deepEqual(timelineReorderAts(spans, ['b', 'c'], 0), { b: 0, c: 2, a: 5.5 });
   });
 
   it('lands before the first other clip whose middle lies past the pointer', () => {
-    assert.equal(timelineReorderSlot(spans, 'c', 0.5), 0);
-    assert.equal(timelineReorderSlot(spans, 'c', 1.5), 1);
-    assert.equal(timelineReorderSlot(spans, 'a', 6), 1);
-    assert.equal(timelineReorderSlot(spans, 'a', 7), 2);
+    assert.equal(timelineReorderSlot(spans, ['c'], 0.5), 0);
+    assert.equal(timelineReorderSlot(spans, ['c'], 1.5), 1);
+    assert.equal(timelineReorderSlot(spans, ['a'], 6), 1);
+    assert.equal(timelineReorderSlot(spans, ['a'], 7), 2);
+    assert.equal(timelineReorderSlot(spans, ['a', 'b'], 7), 1);
+  });
+});
+
+describe('single track selection', () => {
+  const none: ReadonlySet<string> = new Set();
+
+  it('Shift-click toggles a bar, a plain press selects it alone, an edge press changes nothing', () => {
+    const ab = pressTimelineSelection(pressTimelineSelection(none, 'a', 'toggle'), 'b', 'toggle');
+    assert.deepEqual([...ab], ['a', 'b']);
+    assert.deepEqual([...pressTimelineSelection(ab, 'a', 'toggle')], ['b']);
+    // A plain press on a selected bar keeps the selection, so a drag moves all of it.
+    assert.equal(pressTimelineSelection(ab, 'a', 'select'), ab);
+    assert.deepEqual([...pressTimelineSelection(ab, 'c', 'select')], ['c']);
+    assert.equal(pressTimelineSelection(ab, 'c', 'edge'), ab);
+  });
+});
+
+describe('single track block moves', () => {
+  // A [0,2] butted by B [2,4], a 1.5s gap, then C [5.5,7.5].
+  const spans = [
+    { key: 'a', at: 0, duration: 2 },
+    { key: 'b', at: 2, duration: 2 },
+    { key: 'c', at: 5.5, duration: 2 },
+  ];
+  const keys = (...selected: string[]) => new Set(selected);
+
+  it('a block moves as one, bounded by its unselected neighbors', () => {
+    // A+B together: the left bound is the timeline start, the right one the gap to C.
+    near(timelineBlockMove(spans, keys('a', 'b'), -1), 0);
+    near(timelineBlockMove(spans, keys('a', 'b'), 9), 1.5);
+    // A and C around unselected B: A's cap wins for the whole block.
+    near(timelineBlockMove(spans, keys('a', 'c'), 5), 0);
+    // B+C: C is the lane's last clip, so the block runs past the end.
+    near(timelineBlockMove(spans, keys('b', 'c'), 9), 9);
+    near(timelineBlockMove(spans, keys('b', 'c'), -1), 0);
+  });
+
+  it('a snapping block lands its start, bar end or tail end on a target', () => {
+    const tailed = [...spans.slice(0, 2), { key: 'c', at: 5.5, duration: 2, tail: 1 }, { key: 'd', at: 12, duration: 1 }];
+    // B+C moved 3: the tail end (8.5) lands on D's start (12) at 3.5.
+    near(timelineBlockMove(tailed, keys('b', 'c'), 3, { snap: true }), 3.5);
+    // The playhead is a target too: the block start (2) lands on 4.
+    near(timelineBlockMove(tailed, keys('b', 'c'), 1.8, { snap: true, playhead: 4 }), 2);
+    // No targets: the free move.
+    near(timelineBlockMove(spans.slice(0, 2), keys('a', 'b'), 0.7, { snap: true }), 0.7);
+    // A reachable target wins over the free move: A+B's end (4) lands on C's start.
+    near(timelineBlockMove(spans, keys('a', 'b'), 0.7, { snap: true }), 1.5);
   });
 });
 

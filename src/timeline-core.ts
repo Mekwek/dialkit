@@ -1582,22 +1582,91 @@ export function dragTimelineClip(
 }
 
 /**
- * Reorder on a single track: the clip `key` moves to `slot`, an index among
- * the OTHER clips (0 to their count), which keep their order. The gaps stay
- * where they were by position, not with their clips: the n-th clip keeps
- * the n-th gap. `spans` is one lane, sorted by `at`. Returns the new `at` of
- * every clip, by key.
+ * How a press on a single-track bar changes the selection. `toggle` (a
+ * Shift-click) adds or removes the bar. `select` (a plain press on the bar
+ * body) keeps a selection that holds the bar, so a drag moves all of it,
+ * and otherwise selects the bar alone. `edge` (a press on a resize handle)
+ * never changes it. Returns the same set when nothing changes.
+ */
+export function pressTimelineSelection(
+  selection: ReadonlySet<string>,
+  key: string,
+  press: 'toggle' | 'select' | 'edge'
+): ReadonlySet<string> {
+  if (press === 'edge') return selection;
+  if (press === 'select') return selection.has(key) ? selection : new Set([key]);
+  const next = new Set(selection);
+  if (next.has(key)) next.delete(key);
+  else next.add(key);
+  return next;
+}
+
+/**
+ * Moving the selected clips of one single-track lane together by `delta`
+ * seconds. Each selected clip stops at its unselected neighbors (never at
+ * its own current place, so clips that start out overlapping can still be
+ * pulled apart) and at 0; the last clip of the lane has no end. With `snap`
+ * the block lands its start, its bar end or its tail end on the reachable
+ * target closest to the pointer: an unselected clip's start, end or tail
+ * end, or the playhead when given. Returns the delta to apply to every
+ * selected clip.
+ */
+export function timelineBlockMove(
+  spans: TimelineClipSpan[],
+  keys: ReadonlySet<string>,
+  delta: number,
+  options: { snap?: boolean; playhead?: number } = {}
+): number {
+  const lane = [...spans].sort((a, b) => a.at - b.at);
+  let lo = Number.NEGATIVE_INFINITY;
+  let hi = Number.POSITIVE_INFINITY;
+  let start = Number.POSITIVE_INFINITY;
+  let barEnd = Number.NEGATIVE_INFINITY;
+  let tailEnd = Number.NEGATIVE_INFINITY;
+  const targets = new Set<number>();
+  lane.forEach((span, i) => {
+    const end = span.at + span.duration;
+    if (!keys.has(span.key)) {
+      targets.add(round2(span.at));
+      targets.add(round2(end));
+      if ((span.tail ?? 0) > 0) targets.add(round2(end + (span.tail ?? 0)));
+      return;
+    }
+    start = Math.min(start, span.at);
+    barEnd = Math.max(barEnd, end);
+    if ((span.tail ?? 0) > 0) tailEnd = Math.max(tailEnd, end + (span.tail ?? 0));
+    lo = Math.max(lo, -span.at);
+    const prev = lane.slice(0, i).reverse().find((other) => !keys.has(other.key));
+    if (prev) lo = Math.max(lo, Math.min(prev.at + prev.duration - span.at, 0));
+    const next = lane.slice(i + 1).find((other) => !keys.has(other.key));
+    if (next) hi = Math.min(hi, Math.max(next.at - end, 0));
+  });
+  if (!Number.isFinite(start)) return 0;
+  if (options.playhead !== undefined) targets.add(round2(options.playhead));
+  const points = tailEnd > barEnd + 1e-9 ? [start, barEnd, tailEnd] : [start, barEnd];
+  const landed = options.snap
+    ? nearestWithin([...targets].flatMap((target) => points.map((point) => target - point)), delta, lo, hi)
+    : undefined;
+  return round2(clamp(landed ?? delta, lo, hi));
+}
+
+/**
+ * Reorder on a single track: the clips `keys` move, as a run in their
+ * current order, to `slot`, an index among the OTHER clips (0 to their
+ * count), which keep their order. The gaps stay where they were by
+ * position, not with their clips: the n-th clip keeps the n-th gap. `spans`
+ * is one lane, sorted by `at`. Returns the new `at` of every clip, by key.
  */
 export function timelineReorderAts(
   spans: TimelineClipSpan[],
-  key: string,
+  keys: readonly string[],
   slot: number
 ): Record<string, number> {
   const gaps = spans.map((span, i) => (i === 0 ? span.at : span.at - (spans[i - 1].at + spans[i - 1].duration)));
-  const moved = spans.find((span) => span.key === key);
-  const others = spans.filter((span) => span.key !== key);
+  const moved = spans.filter((span) => keys.includes(span.key));
+  const others = spans.filter((span) => !keys.includes(span.key));
   const bounded = Math.max(0, Math.min(others.length, Math.round(slot)));
-  const order = moved ? [...others.slice(0, bounded), moved, ...others.slice(bounded)] : others;
+  const order = [...others.slice(0, bounded), ...moved, ...others.slice(bounded)];
   const ats: Record<string, number> = {};
   let cursor = 0;
   order.forEach((span, i) => {
@@ -1608,10 +1677,10 @@ export function timelineReorderAts(
   return ats;
 }
 
-/** Where a lifted clip would land: the slot among the other clips of its
+/** Where lifted clips would land: the slot among the other clips of their
  * lane before the first one whose middle lies past `time`. */
-export function timelineReorderSlot(spans: TimelineClipSpan[], key: string, time: number): number {
-  const others = spans.filter((span) => span.key !== key);
+export function timelineReorderSlot(spans: TimelineClipSpan[], keys: readonly string[], time: number): number {
+  const others = spans.filter((span) => !keys.includes(span.key));
   const index = others.findIndex((span) => time < span.at + span.duration / 2);
   return index < 0 ? others.length : index;
 }
