@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import { defaultBackgroundValue, type BackgroundGradient, type BackgroundValue } from './background';
 import { paintBackgroundPreview } from './background-paint';
 import {
-  getBackgroundHost, getSavedGradients, hasBackgroundHost, setBackgroundHost, setSavedGradients, subscribeBackgroundHost,
+  backgroundUploader, getBackgroundHost, getSavedGradients, hasBackgroundHost, setBackgroundHost, setSavedGradients, subscribeBackgroundHost,
 } from './store/BackgroundHost';
 
 const gradient = (): BackgroundGradient => ({
@@ -55,6 +55,36 @@ describe('background host', () => {
       assert.equal(saved.gradient.shape, 'diamond');
       assert.equal(saved.gradient.stops.length, 2);
     } finally { setSavedGradients([]); }
+  });
+});
+
+describe('backgroundUploader', () => {
+  const file = { name: 'a.png', type: 'image/png' } as File;
+  const dataUrl = async () => 'data:image/png;base64,AA==';
+
+  it('reads a data URL with no host set', async () => {
+    const upload = backgroundUploader(undefined, dataUrl)!;
+    assert.deepEqual(await upload(file, 'image'), { src: 'data:image/png;base64,AA==', kind: 'image' });
+  });
+
+  it("uses the control's own upload first, then the host's", async () => {
+    try {
+      setBackgroundHost({ upload: async () => ({ src: 'boards/1/bg.mp4', kind: 'video' }) });
+      const own = backgroundUploader(async () => 'https://cdn.example/a.png', dataUrl)!;
+      assert.deepEqual(await own(file, 'image'), { src: 'https://cdn.example/a.png', kind: 'image' });
+      const hosted = backgroundUploader(undefined, dataUrl)!;
+      // The host decides the kind.
+      assert.deepEqual(await hosted(file, 'image'), { src: 'boards/1/bg.mp4', kind: 'video' });
+    } finally { setBackgroundHost({}); }
+  });
+
+  it('has no upload when a host is set without one, and rejects an empty result', async () => {
+    try {
+      setBackgroundHost({ mediaUrl: media => `https://cdn.example/${media.src}` });
+      assert.equal(backgroundUploader(undefined, dataUrl), undefined);
+      setBackgroundHost({ upload: async () => ({ src: '', kind: 'image' }) });
+      await assert.rejects(backgroundUploader(undefined, dataUrl)!(file, 'image'), /returned no file/);
+    } finally { setBackgroundHost({}); }
   });
 });
 

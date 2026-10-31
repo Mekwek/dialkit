@@ -2416,6 +2416,52 @@
   .dialkit-background .dialkit-segmented-pill, .dialkit-background-popover .dialkit-segmented-pill, .dialkit-background-position-pill,
   .dialkit-background-stops[data-dragging] .dialkit-background-stop { transition: none; }
 }
+.dialkit-background-save:disabled { opacity: 0.6; cursor: progress; }
+.dialkit-background-drop[data-unavailable] { cursor: default; }
+/* A stored file the host gives no URL for: its name, in the preview. */
+.dialkit-background-media-key { position: absolute; inset: 0; display: grid; place-items: center; padding: 8px; color: var(--dial-text-secondary); font: 500 11px 'Geist Mono', monospace; overflow-wrap: anywhere; text-align: center; }
+
+/* The gradient gizmo over the host's canvas (gradient-gizmo.ts): a white line
+   with a soft dark edge, white handle dots, and the stops as swatches with a
+   pointer at the line. It copies the panel's --dial-* tokens; it is not a
+   .dialkit-root, so a host's rules for panels never reach it. Only its parts
+   take the pointer (the dots and their rings, the swatches, the line's hover
+   band); every full-size layer lets presses through to the canvas. */
+.dialkit-background-gizmo {
+  position: fixed;
+  overflow: visible;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  font-family: system-ui, -apple-system, 'SF Pro Display', sans-serif;
+}
+.dialkit-background-gizmo[hidden], .dialkit-background-gizmo [hidden] { display: none !important; }
+.dialkit-background-gizmo-lines { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.dialkit-background-gizmo-shadow { fill: none; stroke: rgba(0, 0, 0, 0.28); stroke-width: 3; pointer-events: none; }
+.dialkit-background-gizmo-line { fill: none; stroke: #ffffff; stroke-width: 1.5; pointer-events: none; }
+/* The ghost's hover band (ghostBandPath): along the line, or around the
+   Angular rim, from 8px on the far side to the swatches' outer edge. */
+.dialkit-background-gizmo-hit { fill: transparent; stroke: none; pointer-events: fill; cursor: crosshair; }
+/* A handle: the dot moves it, the ring around it (to 21px from its centre)
+   rotates the gradient. A swatch next to a handle is on top of it. */
+.dialkit-background-gizmo-handle { position: absolute; left: -21px; top: -21px; z-index: 1; width: 42px; height: 42px; border-radius: 50%; pointer-events: auto; touch-action: none; }
+.dialkit-background-gizmo-dot { position: absolute; left: 50%; top: 50%; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: #ffffff; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25), 0 1px 3px rgba(0, 0, 0, 0.35); pointer-events: none; }
+/* Focused from the keyboard (the arrow keys move it): the ring sits on the dot. */
+.dialkit-background-gizmo-handle:focus { outline: none; }
+.dialkit-background-gizmo-handle:focus-visible .dialkit-background-gizmo-dot { box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25), 0 0 0 4px var(--dial-focus-ring); }
+.dialkit-background-gizmo-stops { position: absolute; inset: 0; pointer-events: none; }
+.dialkit-background-gizmo-stop { position: absolute; left: -10px; top: -10px; width: 20px; height: 20px; box-sizing: border-box; border: 2px solid #ffffff; border-radius: 5px; background: linear-gradient(var(--dial-color), var(--dial-color)), var(--dial-checker); background-clip: padding-box; box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.25), 0 1px 3px rgba(0, 0, 0, 0.3); pointer-events: auto; cursor: move; touch-action: none; }
+/* The pointer under the swatch, at the line. */
+.dialkit-background-gizmo-stop::after { content: ''; position: absolute; left: 50%; top: calc(100% + 1px); margin-left: -4px; border: 4px solid transparent; border-top-color: #ffffff; border-bottom: 0; }
+.dialkit-background-gizmo-stop[data-selected] { border-color: var(--dial-glass-bg); box-shadow: 0 0 0 2px var(--dial-text-primary), 0 2px 6px rgba(0, 0, 0, 0.3); }
+.dialkit-background-gizmo-stop[data-selected]::after { top: calc(100% + 3px); border-top-color: var(--dial-text-primary); }
+/* The ghost: where a press adds a stop, a dimmed swatch of the color there. */
+.dialkit-background-gizmo-ghost { z-index: 4; border-color: rgba(255, 255, 255, 0.75); box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.15), 0 1px 2px rgba(0, 0, 0, 0.15); opacity: 0.5; pointer-events: none; }
+.dialkit-background-gizmo-ghost::after { display: none; }
+/* Tooltips: a solid dark chip in both themes, since it floats over the canvas. */
+.dialkit-background-gizmo-tip { position: absolute; left: 0; top: 0; z-index: 4; padding: 6px 10px; border-radius: 8px; background: #262626; color: rgba(255, 255, 255, 0.95); font-size: 12px; line-height: 1.3; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); pointer-events: none; }
+.dialkit-background-gizmo-tip[data-place="right"] { translate: 12px -50%; }
+.dialkit-background-gizmo-tip[data-place="center"] { translate: -50% -50%; }
 
 /* Preset Manager */
 .dialkit-preset-manager {

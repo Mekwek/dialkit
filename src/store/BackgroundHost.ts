@@ -87,6 +87,32 @@ export function getSavedGradients(): SavedGradient[] {
   return state().saved;
 }
 
+/**
+ * Where a control's dropped or picked file goes: the control's own `upload`,
+ * else the host's, else, with no host set, `fallback` (the control reads the
+ * file as a data URL). Undefined when a host is set without an upload:
+ * uploads are not available. The result rejects when the host's upload
+ * returns no usable media.
+ */
+export function backgroundUploader(
+  own: ((file: File) => Promise<string>) | undefined,
+  fallback: (file: File) => Promise<string>,
+): ((file: File, kind: BackgroundMedia['kind']) => Promise<BackgroundMedia>) | undefined {
+  if (own) return async (file, kind) => ({ src: await own(file), kind });
+  const hosted = getBackgroundHost().upload;
+  if (hosted) {
+    return async file => {
+      const media = await hosted(file);
+      if (!media || typeof media.src !== 'string' || !media.src || (media.kind !== 'image' && media.kind !== 'video')) {
+        throw new Error('The upload returned no file.');
+      }
+      return { src: media.src, kind: media.kind };
+    };
+  }
+  if (hasBackgroundHost()) return undefined;
+  return async (file, kind) => ({ src: await fallback(file), kind });
+}
+
 /** Calls `listener` when the host or the saved gradients change. Returns the unsubscribe. */
 export function subscribeBackgroundHost(listener: Listener): () => void {
   const listeners = state().listeners;

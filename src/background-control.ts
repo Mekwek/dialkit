@@ -4,6 +4,7 @@ import {
   backgroundGradientCss, backgroundMediaCss, cloneGradient, colorOpacity, gradientColorAt, gradientStrip, moveStopColor, normalizeBackgroundValue, paintGradient,
   rotateGradient, sameBackgroundValue, sameGradient, switchGradientShape, widestGapMiddle, withOpacity,
   type BackgroundGradient, type BackgroundMediaDisplay, type BackgroundMode, type BackgroundValue, type GradientShape, type GradientStop,
+  type SavedGradient,
 } from './background';
 import { clamp } from './color';
 import { mountColorControl } from './color-control';
@@ -14,15 +15,21 @@ import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition } fr
 import { ICON_CHEVRON, ICON_CLOSE, ICON_PLUS } from './icons';
 import { decimalsForStep, roundValue } from './numeric';
 import { isHintKey, mountHints } from './hints';
+import { mountGradientGizmo, rotateGradientQuarter } from './gradient-gizmo';
+import { backgroundUploader, getBackgroundHost, getSavedGradients, hasBackgroundHost, setSavedGradients, subscribeBackgroundHost } from './store/BackgroundHost';
 import { DialStore } from './store/DialStore';
 import { mountSlider } from './vanilla/controls';
 
 export type BackgroundControlProps = {
-  /** Saved gradients belong to this panel. */
+  /** Saved gradients belong to this panel, unless a background host is set (`setBackgroundHost`). */
   panelId: string;
   label: string;
   value: BackgroundValue;
-  /** Stores a dropped or picked file and returns its URL. Without it, files up to 10 MB are read as data URLs. */
+  /**
+   * Stores a dropped or picked file and returns its URL. Without it, the
+   * background host's `upload` stores it; with no host set, files up to
+   * 10 MB are read as data URLs.
+   */
   upload?: (file: File) => Promise<string>;
   onChange: (value: BackgroundValue) => void;
 };
@@ -46,6 +53,7 @@ const DRAG_THRESHOLD = 3;
 /** Where the strip centres a radial, angular or diamond gradient. */
 const STRIP_HANDLES = { start: { x: 0.5, y: 0.5 }, end: { x: 1, y: 0.5 }, width: { x: 0.5, y: 0 } };
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const errorMessage = (error: unknown, fallback: string) => error instanceof Error && error.message ? error.message : fallback;
 /** The hints of the control's parts, shown while the hint key (H) is held. */
 const BG_HINTS = {
   mode: {
@@ -227,7 +235,19 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
   hint(flipButton, BG_HINTS.flip);
   hint(rotateButton, BG_HINTS.rotate);
   flipButton.addEventListener('click', () => commitEntries(entries().map(({ id, stop }) => ({ id, stop: { ...stop, at: Number((100 - stop.at).toFixed(2)) } }))));
-  rotateButton.addEventListener('click', () => setGradient(rotateGradient(value.gradient)));
+  // With a gizmo target, the gradient turns in the canvas's own shape, as the
+  // gizmo shows it; without one the box is square.
+  rotateButton.addEventListener('click', () => {
+    const aspect = targetAspect();
+    setGradient(aspect === undefined ? rotateGradient(value.gradient)
+      : { ...value.gradient, handles: rotateGradientQuarter(value.gradient.shape, value.gradient.handles, { width: aspect, height: 1 }) });
+  });
+  /** The gizmo target's width / height, when the host gives one that is drawn. */
+  function targetAspect(): number | undefined {
+    const rect = getBackgroundHost().gizmoTarget?.()?.getBoundingClientRect();
+    return rect && rect.width > 0 && rect.height > 0 ? rect.width / rect.height : undefined;
+  }
+  const canvasAspect = () => targetAspect() ?? 1;
 
   let shapeMenu: HTMLDivElement | undefined;
   let stopShapeMenu: (() => void) | undefined;
@@ -248,13 +268,16 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
     const portal = getDialKitPortalRoot(host) ?? document.body;
     const menu = shapeMenu = element('div', 'dialkit-select-dropdown dialkit-background-shape-menu');
     menu.style.position = 'fixed';
+    // While the gizmo is on, a press or the focus in the menu is part of the gradient's editing.
+    menu.addEventListener('pointerdown', event => { if (gizmoRowId !== undefined) event.stopPropagation(); });
+    menu.addEventListener('focusin', event => { if (gizmoRowId !== undefined) event.stopPropagation(); });
     for (const shape of GRADIENT_SHAPES) {
       const option = element('button', 'dialkit-select-option', SHAPE_LABELS[shape]);
       option.dataset.selected = String(shape === value.gradient.shape);
       hint(option, BG_HINTS.shape[shape]);
       option.addEventListener('click', () => {
         closeShapeMenu();
-        setGradient(switchGradientShape(value.gradient, shape));
+        setGradient(switchGradientShape(value.gradient, shape, canvasAspect()));
       });
       menu.append(option);
     }
@@ -320,10 +343,13 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
   const stopList = element('div', 'dialkit-background-stops');
   const saveButton = element('button', 'dialkit-background-save', 'Save gradient');
   hint(saveButton, BG_HINTS.save);
+  const gradientStatusLine = element('div', 'dialkit-background-status');
+  gradientStatusLine.setAttribute('role', 'status');
+  gradientStatusLine.hidden = true;
   const savedList = element('div', 'dialkit-background-saved');
   savedList.setAttribute('role', 'group');
   savedList.setAttribute('aria-label', 'Saved gradients');
-  gradientPane.append(shapeRow, bar, stopsHeader, stopList, saveButton, savedList);
+  gradientPane.append(shapeRow, bar, stopsHeader, stopList, saveButton, gradientStatusLine, savedList);
 
   // Each stop keeps an id, so its row, its handle's selection and a scrub
   // follow it when it moves past another stop.
@@ -498,6 +524,8 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
     hint(position.root, BG_HINTS.position);
     const colorHost = element('div', 'dialkit-color-host dialkit-background-stop-color');
     const color = mountColorControl(colorHost, { label: `Stop ${index() + 1}`, value: stop().color, onChange: next => updateStop(id, { color: next }) });
+    const picker = colorHost.querySelector('.dialkit-color-control');
+    if (picker) pickerWatch.observe(picker, { attributes: true, attributeFilter: ['data-open'] });
     // The color's own opacity, so this field and the picker's Opacity track stay one value.
     const opacity = field({
       unit: '%',
@@ -662,13 +690,150 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
     rows.forEach(row => row.root.toggleAttribute('data-selected', row.id === selectedId));
   };
 
-  // Saved gradients belong to the panel; any background control in it shows them.
+  // The gizmo: opening a stop's color picker draws the gradient's handles and
+  // stops over the host's canvas (the background host's `gizmoTarget`), with
+  // that stop selected. The picker and the gizmo stay while the user works on
+  // the gradient: in the gizmo, the picker, the type menu and the gradient's
+  // own controls. A press anywhere else closes the picker, or Escape does,
+  // and the gizmo goes with it. The picker follows the selected stop.
+  /** The row whose color picker is open; undefined while the gizmo is off. */
+  let gizmoRowId: number | undefined;
+  let gizmo: ReturnType<typeof mountGradientGizmo> | undefined;
+  /** A row whose swatch was just pressed: its own click opens its picker. */
+  let pressedSwatchRowId: number | undefined;
+  const pickerOpen = (row: StopRow) => row.root.querySelector('.dialkit-color-control')?.hasAttribute('data-open') ?? false;
+  const openRowPicker = (row: StopRow) => row.root.querySelector<HTMLButtonElement>('.dialkit-color-swatch')?.click();
+  /** Under the panel: one less than the highest stacking order around the control. */
+  const gizmoZIndex = () => {
+    let highest = Number.NaN;
+    for (let el: HTMLElement | null = host; el; el = el.parentElement) {
+      const z = Number.parseInt(getComputedStyle(el).zIndex, 10);
+      if (Number.isFinite(z)) highest = Number.isFinite(highest) ? Math.max(highest, z) : z;
+    }
+    return Number.isFinite(highest) ? highest - 1 : 9998;
+  };
+  /** Read once when the gizmo opens: it reads every ancestor's style, too much for each render. */
+  let gizmoZ: number | undefined;
+  const gizmoProps = () => ({ gradient: value.gradient, selected: selectedIndex(), themeSource: getDialKitPortalRoot(host), zIndex: gizmoZ ??= gizmoZIndex() });
+  const ensureGizmo = () => {
+    if (gizmo || gizmoRowId === undefined || value.mode !== 'gradient') return;
+    const target = getBackgroundHost().gizmoTarget?.();
+    if (!target) return;
+    gizmo = mountGradientGizmo(target, gizmoProps(), {
+      onHandles: handles => setGradient({ ...value.gradient, handles }),
+      onSelect: index => { select(ids[index]); render(); followSelection(); },
+      onStopMove: (index, at) => updateStop(ids[index], { at }),
+      onStopAdd: at => { addStop(at); followSelection(); },
+    });
+  };
+  const enterGizmo = (rowId: number) => {
+    if (gizmoRowId === undefined) gizmoZ = gizmoZIndex();
+    gizmoRowId = rowId;
+    select(rowId);
+    root.dataset.gizmo = 'true';
+    document.addEventListener('keydown', gizmoEscape);
+    document.addEventListener('pointerdown', gizmoPressElsewhere, true);
+    ensureGizmo();
+    gizmo?.update(gizmoProps());
+  };
+  const exitGizmo = () => {
+    gizmoRowId = undefined;
+    gizmoZ = undefined;
+    delete root.dataset.gizmo;
+    document.removeEventListener('keydown', gizmoEscape);
+    document.removeEventListener('pointerdown', gizmoPressElsewhere, true);
+    gizmo?.destroy();
+    gizmo = undefined;
+  };
+  /** Closes the open picker, and the gizmo with it. */
+  const closeGizmo = () => {
+    const row = gizmoRowId === undefined ? undefined : rows.get(gizmoRowId);
+    if (row && pickerOpen(row)) row.color.close();
+    else exitGizmo();
+  };
+  /** Escape with the focus outside the picker. */
+  function gizmoEscape(event: KeyboardEvent) {
+    if (event.key !== 'Escape' || event.defaultPrevented || gizmoRowId === undefined || shapeMenu) return;
+    closeGizmo();
+  }
+  /**
+   * A press anywhere but the gizmo, the picker, the type menu or the
+   * gradient's own controls. It listens before anything can stop the press
+   * (the capture phase), so a host button that keeps its presses still ends
+   * the gizmo.
+   */
+  function gizmoPressElsewhere(event: PointerEvent) {
+    if (gizmoRowId === undefined) return;
+    const target = event.target as Node;
+    const inside = gradientPane.contains(target) || !!gizmo?.element.contains(target) || !!shapeMenu?.contains(target)
+      || [...document.querySelectorAll('.dialkit-color-popover')].some(popover => popover.contains(target));
+    if (!inside) closeGizmo();
+  }
+  /** When the selection moves to another stop, its row's picker opens in place of the old one. */
+  function followSelection() {
+    if (gizmoRowId === undefined || selectedId === gizmoRowId) return;
+    const next = rows.get(selectedId);
+    if (!next) return;
+    const previous = rows.get(gizmoRowId);
+    gizmoRowId = next.id;
+    if (previous && pickerOpen(previous)) previous.color.close();
+    // A press on the new row's swatch opens it with its own click.
+    if (pressedSwatchRowId !== next.id && !pickerOpen(next)) openRowPicker(next);
+  }
+  // A row's picker opening or closing turns the gizmo on or off.
+  const pickerWatch = new MutationObserver(records => {
+    for (const record of records) {
+      const picker = record.target as HTMLElement;
+      const row = [...rows.values()].find(r => r.root.contains(picker));
+      if (!row) continue;
+      if (picker.hasAttribute('data-open')) enterGizmo(row.id);
+      else if (row.id === gizmoRowId) exitGizmo();
+    }
+  });
+  // While the gizmo is on, presses and focus in the gradient's controls are
+  // part of its editing: they stop here, so the picker never reads them as
+  // a press elsewhere.
+  gradientPane.addEventListener('pointerdown', event => {
+    const target = event.target as Element;
+    const swatchRow = target.closest('.dialkit-color-swatch') ? target.closest('.dialkit-background-stop') : null;
+    pressedSwatchRowId = swatchRow ? [...rows.values()].find(row => row.root === swatchRow)?.id : undefined;
+    if (pressedSwatchRowId !== undefined) setTimeout(() => { pressedSwatchRowId = undefined; }, 0);
+    if (gizmoRowId !== undefined) { event.stopPropagation(); followSelection(); }
+  });
+  gradientPane.addEventListener('focusin', event => { if (gizmoRowId !== undefined) event.stopPropagation(); });
+
+  // Saved gradients belong to the panel; any background control in it shows
+  // them. A background host keeps them instead: the control shows the host's
+  // list and saves and deletes through the host, keeping no copy of its own.
+  let saving = false;
+  let gradientStatus = '';
+  const savedGradients = (): SavedGradient[] => hasBackgroundHost() ? getSavedGradients() : DialStore.getSavedGradients(props.panelId);
+  const canSave = () => !hasBackgroundHost() || !!getBackgroundHost().saveGradient;
+  const canDelete = () => !hasBackgroundHost() || !!getBackgroundHost().deleteGradient;
+  const savedKey = () => JSON.stringify([savedGradients(), canDelete()]);
   let savedSignature = '';
+  const deleteSaved = async (id: string, button: HTMLButtonElement) => {
+    if (!hasBackgroundHost()) { DialStore.deleteGradient(props.panelId, id); return; }
+    const remove = getBackgroundHost().deleteGradient;
+    if (!remove) return;
+    button.disabled = true;
+    try {
+      await remove(id);
+      // The host may have pushed its new list already.
+      if (getSavedGradients().some(saved => saved.id === id)) setSavedGradients(getSavedGradients().filter(saved => saved.id !== id));
+      gradientStatus = '';
+    } catch (error) {
+      gradientStatus = errorMessage(error, 'Could not delete the gradient.');
+      button.disabled = false;
+    }
+    render();
+  };
   const renderSaved = () => {
-    const saved = DialStore.getSavedGradients(props.panelId);
-    const signature = JSON.stringify(saved);
+    const saved = savedGradients();
+    const signature = savedKey();
     if (signature !== savedSignature) {
       savedSignature = signature;
+      const deletable = canDelete();
       savedList.replaceChildren(...saved.map(({ id, gradient }, i) => {
         const item = element('div', 'dialkit-background-saved-item');
         const swatch = element('button', 'dialkit-background-saved-swatch');
@@ -676,23 +841,52 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
         swatch.style.setProperty('--dial-gradient', backgroundGradientCss(gradient));
         swatch.addEventListener('click', () => emit({ ...value, mode: 'gradient', gradient: cloneGradient(gradient) }));
         hint(swatch, BG_HINTS.saved);
-        const remove = iconButton('dialkit-background-saved-delete', `Delete saved gradient ${i + 1}`, ICON_CLOSE);
-        hint(remove, BG_HINTS.savedDelete);
-        remove.addEventListener('click', () => DialStore.deleteGradient(props.panelId, id));
-        item.append(swatch, remove);
+        item.append(swatch);
+        if (deletable) {
+          const remove = iconButton('dialkit-background-saved-delete', `Delete saved gradient ${i + 1}`, ICON_CLOSE);
+          hint(remove, BG_HINTS.savedDelete);
+          remove.addEventListener('click', () => void deleteSaved(id, remove));
+          item.append(remove);
+        }
         return item;
       }));
     }
     savedList.hidden = saved.length === 0;
     saved.forEach(({ gradient }, i) => savedList.children[i]?.firstElementChild?.setAttribute('aria-pressed', String(sameGradient(gradient, value.gradient))));
+    saveButton.hidden = !canSave();
+    saveButton.disabled = saving;
+    saveButton.textContent = saving ? 'Saving…' : 'Save gradient';
+    gradientStatusLine.textContent = gradientStatus;
+    gradientStatusLine.hidden = !gradientStatus;
   };
-  saveButton.addEventListener('click', () => DialStore.saveGradient(props.panelId, value.gradient));
+  saveButton.addEventListener('click', async () => {
+    if (!hasBackgroundHost()) { DialStore.saveGradient(props.panelId, value.gradient); return; }
+    const save = getBackgroundHost().saveGradient;
+    if (!save || saving) return;
+    saving = true;
+    gradientStatus = '';
+    render();
+    try {
+      const saved = await save(cloneGradient(value.gradient));
+      // The host may have pushed its new list already; add the gradient only if it is missing.
+      if (saved && typeof saved.id === 'string' && !getSavedGradients().some(entry => entry.id === saved.id)) {
+        setSavedGradients([...getSavedGradients(), saved]);
+      }
+    } catch (error) {
+      gradientStatus = errorMessage(error, 'Could not save the gradient.');
+    } finally {
+      saving = false;
+      render();
+    }
+  });
   // A saved gradient renders the whole control, so the row it adds or takes
   // away springs with the control's height.
   const onStore = () => {
-    if (JSON.stringify(DialStore.getSavedGradients(props.panelId)) !== savedSignature) render();
+    if (savedKey() !== savedSignature) render();
   };
   let unsubscribe = DialStore.subscribe(props.panelId, onStore);
+  // A new host or a new saved list can change every tab.
+  const unsubscribeHost = subscribeBackgroundHost(() => render());
 
   // Media: a drop zone until a file is set, then its preview, which opens the options.
   const mediaPane = element('div', 'dialkit-background-pane dialkit-background-media');
@@ -733,8 +927,10 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
     reader.addEventListener('error', () => reject(new Error()));
     reader.readAsDataURL(file);
   });
+  const uploader = () => backgroundUploader(props.upload, readFile);
   const acceptFile = async (file: File | undefined) => {
-    if (!file || loading) return;
+    const upload = uploader();
+    if (!file || loading || !upload) return;
     const kind = file.type.startsWith('video/') ? 'video' : file.type.startsWith('image/') ? 'image' : undefined;
     if (!kind) { setStatus('Choose an image or a video file.'); return; }
     const current = ++request;
@@ -742,11 +938,11 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
     setStatus('');
     render();
     try {
-      const src = await (props.upload ?? readFile)(file);
+      const media = await upload(file, kind);
       if (current !== request) return;
       loading = false;
       // The file lands in the Media tab even if another tab was picked meanwhile.
-      emit({ ...value, media: { src, kind } });
+      emit({ ...value, media });
     } catch (error) {
       if (current !== request) return;
       setStatus(error instanceof Error && error.message ? error.message : 'This file could not be opened. Try another one.');
@@ -754,7 +950,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
       if (current === request && !destroyed) { loading = false; render(); }
     }
   };
-  const chooseFile = () => { if (!loading) fileInput.click(); };
+  const chooseFile = () => { if (!loading && uploader()) fileInput.click(); };
   drop.addEventListener('click', chooseFile);
   replaceButton.addEventListener('click', chooseFile);
   removeButton.addEventListener('click', () => {
@@ -768,7 +964,7 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
     void acceptFile(file);
   });
   mediaPane.addEventListener('dragover', event => {
-    if (!event.dataTransfer?.types.includes('Files')) return;
+    if (!event.dataTransfer?.types.includes('Files') || !uploader()) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = 'copy';
     mediaPane.dataset.dragging = 'true';
@@ -788,7 +984,9 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
   let sourceRatio: number | undefined;
   const renderMedia = () => {
     const media = value.media;
-    const key = media ? `${media.kind}:${media.src}` : '';
+    // A host that keeps a storage key in `src` gives the URL that shows it.
+    const url = media ? getBackgroundHost().mediaUrl?.(media) ?? media.src : '';
+    const key = media ? `${media.kind}:${media.src}:${url}` : '';
     if (key !== shownMedia) {
       shownMedia = key;
       sourceRatio = undefined;
@@ -799,19 +997,22 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
         sourceRatio = width / height;
         renderMedia();
       };
-      if (media?.kind === 'video') {
+      if (media && !url) {
+        // Nothing to show it by: the host's own name for it.
+        mediaElement = element('span', 'dialkit-background-media-key', media.src);
+      } else if (media?.kind === 'video') {
         const video = mediaElement = element('video', 'dialkit-background-media-element');
         video.muted = true;
         video.loop = true;
         video.playsInline = true;
         video.autoplay = true;
         video.addEventListener('loadedmetadata', () => measured(video.videoWidth, video.videoHeight));
-        video.src = media.src;
+        video.src = url;
       } else if (media) {
         mediaElement = element('span', 'dialkit-background-media-element');
         const image = new Image();
         image.addEventListener('load', () => measured(image.naturalWidth, image.naturalHeight));
-        image.src = media.src;
+        image.src = url;
       }
       if (mediaElement) frame.append(mediaElement);
     }
@@ -825,7 +1026,8 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
     const height = Math.min(1, box / (w / h)) * 100;
     Object.assign(frame.style, { width: `${width}%`, height: `${height}%`, left: `${(100 - width) / 2}%`, top: `${(100 - height) / 2}%` });
     mediaElement.removeAttribute('style');
-    for (const [property, css] of Object.entries(backgroundMediaCss(media, value.mediaDisplay))) mediaElement.style.setProperty(property, css);
+    if (!url) return;
+    for (const [property, css] of Object.entries(backgroundMediaCss({ ...media, src: url }, value.mediaDisplay))) mediaElement.style.setProperty(property, css);
   };
 
   // The media options, placed and dismissed like the color picker.
@@ -1106,15 +1308,24 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
       row.remove.setAttribute('aria-label', `Remove stop ${i + 1}`);
     });
     renderSelection();
+    if (gizmoRowId !== undefined && !rows.has(gizmoRowId)) exitGizmo();
+    if (gizmoRowId !== undefined && value.mode !== 'gradient') closeGizmo();
+    if (gizmoRowId !== undefined) {
+      ensureGizmo();
+      gizmo?.update(gizmoProps());
+    }
     addButton.disabled = stops.length >= MAX_GRADIENT_STOPS;
     renderSaved();
 
     const media = value.media;
+    const canUpload = !!uploader();
     drop.hidden = !!media;
-    drop.disabled = loading;
-    dropText.textContent = loading ? 'Loading…' : 'Upload or drop an image or a video';
+    drop.disabled = loading || !canUpload;
+    drop.toggleAttribute('data-unavailable', !canUpload);
+    dropText.textContent = !canUpload ? 'Uploads are not available here.' : loading ? 'Loading…' : 'Upload or drop an image or a video';
     preview.hidden = actions.hidden = !media;
-    replaceButton.disabled = removeButton.disabled = loading;
+    replaceButton.disabled = loading || !canUpload;
+    removeButton.disabled = loading;
     renderMedia();
     const display = value.mediaDisplay;
     const fit = display.fit === 'tile' ? `Tile ${Math.round(display.tileSize * 100)}%` : FIT_LABELS[display.fit];
@@ -1146,6 +1357,9 @@ export function mountBackgroundControl(host: HTMLElement, initial: BackgroundCon
       destroyed = true;
       request++;
       unsubscribe();
+      unsubscribeHost();
+      pickerWatch.disconnect();
+      exitGizmo();
       resize?.disconnect();
       endDrag();
       closeShapeMenu();
