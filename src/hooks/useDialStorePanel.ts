@@ -14,6 +14,9 @@ export interface UseDialStorePanelOptions {
   folderMode?: FolderMode;
   onClose?: () => void;
   toolbar?: boolean;
+  group?: string;
+  groupHeader?: boolean;
+  beside?: string;
 }
 
 // Serialize with a referential short-circuit: consumers can re-render at 60Hz
@@ -68,6 +71,9 @@ export function useDialStorePanel(
       folderMode: optionsRef.current.folderMode,
       onClose: optionsRef.current.onClose ? handleClose : undefined,
       toolbar: optionsRef.current.toolbar,
+      group: optionsRef.current.group,
+      groupHeader: optionsRef.current.groupHeader,
+      beside: optionsRef.current.beside,
     });
     return () => DialStore.unregisterPanel(panelId);
   }, [hasStableId, panelId, name, handleClose]);
@@ -90,9 +96,12 @@ export function useDialStorePanel(
       folderMode: optionsRef.current.folderMode,
       onClose: optionsRef.current.onClose ? handleClose : undefined,
       toolbar: optionsRef.current.toolbar,
+      group: optionsRef.current.group,
+      groupHeader: optionsRef.current.groupHeader,
+      beside: optionsRef.current.beside,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasStableId, panelId, name, serializedConfig, serializedShortcuts, serializedPersist, options.presetsEditable, options.presetsLockable, options.hint, options.folderMode, hasOnClose, options.toolbar]);
+  }, [hasStableId, panelId, name, serializedConfig, serializedShortcuts, serializedPersist, options.presetsEditable, options.presetsLockable, options.hint, options.folderMode, hasOnClose, options.toolbar, options.group, options.groupHeader, options.beside]);
 
   const subscribe = useCallback(
     (callback: () => void) => DialStore.subscribe(panelId, callback),

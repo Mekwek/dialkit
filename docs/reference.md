@@ -455,6 +455,14 @@ DialStore.getPanelOpen("card");
 
 With the panel option `onClose`, the X in an open panel's header calls it instead of closing the panel to a small button, so the host can remove the panel, as a selection panel does when it clears the selection. `toolbar: false` drops the versions and copy buttons from the panel's header. Both apply to a panel drawn on its own, not to a section of a shared shell. React only for now.
 
+### Panel groups
+
+By default, one panel shows on its own and two or more share one "DialKit" shell, each as a section. The panel option `group` gives panels a shell of their own: panels with the same `group` are sections of a shell titled by the group, apart from the "DialKit" shell. Shells stack in one column in the order their first panel registered (`--dial-panel-stack-gap` sets the space between them). In a group, `groupHeader: true` puts that panel's toolbar (versions and copy) in the group shell's header instead of a section of its own.
+
+`beside` names a group, or the one panel without a group, that a panel opens next to: out of the column, toward the middle of the screen, level with the root's top edge (`--dial-panel-beside-gap` sets the space). On a narrow screen it goes under the column. A panel whose `beside` names nothing that is shown, or that sits in an inline root, shows as a shell of its own; a panel with `beside` never joins the "DialKit" shell, and a panel in a group stays in its group.
+
+`DialRoot`'s `include` draws only some panels, so several roots can share one store: `include={{ ungrouped: true }}` draws the panels without a group, `include={{ groups: ["Scene"] }}` the panels in the listed groups, and both together draw both. React only for now.
+
 `Folder` also accepts controlled `open` and `onOpenChange` (`@open-change` in Vue), or an initial `defaultOpen`. Inline roots fill their container, ignore `position`, and disable collapse-to-icon interaction.
 
 ## Keyboard

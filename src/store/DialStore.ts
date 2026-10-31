@@ -324,6 +324,24 @@ export type PanelConfig = {
    * Default `true`.
    */
   toolbar?: boolean;
+  /**
+   * A group name. Panels that share one draw as sections of their own shell,
+   * titled by the group, apart from the shell of the panels without a group.
+   */
+  group?: string;
+  /**
+   * In a group, `true` puts this panel's toolbar (versions and copy) in the
+   * group shell's header, and drops its section.
+   */
+  groupHeader?: boolean;
+  /**
+   * The name of a group, or of the one panel without a group, that this
+   * panel opens next to: out of the column, on the side toward the middle of
+   * the screen, level with that shell's top edge. Without that shell, or in
+   * an inline root, the panel shows as a shell of its own. A panel in a
+   * group stays in its group.
+   */
+  beside?: string;
 };
 
 type Listener = () => void;
@@ -390,6 +408,24 @@ export type DialStorePanelOptions = {
    * Default `true`.
    */
   toolbar?: boolean;
+  /**
+   * A group name. Panels that share one draw as sections of their own shell,
+   * titled by the group, apart from the shell of the panels without a group.
+   */
+  group?: string;
+  /**
+   * In a group, `true` puts this panel's toolbar (versions and copy) in the
+   * group shell's header, and drops its section.
+   */
+  groupHeader?: boolean;
+  /**
+   * The name of a group, or of the one panel without a group, that this
+   * panel opens next to: out of the column, on the side toward the middle of
+   * the screen, level with that shell's top edge. Without that shell, or in
+   * an inline root, the panel shows as a shell of its own. A panel in a
+   * group stays in its group.
+   */
+  beside?: string;
 };
 
 type PersistConfig = {
@@ -757,6 +793,7 @@ class DialStoreClass {
       id, name, controls, values, shortcuts: shortcuts ?? {}, kind: options.kind,
       presetsEditable: options.presetsEditable, presetsLockable: options.presetsLockable, hint: options.hint,
       folderMode: options.folderMode, onClose: options.onClose, toolbar: options.toolbar,
+      group: options.group, groupHeader: options.groupHeader, beside: options.beside,
     };
     this.panels.set(id, panel);
     this.controlsByPanel.set(panel, controlsByPath);
@@ -802,7 +839,10 @@ class DialStoreClass {
       (options.hint ?? existing.hint) === existing.hint &&
       (options.folderMode ?? existing.folderMode) === existing.folderMode &&
       (options.onClose ?? existing.onClose) === existing.onClose &&
-      (options.toolbar ?? existing.toolbar) === existing.toolbar;
+      (options.toolbar ?? existing.toolbar) === existing.toolbar &&
+      (options.group ?? existing.group) === existing.group &&
+      (options.groupHeader ?? existing.groupHeader) === existing.groupHeader &&
+      (options.beside ?? existing.beside) === existing.beside;
     this.configurePanelRetention(id, options);
     if (unchanged) {
       // Same config, same options: nothing the panel draws can differ, so
@@ -822,6 +862,9 @@ class DialStoreClass {
       folderMode: options.folderMode ?? existing.folderMode,
       onClose: options.onClose ?? existing.onClose,
       toolbar: options.toolbar ?? existing.toolbar,
+      group: options.group ?? existing.group,
+      groupHeader: options.groupHeader ?? existing.groupHeader,
+      beside: options.beside ?? existing.beside,
     };
     this.panels.set(id, nextPanel);
     this.controlsByPanel.set(nextPanel, controlsByPath);

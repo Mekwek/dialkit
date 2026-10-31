@@ -99,6 +99,43 @@
   overflow: visible;
 }
 
+/* Several shells (panel groups) stack in one column, on the root's side. */
+.dialkit-panel[data-stacked] {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--dial-panel-stack-gap, 8px);
+}
+
+.dialkit-panel[data-stacked][data-origin-x="left"] {
+  align-items: flex-start;
+}
+
+/* A panel with `beside` comes right after the shell it names, out of the
+ * column: level with the root's top edge and past its side toward the
+ * middle of the screen, so the shells in the column keep their place and
+ * size. On a narrow screen it goes under that shell instead. */
+.dialkit-panel-wrapper[data-beside] {
+  position: absolute;
+  top: 0;
+}
+
+.dialkit-panel-wrapper[data-beside="left"] {
+  right: calc(100% + var(--dial-panel-beside-gap, 8px));
+}
+
+.dialkit-panel-wrapper[data-beside="right"] {
+  left: calc(100% + var(--dial-panel-beside-gap, 8px));
+}
+
+@media (max-width: 640px) {
+  .dialkit-panel-wrapper[data-beside] {
+    position: static;
+    display: flex;
+    margin-top: var(--dial-panel-beside-gap, 8px);
+  }
+}
+
 /* Inline mode */
 .dialkit-root[data-mode="inline"] {
   max-height: 100%;
@@ -560,42 +597,42 @@
   margin-top: 0;
 }
 
-.dialkit-panel[data-multiple="true"] .dialkit-panel-inner:not([data-collapsed="true"]) {
+:is(.dialkit-panel[data-multiple="true"], .dialkit-panel-wrapper[data-merged]) .dialkit-panel-inner:not([data-collapsed="true"]) {
   padding: 0 12px;
 }
 
-.dialkit-panel[data-multiple="true"] .dialkit-panel-inner:not([data-collapsed="true"]) .dialkit-panel-icon {
+:is(.dialkit-panel[data-multiple="true"], .dialkit-panel-wrapper[data-merged]) .dialkit-panel-inner:not([data-collapsed="true"]) .dialkit-panel-icon {
   top: 14px;
 }
 
-.dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-panel-header {
+:is(.dialkit-panel[data-multiple="true"], .dialkit-panel-wrapper[data-merged]) .dialkit-folder-root > .dialkit-panel-header {
   padding-top: 0;
   padding-bottom: 0;
   margin-bottom: 0;
 }
 
-.dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-panel-header > .dialkit-folder-header-top,
-.dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder > .dialkit-folder-header > .dialkit-folder-header-top {
+:is(.dialkit-panel[data-multiple="true"], .dialkit-panel-wrapper[data-merged]) .dialkit-folder-root > .dialkit-panel-header > .dialkit-folder-header-top,
+:is(.dialkit-panel[data-multiple="true"], .dialkit-panel-wrapper[data-merged]) .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder > .dialkit-folder-header > .dialkit-folder-header-top {
   height: 44px;
   padding: 0;
 }
 
-.dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder > .dialkit-folder-header {
+:is(.dialkit-panel[data-multiple="true"], .dialkit-panel-wrapper[data-merged]) .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder > .dialkit-folder-header {
   height: auto;
 }
 
-.dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner {
+:is(.dialkit-panel[data-multiple="true"], .dialkit-panel-wrapper[data-merged]) .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner {
   gap: 0;
 }
 
-.dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder {
+:is(.dialkit-panel[data-multiple="true"], .dialkit-panel-wrapper[data-merged]) .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder {
   margin: 0;
   padding-bottom: 0;
   border-top: 1px solid var(--dial-divider);
   border-bottom: none;
 }
 
-.dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder > .dialkit-folder-header .dialkit-folder-title {
+:is(.dialkit-panel[data-multiple="true"], .dialkit-panel-wrapper[data-merged]) .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder > .dialkit-folder-header .dialkit-folder-title {
   font-size: 15px;
   font-weight: 600;
   line-height: 20px;
@@ -603,24 +640,24 @@
   transform: translateZ(0);
 }
 
-.dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder > .dialkit-folder-header > .dialkit-folder-reset {
+:is(.dialkit-panel[data-multiple="true"], .dialkit-panel-wrapper[data-merged]) .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder > .dialkit-folder-header > .dialkit-folder-reset {
   font-size: 15px;
 }
 
-.dialkit-panel[data-multiple="true"] .dialkit-folder-title-root {
+:is(.dialkit-panel[data-multiple="true"], .dialkit-panel-wrapper[data-merged]) .dialkit-folder-title-root {
   line-height: 20px;
 }
 
-.dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder:first-child {
+:is(.dialkit-panel[data-multiple="true"], .dialkit-panel-wrapper[data-merged]) .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder:first-child {
   border-top: none;
   margin-top: 0;
 }
 
-.dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder + .dialkit-folder {
+:is(.dialkit-panel[data-multiple="true"], .dialkit-panel-wrapper[data-merged]) .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder + .dialkit-folder {
   margin-top: 0;
 }
 
-.dialkit-panel[data-multiple="true"] .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder > .dialkit-folder-content > .dialkit-folder-inner {
+:is(.dialkit-panel[data-multiple="true"], .dialkit-panel-wrapper[data-merged]) .dialkit-folder-root > .dialkit-folder-content > .dialkit-folder-inner > .dialkit-folder > .dialkit-folder-content > .dialkit-folder-inner {
   padding-top: 0;
   padding-bottom: 12px;
 }
@@ -780,7 +817,7 @@
   pointer-events: none;
 }
 
-.dialkit-panel[data-multiple="true"] .dialkit-panel-inner:not([data-collapsed="true"], .dialkit-panel-inline) > .dialkit-folder-root::after {
+:is(.dialkit-panel[data-multiple="true"], .dialkit-panel-wrapper[data-merged]) .dialkit-panel-inner:not([data-collapsed="true"], .dialkit-panel-inline) > .dialkit-folder-root::after {
   bottom: 0;
 }
 
