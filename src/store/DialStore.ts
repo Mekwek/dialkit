@@ -200,6 +200,13 @@ export type PanelConfig = {
   values: Record<string, DialValue>;
   shortcuts: Record<string, ShortcutConfig>;
   kind?: 'timeline';
+  /**
+   * `false` makes the version menu switch versions only: no rename, lock,
+   * delete or reorder (for example a viewer of a shared page). Default `true`.
+   */
+  presetsEditable?: boolean;
+  /** `false` drops the lock button from the version menu. Default `true`. */
+  presetsLockable?: boolean;
 };
 
 type Listener = () => void;
@@ -240,6 +247,13 @@ export type DialStorePanelOptions = {
   retainOnUnmount?: boolean;
   persist?: DialKitPersistOptions;
   kind?: 'timeline';
+  /**
+   * `false` makes the version menu switch versions only: no rename, lock,
+   * delete or reorder (for example a viewer of a shared page). Default `true`.
+   */
+  presetsEditable?: boolean;
+  /** `false` drops the lock button from the version menu. Default `true`. */
+  presetsLockable?: boolean;
 };
 
 type PersistConfig = {
@@ -565,7 +579,10 @@ class DialStoreClass {
     const previousBaseValues = this.baseValues.get(id) ?? persisted?.baseValues ?? persisted?.values ?? {};
     const baseValues = this.reconcileValues(defaultValues, previousBaseValues, controlsByPath);
 
-    const panel: PanelConfig = { id, name, controls, values, shortcuts: shortcuts ?? {}, kind: options.kind };
+    const panel: PanelConfig = {
+      id, name, controls, values, shortcuts: shortcuts ?? {}, kind: options.kind,
+      presetsEditable: options.presetsEditable, presetsLockable: options.presetsLockable,
+    };
     this.panels.set(id, panel);
     this.controlsByPanel.set(panel, controlsByPath);
     this.resetKeysByPanel.set(panel, resetKeys);
@@ -604,7 +621,11 @@ class DialStoreClass {
     this.configurePanelRetention(id, options);
     const nextValues = this.reconcileValues(defaultValues, existing.values, controlsByPath);
 
-    const nextPanel: PanelConfig = { id, name, controls, values: nextValues, shortcuts: shortcuts ?? existing.shortcuts, kind: options.kind ?? existing.kind };
+    const nextPanel: PanelConfig = {
+      id, name, controls, values: nextValues, shortcuts: shortcuts ?? existing.shortcuts, kind: options.kind ?? existing.kind,
+      presetsEditable: options.presetsEditable ?? existing.presetsEditable,
+      presetsLockable: options.presetsLockable ?? existing.presetsLockable,
+    };
     this.panels.set(id, nextPanel);
     this.controlsByPanel.set(nextPanel, controlsByPath);
     this.resetKeysByPanel.set(nextPanel, resetKeys);
@@ -1134,6 +1155,16 @@ class DialStoreClass {
 
   getSavedGradients(panelId: string): SavedGradient[] {
     return this.gradients.get(panelId) ?? [];
+  }
+
+  /** Whether the version menu may rename, lock, delete and reorder versions. See `presetsEditable`. */
+  isPresetsEditable(panelId: string): boolean {
+    return this.panels.get(panelId)?.presetsEditable ?? true;
+  }
+
+  /** Whether the version menu shows lock buttons: only on an editable menu. See `presetsLockable`. */
+  isPresetsLockable(panelId: string): boolean {
+    return this.isPresetsEditable(panelId) && (this.panels.get(panelId)?.presetsLockable ?? true);
   }
 
   getActivePresetId(panelId: string): string | null {

@@ -44,10 +44,14 @@ export const HINTS = {
 } as const;
 
 /** The version menu's hints, in the word its rows go by: versions, or a timeline's sequences. */
-export function versionHints(noun: 'version' | 'sequence' = 'version') {
-  return {
+export function versionHints(noun: 'version' | 'sequence' = 'version', { editable = true, lockable = true } = {}) {
+  if (!editable) return { versions: `Switches to another ${noun}.`, versionActions: '' };
+  return lockable ? {
     versions: `Switches to another ${noun}. Rename, lock or delete a ${noun} from the list.`,
     versionActions: `Shows rename, lock and delete for this ${noun}.`,
+  } : {
+    versions: `Switches to another ${noun}. Rename or delete a ${noun} from the list.`,
+    versionActions: `Shows rename and delete for this ${noun}.`,
   };
 }
 

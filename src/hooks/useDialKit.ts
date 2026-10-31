@@ -21,6 +21,13 @@ export interface UseDialOptions {
    */
   onReset?: (folderPath: string) => void;
   shortcuts?: Record<string, ShortcutConfig>;
+  /**
+   * `false` makes the version menu switch versions only: no rename, lock,
+   * delete or reorder (for example a viewer of a shared page). Default `true`.
+   */
+  presetsEditable?: boolean;
+  /** `false` drops the lock button from the version menu. Default `true`. */
+  presetsLockable?: boolean;
 }
 
 export interface DialKitController<T extends DialConfig> {
@@ -51,6 +58,8 @@ export function useDialKitController<T extends DialConfig>(
     persist: options?.persist,
     defaultCollapsed: options?.defaultCollapsed,
     shortcuts: options?.shortcuts,
+    presetsEditable: options?.presetsEditable,
+    presetsLockable: options?.presetsLockable,
   });
 
   const configRef = useRef(config);

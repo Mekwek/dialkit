@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { DialStore } from './store/DialStore';
+import { versionHints } from './hints';
 
 describe('version actions', () => {
   it('renames a version, trimming the name and ignoring an empty one', () => {
@@ -15,6 +16,41 @@ describe('version actions', () => {
       assert.equal(DialStore.getPresets(id)[0].name, 'Warm');
       assert.doesNotThrow(() => DialStore.renamePreset(id, 'missing', 'Other'));
     } finally { DialStore.unregisterPanel(id); }
+  });
+
+  it('lets a panel turn off editing or locking in its version menu, both on by default', () => {
+    const config = { amount: [0.5, 0, 1] as [number, number, number] };
+    DialStore.registerPanel('preset-options-default', 'Default', config);
+    DialStore.registerPanel('preset-options-read-only', 'Read only', config, undefined, { presetsEditable: false });
+    DialStore.registerPanel('preset-options-no-lock', 'No lock', config, undefined, { presetsLockable: false });
+    try {
+      assert.equal(DialStore.isPresetsEditable('preset-options-default'), true);
+      assert.equal(DialStore.isPresetsLockable('preset-options-default'), true);
+      // A menu that cannot edit cannot lock either.
+      assert.equal(DialStore.isPresetsEditable('preset-options-read-only'), false);
+      assert.equal(DialStore.isPresetsLockable('preset-options-read-only'), false);
+      assert.equal(DialStore.isPresetsEditable('preset-options-no-lock'), true);
+      assert.equal(DialStore.isPresetsLockable('preset-options-no-lock'), false);
+      // An update without the option keeps it; one with it changes it.
+      DialStore.updatePanel('preset-options-read-only', 'Read only', { amount: [0.5, 0, 2] });
+      assert.equal(DialStore.isPresetsEditable('preset-options-read-only'), false);
+      DialStore.updatePanel('preset-options-read-only', 'Read only', config, undefined, { presetsEditable: true });
+      assert.equal(DialStore.isPresetsEditable('preset-options-read-only'), true);
+      // An unknown panel has the defaults.
+      assert.equal(DialStore.isPresetsEditable('preset-options-unknown'), true);
+      assert.equal(DialStore.isPresetsLockable('preset-options-unknown'), true);
+    } finally {
+      DialStore.unregisterPanel('preset-options-default');
+      DialStore.unregisterPanel('preset-options-read-only');
+      DialStore.unregisterPanel('preset-options-no-lock');
+    }
+  });
+
+  it('names only the actions a version menu offers in its hints', () => {
+    assert.equal(versionHints('version').versions, 'Switches to another version. Rename, lock or delete a version from the list.');
+    assert.equal(versionHints('version', { lockable: false }).versions, 'Switches to another version. Rename or delete a version from the list.');
+    assert.equal(versionHints('version', { lockable: false }).versionActions, 'Shows rename and delete for this version.');
+    assert.equal(versionHints('sequence', { editable: false }).versions, 'Switches to another sequence.');
   });
 
   it('reorders versions, keeping unlisted ones after the listed ones', () => {

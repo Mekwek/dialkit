@@ -13,6 +13,13 @@ import {
 export interface DialTimelineOptions {
   id?: string;
   persist?: DialKitPersistOptions;
+  /**
+   * `false` makes the sequence menu switch sequences only: no rename, lock,
+   * delete or reorder (for example a viewer of a shared page). Default `true`.
+   */
+  presetsEditable?: boolean;
+  /** `false` drops the lock button from the sequence menu. Default `true`. */
+  presetsLockable?: boolean;
   /** Start playing on mount. Defaults to true. */
   autoplay?: boolean;
   /**

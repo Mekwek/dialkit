@@ -73,6 +73,20 @@ describe('DialKit framework values', () => {
     } finally { act(() => renderer?.unmount()); }
   });
 
+  it('passes the React version menu options to the store', () => {
+    const id = 'preset-options-react';
+    let renderer: ReactTestRenderer | undefined;
+    function Harness() {
+      useDialKitController('Options', { amount: [0.5, 0, 1] }, { id, presetsEditable: false, presetsLockable: false });
+      return null;
+    }
+    try {
+      act(() => { renderer = create(createElement(Harness)); });
+      assert.equal(DialStore.isPresetsEditable(id), false);
+      assert.equal(DialStore.isPresetsLockable(id), false);
+    } finally { act(() => renderer?.unmount()); }
+  });
+
   it('renders a segmented select as radios, naming the group and icon options', () => {
     const changes: string[] = [];
     const props = {

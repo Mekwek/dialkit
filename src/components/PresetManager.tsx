@@ -21,7 +21,10 @@ interface PresetManagerProps {
 
 export function PresetManager({ panelId, presets, activePresetId, onAdd, noun = 'version' }: PresetManagerProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const hints = versionHints(noun);
+  // A read-only menu only switches versions; a menu without locks drops the lock buttons.
+  const editable = DialStore.isPresetsEditable(panelId);
+  const lockable = DialStore.isPresetsLockable(panelId);
+  const hints = versionHints(noun, { editable, lockable });
   useHints(true);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -61,10 +64,10 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, noun = 
     };
 
     const stopKeyboard = observeDropdownKeyboard(triggerRef.current!, () => dropdownRef.current, close, 'presets');
-    const stopMenu = observePresetMenu(() => dropdownRef.current, (ids) => DialStore.reorderPresets(panelId, ids));
+    const stopMenu = editable ? observePresetMenu(() => dropdownRef.current, (ids) => DialStore.reorderPresets(panelId, ids)) : () => {};
     document.addEventListener('mousedown', handler);
     return () => { stopKeyboard(); stopMenu(); document.removeEventListener('mousedown', handler); };
-  }, [isOpen, close, panelId]);
+  }, [isOpen, close, panelId, editable]);
 
   const handleSelect = (presetId: string | null) => {
     if (presetId) {
@@ -165,8 +168,8 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, noun = 
                     <>
                       <button type="button" className="dialkit-preset-name">{preset.name}</button>
                       {/* Keyboard order: the icon shown at rest (the menu icon, or a locked row's lock), then the actions it reveals. */}
-                      <div className="dialkit-preset-actions">
-                        {preset.locked ? lockButton(preset) : (
+                      {editable && <div className="dialkit-preset-actions">
+                        {preset.locked && lockable ? lockButton(preset) : (
                           <button type="button" className="dialkit-preset-more" aria-label={`More actions for ${preset.name}`} data-hint={hints.versionActions}>
                             <Icon paths={ICON_MORE} />
                           </button>
@@ -176,13 +179,13 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, noun = 
                         </button>
                         {!preset.locked && (
                           <>
-                            {lockButton(preset)}
+                            {lockable && lockButton(preset)}
                             <button type="button" className="dialkit-preset-delete" aria-label={`Delete ${preset.name}`} onClick={() => DialStore.deletePreset(panelId, preset.id)}>
                               <Icon paths={ICON_TRASH} />
                             </button>
                           </>
                         )}
-                      </div>
+                      </div>}
                     </>
                   )}
                 </div>
