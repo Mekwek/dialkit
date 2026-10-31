@@ -196,6 +196,28 @@ function DialTimelineDock({
     getTimelineVisibility
   );
 
+  // Publishes the room the dock takes at the bottom of the viewport (its
+  // height and the gap below it) as --dialkit-timeline-clearance on <html>,
+  // so a host can float its own UI above the dock in CSS. 0 while hidden.
+  const hasTimelines = timelines.length > 0;
+  useEffect(() => {
+    const dock = dockRef.current;
+    if (!dock || typeof ResizeObserver === 'undefined') return;
+    const root = document.documentElement;
+    const publish = () => {
+      const rect = dock.getBoundingClientRect();
+      const clearance = rect.height > 0 ? Math.round(window.innerHeight - rect.top) : 0;
+      root.style.setProperty('--dialkit-timeline-clearance', `${Math.max(0, clearance)}px`);
+    };
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(dock);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty('--dialkit-timeline-clearance');
+    };
+  }, [dockVisible, hasTimelines, mounted]);
+
   if (!mounted || typeof window === 'undefined' || timelines.length === 0) {
     return null;
   }
@@ -592,6 +614,10 @@ const TimelineSection = memo(function TimelineSection({
   const [expandedTracks, setExpandedTracks] = useState<Set<string>>(() => new Set());
   const [zoom, setZoom] = useState(1);
   const [viewStart, setViewStart] = useState(0);
+  // The fold clips only while it moves. Motion writes its own values back on
+  // every render, so this rides in the animated values, not a hand-set style.
+  const [foldSettled, setFoldSettled] = useState(false);
+  if (!open && foldSettled) setFoldSettled(false);
 
   const subscribeValues = useCallback(
     (callback: () => void) => DialStore.subscribe(meta.id, callback),
@@ -1327,72 +1353,89 @@ const TimelineSection = memo(function TimelineSection({
         </div>
       </div>
 
-      {open && (
-        <div
-          ref={bodyRef}
-          className="dialkit-timeline-body"
-          onPointerDown={handleTrackPointerDown}
-          onPointerMove={handleTrackPointerMove}
-          onPointerUp={finishTrackScrub}
-          onPointerCancel={finishTrackScrub}
-          onLostPointerCapture={finishTrackScrub}
-        >
-          <div className="dialkit-timeline-grid">
-            <div className="dialkit-timeline-row dialkit-timeline-ruler-row">
-              <div className="dialkit-timeline-label" />
-              <div
-                ref={laneAreaRef}
-                className="dialkit-timeline-ruler"
-                onPointerDown={handleRulerPointerDown}
-                onPointerMove={handleRulerPointerMove}
-                onPointerUp={handleRulerPointerUp}
-                onPointerCancel={handleRulerPointerCancel}
-                onLostPointerCapture={handleRulerPointerCancel}
-                data-hint={TIMELINE_HINTS.ruler}
-              >
-                {fineTicks.map((t) => (
-                  <div key={`fine:${t}`} className="dialkit-timeline-tick dialkit-timeline-tick-fine" style={{ left: (t - safeViewStart) * pxPerSecond }} />
-                ))}
-                {mediumTicks.map((t) => (
-                  <div key={`medium:${t}`} className="dialkit-timeline-tick dialkit-timeline-tick-medium" style={{ left: (t - safeViewStart) * pxPerSecond }} />
-                ))}
-                {majorTicks.map((t) => (
-                  <div key={t} className="dialkit-timeline-tick" style={{ left: (t - safeViewStart) * pxPerSecond }}>
-                    <span className="dialkit-timeline-tick-label">{formatRulerSeconds(t, majorStep)}</span>
+      {/* The body folds open and shut with the panel folders' spring. It
+          clips only while it moves, so once open the pan bar and the
+          playhead flag can hang past its edges. */}
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            key="body"
+            className="dialkit-timeline-fold"
+            initial={{ height: 0, overflow: 'clip' }}
+            animate={{ height: 'auto', overflow: foldSettled ? 'visible' : 'clip' }}
+            exit={{ height: 0, overflow: 'clip' }}
+            transition={{ type: 'spring', visualDuration: 0.35, bounce: 0.1 }}
+            onAnimationComplete={(definition) => {
+              if (open && (definition as { height?: unknown }).height === 'auto') setFoldSettled(true);
+            }}
+          >
+            <div
+              ref={bodyRef}
+              className="dialkit-timeline-body"
+              onPointerDown={handleTrackPointerDown}
+              onPointerMove={handleTrackPointerMove}
+              onPointerUp={finishTrackScrub}
+              onPointerCancel={finishTrackScrub}
+              onLostPointerCapture={finishTrackScrub}
+            >
+              <div className="dialkit-timeline-grid">
+                <div className="dialkit-timeline-row dialkit-timeline-ruler-row">
+                  <div className="dialkit-timeline-label" />
+                  <div
+                    ref={laneAreaRef}
+                    className="dialkit-timeline-ruler"
+                    onPointerDown={handleRulerPointerDown}
+                    onPointerMove={handleRulerPointerMove}
+                    onPointerUp={handleRulerPointerUp}
+                    onPointerCancel={handleRulerPointerCancel}
+                    onLostPointerCapture={handleRulerPointerCancel}
+                    data-hint={TIMELINE_HINTS.ruler}
+                  >
+                    {fineTicks.map((t) => (
+                      <div key={`fine:${t}`} className="dialkit-timeline-tick dialkit-timeline-tick-fine" style={{ left: (t - safeViewStart) * pxPerSecond }} />
+                    ))}
+                    {mediumTicks.map((t) => (
+                      <div key={`medium:${t}`} className="dialkit-timeline-tick dialkit-timeline-tick-medium" style={{ left: (t - safeViewStart) * pxPerSecond }} />
+                    ))}
+                    {majorTicks.map((t) => (
+                      <div key={t} className="dialkit-timeline-tick" style={{ left: (t - safeViewStart) * pxPerSecond }}>
+                        <span className="dialkit-timeline-tick-label">{formatRulerSeconds(t, majorStep)}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
-            {rows}
+                </div>
+                {rows}
 
-            {pxPerSecond > 0 && (
-              <TimelinePlayheadFlag
-                id={meta.id}
-                duration={meta.duration}
-                pxPerSecond={pxPerSecond}
-                viewStart={safeViewStart}
-                viewEnd={viewEnd}
-                laneWidth={laneWidth}
-                rulerRef={laneAreaRef}
-                onResetView={resetView}
-              />
-            )}
-          </div>
-          {zoom > 1 && (
-            <div className="dialkit-timeline-scroll-row">
-              <div className="dialkit-timeline-label" />
-              <div
-                ref={horizontalScrollRef}
-                className="dialkit-timeline-horizontal-scroll"
-                onScroll={handleHorizontalScroll}
-                aria-label="Timeline horizontal scroll"
-              >
-                <div style={{ width: laneWidth * zoom }} />
+                {pxPerSecond > 0 && (
+                  <TimelinePlayheadFlag
+                    id={meta.id}
+                    duration={meta.duration}
+                    pxPerSecond={pxPerSecond}
+                    viewStart={safeViewStart}
+                    viewEnd={viewEnd}
+                    laneWidth={laneWidth}
+                    rulerRef={laneAreaRef}
+                    onResetView={resetView}
+                  />
+                )}
               </div>
+              {zoom > 1 && (
+                <div className="dialkit-timeline-scroll-row">
+                  <div className="dialkit-timeline-label" />
+                  <div
+                    ref={horizontalScrollRef}
+                    className="dialkit-timeline-horizontal-scroll"
+                    onScroll={handleHorizontalScroll}
+                    aria-label="Timeline horizontal scroll"
+                  >
+                    <div style={{ width: laneWidth * zoom }} />
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {popover && (
         <ClipPopover

@@ -3345,6 +3345,12 @@
   transform: rotate(180deg);
 }
 
+/* The box that animates the body's height. flow-root keeps the body's
+   margins inside it, so the fold includes them. */
+.dialkit-timeline-fold {
+  display: flow-root;
+}
+
 .dialkit-timeline-body {
   margin-top: 0;
   overflow: visible;
