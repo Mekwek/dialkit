@@ -18,8 +18,10 @@ import { PadGroup } from './PadGroup';
 import { AnchorControl } from './AnchorControl';
 import { Fields } from './Fields';
 import { BackgroundControl } from './BackgroundControl';
+import { LayerListControl } from './LayerListControl';
 import type { DialPadValue } from '../dial-pad';
 import type { AnchorValue } from '../anchor';
+import { layerAction, type LayersValue } from '../layers';
 import { hasActionHints } from '../hints';
 import { useHints } from '../hooks/useHints';
 import type { BackgroundValue } from '../background';
@@ -305,6 +307,21 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration,
             hint={control.hint}
             value={value as AnchorValue}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
+          />
+        );
+
+      case 'layers':
+        return (
+          <LayerListControl
+            key={control.path}
+            label={control.label}
+            hint={control.hint}
+            value={value as LayersValue}
+            addLabel={control.layers?.addLabel}
+            addDisabled={control.layers?.addDisabled}
+            empty={control.layers?.empty}
+            onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
+            onAction={(kind, id) => DialStore.triggerAction(panelId, layerAction(control.path, kind, id))}
           />
         );
 

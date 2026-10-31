@@ -207,6 +207,33 @@ const config = {
 
 `_row: true` shows a folder's first two controls side by side, with no folder header. Each value keeps its own path: `values.type.size` is a number. The theme variable `--dial-row-label-style` picks where the labels sit: `2` (the default) inside the controls, as a full row has them, and `1` as a title above each control. With labels inside, `_inlineLabels` maps a child key to a shorter name, or to `""` to show only the value; the title above keeps the full name. A segmented select fills its half of the row. `--dial-row-column-gap` sets the space between the two halves.
 
+### Layer lists
+
+```ts
+import { parseLayerAction } from "dialkit";
+
+const config = {
+  layers: {
+    type: "layers",
+    default: { items: [{ id: "title", label: "Title" }], selected: "title" },
+    addLabel: "+ Text",
+    empty: "No text yet.",
+  },
+} satisfies DialConfig;
+
+useDialKit("Text", config, {
+  onAction: (action) => {
+    const row = parseLayerAction("layers", action);
+    if (row?.kind === "add") addLayer();
+    if (row?.kind === "duplicate") duplicateLayer(row.id!);
+    if (row?.kind === "delete") deleteLayer(row.id!);
+  },
+});
+```
+
+A layer list shows a wide add button, then one row per layer, top first. Its value is `{ items, selected }`: each item has an `id`, a `label`, and optionally `hidden` and `offCanvas` (a reason the layer is not on the canvas, shown as the row's hint and with a dimmer eye). The app owns the layers and writes the whole value. The list writes back the three things a user changes in place: the selection, a row's eye, and the order (drag a row, or Alt+Up and Alt+Down). Add, duplicate and delete create or remove layers, so they arrive as actions: `parseLayerAction(path, action)` reads them, and `layerAction(path, kind, id?)` builds one. `addDisabled: true` turns the add button off, and `--dial-layer-row-height` sets the row height. `normalizeLayersValue` makes any value valid: rows without an id or label drop, a repeated id keeps its first row, and a selection that names no row becomes `null`.
+
+
 ### Backgrounds
 
 ```ts

@@ -59,6 +59,9 @@ export { AnchorControl } from './components/AnchorControl';
 export type { AnchorControlProps } from './anchor-control';
 export { BackgroundControl } from './components/BackgroundControl';
 export type { BackgroundControlProps } from './background-control';
+export { LayerListControl } from './components/LayerListControl';
+export type { LayerListControlProps } from './layer-list-control';
+export { layerAction, normalizeLayersValue, parseLayerAction } from './layers';
 export { backgroundGradientCss, backgroundMediaCss, paintGradient } from './background';
 export { PresetManager } from './components/PresetManager';
 export { VersionGallery } from './components/VersionGallery';
@@ -117,6 +120,10 @@ export type {
   InlineLabelsConfig,
   PadGroupConfig,
   FieldsConfig,
+  LayerItem,
+  LayersConfig,
+  LayersValue,
+  LayerActionKind,
   ControlMeta,
   PanelConfig,
   FolderMode,
