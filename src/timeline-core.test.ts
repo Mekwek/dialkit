@@ -401,14 +401,15 @@ describe('single track', () => {
     near(dragTimelineClip('move', span('c'), -3, bounds('c')).at, 4);
     near(dragTimelineClip('move', span('b'), -1, bounds('b')).at, 2);
     near(dragTimelineClip('move', span('b'), 9, bounds('b')).at, 3.5);
-    // The last clip runs up to the timeline end.
-    near(dragTimelineClip('move', span('c'), 9, bounds('c')).at, 8);
+    // The last clip runs past the timeline end, which grows to cover it.
+    near(dragTimelineClip('move', span('c'), 9, bounds('c')).at, 14.5);
+    assert.equal(bounds('c').end, Number.POSITIVE_INFINITY);
   });
 
   it('resizes stop at the neighbors, both edges', () => {
     near(dragTimelineClip('end', span('a'), 1, bounds('a')).duration, 2);
     assert.deepEqual(dragTimelineClip('start', span('c'), -3, bounds('c')), { at: 4, duration: 3.5 });
-    near(dragTimelineClip('end', span('c'), 9, bounds('c')).duration, 4.5);
+    near(dragTimelineClip('end', span('c'), 9, bounds('c')).duration, 11);
   });
 
   it('names the start of the next clip on a single track only', () => {

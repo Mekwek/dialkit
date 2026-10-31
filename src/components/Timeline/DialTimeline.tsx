@@ -1444,7 +1444,7 @@ const TimelineSection = memo(function TimelineSection({
           values={values}
           theme={theme}
           maxDuration={singleTrack && !popover.stepKey
-            ? getDragBounds(popover.clip.key).end - computeClipStaticFromValues(values, popover.clip, meta.duration).at
+            ? singleTrackMaxDuration(getDragBounds(popover.clip.key), computeClipStaticFromValues(values, popover.clip, meta.duration).at)
             : undefined}
           physicsSettleCap={singleTrack && !popover.stepKey
             ? physicsSettleCapFor(getDragBounds(popover.clip.key), computeClipStaticFromValues(values, popover.clip, meta.duration).at)
@@ -1698,6 +1698,12 @@ function PopoverPanelControls({ panelId }: { panelId: string }) {
       animateControls
     />
   );
+}
+
+// On a single track a clip grows up to the next clip of its lane. The last
+// one has no cap: growing it grows the timeline.
+function singleTrackMaxDuration(bounds: TimelineClipDragBounds, at: number): number | undefined {
+  return Number.isFinite(bounds.end) ? bounds.end - at : undefined;
 }
 
 // A physics spring sets its own bar length, so its sliders stop where the

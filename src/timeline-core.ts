@@ -1471,7 +1471,9 @@ export function timelineClipSpans(
 export type TimelineClipDragBounds = {
   /** Earliest start: 0, or the end of the clip before it on a single track. */
   start: number;
-  /** Latest end: the timeline end, or the start of the clip after it on a single track. */
+  /** Latest end: the timeline end, or on a single track the start of the
+   * clip after it on its lane. The last clip of a single-track lane has no
+   * end (Infinity): dragging or resizing it past the end grows the timeline. */
   end: number;
   /** Single track: the start of the clip after it, when there is one. */
   next?: number;
@@ -1490,7 +1492,7 @@ export function timelineClipDragBounds(
   const index = spans.findIndex((span) => span.key === key);
   const self = spans[index];
   let start = 0;
-  let end = timelineDuration;
+  let end = options.singleTrack && self ? Number.POSITIVE_INFINITY : timelineDuration;
   let next: number | undefined;
   const targets = new Set<number>();
   spans.forEach((span, i) => {
