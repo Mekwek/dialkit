@@ -1,4 +1,9 @@
-import type { ControlMeta } from './store/DialStore';
+import type { ControlMeta, PanelConfig } from './store/DialStore';
+
+// A panel's own folder mode wins over its root's accordion setting.
+export function isAccordionPanel(panel: Pick<PanelConfig, 'folderMode'>, rootAccordion: boolean): boolean {
+  return panel.folderMode ? panel.folderMode === 'accordion' : rootAccordion;
+}
 
 // In accordion mode only one top-level folder is open. When several start
 // open, the first one wins, so the panel never shows more than one.

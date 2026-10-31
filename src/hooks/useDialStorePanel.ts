@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useSyncExternalStore } from 'react';
 import { DialStore } from '../store/DialStore';
-import type { DialConfig, DialKitPersistOptions, DialValue, ShortcutConfig } from '../store/DialStore';
+import type { DialConfig, DialKitPersistOptions, DialValue, FolderMode, ShortcutConfig } from '../store/DialStore';
 
 export interface UseDialStorePanelOptions {
   id?: string;
@@ -11,6 +11,7 @@ export interface UseDialStorePanelOptions {
   presetsEditable?: boolean;
   presetsLockable?: boolean;
   hint?: string;
+  folderMode?: FolderMode;
 }
 
 // Serialize with a referential short-circuit: consumers can re-render at 60Hz
@@ -57,6 +58,7 @@ export function useDialStorePanel(
       presetsEditable: optionsRef.current.presetsEditable,
       presetsLockable: optionsRef.current.presetsLockable,
       hint: optionsRef.current.hint,
+      folderMode: optionsRef.current.folderMode,
     });
     return () => DialStore.unregisterPanel(panelId);
   }, [hasStableId, panelId, name]);
@@ -76,9 +78,10 @@ export function useDialStorePanel(
       presetsEditable: optionsRef.current.presetsEditable,
       presetsLockable: optionsRef.current.presetsLockable,
       hint: optionsRef.current.hint,
+      folderMode: optionsRef.current.folderMode,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasStableId, panelId, name, serializedConfig, serializedShortcuts, serializedPersist, options.presetsEditable, options.presetsLockable, options.hint]);
+  }, [hasStableId, panelId, name, serializedConfig, serializedShortcuts, serializedPersist, options.presetsEditable, options.presetsLockable, options.hint, options.folderMode]);
 
   const subscribe = useCallback(
     (callback: () => void) => DialStore.subscribe(panelId, callback),

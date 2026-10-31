@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { DialStore, PanelConfig } from '../store/DialStore';
 import { TimelineStore } from '../store/TimelineStore';
-import { pruneOpenFolders } from '../accordion';
+import { isAccordionPanel, pruneOpenFolders } from '../accordion';
 import { isDevDefault } from '../env';
 import { Folder } from './Folder';
 import { Panel } from './Panel';
@@ -254,7 +254,7 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
                   key={panel.id}
                   panel={panel}
                   defaultOpen={true}
-                  accordion={accordion}
+                  accordion={isAccordionPanel(panel, accordion)}
                   openFolder={openFolders[panel.id]}
                   onOpenFolderChange={(path) => setOpenFolder(panel.id, path)}
                   variant="section"
@@ -271,7 +271,7 @@ export function DialRoot({ position = 'top-right', defaultOpen = true, mode = 'p
               panel={panel}
               defaultOpen={inline || defaultOpen}
               inline={inline}
-              accordion={accordion}
+              accordion={isAccordionPanel(panel, accordion)}
               openFolder={openFolders[panel.id]}
               onOpenFolderChange={(path) => setOpenFolder(panel.id, path)}
               toolbarExtra={timelineToggle}

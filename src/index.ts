@@ -115,6 +115,7 @@ export type {
   SelectAddConfig,
   ControlMeta,
   PanelConfig,
+  FolderMode,
   VisibleWhen,
   VisibleWhenValue,
   ControlWithVisibility,

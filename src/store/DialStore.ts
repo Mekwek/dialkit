@@ -214,6 +214,9 @@ export type ControlMeta = {
   hint?: string;
 };
 
+/** How a panel's top-level folders open. See `PanelConfig.folderMode`. */
+export type FolderMode = 'independent' | 'accordion';
+
 export type PanelConfig = {
   id: string;
   name: string;
@@ -230,6 +233,12 @@ export type PanelConfig = {
   presetsLockable?: boolean;
   /** A short sentence about the panel, shown on its header while the hint key is held. */
   hint?: string;
+  /**
+   * How the panel's top-level folders open: `'accordion'` keeps one open at
+   * a time, `'independent'` lets each open on its own. Without it, the panel
+   * follows its DialRoot's `accordion`.
+   */
+  folderMode?: FolderMode;
 };
 
 type Listener = () => void;
@@ -279,6 +288,12 @@ export type DialStorePanelOptions = {
   presetsLockable?: boolean;
   /** A short sentence about the panel, shown on its header while the hint key is held. */
   hint?: string;
+  /**
+   * How the panel's top-level folders open: `'accordion'` keeps one open at
+   * a time, `'independent'` lets each open on its own. Without it, the panel
+   * follows its DialRoot's `accordion`.
+   */
+  folderMode?: FolderMode;
 };
 
 type PersistConfig = {
@@ -607,6 +622,7 @@ class DialStoreClass {
     const panel: PanelConfig = {
       id, name, controls, values, shortcuts: shortcuts ?? {}, kind: options.kind,
       presetsEditable: options.presetsEditable, presetsLockable: options.presetsLockable, hint: options.hint,
+      folderMode: options.folderMode,
     };
     this.panels.set(id, panel);
     this.controlsByPanel.set(panel, controlsByPath);
@@ -651,6 +667,7 @@ class DialStoreClass {
       presetsEditable: options.presetsEditable ?? existing.presetsEditable,
       presetsLockable: options.presetsLockable ?? existing.presetsLockable,
       hint: options.hint ?? existing.hint,
+      folderMode: options.folderMode ?? existing.folderMode,
     };
     this.panels.set(id, nextPanel);
     this.controlsByPanel.set(nextPanel, controlsByPath);

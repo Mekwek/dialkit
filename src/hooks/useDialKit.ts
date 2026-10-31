@@ -5,6 +5,7 @@ import type {
   DialKitPersistOptions,
   DialKitValueUpdates,
   DialValue,
+  FolderMode,
   ResolvedValues,
   ShortcutConfig,
 } from '../store/DialStore';
@@ -30,6 +31,12 @@ export interface UseDialOptions {
   presetsLockable?: boolean;
   /** A short sentence about the panel, shown on its header while the hint key is held. */
   hint?: string;
+  /**
+   * How the panel's top-level folders open: `'accordion'` keeps one open at
+   * a time, `'independent'` lets each open on its own. Without it, the panel
+   * follows its DialRoot's `accordion`.
+   */
+  folderMode?: FolderMode;
 }
 
 export interface DialKitController<T extends DialConfig> {
@@ -63,6 +70,7 @@ export function useDialKitController<T extends DialConfig>(
     presetsEditable: options?.presetsEditable,
     presetsLockable: options?.presetsLockable,
     hint: options?.hint,
+    folderMode: options?.folderMode,
   });
 
   const configRef = useRef(config);

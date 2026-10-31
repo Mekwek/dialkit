@@ -73,17 +73,19 @@ describe('DialKit framework values', () => {
     } finally { act(() => renderer?.unmount()); }
   });
 
-  it('passes the React version menu options to the store', () => {
+  it('passes the React panel options to the store', () => {
     const id = 'preset-options-react';
     let renderer: ReactTestRenderer | undefined;
     function Harness() {
-      useDialKitController('Options', { amount: [0.5, 0, 1] }, { id, presetsEditable: false, presetsLockable: false });
+      useDialKitController('Options', { amount: [0.5, 0, 1] }, { id, presetsEditable: false, presetsLockable: false, hint: 'Options.', folderMode: 'accordion' });
       return null;
     }
     try {
       act(() => { renderer = create(createElement(Harness)); });
       assert.equal(DialStore.isPresetsEditable(id), false);
       assert.equal(DialStore.isPresetsLockable(id), false);
+      assert.equal(DialStore.getPanel(id)?.hint, 'Options.');
+      assert.equal(DialStore.getPanel(id)?.folderMode, 'accordion');
     } finally { act(() => renderer?.unmount()); }
   });
 

@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { getDefaultOpenFolder, pruneOpenFolders, resolveOpenFolder } from './accordion';
+import { getDefaultOpenFolder, isAccordionPanel, pruneOpenFolders, resolveOpenFolder } from './accordion';
 import { DialStore, type DialConfig } from './store/DialStore';
 
 const controlsOf = (config: DialConfig) => {
@@ -12,6 +12,24 @@ const controlsOf = (config: DialConfig) => {
 };
 
 describe('accordion folders', () => {
+  it('lets a panel choose its own folder mode over the mode of its root', () => {
+    const id = 'accordion-mode';
+    try {
+      DialStore.registerPanel(id, 'Mode', { camera: { distance: [8, 1, 20] } }, undefined, { folderMode: 'accordion' });
+      const panel = DialStore.getPanel(id)!;
+      assert.equal(panel.folderMode, 'accordion');
+      assert.equal(isAccordionPanel(panel, false), true);
+      DialStore.updatePanel(id, 'Mode', { camera: { distance: [8, 1, 20] } }, undefined, { folderMode: 'independent' });
+      assert.equal(isAccordionPanel(DialStore.getPanel(id)!, true), false);
+      // An update without the option keeps it.
+      DialStore.updatePanel(id, 'Mode', { camera: { distance: [8, 1, 30] } });
+      assert.equal(DialStore.getPanel(id)!.folderMode, 'independent');
+    } finally { DialStore.unregisterPanel(id); }
+    // Without its own mode, a panel follows its root.
+    assert.equal(isAccordionPanel({}, true), true);
+    assert.equal(isAccordionPanel({}, false), false);
+  });
+
   it('opens only the first top-level folder that starts open', () => {
     const controls = controlsOf({
       radius: [12, 0, 32],
