@@ -20,6 +20,10 @@ import {
   formatClock,
   formatStepLabel,
   normalizeLoopMode,
+  parseClipSegments,
+  segmentedMinDuration,
+  segmentWidths,
+  singleTrackLanes,
   normalizeTimelineValuesForCopy,
   timelineClipDragBounds,
   timelineClipProgress,
@@ -570,6 +574,114 @@ describe('clip tails', () => {
     near(dragTimelineClip('end', spans[1], 1.3, bounds('b', 4.5), true).duration, 4);
     // Nothing reachable: the free drag.
     near(dragTimelineClip('end', spans[1], 1.3, { ...bounds('b'), targets: [20] }, true).duration, 3.3);
+  });
+});
+
+describe('single track lanes and segmented clips', () => {
+  // Theca's shape: versions on the main lane, one text clip per lane.
+  const config = {
+    v1: { at: 0, duration: 3, label: 'Version 1' },
+    v2: { at: 3, duration: 3, label: 'Version 2' },
+    t1: { at: 1, duration: 4, lane: 'text-a', laneLabel: 'Title', segments: { in: 0.5, out: 0.75 } },
+    t2: { at: 0, duration: 2, lane: 'text-b', label: 'Caption', segments: { in: 0.4, out: 0.4 } },
+    t3: { at: 6, duration: 1, lane: 'text-a', segments: { in: 0.2, out: 0.2 } },
+  } as unknown as TimelineConfig;
+  const parsed = parseTimelineConfig(config);
+  const meta = (key: string) => parsed.clips.find((clip) => clip.key === key)!;
+  // Spans as the dock reads them, from stored values.
+  const stored: Record<string, number> = {};
+  for (const [key, clip] of Object.entries(config)) {
+    const { at, duration } = clip as { at: number; duration: number };
+    stored[`${key}.at`] = at;
+    stored[`${key}.duration`] = duration;
+  }
+  const spans = timelineClipSpans(stored, parsed.clips, 12);
+  const span = (key: string) => spans.find((candidate) => candidate.key === key)!;
+  const bounds = (key: string) => timelineClipDragBounds(spans, key, 12, { singleTrack: true });
+
+  it('parses lane, laneLabel and segments into clip meta', () => {
+    assert.equal(meta('t1').lane, 'text-a');
+    assert.equal(meta('t1').laneLabel, 'Title');
+    assert.deepEqual(meta('t1').segments, { in: 0.5, out: 0.75 });
+    assert.equal(meta('t2').laneLabel, undefined);
+    for (const field of ['lane', 'laneLabel', 'segments']) {
+      assert.equal(field in meta('v1'), false, `v1 has ${field}`);
+    }
+    assert.deepEqual(singleTrackLanes(parsed.clips), ['text-a', 'text-b']);
+    assert.equal(span('t1').lane, 'text-a');
+    assert.equal(span('t1').minDuration, 1.25);
+    assert.equal('lane' in span('v1'), false);
+  });
+
+  it('rejects malformed segments', () => {
+    assert.equal(parseClipSegments(undefined), undefined);
+    assert.equal(parseClipSegments({ in: 0, out: 0 }), undefined);
+    assert.deepEqual(parseClipSegments({ in: -1, out: 0.3 }), { in: 0, out: 0.3 });
+  });
+
+  it('counts lane clips into the timeline duration', () => {
+    const laneLast = parseTimelineConfig({
+      v1: { at: 0, duration: 2 },
+      t1: { at: 1, duration: 4, lane: 'text', segments: { in: 0.5, out: 0.5 } },
+    } as unknown as TimelineConfig);
+    near(laneLast.duration, 5);
+    near(computeStaticTimeline(laneLast, { 't1.at': 3 } as never).duration, 7);
+  });
+
+  it('never makes a segmented bar shorter than in + out at parse time', () => {
+    const short = parseTimelineConfig({
+      t: { at: 0, duration: 0.5, lane: 'text', segments: { in: 0.4, out: 0.6 } },
+    } as unknown as TimelineConfig);
+    near(short.duration, 1);
+    near(((short.dialConfig.t as Record<string, unknown>).duration as number[])[0], 1);
+  });
+
+  it('a lane clip is bounded and snapped by its own lane only', () => {
+    // t1 overlaps both versions in time; on its own lane nothing blocks it
+    // to the left, and t3 (same lane, at 6) bounds it to the right.
+    const t1 = bounds('t1');
+    assert.equal(t1.start, 0);
+    assert.equal(t1.end, 6);
+    assert.equal(t1.next, 6);
+    assert.deepEqual(t1.targets, [6, 7]);
+    near(dragTimelineClip('move', span('t1'), -5, t1).at, 0);
+    // The main lane never sees lane clips either.
+    assert.deepEqual(bounds('v2').targets, [0, 3]);
+    // t3 moving left stops butted against t1's end (5).
+    near(dragTimelineClip('move', span('t3'), -2, bounds('t3')).at, 5);
+    // Rows ignore lanes.
+    assert.deepEqual(timelineClipDragBounds(spans, 'v2', 12).targets, [0, 1, 2, 3, 5, 6, 7]);
+  });
+
+  it('a segmented end resize floors at in + out', () => {
+    const min = segmentedMinDuration({ in: 0.5, out: 0.75 });
+    near(min, 1.25);
+    near(dragTimelineClip('end', span('t1'), -3.8, bounds('t1')).duration, 1.25);
+    near(dragTimelineClip('end', span('t1'), 0.5, bounds('t1')).duration, 4.5);
+    // A snapping end resize skips a target that would cut into in or out.
+    near(dragTimelineClip('end', span('t1'), -3.5, { ...bounds('t1'), targets: [1.5, 2.5] }, true).duration, 1.5);
+  });
+
+  it('a segmented start resize keeps the end fixed and floors at in + out', () => {
+    assert.deepEqual(dragTimelineClip('start', span('t1'), 3.9, bounds('t1')), { at: 3.75, duration: 1.25 });
+    assert.deepEqual(dragTimelineClip('start', span('t1'), -0.5, bounds('t1')), { at: 0.5, duration: 4.5 });
+    // Snapping: a target inside the in/out span is skipped.
+    assert.deepEqual(dragTimelineClip('start', span('t1'), 2, { ...bounds('t1'), targets: [4.5, 3] }, true), { at: 3, duration: 2 });
+  });
+
+  it('rounds in + out up to the bar step, so idle never goes negative', () => {
+    near(segmentedMinDuration({ in: 0.333, out: 0.333 }), 0.67);
+    near(segmentedMinDuration(undefined), 0.05);
+  });
+
+  it('splits a bar so only idle changes with its length', () => {
+    assert.deepEqual(segmentWidths(4, { in: 0.5, out: 0.75 }), { in: 0.5, idle: 2.75, out: 0.75 });
+    assert.deepEqual(segmentWidths(1.25, { in: 0.5, out: 0.75 }), { in: 0.5, idle: 0, out: 0.75 });
+    // A stale bar shorter than in + out: the parts shrink in proportion.
+    const squeezed = segmentWidths(0.625, { in: 0.5, out: 0.75 });
+    near(squeezed.in, 0.25);
+    near(squeezed.out, 0.375);
+    near(squeezed.idle, 0);
   });
 });
 

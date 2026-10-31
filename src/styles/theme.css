@@ -3640,6 +3640,8 @@
   --dial-timeline-sel-grip-hover: rgba(0, 0, 0, 0.3);
   --dial-timeline-tail-border: rgba(255, 255, 255, 0.35);
   --dial-timeline-tail-fill: rgba(255, 255, 255, 0.05);
+  --dial-timeline-seg-shade: rgba(0, 0, 0, 0.35);
+  --dial-timeline-seg-line: rgba(255, 255, 255, 0.14);
 }
 
 .dialkit-root[data-theme="light"] .dialkit-timeline-section {
@@ -3665,6 +3667,8 @@
   --dial-timeline-sel-grip-hover: rgba(255, 255, 255, 0.5);
   --dial-timeline-tail-border: rgba(0, 0, 0, 0.3);
   --dial-timeline-tail-fill: rgba(0, 0, 0, 0.05);
+  --dial-timeline-seg-shade: rgba(255, 255, 255, 0.5);
+  --dial-timeline-seg-line: rgba(0, 0, 0, 0.14);
 }
 
 @media (prefers-color-scheme: light) {
@@ -3691,6 +3695,8 @@
     --dial-timeline-sel-grip-hover: rgba(255, 255, 255, 0.5);
     --dial-timeline-tail-border: rgba(0, 0, 0, 0.3);
     --dial-timeline-tail-fill: rgba(0, 0, 0, 0.05);
+    --dial-timeline-seg-shade: rgba(255, 255, 255, 0.5);
+    --dial-timeline-seg-line: rgba(0, 0, 0, 0.14);
   }
 }
 
@@ -3777,6 +3783,46 @@
 
 .dialkit-timeline-clip-tail[data-lit] {
   opacity: 1;
+}
+
+/* Extra lanes (clips with a `lane`) bring back the label column, so each
+   row says what it holds. The ruler and the playhead read the same width,
+   so every row stays aligned. */
+.dialkit-timeline-section[data-track="single"][data-lanes] .dialkit-timeline-body {
+  --dial-timeline-label-w: 72px;
+}
+
+.dialkit-timeline-section[data-track="single"] .dialkit-timeline-row[data-lane] .dialkit-timeline-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+/* A segmented bar: `in` and `out` are fixed parts at each end, drawn as a
+   ramp toward the lane so they read as the clip appearing and leaving. The
+   plain bar between them is idle. */
+.dialkit-timeline-clip-seg {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.dialkit-timeline-clip-seg[data-seg="in"] {
+  left: 0;
+  background: linear-gradient(90deg, var(--dial-timeline-seg-shade), transparent);
+  box-shadow: inset -1px 0 0 var(--dial-timeline-seg-line);
+}
+
+.dialkit-timeline-clip-seg[data-seg="out"] {
+  right: 0;
+  background: linear-gradient(270deg, var(--dial-timeline-seg-shade), transparent);
+  box-shadow: inset 1px 0 0 var(--dial-timeline-seg-line);
+}
+
+.dialkit-timeline-section[data-track="single"] .dialkit-timeline-clip:is([data-selected], [data-dragging]) .dialkit-timeline-clip-seg {
+  --dial-timeline-seg-line: var(--dial-timeline-sel-grip);
 }
 
 .dialkit-timeline-section[data-track="single"] .dialkit-timeline-clip-duration {

@@ -24,6 +24,12 @@ export type TimelineClipMeta = {
   /** Seconds the clip keeps acting past its bar. Counted into the
    * timeline's end; a single track draws it as a fading tail. */
   tail?: number;
+  /** Single track: the extra row this clip lives on (unset = main lane). */
+  lane?: string;
+  /** Single track: the row label of `lane`. */
+  laneLabel?: string;
+  /** Single track: fixed in and out parts (seconds); resizing edits only idle. */
+  segments?: { in: number; out: number };
   /** The bar's hint, shown while the hint key is held over it. */
   hint?: string;
 };

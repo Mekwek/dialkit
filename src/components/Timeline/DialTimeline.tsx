@@ -18,6 +18,9 @@ import {
   computeClipStaticFromValues,
   dragTimelineClip,
   normalizeTimelineValuesForCopy,
+  segmentedMinDuration,
+  segmentWidths,
+  singleTrackLanes,
   TIMELINE_MIN_CLIP_DURATION,
   timelineClipDragBounds,
   timelineClipProgress,
@@ -916,15 +919,21 @@ const TimelineSection = memo(function TimelineSection({
 
   // Rows: clips in config order, grouped clips under a collapsible header,
   // props clips expandable into full per-property track rows. A single
-  // track puts every clip on one lane, named inside its bar.
+  // track puts every clip on one lane, named inside its bar, and each
+  // `lane` on a row of its own below it, labeled.
   const rows: ReactNode[] = [];
   let lastGroup: string | undefined;
-  if (singleTrack) {
+  const lanes = singleTrack ? singleTrackLanes(meta.clips) : [];
+  if (singleTrack) for (const lane of [undefined, ...lanes]) {
+    const laneClips = meta.clips.filter((clip) => clip.lane === lane);
+    const label = lane === undefined
+      ? null
+      : laneClips.find((clip) => clip.laneLabel)?.laneLabel ?? laneClips[0]?.label ?? lane;
     rows.push(
-      <div key="single" className="dialkit-timeline-row">
-        <div className="dialkit-timeline-label" />
+      <div key={lane === undefined ? 'single' : `lane:${lane}`} className="dialkit-timeline-row" data-lane={lane === undefined ? undefined : ''}>
+        <div className="dialkit-timeline-label">{label}</div>
         <div className="dialkit-timeline-lane">
-          {meta.clips.map((clip) => {
+          {laneClips.map((clip) => {
             const stat = computeClipStaticFromValues(values, clip, meta.duration);
             return (
               <TimelineClip
@@ -1076,7 +1085,13 @@ const TimelineSection = memo(function TimelineSection({
   }
 
   return (
-    <div className="dialkit-timeline-section" role="group" aria-label={meta.name} data-track={singleTrack ? 'single' : undefined}>
+    <div
+      className="dialkit-timeline-section"
+      role="group"
+      aria-label={meta.name}
+      data-track={singleTrack ? 'single' : undefined}
+      data-lanes={lanes.length > 0 || undefined}
+    >
       <div className="dialkit-timeline-header" data-open={open || undefined}>
         <div className="dialkit-timeline-transport">
           <PlayPauseButton id={meta.id} />
@@ -1355,7 +1370,8 @@ function ClipPopover({
   const targetPath = stepKey ? `${clip.key}.${stepKey}` : clip.key;
   const durationMeta = getControlAt(panelId, `${targetPath}.duration`);
   const durationValue = durationMeta ? values[durationMeta.path] : undefined;
-  const durationMin = Math.max(TIMELINE_MIN_CLIP_DURATION, durationMeta?.min ?? 0);
+  // A segmented clip's bar never drops below its in and out parts.
+  const durationMin = Math.max(stepKey ? TIMELINE_MIN_CLIP_DURATION : segmentedMinDuration(clip.segments), durationMeta?.min ?? 0);
   const durationMax = maxDuration === undefined
     ? durationMeta?.max
     : Math.max(durationMin, Math.min(durationMeta?.max ?? maxDuration, maxDuration));
@@ -1365,7 +1381,8 @@ function ClipPopover({
         onChange: (next: number) => DialStore.updateValue(
           panelId,
           durationMeta.path,
-          durationMax === undefined ? next : Math.min(next, durationMax)
+          // A typed value skips the slider's own bounds.
+          clamp(next, durationMin, durationMax ?? Number.POSITIVE_INFINITY)
         ),
         min: durationMin,
         max: durationMax,
@@ -1605,7 +1622,13 @@ function TimelineClip({
         );
       } else if (!delayMode && drag.mode !== 'boundary' && !(drag.mode === 'start' && steps)) {
         // Clip bars. Cmd (Ctrl elsewhere) snaps to other clips and the playhead.
-        const next = dragTimelineClip(drag.mode, { at: drag.at, duration: drag.duration, tail }, dt, drag.bounds, e.metaKey || e.ctrlKey);
+        const next = dragTimelineClip(
+          drag.mode,
+          { at: drag.at, duration: drag.duration, tail, minDuration: segmentedMinDuration(clip.segments) },
+          dt,
+          drag.bounds,
+          e.metaKey || e.ctrlKey
+        );
         DialStore.updateValues(timelineId, {
           ...(drag.mode !== 'end' && { [`${clip.key}.at`]: next.at }),
           ...(drag.mode !== 'move' && { [`${clip.key}.duration`]: next.duration }),
@@ -1641,7 +1664,7 @@ function TimelineClip({
         });
       }
     },
-    [baseAt, clip.key, delayMode, onDrag, pxPerSecond, steps, tail, timelineId, timelineDuration]
+    [baseAt, clip.key, clip.segments, delayMode, onDrag, pxPerSecond, steps, tail, timelineId, timelineDuration]
   );
 
   const handlePointerUp = useCallback(
@@ -1682,6 +1705,9 @@ function TimelineClip({
       });
     }
   }
+  // A single-track segmented bar draws its in and out parts at its ends; idle
+  // is what lies between.
+  const segmentParts = single && clip.segments ? segmentWidths(duration, clip.segments) : null;
   // Boundary handles sit at each leg's right edge (the last one resizes the
   // final leg — the end of the bar).
   const boundaryOffsets: number[] = [];
@@ -1735,6 +1761,7 @@ function TimelineClip({
         data-composite={composite || undefined}
         data-selected={selected || undefined}
         data-dragging={dragging || undefined}
+        data-segmented={segmentParts ? '' : undefined}
         style={{
           // A single-track bar draws 1px short of its span on each side, so butted bars keep a hairline of lane between them.
           left: (at - viewStart) * pxPerSecond + (single ? 1 : 0),
@@ -1784,6 +1811,12 @@ function TimelineClip({
         ) : (
           <>
             {single && <ClipFill id={timelineId} at={at} duration={duration} />}
+            {segmentParts && (
+              <>
+                <span className="dialkit-timeline-clip-seg" data-seg="in" style={{ width: segmentParts.in * pxPerSecond }} aria-hidden="true" />
+                <span className="dialkit-timeline-clip-seg" data-seg="out" style={{ width: segmentParts.out * pxPerSecond }} aria-hidden="true" />
+              </>
+            )}
             {resizable && <div className="dialkit-timeline-clip-handle" data-edge="start" />}
             {single && <span className="dialkit-timeline-clip-name">{clip.label}</span>}
             {width > 56 && <span className="dialkit-timeline-clip-duration">{durationText}</span>}

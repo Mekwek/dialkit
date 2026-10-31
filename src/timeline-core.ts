@@ -96,6 +96,23 @@ type TimelineClipBase = {
   /** The name shown in the dock. Defaults to the config key, formatted. */
   label?: string;
   /**
+   * Single track: puts the clip on its own row below the main lane. Clips
+   * with the same `lane` share that row, without overlap; rows follow the
+   * order lanes first appear in the config. Lane clips never bound or snap
+   * against clips on another lane, never take the `pinStart` pin, and count
+   * toward the timeline's end like any clip. Ignored in rows mode, where
+   * every clip has a row of its own.
+   */
+  lane?: string;
+  /** The row label of the clip's `lane`. Falls back to the clip's `label`. */
+  laneLabel?: string;
+  /**
+   * Single track: draws the bar in three parts, `in` and `out` (seconds) at
+   * its ends and the idle part between them. Resizing either edge changes
+   * only the idle part, so the bar is never shorter than `in + out`.
+   */
+  segments?: TimelineClipSegments;
+  /**
    * Hints for the clip's editor controls, by key: `at`, `duration`,
    * `transition`, `from` or `to`. Each shows while the hint key (H) is held
    * over its control. `duration` replaces the curve's own Duration hint.
@@ -104,6 +121,9 @@ type TimelineClipBase = {
   /** The clip bar's own hint, shown while the hint key (H) is held over it. */
   hint?: string;
 };
+
+/** The fixed parts at each end of a segmented clip, in seconds. */
+export type TimelineClipSegments = { in: number; out: number };
 
 // The three clip shapes are mutually exclusive, encoded with optional-never
 // fields so TypeScript rejects ambiguous combinations (`steps` + `to`,
@@ -368,6 +388,52 @@ function defaultClipDuration(clip: TimelineClipConfig): number {
   return clip.from || clip.to ? transitionDefaultDuration(DEFAULT_CLIP_TRANSITION) : 0;
 }
 
+/** A clip's `segments`, both parts non-negative seconds. Undefined when
+ * missing, malformed, or both parts are zero. */
+export function parseClipSegments(value: unknown): TimelineClipSegments | undefined {
+  if (!isPlainObject(value)) return undefined;
+  const segIn = nonNegativeFinite(value.in);
+  const segOut = nonNegativeFinite(value.out);
+  return segIn + segOut > 0 ? { in: segIn, out: segOut } : undefined;
+}
+
+/** The shortest a bar may be: `in + out` for a segmented clip (rounded up to
+ * the 2-decimal edit step, so idle never dips below zero), the standard
+ * minimum otherwise. */
+export function segmentedMinDuration(segments: TimelineClipSegments | undefined): number {
+  return segments
+    ? Math.max(TIMELINE_MIN_CLIP_DURATION, Math.ceil((segments.in + segments.out) * 100 - 1e-6) / 100)
+    : TIMELINE_MIN_CLIP_DURATION;
+}
+
+/** How a bar of `duration` splits into in, idle and out. A bar shorter than
+ * `in + out` (a stale stored value) shrinks both parts in proportion, with
+ * no idle, so the parts never overflow the bar. */
+export function segmentWidths(
+  duration: number,
+  segments: TimelineClipSegments
+): { in: number; idle: number; out: number } {
+  const span = Math.max(0, duration);
+  const fixed = segments.in + segments.out;
+  if (fixed <= 0) return { in: 0, idle: span, out: 0 };
+  if (fixed > span) {
+    const scale = span / fixed;
+    return { in: segments.in * scale, idle: 0, out: segments.out * scale };
+  }
+  return { in: segments.in, idle: span - fixed, out: segments.out };
+}
+
+// A segmented clip's bar covers at least its in and out parts.
+function clipBarDuration(clip: TimelineClipConfig): number {
+  const base = defaultClipDuration(clip);
+  const segments = parseClipSegments(clip.segments);
+  return segments ? Math.max(base, segments.in + segments.out) : base;
+}
+
+function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
 export function normalizeLoopMode(value: unknown): TimelineClipLoop {
   // `mirror` no longer exists — sequences whose last step returns home
   // replaced it. Legacy values fold into `repeat`.
@@ -448,7 +514,7 @@ export function parseTimelineConfig(config: TimelineConfig): ParsedTimeline {
 
   let maxEnd = 0;
   for (const { clip } of entries) {
-    maxEnd = Math.max(maxEnd, nonNegativeFinite(clip.at) + defaultClipDuration(clip) + nonNegativeFinite(clip.tail));
+    maxEnd = Math.max(maxEnd, nonNegativeFinite(clip.at) + clipBarDuration(clip) + nonNegativeFinite(clip.tail));
   }
 
   // Exact fit: the window ends when the content does, so a looping timeline
@@ -487,7 +553,7 @@ export function parseTimelineConfig(config: TimelineConfig): ParsedTimeline {
     const hasSteps = Boolean(clip.steps?.length) && !clip.props;
     const hasProps = Boolean(clip.props);
     const single = isTransitionConfig(clip.transition) ? clip.transition : undefined;
-    const total = defaultClipDuration(clip);
+    const total = clipBarDuration(clip);
     const defaultCurve = single ?? DEFAULT_CLIP_TRANSITION;
     const clipAt = nonNegativeFinite(clip.at);
 
@@ -608,6 +674,9 @@ export function parseTimelineConfig(config: TimelineConfig): ParsedTimeline {
 
     setDialPath(dialConfig, path, clipDial);
 
+    const lane = nonEmptyString(clip.lane);
+    const laneLabel = nonEmptyString(clip.laneLabel);
+    const segments = parseClipSegments(clip.segments);
     clips.push({
       key: path,
       label: typeof clip.label === 'string' && clip.label ? clip.label : formatLabel(childKey),
@@ -617,6 +686,9 @@ export function parseTimelineConfig(config: TimelineConfig): ParsedTimeline {
       stepKeys,
       tracks,
       ...(nonNegativeFinite(clip.tail) > 0 ? { tail: nonNegativeFinite(clip.tail) } : {}),
+      ...(lane ? { lane } : {}),
+      ...(lane && laneLabel ? { laneLabel } : {}),
+      ...(segments ? { segments } : {}),
       ...(typeof clip.hint === 'string' && clip.hint ? { hint: clip.hint } : {}),
     });
   });
@@ -1351,7 +1423,21 @@ export type TimelineClipSpan = {
   duration: number;
   /** Seconds the clip keeps acting past its bar (see the clip's `tail`). */
   tail?: number;
+  /** The clip's `lane`; unset is the main lane. */
+  lane?: string;
+  /** The shortest the bar may be (see `segmentedMinDuration`). */
+  minDuration?: number;
 };
+
+/** The `lane` values of a clip list, in config order. The main lane (unset)
+ * is not one of them. */
+export function singleTrackLanes(clips: { lane?: string }[]): string[] {
+  const lanes: string[] = [];
+  for (const clip of clips) {
+    if (clip.lane !== undefined && !lanes.includes(clip.lane)) lanes.push(clip.lane);
+  }
+  return lanes;
+}
 
 /** Every clip's place on the timeline, from flat stored values. */
 export function timelineClipSpans(
@@ -1361,7 +1447,14 @@ export function timelineClipSpans(
 ): TimelineClipSpan[] {
   return clips.map((clip) => {
     const { at, duration } = computeClipStaticFromValues(values, clip, timelineDuration);
-    return { key: clip.key, at, duration, ...(clip.tail ? { tail: clip.tail } : {}) };
+    return {
+      key: clip.key,
+      at,
+      duration,
+      ...(clip.tail ? { tail: clip.tail } : {}),
+      ...(clip.lane !== undefined ? { lane: clip.lane } : {}),
+      ...(clip.segments ? { minDuration: segmentedMinDuration(clip.segments) } : {}),
+    };
   });
 }
 
@@ -1374,7 +1467,8 @@ export type TimelineClipDragBounds = {
   /** Single track: the start of the clip after it, when there is one. */
   next?: number;
   /** Every other clip's start and end, plus the playhead when given. On a
-   * single track, also the end of each tail that reaches past its bar. */
+   * single track, also the end of each tail that reaches past its bar, and
+   * only clips on the same lane count. */
   targets: number[];
 };
 
@@ -1392,6 +1486,8 @@ export function timelineClipDragBounds(
   const targets = new Set<number>();
   spans.forEach((span, i) => {
     if (i === index) return;
+    // A single track's lanes never bound or snap against each other.
+    if (options.singleTrack && self && span.lane !== self.lane) return;
     targets.add(round2(span.at));
     targets.add(round2(span.at + span.duration));
     if (!options.singleTrack) return;
@@ -1428,17 +1524,19 @@ function nearestWithin(candidates: number[], wanted: number, min: number, max: n
  * `snap` the clip's start or end lands only on a target — the reachable one
  * closest to the pointer — and moves freely when none is reachable. A clip
  * with a `tail` can also land its tail's end on a target, by a move or by
- * its end edge.
+ * its end edge. `minDuration` floors a resize (`segmentedMinDuration` for a
+ * segmented clip, so only its idle part shrinks).
  */
 export function dragTimelineClip(
   mode: 'move' | 'start' | 'end',
-  clip: { at: number; duration: number; tail?: number },
+  clip: { at: number; duration: number; tail?: number; minDuration?: number },
   delta: number,
   bounds: TimelineClipDragBounds,
   snap = false
 ): { at: number; duration: number } {
   const { at, duration } = clip;
   const tail = clip.tail ?? 0;
+  const min = clip.minDuration ?? TIMELINE_MIN_CLIP_DURATION;
   if (mode === 'move') {
     const max = Math.max(bounds.start, bounds.end - duration);
     const wanted = at + delta;
@@ -1459,13 +1557,13 @@ export function dragTimelineClip(
       ? nearestWithin(
           bounds.targets.flatMap((t) => (tail > 0 ? [t - at, t - at - tail] : [t - at])),
           wanted,
-          TIMELINE_MIN_CLIP_DURATION,
+          min,
           max
         )
       : undefined;
-    return { at, duration: clamp(round2(landed ?? wanted), TIMELINE_MIN_CLIP_DURATION, max) };
+    return { at, duration: clamp(round2(landed ?? wanted), min, max) };
   }
-  const max = at + duration - TIMELINE_MIN_CLIP_DURATION;
+  const max = at + duration - min;
   const wanted = at + delta;
   const landed = snap ? nearestWithin(bounds.targets, wanted, bounds.start, max) : undefined;
   const next = clamp(round2(landed ?? wanted), bounds.start, max);
