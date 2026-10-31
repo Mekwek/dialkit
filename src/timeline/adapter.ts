@@ -43,10 +43,17 @@ export interface DialTimelineOptions {
    * take it. Defaults to false. React dock only for now.
    */
   pinStart?: boolean;
+  /**
+   * Called with a clip's key when its bar is clicked (pressed and released
+   * without a drag), before the dock opens the clip's popover. Fires for
+   * every clip. To mark the clip the host is editing, name it with
+   * `TimelineStore.setHighlight(id, key)`. React dock only for now.
+   */
+  onClipClick?: (key: string) => void;
 }
 
 /** Meta a host sets beside the config, for `buildTimelineMeta`. */
-export type TimelineMetaExtras = Pick<DialTimelineOptions, 'pinStart'>;
+export type TimelineMetaExtras = Pick<DialTimelineOptions, 'pinStart' | 'onClipClick'>;
 
 export type TimelineActions = {
   play: () => void;
@@ -88,6 +95,7 @@ export function buildTimelineMeta(
     track: single ? 'single' : 'rows',
     clips: parsed.clips,
     ...(single && extras.pinStart ? { pinStart: true } : {}),
+    ...(extras.onClipClick ? { onClipClick: extras.onClipClick } : {}),
   };
 }
 

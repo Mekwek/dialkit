@@ -868,15 +868,17 @@ const TimelineSection = memo(function TimelineSection({
 
   // A props clip's bar is a read-only composite — clicking it expands the
   // tracks instead of opening an editor.
+  const onClipClick = meta.onClipClick;
   const handleBarClick = useCallback(
     (clip: TimelineClipMeta, rect: DOMRect, stepKey?: string) => {
+      onClipClick?.(clip.key);
       if (!stepKey && clip.tracks?.length) {
         toggleTracks(clip.key);
         return;
       }
       openClipPopover(clip, rect, stepKey);
     },
-    [openClipPopover, toggleTracks]
+    [onClipClick, openClipPopover, toggleTracks]
   );
 
   // Where a dragged bar may go: the whole timeline, or the gap between its
@@ -991,6 +993,7 @@ const TimelineSection = memo(function TimelineSection({
                 fixedDuration={stat.isPhysics}
                 single
                 pinned={clip.key === pinnedKey}
+                highlighted={clip.key === meta.highlightedClip}
                 lifted={reorderCue?.key === clip.key}
                 onLift={liftClip}
                 onReorderHover={hoverReorder}
@@ -1582,6 +1585,7 @@ function TimelineClip({
   composite = false,
   single = false,
   pinned = false,
+  highlighted = false,
   lifted = false,
   onLift,
   onReorderHover,
@@ -1613,6 +1617,9 @@ function TimelineClip({
    * `pinStart` option): it does not move along the lane and has no start
    * handle. */
   pinned?: boolean;
+  /** Single track: the clip the host is editing (see
+   * `TimelineStore.setHighlight`), marked with a moving dashed ring. */
+  highlighted?: boolean;
   /** Single track: this bar is being lifted to a new place. */
   lifted?: boolean;
   /** Single track: a move lifted past LIFT_PX becomes a reorder. */
@@ -1861,6 +1868,7 @@ function TimelineClip({
         data-segmented={segmentParts ? '' : undefined}
         data-pinned={pinned || undefined}
         data-lifted={lifted || undefined}
+        data-highlighted={highlighted || undefined}
         style={{
           // A single-track bar draws 1px short of its span on each side, so butted bars keep a hairline of lane between them.
           left: (at - viewStart) * pxPerSecond + (single ? 1 : 0),
@@ -1920,6 +1928,11 @@ function TimelineClip({
             {single && <span className="dialkit-timeline-clip-name">{clip.label}</span>}
             {width > 56 && <span className="dialkit-timeline-clip-duration">{durationText}</span>}
             {resizable && <div className="dialkit-timeline-clip-handle" data-edge="end" />}
+            {highlighted && (
+              <svg className="dialkit-timeline-clip-ants" aria-hidden="true">
+                <rect rx="4.5" ry="4.5" />
+              </svg>
+            )}
           </>
         )}
       </div>

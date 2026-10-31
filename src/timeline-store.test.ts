@@ -13,6 +13,33 @@ const meta = (id: string, duration = 2, loop = false, loopStart = 0) => ({
 });
 
 describe('TimelineStore', () => {
+  it('keeps the host highlight across meta updates until it is cleared', () => {
+    const id = 'store-highlight';
+    TimelineStore.register(meta(id), { autoplay: false });
+    let notified = 0;
+    const unsubscribe = TimelineStore.subscribe(id, () => notified++);
+    try {
+      assert.equal(TimelineStore.getTimeline(id)?.highlightedClip, null);
+      TimelineStore.setHighlight(id, 'b');
+      assert.equal(TimelineStore.getTimeline(id)?.highlightedClip, 'b');
+      assert.equal(notified, 1);
+      // The same key again changes nothing.
+      TimelineStore.setHighlight(id, 'b');
+      assert.equal(notified, 1);
+      // A rebuilt meta (an edit, a new clip list) keeps it.
+      TimelineStore.update(meta(id, 3));
+      assert.equal(TimelineStore.getTimeline(id)?.highlightedClip, 'b');
+      TimelineStore.setHighlight(id, null);
+      assert.equal(TimelineStore.getTimeline(id)?.highlightedClip, null);
+      // An unknown timeline is left alone.
+      TimelineStore.setHighlight('store-highlight-missing', 'a');
+      assert.equal(TimelineStore.getTimeline('store-highlight-missing'), undefined);
+    } finally {
+      unsubscribe();
+      TimelineStore.unregister(id);
+    }
+  });
+
   it('ignores non-finite seeks and sanitizes invalid durations', () => {
     const id = 'store-finite-values';
     TimelineStore.register(meta(id), { autoplay: false });
