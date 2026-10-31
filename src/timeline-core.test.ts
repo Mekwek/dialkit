@@ -524,6 +524,55 @@ describe('snapping drags', () => {
   });
 });
 
+describe('clip tails', () => {
+  it('extend the timeline end at parse and at live edit', () => {
+    const config = {
+      a: { at: 0, duration: 2, tail: 1.5, transition: { type: 'easing', ease: [0.4, 0, 0.2, 1], duration: 2 } },
+      b: { at: 2, duration: 2, tail: 0.6, transition: { type: 'easing', ease: [0.4, 0, 0.2, 1], duration: 2 } },
+    } as unknown as TimelineConfig;
+    const parsed = parseTimelineConfig(config);
+    near(parsed.duration, 4.6); // b ends at 4, tail 0.6
+    assert.equal(parsed.clips[0]?.tail, 1.5);
+    assert.equal('tail' in parseTimelineConfig({ c: { at: 0, duration: 1 } }).clips[0], false);
+    // Live edit: dragging b later grows the timeline to cover its tail.
+    near(computeStaticTimeline(parsed, { 'b.at': 3 } as never).duration, 5.6);
+    // Spans carry the tail for the dock's drags.
+    assert.deepEqual(timelineClipSpans({}, parsed.clips, parsed.duration).map((span) => span.tail), [1.5, 0.6]);
+  });
+
+  // A [0,2), B [3,5) with a 1s tail (tail end 6), C [8,10); 12s timeline.
+  const spans = [
+    { key: 'a', at: 0, duration: 2 },
+    { key: 'b', at: 3, duration: 2, tail: 1 },
+    { key: 'c', at: 8, duration: 2 },
+  ];
+  const bounds = (key: string, playhead?: number) =>
+    timelineClipDragBounds(spans, key, 12, { singleTrack: true, playhead });
+
+  it('add their end to a single track\'s snap targets, when they reach past the bar', () => {
+    assert.deepEqual(bounds('b').targets, [0, 2, 8, 10]);
+    assert.deepEqual(bounds('a').targets, [3, 5, 6, 8, 10]);
+    // Rows draw no tails, so they add no targets there.
+    assert.deepEqual(timelineClipDragBounds(spans, 'a', 12).targets, [3, 5, 8, 10]);
+  });
+
+  it('a snapping move can land the tail end on a target', () => {
+    // C dragged left by 1.7: its start lands on B's tail end (6), not on B's bar end.
+    near(dragTimelineClip('move', spans[2], -1.7, bounds('c'), true).at, 6);
+    // B dragged right by 1.8: its tail end lands on C's start (8), the bar end at 7.
+    near(dragTimelineClip('move', spans[1], 1.8, bounds('b'), true).at, 5);
+    // A target the neighbors rule out is skipped: B cannot reach A's start.
+    near(dragTimelineClip('move', spans[1], -5, bounds('b'), true).at, 2);
+  });
+
+  it('a snapping end edge lands the bar end or the tail end on a target', () => {
+    // Wanted 3.3s: the tail end on 8 needs 4s, the bar end on 8 needs 5s.
+    near(dragTimelineClip('end', spans[1], 1.3, bounds('b', 4.5), true).duration, 4);
+    // Nothing reachable: the free drag.
+    near(dragTimelineClip('end', spans[1], 1.3, { ...bounds('b'), targets: [20] }, true).duration, 3.3);
+  });
+});
+
 describe('loop region (intro-then-idle)', () => {
   it('wraps back to the region start, not zero', () => {
     assert.deepEqual(foldLoopTime(2.0, 4.8, 1.2), { time: 2.0, wraps: 0 }); // inside window

@@ -86,6 +86,13 @@ type TimelineClipBase = {
   duration?: number;
   transition?: TransitionConfig;
   loop?: boolean | TimelineClipLoop;
+  /**
+   * Seconds the clip's motion keeps running past its bar, such as staggered
+   * elements still settling. Read-only: no dial and no popover control. The
+   * timeline's end covers `at + duration + tail`, and a single track draws
+   * it as a fading tail behind the following bars.
+   */
+  tail?: number;
   /** The name shown in the dock. Defaults to the config key, formatted. */
   label?: string;
   /**
@@ -441,7 +448,7 @@ export function parseTimelineConfig(config: TimelineConfig): ParsedTimeline {
 
   let maxEnd = 0;
   for (const { clip } of entries) {
-    maxEnd = Math.max(maxEnd, nonNegativeFinite(clip.at) + defaultClipDuration(clip));
+    maxEnd = Math.max(maxEnd, nonNegativeFinite(clip.at) + defaultClipDuration(clip) + nonNegativeFinite(clip.tail));
   }
 
   // Exact fit: the window ends when the content does, so a looping timeline
@@ -609,6 +616,7 @@ export function parseTimelineConfig(config: TimelineConfig): ParsedTimeline {
       group,
       stepKeys,
       tracks,
+      ...(nonNegativeFinite(clip.tail) > 0 ? { tail: nonNegativeFinite(clip.tail) } : {}),
       ...(typeof clip.hint === 'string' && clip.hint ? { hint: clip.hint } : {}),
     });
   });
@@ -798,8 +806,11 @@ export function computeStaticTimeline(
   flatValues: Record<string, DialValue>
 ): TimelineStaticState {
   let clips = computeStaticClips(parsed, flatValues);
+  // Tails count into the end as they do at parse time, so a live edit (the
+  // last bar dragged later) still leaves its settle window covered.
+  const tails = new Map(parsed.clips.map((clip) => [clip.key, clip.tail ?? 0]));
   const maxEnd = clips.reduce(
-    (end, clip) => Math.max(end, clip.at + clip.duration),
+    (end, clip) => Math.max(end, clip.at + clip.duration + (tails.get(clip.key) ?? 0)),
     parsed.duration
   );
   const duration = maxEnd > parsed.duration
@@ -1334,7 +1345,13 @@ export function canShareTrack(clips: TimelineClipMeta[]): boolean {
   );
 }
 
-export type TimelineClipSpan = { key: string; at: number; duration: number };
+export type TimelineClipSpan = {
+  key: string;
+  at: number;
+  duration: number;
+  /** Seconds the clip keeps acting past its bar (see the clip's `tail`). */
+  tail?: number;
+};
 
 /** Every clip's place on the timeline, from flat stored values. */
 export function timelineClipSpans(
@@ -1344,7 +1361,7 @@ export function timelineClipSpans(
 ): TimelineClipSpan[] {
   return clips.map((clip) => {
     const { at, duration } = computeClipStaticFromValues(values, clip, timelineDuration);
-    return { key: clip.key, at, duration };
+    return { key: clip.key, at, duration, ...(clip.tail ? { tail: clip.tail } : {}) };
   });
 }
 
@@ -1356,7 +1373,8 @@ export type TimelineClipDragBounds = {
   end: number;
   /** Single track: the start of the clip after it, when there is one. */
   next?: number;
-  /** Every other clip's start and end, plus the playhead when given. */
+  /** Every other clip's start and end, plus the playhead when given. On a
+   * single track, also the end of each tail that reaches past its bar. */
   targets: number[];
 };
 
@@ -1376,7 +1394,9 @@ export function timelineClipDragBounds(
     if (i === index) return;
     targets.add(round2(span.at));
     targets.add(round2(span.at + span.duration));
-    if (!options.singleTrack || !self) return;
+    if (!options.singleTrack) return;
+    if ((span.tail ?? 0) > 0) targets.add(round2(span.at + span.duration + (span.tail ?? 0)));
+    if (!self) return;
     // Neighbors bound the drag but never the clip's current place, so a
     // config that starts out overlapping can still be pulled apart.
     const before = span.at < self.at || (span.at === self.at && i < index);
@@ -1406,21 +1426,29 @@ function nearestWithin(candidates: number[], wanted: number, min: number, max: n
  * `bounds`. With the whole timeline as bounds this is exactly
  * `clampClipMove`, `clampClipResizeEnd` and `clampClipResizeStart`. With
  * `snap` the clip's start or end lands only on a target — the reachable one
- * closest to the pointer — and moves freely when none is reachable.
+ * closest to the pointer — and moves freely when none is reachable. A clip
+ * with a `tail` can also land its tail's end on a target, by a move or by
+ * its end edge.
  */
 export function dragTimelineClip(
   mode: 'move' | 'start' | 'end',
-  clip: { at: number; duration: number },
+  clip: { at: number; duration: number; tail?: number },
   delta: number,
   bounds: TimelineClipDragBounds,
   snap = false
 ): { at: number; duration: number } {
   const { at, duration } = clip;
+  const tail = clip.tail ?? 0;
   if (mode === 'move') {
     const max = Math.max(bounds.start, bounds.end - duration);
     const wanted = at + delta;
     const landed = snap
-      ? nearestWithin(bounds.targets.flatMap((t) => [t, t - duration]), wanted, bounds.start, max)
+      ? nearestWithin(
+          bounds.targets.flatMap((t) => (tail > 0 ? [t, t - duration, t - duration - tail] : [t, t - duration])),
+          wanted,
+          bounds.start,
+          max
+        )
       : undefined;
     return { at: clamp(round2(landed ?? wanted), bounds.start, max), duration };
   }
@@ -1428,7 +1456,12 @@ export function dragTimelineClip(
     const max = bounds.end - at;
     const wanted = duration + delta;
     const landed = snap
-      ? nearestWithin(bounds.targets.map((t) => t - at), wanted, TIMELINE_MIN_CLIP_DURATION, max)
+      ? nearestWithin(
+          bounds.targets.flatMap((t) => (tail > 0 ? [t - at, t - at - tail] : [t - at])),
+          wanted,
+          TIMELINE_MIN_CLIP_DURATION,
+          max
+        )
       : undefined;
     return { at, duration: clamp(round2(landed ?? wanted), TIMELINE_MIN_CLIP_DURATION, max) };
   }

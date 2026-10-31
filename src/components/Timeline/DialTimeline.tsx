@@ -38,6 +38,9 @@ import { useHints } from '../../hooks/useHints';
 import type { DialTheme } from '../DialRoot';
 
 const DRAG_THRESHOLD_PX = 3;
+/** A tail starts this far under its bar's rounded end (it draws behind the
+ * bar), so it comes out of the bar with no notch. */
+const TAIL_TUCK_PX = 8;
 const MAJOR_TICK_TARGET_PX = 140;
 const MILLISECOND_STEP = 0.001;
 const SECOND_TICK_STEPS = [
@@ -313,6 +316,16 @@ function ClipFill({ id, at, duration }: { id: string; at: number; duration: numb
   );
   const progress = useSyncExternalStore(subscribe, getProgress, getProgress);
   return <span className="dialkit-timeline-clip-fill" style={{ width: `${progress * 100}%` }} aria-hidden="true" />;
+}
+
+// A single-track clip's tail: the settle window past its bar. It lights once
+// the playhead reaches the clip, as a played bar stays filled, and while the
+// bar is hovered or selected. Re-renders only when the played state flips.
+function ClipTail({ id, at, left, width, lit }: { id: string; at: number; left: number; width: number; lit: boolean }) {
+  const subscribe = useTransportSubscribe(id);
+  const getPlayed = useCallback(() => TimelineStore.getTransport(id).time >= at, [at, id]);
+  const played = useSyncExternalStore(subscribe, getPlayed, getPlayed);
+  return <span className="dialkit-timeline-clip-tail" data-lit={lit || played || undefined} style={{ left, width }} aria-hidden="true" />;
 }
 
 function TimelinePlayheadFlag({
@@ -1531,7 +1544,9 @@ function TimelineClip({
 }) {
   const dragRef = useRef<DragState | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [hovered, setHovered] = useState(false);
   const isSteps = Boolean(steps?.length);
+  const tail = single ? clip.tail ?? 0 : 0;
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
@@ -1590,7 +1605,7 @@ function TimelineClip({
         );
       } else if (!delayMode && drag.mode !== 'boundary' && !(drag.mode === 'start' && steps)) {
         // Clip bars. Cmd (Ctrl elsewhere) snaps to other clips and the playhead.
-        const next = dragTimelineClip(drag.mode, drag, dt, drag.bounds, e.metaKey || e.ctrlKey);
+        const next = dragTimelineClip(drag.mode, { at: drag.at, duration: drag.duration, tail }, dt, drag.bounds, e.metaKey || e.ctrlKey);
         DialStore.updateValues(timelineId, {
           ...(drag.mode !== 'end' && { [`${clip.key}.at`]: next.at }),
           ...(drag.mode !== 'move' && { [`${clip.key}.duration`]: next.duration }),
@@ -1626,7 +1641,7 @@ function TimelineClip({
         });
       }
     },
-    [baseAt, clip.key, delayMode, onDrag, pxPerSecond, steps, timelineId, timelineDuration]
+    [baseAt, clip.key, delayMode, onDrag, pxPerSecond, steps, tail, timelineId, timelineDuration]
   );
 
   const handlePointerUp = useCallback(
@@ -1704,6 +1719,15 @@ function TimelineClip({
           </div>
         );
       })}
+      {tail > 0 && pxPerSecond > 0 && (
+        <ClipTail
+          id={timelineId}
+          at={at}
+          left={(at + duration - viewStart) * pxPerSecond - TAIL_TUCK_PX}
+          width={tail * pxPerSecond + TAIL_TUCK_PX}
+          lit={hovered || selected}
+        />
+      )}
       <div
         className="dialkit-timeline-clip"
         data-hint={clip.hint}
@@ -1722,6 +1746,8 @@ function TimelineClip({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
         onLostPointerCapture={handlePointerCancel}
+        onPointerEnter={tail > 0 ? () => setHovered(true) : undefined}
+        onPointerLeave={tail > 0 ? () => setHovered(false) : undefined}
       >
         {composite ? (
           <>{width > 56 && <span className="dialkit-timeline-clip-duration">{durationText}</span>}</>

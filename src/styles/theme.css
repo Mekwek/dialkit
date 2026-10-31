@@ -3638,6 +3638,8 @@
   --dial-timeline-sel-dur: rgba(0, 0, 0, 0.55);
   --dial-timeline-sel-grip: rgba(0, 0, 0, 0.16);
   --dial-timeline-sel-grip-hover: rgba(0, 0, 0, 0.3);
+  --dial-timeline-tail-border: rgba(255, 255, 255, 0.35);
+  --dial-timeline-tail-fill: rgba(255, 255, 255, 0.05);
 }
 
 .dialkit-root[data-theme="light"] .dialkit-timeline-section {
@@ -3661,6 +3663,8 @@
   --dial-timeline-sel-dur: rgba(255, 255, 255, 0.7);
   --dial-timeline-sel-grip: rgba(255, 255, 255, 0.3);
   --dial-timeline-sel-grip-hover: rgba(255, 255, 255, 0.5);
+  --dial-timeline-tail-border: rgba(0, 0, 0, 0.3);
+  --dial-timeline-tail-fill: rgba(0, 0, 0, 0.05);
 }
 
 @media (prefers-color-scheme: light) {
@@ -3685,6 +3689,8 @@
     --dial-timeline-sel-dur: rgba(255, 255, 255, 0.7);
     --dial-timeline-sel-grip: rgba(255, 255, 255, 0.3);
     --dial-timeline-sel-grip-hover: rgba(255, 255, 255, 0.5);
+    --dial-timeline-tail-border: rgba(0, 0, 0, 0.3);
+    --dial-timeline-tail-fill: rgba(0, 0, 0, 0.05);
   }
 }
 
@@ -3748,6 +3754,29 @@
   font-weight: 500;
   color: var(--dial-timeline-bar-text);
   pointer-events: none;
+}
+
+/* A clip's tail: the settle window past its bar, drawn behind the bars that
+   follow. It fades toward its end but keeps 30%, so its right edge stays
+   visible, and lights once the playhead reaches its clip. */
+.dialkit-timeline-clip-tail {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  z-index: 0;
+  border: 1px solid var(--dial-timeline-tail-border);
+  border-left: none;
+  border-radius: 0 6px 6px 0;
+  background: var(--dial-timeline-tail-fill);
+  -webkit-mask-image: linear-gradient(90deg, #000, rgba(0, 0, 0, 0.3));
+  mask-image: linear-gradient(90deg, #000, rgba(0, 0, 0, 0.3));
+  opacity: 0.45;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+
+.dialkit-timeline-clip-tail[data-lit] {
+  opacity: 1;
 }
 
 .dialkit-timeline-section[data-track="single"] .dialkit-timeline-clip-duration {

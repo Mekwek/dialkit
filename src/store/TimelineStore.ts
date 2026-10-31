@@ -21,6 +21,9 @@ export type TimelineClipMeta = {
   stepKeys?: string[];
   /** Independent property tracks of a props clip — full rows when expanded. */
   tracks?: TimelineClipTrackMeta[];
+  /** Seconds the clip keeps acting past its bar. Counted into the
+   * timeline's end; a single track draws it as a fading tail. */
+  tail?: number;
   /** The bar's hint, shown while the hint key is held over it. */
   hint?: string;
 };
