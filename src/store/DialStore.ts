@@ -119,6 +119,23 @@ function padGroupConfigOf(value: unknown): PadGroupConfig | undefined {
   return undefined;
 }
 
+/**
+ * A field row: `_fields: true`, or these options. See {@link ControlMeta.fields}.
+ */
+export type FieldsConfig = {
+  /**
+   * Most decimals a field shows. The value keeps its precision: only the
+   * display rounds, and a click on the number shows the exact value.
+   */
+  decimals?: number;
+};
+
+function fieldsConfigOf(value: unknown): FieldsConfig | undefined {
+  if (value === true) return {};
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) return value as FieldsConfig;
+  return undefined;
+}
+
 function inlineLabelsOf(value: unknown): InlineLabelsConfig | undefined {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
   return Object.fromEntries(Object.entries(value).filter(([, name]) => typeof name === 'string'));
@@ -232,8 +249,10 @@ export type ControlMeta = {
   defaultOpen?: boolean;
   /** The folder drawn for this control shows a reset button: `_reset` folders, springs, transitions, and backgrounds. */
   reset?: boolean;
-  /** Folder only: `_fields: true` shows its numbers as one row of fields. */
+  /** Folder only: `_fields` (`true` or {@link FieldsConfig}) shows its numbers as one row of fields. */
   fields?: boolean;
+  /** Fields only: the most decimals a field shows, from `_fields: { decimals }`. See {@link FieldsConfig}. */
+  decimals?: number;
   /** Folder only: `_row` shows the folder's two controls side by side. See {@link RowConfig}. */
   row?: RowConfig;
   /** Row only: the names its controls show inside. See {@link InlineLabelsConfig}. */
@@ -1689,9 +1708,11 @@ class DialStoreClass {
             const inlineLabels = inlineLabelsOf(folderConfig._inlineLabels);
             if (inlineLabels) control.inlineLabels = inlineLabels;
           }
-          if (folderConfig._fields === true) {
+          const fields = fieldsConfigOf(folderConfig._fields);
+          if (fields) {
             if (canShowFields(children)) {
               control.fields = true;
+              if (typeof fields.decimals === 'number' && Number.isFinite(fields.decimals)) control.decimals = fields.decimals;
             } else {
               console.warn(`[dialkit] "${path}" sets _fields but needs two to four numbers and at most one boolean; showing it as a folder.`);
             }

@@ -184,6 +184,8 @@ const config = {
 
 `_fields: true` shows a folder's numbers side by side, labelled by their keys. The values stay ordinary sliders: `values.scale.x` is a number, and presets and `setValues` work as they do in any folder. Shortcuts assigned to a field's path still adjust it, but the row shows no shortcut hint. A row has no header to fold, so `_collapsed` has no effect on it. A row holds two to four numbers and at most one boolean; any other folder ignores `_fields` and logs a warning.
 
+`_fields: { decimals: 0 }` shows each field with at most that many decimals, for values such as world positions where a whole number is precise enough to read. Only the display rounds: the value keeps its precision, and a click on the number opens it with every decimal its step has.
+
 Drag a field's label to scrub one step per pixel, or ten with Shift. A value is a button: click it, or press Enter or Space on it, to type a value, step it with Up and Down, then press Enter to commit or Escape to cancel. Leaving the field also commits. Values are clamped and snapped to their step.
 
 Once any value in the row, the lock included, differs from its default, a reset appears beside the label. It puts the row's values back to their defaults and hides again; if it had focus, focus moves to the first field.
