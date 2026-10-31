@@ -449,4 +449,38 @@ describe('DialStore config lifecycle', () => {
       assert.equal(DialStore.getValue(id, 'amount'), 0.5);
     } finally { DialStore.unregisterPanel(id); }
   });
+
+  it('keeps a transition switched to another type when the panel registers again', () => {
+    const id = 'config-transition-type-kept';
+    const config = { enter: { type: 'spring', visualDuration: 0.3, bounce: 0.2 } } satisfies DialConfig;
+    const easing = { type: 'easing', duration: 0.4, ease: [0.4, 0, 0.2, 1] } satisfies EasingConfig;
+    try {
+      DialStore.registerPanel(id, 'Config', config);
+      DialStore.updateTransitionMode(id, 'enter', 'easing');
+      DialStore.updateValue(id, 'enter', easing);
+      // A host renders again: same config, same panel.
+      DialStore.updatePanel(id, 'Config', config);
+      assert.deepEqual(DialStore.getValue(id, 'enter'), easing);
+      assert.equal(DialStore.getTransitionMode(id, 'enter'), 'easing');
+      // A value that is not a transition still falls back to the default.
+      DialStore.updatePanel(id, 'Config', { enter: [0.5, 0, 1] });
+      DialStore.updatePanel(id, 'Config', config);
+      assert.deepEqual(DialStore.getValue(id, 'enter'), config.enter);
+    } finally { DialStore.unregisterPanel(id); }
+  });
+
+  it('moves a transition to the editor of a written value of another type', () => {
+    const id = 'config-transition-mode-follows';
+    const config = { enter: { type: 'spring', visualDuration: 0.3, bounce: 0.2 } } satisfies DialConfig;
+    try {
+      DialStore.registerPanel(id, 'Config', config);
+      assert.equal(DialStore.getTransitionMode(id, 'enter'), 'simple');
+      DialStore.updateValue(id, 'enter', { type: 'easing', duration: 0.4, ease: [0.4, 0, 0.2, 1] });
+      assert.equal(DialStore.getTransitionMode(id, 'enter'), 'easing');
+      DialStore.updateValue(id, 'enter', { type: 'spring', stiffness: 300, damping: 20, mass: 1 });
+      assert.equal(DialStore.getTransitionMode(id, 'enter'), 'advanced');
+      DialStore.updateValue(id, 'enter', { type: 'spring', visualDuration: 0.5, bounce: 0.1 });
+      assert.equal(DialStore.getTransitionMode(id, 'enter'), 'simple');
+    } finally { DialStore.unregisterPanel(id); }
+  });
 });

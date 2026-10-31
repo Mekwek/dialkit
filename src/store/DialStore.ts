@@ -503,6 +503,18 @@ export function isEasingConfigValue(value: unknown): value is EasingConfig {
   return hasType(value, 'easing');
 }
 
+/** The editor a transition value opens in: the same mapping registration
+ * gives a config default. Null for anything that is not a transition. */
+function transitionModeFor(value: unknown): TransitionMode | null {
+  if (isEasingConfigValue(value)) return 'easing';
+  if (isSpringConfigValue(value)) {
+    const hasPhysics = value.stiffness !== undefined || value.damping !== undefined || value.mass !== undefined;
+    const hasTime = value.visualDuration !== undefined || value.bounce !== undefined;
+    return hasPhysics && !hasTime ? 'advanced' : 'simple';
+  }
+  return null;
+}
+
 export function isHexColor(value: string): boolean {
   return /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$/.test(value);
 }
@@ -794,6 +806,18 @@ class DialStoreClass {
         (!target || sameControlValue(target[path], next, control))) continue;
       panel.values[path] = next;
       validUpdates[path] = next;
+
+      // A transition draws from two keys: its value and the `.__mode` that
+      // picks the editor (Easing, Time or Physics). A write that changes the
+      // value's type keeps the mode in step, or the old type's editor would
+      // draw over the new value.
+      if (control?.type === 'transition') {
+        const mode = transitionModeFor(next);
+        if (mode && panel.values[`${path}.__mode`] !== mode) {
+          panel.values[`${path}.__mode`] = mode;
+          validUpdates[`${path}.__mode`] = mode;
+        }
+      }
     }
 
     if (Object.keys(validUpdates).length === 0) {
@@ -1747,13 +1771,13 @@ class DialStoreClass {
       case 'text':
         return typeof existingValue === 'string' ? existingValue : defaultValue;
       case 'transition':
-        if (isSpringConfigValue(defaultValue)) {
-          return isSpringConfigValue(existingValue) ? existingValue : defaultValue;
-        }
-        if (isEasingConfigValue(defaultValue)) {
-          return isEasingConfigValue(existingValue) ? existingValue : defaultValue;
-        }
-        return defaultValue;
+        // Any valid transition is kept, whatever its type. The type is the
+        // user's choice: matching the kept value against the default's type
+        // would undo every switch to another type on the next registration,
+        // and a panel registers again on ordinary renders.
+        return isSpringConfigValue(existingValue) || isEasingConfigValue(existingValue)
+          ? existingValue
+          : defaultValue;
       case 'action':
         return defaultValue;
       default:
