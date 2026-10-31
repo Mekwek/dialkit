@@ -2,8 +2,9 @@ import { createEaseIntensity } from '../easing-geometry';
 import { mountEaseFields, type EaseFieldsProps } from '../easing-control';
 import { SpringConfig, EasingConfig, TransitionConfig, DialStore, type CopiedTransition } from '../store/DialStore';
 import { TRANSITION_HINTS, transitionPresetName } from '../transition-presets';
-import { mountTransitionCopy, mountTransitionPresets, type TransitionCopyProps, type TransitionPresetsProps } from '../transition-presets-control';
+import { mountTransitionPresets, type TransitionPresetsProps } from '../transition-presets-control';
 import { Folder } from './Folder';
+import { TransitionCopy } from './TransitionCopy';
 import { Slider } from './Slider';
 import { SegmentedControl } from './SegmentedControl';
 import { SpringVisualization } from './SpringVisualization';
@@ -32,6 +33,11 @@ interface TransitionControlProps {
   onReset?: () => void;
   changed?: boolean;
   hint?: string;
+  /**
+   * Draw the editor without its own folder, for a section whose only row is
+   * this transition: the section's header carries the reset and the copy menu.
+   */
+  bare?: boolean;
 }
 
 type CurveMode = 'easing' | 'simple' | 'advanced';
@@ -50,6 +56,7 @@ export function TransitionControl({
   onReset,
   changed,
   hint,
+  bare = false,
 }: TransitionControlProps) {
   const subscribe = useCallback(
     (callback: () => void) => DialStore.subscribe(panelId, callback),
@@ -135,8 +142,7 @@ export function TransitionControl({
     />
   ) : null;
 
-  return (
-    <Folder title={label} defaultOpen={true} hint={hint} onReset={onReset} changed={changed} actions={<TransitionCopy mode={mode} value={isEasing ? easing : spring} onPaste={handlePaste} />}>
+  const body = (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <div className="dialkit-labeled-control dialkit-transition-type" data-hint={HINTS.transitionType}>
           <span className="dialkit-labeled-control-label">Type</span>
@@ -186,6 +192,12 @@ export function TransitionControl({
           <TransitionPresets mode={mode} value={isEasing ? easing : spring} onChange={onChange} />
         </Folder>
       </div>
+  );
+
+  if (bare) return body;
+  return (
+    <Folder title={label} defaultOpen={true} hint={hint} onReset={onReset} changed={changed} actions={<TransitionCopy mode={mode} value={isEasing ? easing : spring} onPaste={handlePaste} />}>
+      {body}
     </Folder>
   );
 }
@@ -197,19 +209,6 @@ function TransitionPresets(props: TransitionPresetsProps) {
   latest.current = props;
   useEffect(() => {
     control.current = mountTransitionPresets(host.current!, latest.current);
-    return () => control.current?.destroy();
-  }, []);
-  useEffect(() => { control.current?.update(props); });
-  return <div ref={host} />;
-}
-
-function TransitionCopy(props: TransitionCopyProps) {
-  const host = useRef<HTMLDivElement>(null);
-  const control = useRef<ReturnType<typeof mountTransitionCopy>>();
-  const latest = useRef(props);
-  latest.current = props;
-  useEffect(() => {
-    control.current = mountTransitionCopy(host.current!, latest.current);
     return () => control.current?.destroy();
   }, []);
   useEffect(() => { control.current?.update(props); });

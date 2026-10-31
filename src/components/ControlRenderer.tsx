@@ -8,6 +8,7 @@ import { Slider } from './Slider';
 import { Toggle } from './Toggle';
 import { SpringControl } from './SpringControl';
 import { TransitionControl } from './TransitionControl';
+import { TransitionCopyMenu } from './TransitionCopy';
 import { TextControl } from './TextControl';
 import { SelectControl } from './SelectControl';
 import { ColorControl } from './ColorControl';
@@ -77,6 +78,15 @@ function AnimatedControls({ controls, children }: { controls: ControlMeta[]; chi
   ));
 }
 
+/**
+ * A section whose only row is a transition shows one header, the section's:
+ * the transition draws no folder of its own, and its reset and copy menu
+ * move into the section's header.
+ */
+export function loneTransition(rows: ControlMeta[]): ControlMeta | undefined {
+  return rows.length === 1 && rows[0].type === 'transition' ? rows[0] : undefined;
+}
+
 // Renders a ControlMeta tree with the standard DialKit controls.
 // Shared by the panel and the timeline clip popover.
 export function ControlRenderer({ panelId, controls, values, transitionDuration, openFolder, onOpenFolderChange, animateControls = false }: ControlRendererProps) {
@@ -90,11 +100,12 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration,
   // Hinted action buttons are the renderer's own rows; each control mounts its own.
   useHints(hasActionHints(controls));
 
-  const renderControls = (controls: ControlMeta[], topLevel = false) => animateControls
-    ? <AnimatedControls controls={controls}>{(control) => renderControl(control, topLevel)}</AnimatedControls>
-    : controls.map((control) => renderControl(control, topLevel));
+  // `bare` names a transition drawn without its own folder header.
+  const renderControls = (controls: ControlMeta[], topLevel = false, bare?: ControlMeta) => animateControls
+    ? <AnimatedControls controls={controls}>{(control) => renderControl(control, topLevel, control === bare)}</AnimatedControls>
+    : controls.map((control) => renderControl(control, topLevel, control === bare));
 
-  const renderControl = (control: ControlMeta, topLevel = false) => {
+  const renderControl = (control: ControlMeta, topLevel = false, bare = false) => {
     const value = values[control.path];
 
     switch (control.type) {
@@ -153,6 +164,7 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration,
             value={value as TransitionConfig}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
             durationControl={transitionDuration}
+            bare={bare}
             {...resetProps(control)}
           />
         );
@@ -173,17 +185,20 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration,
         }
         // Accordion mode controls top-level folders; nested folders keep their own state.
         const accordion = topLevel && openFolder !== undefined;
+        const rows = control.children ?? [];
+        const only = loneTransition(rows);
         return (
           <Folder
             key={control.path}
             title={control.label}
             defaultOpen={control.defaultOpen ?? true}
-            hint={control.hint}
-            {...resetProps(control)}
+            hint={control.hint ?? only?.hint}
+            {...resetProps(control.reset || !only ? control : only)}
+            actions={only ? <TransitionCopyMenu panelId={panelId} path={only.path} value={values[only.path] as TransitionConfig} /> : undefined}
             open={accordion ? openFolder === control.path : undefined}
             onOpenChange={accordion ? (open) => onOpenFolderChange?.(open ? control.path : null) : undefined}
           >
-            {renderControls(control.children ?? [])}
+            {renderControls(rows, false, only)}
           </Folder>
         );
       }
