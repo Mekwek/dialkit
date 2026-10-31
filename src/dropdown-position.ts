@@ -70,6 +70,15 @@ export function getDropdownPosition(
   };
 }
 
+/**
+ * Whether a menu of `height` opens above its trigger: when the room below
+ * is too short for it and the room above is larger.
+ */
+export function opensAbove(trigger: Pick<DOMRect, 'top' | 'bottom'>, height: number, viewportHeight: number, gap = 4): boolean {
+  const spaceBelow = viewportHeight - trigger.bottom - gap;
+  return spaceBelow < height && trigger.top > spaceBelow;
+}
+
 /** Track scroll, resize, panel dragging, and layout animations while a popup is open. */
 export function observeDropdownPosition(trigger: HTMLElement, update: () => void, popup?: () => HTMLElement | null | undefined): () => void {
   let frame = 0;

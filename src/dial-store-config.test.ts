@@ -5,7 +5,8 @@ import { Children, createElement, type ReactElement, type ReactNode } from 'reac
 import { ControlRenderer } from './components/ControlRenderer';
 import { SelectControl } from './components/SelectControl';
 import { Folder } from './components/Folder';
-import { DialStore, flattenDialValueUpdates, resolveDialValues, type DialConfig, type EasingConfig } from './store/DialStore';
+import { Slider } from './components/Slider';
+import { DialStore, flattenDialValueUpdates, resolveDialValues, type DialConfig, type EasingConfig, type RangeConfig } from './store/DialStore';
 
 // A CommonJS module whose named export Node cannot see from ESM.
 const { createRenderer: createShallowRenderer } = createRequire(import.meta.url)('react-test-renderer/shallow') as typeof import('react-test-renderer/shallow');
@@ -477,6 +478,20 @@ describe('DialStore config lifecycle', () => {
       assert.equal(folder.type, Folder);
       shallow.unmount();
     } finally { DialStore.unregisterPanel(id); }
+  });
+
+  it('takes a RangeConfig tuple as a slider', () => {
+    const angle: RangeConfig = [12, -180, 180, 1, '°'];
+    const config = { angle } satisfies DialConfig;
+    assert.deepEqual(resolveDialValues(config, {}), { angle: 12 });
+  });
+
+  it('draws a slider with no value at its minimum instead of throwing', () => {
+    const shallow = createShallowRenderer();
+    const value = undefined as unknown as number;
+    assert.doesNotThrow(() => shallow.render(createElement(Slider, { label: 'Size', value, onChange: () => {}, min: 2, max: 10, step: 1 })));
+    assert.match(JSON.stringify(shallow.getRenderOutput(), (key, v: unknown) => (key === '_owner' || key === '_store' ? undefined : v)), /"aria-valuenow":2/);
+    shallow.unmount();
   });
 
   it('does not retain an extra registration when an invalid config is rejected', () => {

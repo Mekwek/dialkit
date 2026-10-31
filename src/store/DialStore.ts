@@ -144,6 +144,12 @@ function inlineLabelsOf(value: unknown): InlineLabelsConfig | undefined {
 }
 type FolderMetaKey = (typeof FOLDER_META_KEYS)[number];
 
+/**
+ * A slider: `[default, min, max, step?, unit?]`. The unit shows after the
+ * value: `[12, -180, 180, 1, '°']` shows "12°".
+ */
+export type RangeConfig = [number, number, number, number?, string?];
+
 export type DialConfig = {
   [key: string]: DialValue | [number, number, number, number?, string?] | DialConfig | ControlWithVisibility;
 };
@@ -637,6 +643,27 @@ function getFirstOptionValue(options: (string | { value: string; label: string }
   return typeof first === 'string' ? first : first.value;
 }
 
+type ParsedConfig = ReturnType<DialStoreClass['parseConfig']>;
+
+/** Distinct configs remembered per panel id before the oldest is dropped. */
+const PARSED_CONFIG_CACHE_LIMIT = 16;
+
+/**
+ * The cache key of a config and its shortcuts, or undefined when the config
+ * holds a function (such as a background `upload`): JSON drops functions, so
+ * two configs with different functions would share a key.
+ */
+function parsedConfigKey(config: DialConfig, shortcuts?: Record<string, ShortcutConfig>): string | undefined {
+  let hasFunction = false;
+  const key = JSON.stringify(config, (_key, value: unknown) => {
+    if (typeof value === 'function') hasFunction = true;
+    return value;
+  });
+  // Registration stores `shortcuts ?? {}` and an update reads it back, so an
+  // absent map and an empty one key the same.
+  return hasFunction ? undefined : `${key}\n${JSON.stringify(shortcuts ?? {})}`;
+}
+
 class DialStoreClass {
   private panelOpenListeners = new Set<(panelId: string, open: boolean) => void>();
   private panelOpenStates = new Map<string, boolean>();
@@ -671,9 +698,19 @@ class DialStoreClass {
   private transitionStorageLoaded: Set<PersistConfig['storage']> = new Set();
   private copiedTransition: CopiedTransition | null = null;
   private transitionListeners: Set<Listener> = new Set();
+  /**
+   * Parsed configs per panel id, by `parsedConfigKey`. A host that swaps
+   * between a few configs (layout presets) registers the same shapes again
+   * and again; a parsed tree is never changed after its parse, so it can be
+   * shared.
+   */
+  private parsedConfigs = new Map<string, Map<string, ParsedConfig>>();
+  /** The cache key of the config each registered panel holds. */
+  private panelConfigKeys = new Map<string, string | undefined>();
 
   registerPanel(id: string, name: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>, options: DialStorePanelOptions = {}): void {
-    const { controls, controlsByPath, defaultValues, resetKeys, conditional } = this.parseConfig(id, config, shortcuts);
+    const { key, parsed: { controls, controlsByPath, defaultValues, resetKeys, conditional } } = this.parseCached(id, config, shortcuts);
+    this.panelConfigKeys.set(id, key);
     if (!this.panelOpenStates.has(id) && options.defaultCollapsed !== undefined) {
       this.panelOpenStates.set(id, !options.defaultCollapsed);
     }
@@ -733,8 +770,24 @@ class DialStoreClass {
       return;
     }
 
-    const { controls, controlsByPath, defaultValues, resetKeys, conditional } = this.parseConfig(id, config, shortcuts ?? existing.shortcuts);
+    const { key, parsed: { controls, controlsByPath, defaultValues, resetKeys, conditional } } = this.parseCached(id, config, shortcuts ?? existing.shortcuts);
+    const unchanged = key !== undefined &&
+      this.panelConfigKeys.get(id) === key &&
+      name === existing.name &&
+      (options.kind ?? existing.kind) === existing.kind &&
+      (options.presetsEditable ?? existing.presetsEditable) === existing.presetsEditable &&
+      (options.presetsLockable ?? existing.presetsLockable) === existing.presetsLockable &&
+      (options.hint ?? existing.hint) === existing.hint &&
+      (options.folderMode ?? existing.folderMode) === existing.folderMode;
     this.configurePanelRetention(id, options);
+    if (unchanged) {
+      // Same config, same options: nothing the panel draws can differ, so
+      // skip the rebuild and the notify (a host re-render would otherwise
+      // reach every panel through the global listeners).
+      this.persistPanel(id);
+      return;
+    }
+    this.panelConfigKeys.set(id, key);
     const nextValues = this.reconcileValues(defaultValues, existing.values, controlsByPath);
 
     const nextPanel: PanelConfig = {
@@ -795,6 +848,8 @@ class DialStoreClass {
       this.activePreset.delete(id);
       this.gradients.delete(id);
       this.persistConfigs.delete(id);
+      this.parsedConfigs.delete(id);
+      this.panelConfigKeys.delete(id);
     }
 
     this.notifyGlobal();
@@ -1632,6 +1687,35 @@ class DialStoreClass {
     this.standardPanelsSnapshot = this.panelsSnapshot.filter((panel) => panel.kind !== 'timeline');
     this.timelinePanelsSnapshot = this.panelsSnapshot.filter((panel) => panel.kind === 'timeline');
     this.globalListeners.forEach(fn => fn());
+  }
+
+  /**
+   * Parses through the panel's cache. The result is stored only after a
+   * parse succeeds, so an invalid config still throws before the store
+   * changes.
+   */
+  private parseCached(id: string, config: DialConfig, shortcuts?: Record<string, ShortcutConfig>): { key: string | undefined; parsed: ParsedConfig } {
+    const key = parsedConfigKey(config, shortcuts);
+    if (key === undefined) return { key, parsed: this.parseConfig(id, config, shortcuts) };
+    let cache = this.parsedConfigs.get(id);
+    const hit = cache?.get(key);
+    if (cache && hit) {
+      // Insert again, so the map's order tracks recency for the drop below.
+      cache.delete(key);
+      cache.set(key, hit);
+      return { key, parsed: hit };
+    }
+    const parsed = this.parseConfig(id, config, shortcuts);
+    if (!cache) {
+      cache = new Map();
+      this.parsedConfigs.set(id, cache);
+    }
+    cache.set(key, parsed);
+    if (cache.size > PARSED_CONFIG_CACHE_LIMIT) {
+      const oldest = cache.keys().next().value;
+      if (oldest !== undefined) cache.delete(oldest);
+    }
+    return { key, parsed };
   }
 
   /** Compile controls, defaults, and the lookup index in one walk. */

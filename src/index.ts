@@ -120,6 +120,7 @@ export type {
   InlineLabelsConfig,
   PadGroupConfig,
   FieldsConfig,
+  RangeConfig,
   LayerItem,
   LayersConfig,
   LayersValue,
