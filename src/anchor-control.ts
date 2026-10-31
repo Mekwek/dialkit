@@ -4,7 +4,8 @@ import { springParams } from './transition-math';
 
 export type AnchorControlProps = {
   label: string;
-  value: AnchorValue;
+  /** `null`: no cell is picked, and a click on any cell picks it. */
+  value: AnchorValue | null;
   onChange: (value: AnchorValue) => void;
   /** A short sentence shown while H is held over the control. */
   hint?: string;
@@ -33,7 +34,23 @@ function slideAxis(from: number, velocity: number, to: number, t: number): [numb
   return [to + (offset + b * t) * decay, (velocity - PILL_OMEGA * b * t) * decay];
 }
 
-/** A 3 × 3 radio grid: one pick sets both axes, and the highlight slides to it. */
+/** The cell the first arrow key picks, and the Tab stop, while no cell is picked. */
+const MIDDLE: AnchorValue = { x: 'center', y: 'center' };
+
+/**
+ * The value a key gives: the next cell from the picked one, or, with none
+ * picked, the middle cell for an arrow and the first or last for Home or End.
+ */
+export function anchorKeyPick(value: AnchorValue | null, key: string): AnchorValue | undefined {
+  if (value) return anchorValueFromKey(value, key);
+  const next = anchorValueFromKey(MIDDLE, key);
+  return next && key.startsWith('Arrow') ? { ...MIDDLE } : next;
+}
+
+/**
+ * A 3 × 3 radio grid: one pick sets both axes, and the highlight slides to
+ * it. With no cell picked, nothing is highlighted.
+ */
 export function mountAnchorControl(host: HTMLElement, initial: AnchorControlProps) {
   let props = initial;
   let value = normalizeAnchorValue(props.value);
@@ -90,16 +107,23 @@ export function mountAnchorControl(host: HTMLElement, initial: AnchorControlProp
   function render() {
     setHint(grid, props.hint);
     grid.setAttribute('aria-label', props.label);
-    move([ANCHOR_COLUMNS.indexOf(value.x), ANCHOR_ROWS.indexOf(value.y)]);
+    // Without a pick the highlight hides, and the next pick shows it in place.
+    grid.toggleAttribute('data-empty', !value);
+    if (value) move([ANCHOR_COLUMNS.indexOf(value.x), ANCHOR_ROWS.indexOf(value.y)]);
+    else {
+      slide?.animation.cancel();
+      at = undefined;
+    }
+    const stop = value ?? MIDDLE;
     for (const { cell, option } of cells) {
-      const checked = option.x === value.x && option.y === value.y;
+      const checked = !!value && option.x === value.x && option.y === value.y;
       cell.setAttribute('aria-checked', String(checked));
-      cell.tabIndex = checked ? 0 : -1;
+      cell.tabIndex = option.x === stop.x && option.y === stop.y ? 0 : -1;
     }
   }
 
   function commit(next: AnchorValue) {
-    if (next.x === value.x && next.y === value.y) return;
+    if (value && next.x === value.x && next.y === value.y) return;
     value = next;
     render();
     props.onChange({ ...value });
@@ -107,12 +131,12 @@ export function mountAnchorControl(host: HTMLElement, initial: AnchorControlProp
 
   grid.addEventListener('keydown', event => {
     if (event.altKey || event.metaKey || event.ctrlKey) return;
-    const next = anchorValueFromKey(value, event.key);
+    const next = anchorKeyPick(value, event.key);
     if (!next) return;
     event.preventDefault();
     event.stopPropagation();
     commit(next);
-    cells.find(({ option }) => option.x === value.x && option.y === value.y)?.cell.focus({ preventScroll: true });
+    cells.find(({ option }) => option.x === next.x && option.y === next.y)?.cell.focus({ preventScroll: true });
   });
 
   render();

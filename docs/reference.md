@@ -166,6 +166,8 @@ The grid has no label row: its label names it for screen readers, and a folder's
 
 Arrow keys move the selection one cell at a time; Home and End select the top-left and bottom-right cells. Invalid or missing axes fall back to the default.
 
+With `default: null`, the anchor starts with no cell picked: its value is `null`, the grid highlights no cell, and a click on any cell, the middle one included, picks it. The first arrow key picks the middle cell. Writing `null` clears the pick again, and a reset to a `null` default does too. The resolved type is `AnchorValue | null` for such an anchor and `AnchorValue` otherwise.
+
 ### Field rows
 
 ```ts

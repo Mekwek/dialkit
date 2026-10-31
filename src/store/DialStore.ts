@@ -82,7 +82,7 @@ export type TextConfig = {
   placeholder?: string;
 };
 
-export type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue | BackgroundConfig | BackgroundValue | AnchorConfig | AnchorValue | LayersConfig | LayersValue;
+export type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue | BackgroundConfig | BackgroundValue | AnchorConfig | AnchorValue | LayersConfig | LayersValue | null;
 
 /**
  * Folder keys that configure the folder instead of adding a control:
@@ -187,6 +187,9 @@ export function unwrapVisibility(value: DialConfig[string]): DialConfig[string] 
   return isVisibilityWrapper(value) ? value.value : value;
 }
 
+/** An anchor's value: a cell, or `null` (no cell picked) when its default is `null`. */
+type AnchorConfigValue<C> = C extends { default: null } ? AnchorValue | null : AnchorValue;
+
 export type ResolvedValues<T extends DialConfig> = {
   [K in keyof T as K extends FolderMetaKey ? never : K]: T[K] extends ControlWithVisibility<infer U extends DialConfig[string]>
     ? ResolvedValues<{ value: U }>['value']
@@ -207,7 +210,7 @@ export type ResolvedValues<T extends DialConfig> = {
                 : T[K] extends BackgroundConfig
                   ? BackgroundValue
                 : T[K] extends AnchorConfig
-                  ? AnchorValue
+                  ? AnchorConfigValue<T[K]>
                 : T[K] extends LayersConfig
                   ? LayersValue
                   : T[K] extends DialConfig
@@ -231,7 +234,7 @@ export type DialKitValueUpdates<T extends DialConfig> = {
             : T[K] extends BackgroundConfig
               ? BackgroundValueUpdate
             : T[K] extends AnchorConfig
-              ? AnchorValue
+              ? AnchorConfigValue<T[K]>
             : T[K] extends LayersConfig
               ? LayersValue
               : T[K] extends DialConfig
@@ -511,7 +514,8 @@ function resolveConfigValues(
     const configValue = unwrapVisibility(rawValue);
 
     if (isLeafConfigValue(configValue)) {
-      result[key] = flatValues[path] ?? configDefaultValue(configValue);
+      // `null` is a value (an anchor with no cell picked); only a missing one takes the default.
+      result[key] = flatValues[path] !== undefined ? flatValues[path] : configDefaultValue(configValue);
     } else if (typeof configValue === 'object' && configValue !== null) {
       result[key] = resolveConfigValues(configValue as DialConfig, flatValues, path);
     }

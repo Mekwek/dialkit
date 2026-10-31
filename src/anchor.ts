@@ -7,8 +7,11 @@ export type AnchorValue = {
 
 export type AnchorConfig = {
   type: 'anchor';
-  /** Omitted axes default to 'center'. */
-  default?: Partial<AnchorValue>;
+  /**
+   * Omitted axes default to 'center'. `null` starts with no cell picked: the
+   * grid highlights none, and a click on any cell picks it.
+   */
+  default?: Partial<AnchorValue> | null;
 };
 
 /** Columns left to right and rows top to bottom. */
@@ -19,8 +22,13 @@ function oneOf<T extends string>(options: readonly T[], value: unknown, fallback
   return options.includes(value as T) ? value as T : fallback;
 }
 
-/** Invalid or missing axes fall back to the configured default, then to 'center'. */
-export function normalizeAnchorValue(value: unknown, config: Pick<AnchorConfig, 'default'> = {}): AnchorValue {
+/**
+ * Invalid or missing axes fall back to the configured default, then to
+ * 'center'. `null` (no cell picked) stays `null`, and so does a missing
+ * or malformed value when the configured default is `null`.
+ */
+export function normalizeAnchorValue(value: unknown, config: Pick<AnchorConfig, 'default'> = {}): AnchorValue | null {
+  if (value === null || (config.default === null && (typeof value !== 'object' || Array.isArray(value)))) return null;
   const input = typeof value === 'object' && value !== null ? value as Partial<AnchorValue> : {};
   return {
     x: oneOf(ANCHOR_COLUMNS, input.x, oneOf(ANCHOR_COLUMNS, config.default?.x, 'center')),

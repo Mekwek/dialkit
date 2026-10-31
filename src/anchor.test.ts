@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { anchorLabel, anchorValueFromKey, normalizeAnchorValue } from './anchor';
+import { anchorKeyPick } from './anchor-control';
 import { DialStore, flattenDialValueUpdates, resolveDialValues, type AnchorConfig, type AnchorValue, type DialConfig, type ResolvedValues } from './store/DialStore';
 
 describe('anchor controls', () => {
@@ -34,7 +35,12 @@ describe('anchor controls', () => {
     assert.deepEqual(normalizeAnchorValue({ x: 'Right', y: 1 }, { default: { x: 'left', y: 'top' } }), { x: 'left', y: 'top' });
     assert.deepEqual(normalizeAnchorValue({ y: 'bottom' }, { default: { x: 'right' } }), { x: 'right', y: 'bottom' });
     assert.deepEqual(normalizeAnchorValue('top left', { default: { x: 'right' } }), { x: 'right', y: 'center' });
-    assert.deepEqual(normalizeAnchorValue(null, { default: { x: 'middle' as never } }), { x: 'center', y: 'center' });
+    assert.deepEqual(normalizeAnchorValue(undefined, { default: { x: 'middle' as never } }), { x: 'center', y: 'center' });
+    // `null` is no cell picked, and stays so; so does a missing value whose default is `null`.
+    assert.equal(normalizeAnchorValue(null, { default: { x: 'left' } }), null);
+    assert.equal(normalizeAnchorValue(undefined, { default: null }), null);
+    assert.equal(normalizeAnchorValue('top left', { default: null }), null);
+    assert.deepEqual(normalizeAnchorValue({ x: 'right' }, { default: null }), { x: 'right', y: 'center' });
   });
 
   it('names each cell from top to bottom, then left to right', () => {
@@ -112,5 +118,45 @@ describe('anchor controls', () => {
       if (originalWindow) Object.defineProperty(globalThis, 'window', originalWindow);
       else Reflect.deleteProperty(globalThis, 'window');
     }
+  });
+  it('keeps no cell picked: a null default resolves to null, a pick sets a cell, and null clears it', () => {
+    const id = 'anchor-no-pick';
+    const config = { align: { type: 'anchor', default: null }, fixed: { type: 'anchor' } } satisfies DialConfig;
+    const resolved: ResolvedValues<typeof config> = resolveDialValues(config, {});
+    const align: AnchorValue | null = resolved.align;
+    const fixed: AnchorValue = resolved.fixed;
+    assert.equal(align, null);
+    assert.deepEqual(fixed, { x: 'center', y: 'center' });
+    try {
+      DialStore.registerPanel(id, 'Anchor', config);
+      assert.equal(DialStore.getValue(id, 'align'), null);
+      assert.deepEqual(resolveDialValues(config, DialStore.getValues(id)), { align: null, fixed: { x: 'center', y: 'center' } });
+
+      // The middle cell is a pick like any other.
+      DialStore.updateValues(id, flattenDialValueUpdates(config, { align: { x: 'center', y: 'center' } }));
+      assert.deepEqual(DialStore.getValue(id, 'align'), { x: 'center', y: 'center' });
+      assert.equal(DialStore.hasChanges(id, ['align']), true);
+
+      DialStore.updateValues(id, flattenDialValueUpdates(config, { align: null }));
+      assert.equal(DialStore.getValue(id, 'align'), null);
+      assert.equal(DialStore.hasChanges(id, ['align']), false);
+
+      // A stored null survives a new registration and a reset to it.
+      DialStore.updateValue(id, 'align', { x: 'left', y: 'top' });
+      DialStore.resetValues(id);
+      assert.equal(DialStore.getValue(id, 'align'), null);
+      DialStore.updateValue(id, 'fixed', null);
+      DialStore.updatePanel(id, 'Anchor', { ...config, extra: 1 });
+      assert.equal(DialStore.getValue(id, 'fixed'), null);
+    } finally { DialStore.unregisterPanel(id); }
+  });
+
+  it('picks the middle cell on the first arrow while no cell is picked', () => {
+    assert.deepEqual(anchorKeyPick(null, 'ArrowLeft'), { x: 'center', y: 'center' });
+    assert.deepEqual(anchorKeyPick(null, 'ArrowDown'), { x: 'center', y: 'center' });
+    assert.deepEqual(anchorKeyPick(null, 'Home'), { x: 'left', y: 'top' });
+    assert.deepEqual(anchorKeyPick(null, 'End'), { x: 'right', y: 'bottom' });
+    assert.equal(anchorKeyPick(null, 'Enter'), undefined);
+    assert.deepEqual(anchorKeyPick({ x: 'center', y: 'center' }, 'ArrowLeft'), { x: 'left', y: 'center' });
   });
 });

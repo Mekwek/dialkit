@@ -308,7 +308,7 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration,
             key={control.path}
             label={control.label}
             hint={control.hint}
-            value={value as AnchorValue}
+            value={value as AnchorValue | null}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
           />
         );
