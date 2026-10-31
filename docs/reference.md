@@ -505,6 +505,8 @@ For sliders, hold the key and scroll, drag horizontally, or move the pointer acc
 ## Custom layouts
 
 Adapters export individual controls, including `Slider`, `Toggle`, `TextControl`, `SelectControl`, `ColorControl`, `ImageControl`, `DialPad`, `AnchorControl`, `BackgroundControl`, `TransitionControl`, `Folder`, and `ButtonGroup`. `BackgroundControl` also takes the `panelId` whose saved gradients it shows, and has no visible title of its own; panels place it in a folder named by its label. `ControlRenderer` renders a control metadata tree; pass `openFolder` and `onOpenFolderChange` (`@open-folder-change` in Vue) to control its top-level folders as an accordion. Keep custom controls inside an element with `class="dialkit-root"` and set `data-theme` to `"system"`, `"light"`, or `"dark"`. Without a `DialRoot` or `DialTimeline` mounted, text fields also show the focus ring when clicked, a clicked folder header keeps the focus, and a slider's number input keeps a fixed width. Hints work here with no extra setup: `ControlRenderer` passes `_hints` to its controls, and each control takes a `hint` prop. Hold H over one to read it while the rest of its root dims.
+
+A host can show a hint without the key, for example once the pointer has rested on an element for a moment: `HintStore.show(text, element)` shows `text` above `element`, which must sit inside a `.dialkit-root`, and `HintStore.hide(element)` hides it. The host picks the delay. Holding the key over another control replaces the hint, and the hint also hides when the pointer leaves the window.
 In vanilla, each control takes a host element and props:
 
 ```js
