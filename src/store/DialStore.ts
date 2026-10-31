@@ -84,10 +84,31 @@ export type DialValue = number | boolean | string | SpringConfig | EasingConfig 
 
 /**
  * Folder keys that configure the folder instead of adding a control:
- * `_collapsed`, `_fields`, `_reset`, `_hints` (a sentence per child key) and
- * `_labels` (the text a child's row shows in place of its key's own words).
+ * `_collapsed`, `_fields`, `_reset`, `_hints` (a sentence per child key),
+ * `_labels` (the text a child's row shows in place of its key's own words),
+ * `_row` and `_inlineLabels` (see {@link RowConfig}).
  */
-const FOLDER_META_KEYS = ['_collapsed', '_fields', '_reset', '_hints', '_labels'] as const;
+const FOLDER_META_KEYS = ['_collapsed', '_fields', '_reset', '_hints', '_labels', '_row', '_inlineLabels'] as const;
+
+/**
+ * A row: set `_row: true` on a folder with two controls. The folder shows
+ * no header; its two controls sit side by side, each with its label above
+ * it, like Weight and Size in a type tool. Each value keeps its own path.
+ */
+export type RowConfig = Record<string, never>;
+
+/**
+ * The names a row's controls show when its labels sit inside the controls
+ * (`--dial-row-label-style: 2`): set `_inlineLabels` on the `_row` folder,
+ * from a child key to a shorter name, or `''` to show only the value. The
+ * title above each control keeps the full name.
+ */
+export type InlineLabelsConfig = Record<string, string>;
+
+function inlineLabelsOf(value: unknown): InlineLabelsConfig | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  return Object.fromEntries(Object.entries(value).filter(([, name]) => typeof name === 'string'));
+}
 type FolderMetaKey = (typeof FOLDER_META_KEYS)[number];
 
 export type DialConfig = {
@@ -199,6 +220,10 @@ export type ControlMeta = {
   reset?: boolean;
   /** Folder only: `_fields: true` shows its numbers as one row of fields. */
   fields?: boolean;
+  /** Folder only: `_row` shows the folder's two controls side by side. See {@link RowConfig}. */
+  row?: RowConfig;
+  /** Row only: the names its controls show inside. See {@link InlineLabelsConfig}. */
+  inlineLabels?: InlineLabelsConfig;
   options?: SelectOption[];
   display?: SelectConfig['display'];
   hideLabel?: boolean;
@@ -1635,6 +1660,11 @@ class DialStoreClass {
             reset: folderConfig._reset === true,
             children,
           };
+          if (folderConfig._row === true) {
+            control.row = {};
+            const inlineLabels = inlineLabelsOf(folderConfig._inlineLabels);
+            if (inlineLabels) control.inlineLabels = inlineLabels;
+          }
           if (folderConfig._fields === true) {
             if (canShowFields(children)) {
               control.fields = true;

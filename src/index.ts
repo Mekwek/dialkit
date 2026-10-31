@@ -113,6 +113,8 @@ export type {
   DialKitValueUpdates,
   ResolvedValues,
   SelectAddConfig,
+  RowConfig,
+  InlineLabelsConfig,
   ControlMeta,
   PanelConfig,
   FolderMode,

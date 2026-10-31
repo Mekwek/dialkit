@@ -185,6 +185,26 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration,
             />
           );
         }
+        // A row draws its two controls side by side. --dial-row-label-style
+        // picks where the labels sit (theme.css): 1, a title above each
+        // control; 2, inside the controls, with `_inlineLabels` names.
+        if (control.row) {
+          return (
+            <div key={control.path} className="dialkit-row-group">
+              {(control.children ?? []).slice(0, 2).map((child) => {
+                const inline = control.inlineLabels?.[child.path.slice(control.path.length + 1)];
+                // Segmented options fill their cell, as a row of their own does.
+                const shown = child.type === 'select' && child.display === 'segmented' ? { ...child, hideLabel: true } : child;
+                return (
+                  <div key={child.path} className="dialkit-row-cell" data-inline-label={inline === '' ? 'none' : undefined}>
+                    <span className="dialkit-row-label">{child.label}</span>
+                    {renderControl(inline ? { ...shown, label: inline } : shown)}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        }
         // Accordion mode controls top-level folders; nested folders keep their own state.
         const accordion = topLevel && openFolder !== undefined;
         const rows = control.children ?? [];

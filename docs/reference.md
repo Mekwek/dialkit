@@ -180,6 +180,21 @@ Once any value in the row, the lock included, differs from its default, a reset 
 
 The boolean is the row's lock. While it is on, editing one field scales every field by the same ratio, so `[1, 2, 0.5]` becomes `[1.5, 3, 0.75]` when X moves to 1.5. When the edited field starts at 0, the others move by the same amount instead. The change stops where the first field reaches its min or max, and dragging back moves it again right away. Values set from code or shortcuts are written as given.
 
+### Rows
+
+```ts
+const config = {
+  type: {
+    _row: true,
+    _inlineLabels: { weight: "" },
+    weight: { type: "select", options: ["Regular", "Bold"] },
+    size: [40, 1, 1000, 1],
+  },
+} satisfies DialConfig;
+```
+
+`_row: true` shows a folder's first two controls side by side, with no folder header. Each value keeps its own path: `values.type.size` is a number. The theme variable `--dial-row-label-style` picks where the labels sit: `2` (the default) inside the controls, as a full row has them, and `1` as a title above each control. With labels inside, `_inlineLabels` maps a child key to a shorter name, or to `""` to show only the value; the title above keeps the full name. A segmented select fills its half of the row. `--dial-row-column-gap` sets the space between the two halves.
+
 ### Backgrounds
 
 ```ts

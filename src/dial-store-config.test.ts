@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import { Children, createElement, type ReactElement, type ReactNode } from 'react';
 import { ControlRenderer } from './components/ControlRenderer';
 import { SelectControl } from './components/SelectControl';
+import { Folder } from './components/Folder';
 import { DialStore, flattenDialValueUpdates, resolveDialValues, type DialConfig, type EasingConfig } from './store/DialStore';
 
 // A CommonJS module whose named export Node cannot see from ESM.
@@ -423,6 +424,58 @@ describe('DialStore config lifecycle', () => {
       assert.deepEqual(actions, ['text.font.add']);
       shallow.unmount();
       unsubscribe();
+    } finally { DialStore.unregisterPanel(id); }
+  });
+
+  it('keeps a _row folder with its two controls and their own paths', () => {
+    const id = 'config-row';
+    const config = {
+      type: {
+        _row: true,
+        _inlineLabels: { weight: '', size: 'Px' },
+        weight: { type: 'select', options: ['regular', 'bold'], default: 'regular' },
+        size: [40, 1, 1000, 1],
+      },
+    } satisfies DialConfig;
+    try {
+      DialStore.registerPanel(id, 'Row', config);
+      const folder = DialStore.getPanel(id)!.controls[0];
+      assert.deepEqual(folder.row, {});
+      assert.deepEqual(folder.inlineLabels, { weight: '', size: 'Px' });
+      assert.deepEqual(folder.children!.map((child) => `${child.type} ${child.path}`), ['select type.weight', 'slider type.size']);
+      DialStore.updateValues(id, { 'type.weight': 'bold', 'type.size': 120 });
+      assert.deepEqual([DialStore.getValue(id, 'type.weight'), DialStore.getValue(id, 'type.size')], ['bold', 120]);
+      assert.equal(DialStore.getValue(id, 'type._row'), undefined);
+      assert.equal(DialStore.getValue(id, 'type._inlineLabels'), undefined);
+      assert.deepEqual(resolveDialValues(config, DialStore.getValues(id)), { type: { weight: 'bold', size: 120 } });
+    } finally { DialStore.unregisterPanel(id); }
+  });
+
+  it('draws a _row folder as two cells, each with its title and its inline name', () => {
+    const id = 'config-row-render';
+    try {
+      DialStore.registerPanel(id, 'Row', {
+        type: {
+          _row: true,
+          _inlineLabels: { weight: '', size: 'Px' },
+          weight: { type: 'select', options: ['regular', 'bold'], default: 'regular' },
+          size: [40, 1, 1000, 1],
+        },
+        plain: { a: 1 },
+      });
+      const shallow = createShallowRenderer();
+      shallow.render(createElement(ControlRenderer, { panelId: id, controls: DialStore.getPanel(id)!.controls, values: DialStore.getValues(id) }));
+      const [row, folder] = Children.toArray((shallow.getRenderOutput() as ReactElement<{ children: ReactNode }>).props.children) as ReactElement<{ className?: string; children?: ReactNode }>[];
+      assert.equal(row.props.className, 'dialkit-row-group');
+      const cells = Children.toArray(row.props.children) as ReactElement<{ className: string; 'data-inline-label'?: string; children: ReactNode }>[];
+      assert.deepEqual(cells.map((cell) => cell.props['data-inline-label']), ['none', undefined]);
+      const [weightTitle, weight] = Children.toArray(cells[0].props.children) as ReactElement<{ children?: ReactNode; label?: string }>[];
+      const [sizeTitle, size] = Children.toArray(cells[1].props.children) as ReactElement<{ children?: ReactNode; label?: string }>[];
+      // The title above keeps the full name; the control shows the inline one.
+      assert.deepEqual([weightTitle.props.children, sizeTitle.props.children], ['Weight', 'Size']);
+      assert.deepEqual([weight.props.label, size.props.label], ['Weight', 'Px']);
+      assert.equal(folder.type, Folder);
+      shallow.unmount();
     } finally { DialStore.unregisterPanel(id); }
   });
 
