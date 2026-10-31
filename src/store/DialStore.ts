@@ -86,9 +86,10 @@ export type DialValue = number | boolean | string | SpringConfig | EasingConfig 
  * Folder keys that configure the folder instead of adding a control:
  * `_collapsed`, `_fields`, `_reset`, `_hints` (a sentence per child key),
  * `_labels` (the text a child's row shows in place of its key's own words),
- * `_row` and `_inlineLabels` (see {@link RowConfig}).
+ * `_row` and `_inlineLabels` (see {@link RowConfig}), and `_pad` (see
+ * {@link PadGroupConfig}).
  */
-const FOLDER_META_KEYS = ['_collapsed', '_fields', '_reset', '_hints', '_labels', '_row', '_inlineLabels'] as const;
+const FOLDER_META_KEYS = ['_collapsed', '_fields', '_reset', '_hints', '_labels', '_row', '_inlineLabels', '_pad'] as const;
 
 /**
  * A row: set `_row: true` on a folder with two controls. The folder shows
@@ -104,6 +105,19 @@ export type RowConfig = Record<string, never>;
  * title above each control keeps the full name.
  */
 export type InlineLabelsConfig = Record<string, string>;
+
+/**
+ * A pad group: set `_pad: true` (or these options) on a folder whose first
+ * two number children are a pair. The folder shows as one pad: X drives the
+ * first value, Y the second, and each value keeps its own path.
+ */
+export type PadGroupConfig = Pick<DialPadConfig, 'labels' | 'mapping' | 'hideLabel' | 'dragLabels'>;
+
+function padGroupConfigOf(value: unknown): PadGroupConfig | undefined {
+  if (value === true) return {};
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) return value as PadGroupConfig;
+  return undefined;
+}
 
 function inlineLabelsOf(value: unknown): InlineLabelsConfig | undefined {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
@@ -224,6 +238,8 @@ export type ControlMeta = {
   row?: RowConfig;
   /** Row only: the names its controls show inside. See {@link InlineLabelsConfig}. */
   inlineLabels?: InlineLabelsConfig;
+  /** Folder only: `_pad` shows the folder's first two numbers as one pad. See {@link PadGroupConfig}. */
+  padGroup?: PadGroupConfig;
   options?: SelectOption[];
   display?: SelectConfig['display'];
   hideLabel?: boolean;
@@ -1660,6 +1676,14 @@ class DialStoreClass {
             reset: folderConfig._reset === true,
             children,
           };
+          const padGroup = padGroupConfigOf(folderConfig._pad);
+          if (padGroup) {
+            if (children.filter(child => child.type === 'slider').length >= 2) {
+              control.padGroup = padGroup;
+            } else {
+              console.warn(`[dialkit] "${path}" sets _pad but needs two numbers; showing it as a folder.`);
+            }
+          }
           if (folderConfig._row === true) {
             control.row = {};
             const inlineLabels = inlineLabelsOf(folderConfig._inlineLabels);

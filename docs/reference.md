@@ -138,6 +138,16 @@ X increases to the right; Y increases upward. Clicks near grid intersections sna
 
 `hideLabel: true` removes the label box beside the axis fields, so the two fields fill the row; the label still names the pad for assistive technology. `dragLabels: true` lets you drag an axis label left or right to change its value by one step per pixel, or ten with Shift; Escape cancels the drag. Clicking the label without dragging still opens the number for typing, and Up/Down arrows in the number step it.
 
+`mapping: "centered"` puts each axis's default in the middle of the square: min to default fills one half, default to max the other. Use it when the default is not halfway between min and max, such as a scale from 0.1 to 3 with a default of 1.
+
+Set `_pad` on a folder of two numbers to show them as one pad while each keeps its own path: X drives the first number and Y the second, and `values.spread.h` stays a number. `_pad: true` uses the defaults; an object takes `labels`, `mapping`, `hideLabel` and `dragLabels`. The pad's default is each number's reset value. A folder without two numbers ignores `_pad` and logs a warning.
+
+```ts
+const config = {
+  spread: { _pad: { labels: { x: "H", y: "V" }, mapping: "centered" }, h: [1, 0.1, 3, 0.01], v: [1, 0.1, 3, 0.01] },
+} satisfies DialConfig;
+```
+
 ### Anchors
 
 ```ts

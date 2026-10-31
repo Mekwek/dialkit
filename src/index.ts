@@ -115,6 +115,7 @@ export type {
   SelectAddConfig,
   RowConfig,
   InlineLabelsConfig,
+  PadGroupConfig,
   ControlMeta,
   PanelConfig,
   FolderMode,

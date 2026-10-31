@@ -14,6 +14,7 @@ import { SelectControl } from './SelectControl';
 import { ColorControl } from './ColorControl';
 import { ImageControl } from './ImageControl';
 import { DialPad } from './DialPad';
+import { PadGroup } from './PadGroup';
 import { AnchorControl } from './AnchorControl';
 import { Fields } from './Fields';
 import { BackgroundControl } from './BackgroundControl';
@@ -185,6 +186,9 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration,
             />
           );
         }
+        if (control.padGroup) {
+          return <PadGroup key={control.path} panelId={panelId} control={control} values={values} />;
+        }
         // A row draws its two controls side by side. --dial-row-label-style
         // picks where the labels sit (theme.css): 1, a title above each
         // control; 2, inside the controls, with `_inlineLabels` names.
@@ -285,6 +289,7 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration,
             x={control.pad?.x}
             y={control.pad?.y}
             labels={control.pad?.labels}
+            mapping={control.pad?.mapping}
             hideLabel={control.pad?.hideLabel}
             dragLabels={control.pad?.dragLabels}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
