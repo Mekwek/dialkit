@@ -103,11 +103,40 @@ export function defaultBackgroundValue(): BackgroundValue {
     color: '#000000',
     gradient: {
       shape: 'linear',
-      handles: { start: { x: 0.5, y: 0.1 }, end: { x: 0.5, y: 0.9 }, width: { x: 0.1, y: 0.5 } },
+      handles: defaultGradientHandles(),
       stops: [{ at: 0, color: '#000000' }, { at: 100, color: '#ffffff' }],
     },
     media: null,
     mediaDisplay: { fit: 'fill', ratio: 'source', zoom: 1, tileSize: 0.25, position: { x: 'center', y: 'center' } },
+  };
+}
+
+/** The default handles: a top to bottom linear gradient, each end 10% in from the edge. */
+export function defaultGradientHandles(): GradientHandles {
+  return { start: { x: 0.5, y: 0.1 }, end: { x: 0.5, y: 0.9 }, width: { x: 0.1, y: 0.5 } };
+}
+
+/**
+ * The handles for a gradient saved before handles existed, which had a CSS
+ * `angle` instead (0 points up, 90 right, 180 down). For a host that rewrites
+ * its old data; `normalizeGradient` does not read `angle`.
+ *
+ * Linear: the line passes through the centre along d = (sin θ, -cos θ), half
+ * as long as CSS's own gradient line, h = (|sin θ| + |cos θ|) / 2, so
+ * start = centre - d·h, end = centre + d·h, and the width point sits a
+ * quarter turn from the end: 180 gives start (0.5, 0), end (0.5, 1),
+ * width (0, 0.5). Radial is centred, as `radial-gradient(circle at center)`.
+ */
+export function legacyGradientHandles(shape: 'linear' | 'radial', angle: number): GradientHandles {
+  if (shape === 'radial') return { start: { x: 0.5, y: 0.5 }, end: { x: 1, y: 0.5 }, width: { x: 0.5, y: 0 } };
+  const theta = (Number.isFinite(angle) ? angle : 180) * Math.PI / 180;
+  const d = { x: Math.sin(theta), y: -Math.cos(theta) };
+  const h = (Math.abs(d.x) + Math.abs(d.y)) / 2;
+  const point = (x: number, y: number) => ({ x: round(x, 6), y: round(y, 6) });
+  return {
+    start: point(0.5 - d.x * h, 0.5 - d.y * h),
+    end: point(0.5 + d.x * h, 0.5 + d.y * h),
+    width: point(0.5 - d.y * h, 0.5 + d.x * h),
   };
 }
 
@@ -212,15 +241,23 @@ export function cloneGradient(gradient: BackgroundGradient): BackgroundGradient 
  * place: the centre goes to the middle of the line, with the width point a
  * quarter turn from the end, and back again. Between the centred shapes the
  * handles stay as they are. The stops never change.
+ *
+ * `aspect` is the box's width / height. The quarter turn is taken in the
+ * box's pixels, so a centred shape starts as a circle on screen, even in a
+ * wide box. Without it the box is square.
  */
-export function switchGradientShape(gradient: BackgroundGradient, shape: GradientShape): BackgroundGradient {
+export function switchGradientShape(gradient: BackgroundGradient, shape: GradientShape, aspect = 1): BackgroundGradient {
   const next = { ...cloneGradient(gradient), shape };
   if ((gradient.shape === 'linear') === (shape === 'linear')) return next;
   const { start, end, width } = gradient.handles;
   const point = (x: number, y: number) => ({ x: round(x, 6), y: round(y, 6) });
   if (gradient.shape === 'linear') {
+    const a = Number.isFinite(aspect) && aspect > 0 ? aspect : 1;
     const centre = point((start.x + end.x) / 2, (start.y + end.y) / 2);
-    next.handles = { start: centre, end: { ...end }, width: point(centre.x - (end.y - centre.y), centre.y + (end.x - centre.x)) };
+    // The end's offset in pixels (a box a wide and 1 tall), turned 90° clockwise: (dx, dy) → (-dy, dx).
+    const dx = (end.x - centre.x) * a;
+    const dy = end.y - centre.y;
+    next.handles = { start: centre, end: { ...end }, width: point(centre.x - dy / a, centre.y + dx) };
   } else {
     next.handles = { start: point(2 * start.x - end.x, 2 * start.y - end.y), end: { ...end }, width: { ...width } };
   }
