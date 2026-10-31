@@ -115,6 +115,24 @@ describe('DialKit framework values', () => {
     } finally { act(() => renderer?.unmount()); }
   });
 
+  it('draws a segmented icon in the box its option names', () => {
+    let renderer: ReactTestRenderer | undefined;
+    const props = {
+      label: 'Align', value: 'start', onChange: () => {}, display: 'segmented' as const,
+      options: [
+        { value: 'start', label: 'Left', icon: 'M2.5 4h11M2.5 8h7M2.5 12h9', iconSize: 16 as const },
+        { value: 'end', label: 'Right', icon: ['M4 4H20V20H4Z'] },
+      ],
+    };
+    try {
+      act(() => { renderer = create(createElement(SelectControl, props)); });
+      const icons = renderer!.root.findAll(node => node.type === 'svg');
+      assert.deepEqual(icons.map(icon => [icon.props.viewBox, icon.props.strokeWidth]), [['0 0 16 16', 1.5], ['0 0 24 24', 2]]);
+      const radios = renderer!.root.findAll(node => node.type === 'button' && node.props.role === 'radio');
+      assert.deepEqual(radios.map(radio => radio.props['aria-label']), ['Left', 'Right']);
+    } finally { act(() => renderer?.unmount()); }
+  });
+
   it('updates and resets the Vue computed controller values', () => {
     const id = 'pad-vue';
     let dial: ReturnType<typeof useVueDialKitController<typeof config>>;

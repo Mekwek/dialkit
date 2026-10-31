@@ -1954,6 +1954,12 @@
   background: var(--dial-surface-active);
 }
 
+/* A select's add row (SelectConfig.add): first in the dropdown, a + before
+   its label and a line under it. */
+.dialkit-select-add-option { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; position: relative; }
+.dialkit-select-add-option svg { flex: none; width: 14px; height: 14px; }
+.dialkit-select-add-option::after { content: ''; position: absolute; left: 4px; right: 4px; bottom: -3px; height: 1px; background: var(--dial-border); }
+
 /* Image selector: shared by React, Solid, Vue, and Svelte. */
 .dialkit-image-control {
   display: flex;

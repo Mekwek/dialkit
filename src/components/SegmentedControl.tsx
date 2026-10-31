@@ -7,6 +7,8 @@ interface SegmentedControlOption<T extends string> {
   label: string;
   /** SVG path data in a 24 × 24 box, shown in place of the label. */
   icon?: string | string[];
+  /** The icon's box: 24 (the default) or 16, drawn with a 1.5 stroke. */
+  iconSize?: 16 | 24;
 }
 
 interface SegmentedControlProps<T extends string> {
@@ -87,7 +89,7 @@ export function SegmentedControl<T extends string>({
             aria-label={option.icon ? option.label : undefined}
           >
             {option.icon ? (
-              <svg className="dialkit-segmented-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <svg className="dialkit-segmented-icon" viewBox={option.iconSize === 16 ? '0 0 16 16' : '0 0 24 24'} fill="none" stroke="currentColor" strokeWidth={option.iconSize === 16 ? 1.5 : 2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 {iconPaths(option.icon).map((d, i) => <path key={i} d={d} />)}
               </svg>
             ) : option.label}

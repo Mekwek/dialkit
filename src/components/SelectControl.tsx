@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition, type DropdownPosition } from '../dropdown-position';
-import { ICON_CHEVRON } from '../icons';
+import { ICON_CHEVRON, ICON_PLUS } from '../icons';
 import { useHints } from '../hooks/useHints';
 import type { SelectConfig, SelectOption } from '../store/DialStore';
 import { SegmentedControl } from './SegmentedControl';
@@ -18,6 +18,8 @@ interface SelectControlProps {
   display?: SelectConfig['display'];
   hideLabel?: boolean;
   hint?: string;
+  /** Dropdown only: the first row of the dropdown, which adds an option. See `SelectConfig.add`. */
+  add?: { label: string; hint?: string; onClick: () => void };
 }
 
 function toTitleCase(s: string): string {
@@ -31,7 +33,7 @@ function normalizeOptions(options: SelectOption[]): Exclude<SelectOption, string
 }
 
 export function SelectControl(props: SelectControlProps) {
-  useHints(!!props.hint);
+  useHints(!!props.hint || !!props.add?.hint);
   return props.display === 'segmented' ? <SegmentedSelect {...props} /> : <SelectDropdown {...props} />;
 }
 
@@ -49,7 +51,7 @@ function SegmentedSelect({ label, value, options, onChange, hideLabel, hint }: S
   );
 }
 
-function SelectDropdown({ label, value, options, onChange, hint }: SelectControlProps) {
+function SelectDropdown({ label, value, options, onChange, hint, add }: SelectControlProps) {
   const [isOpen, setIsOpen] = useState(false);
   const resyncPresence = usePresenceResync();
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -63,9 +65,10 @@ function SelectDropdown({ label, value, options, onChange, hint }: SelectControl
     const el = triggerRef.current;
     if (!el || !portalTarget) return;
     // Estimate dropdown height: 8px padding + 36px per option
-    const dropdownHeight = dropdownRef.current ? dropdownRef.current.scrollHeight + 2 : 10 + normalized.length * 36;
+    const rows = normalized.length + (add ? 1 : 0);
+    const dropdownHeight = dropdownRef.current ? dropdownRef.current.scrollHeight + 2 : 10 + rows * 36;
     setPos(getDropdownPosition(el, portalTarget, { dropdownHeight, fixed: true }));
-  }, [normalized.length, portalTarget]);
+  }, [normalized.length, add, portalTarget]);
 
   // Resolve portal target (closest .dialkit-root)
   useEffect(() => {
@@ -106,7 +109,7 @@ function SelectDropdown({ label, value, options, onChange, hint }: SelectControl
         className="dialkit-select-trigger"
         onClick={() => setIsOpen(!isOpen)}
         data-open={String(isOpen)}
-        type="button" aria-haspopup="listbox" aria-expanded={isOpen} disabled={!options.length}
+        type="button" aria-haspopup="listbox" aria-expanded={isOpen} disabled={!options.length && !add}
         onKeyDown={(e) => openDropdownOnKey(e, () => setIsOpen(true))}
       >
         <span className="dialkit-select-label">{label}</span>
@@ -147,6 +150,22 @@ function SelectDropdown({ label, value, options, onChange, hint }: SelectControl
                 transformOrigin: pos.above ? 'bottom' : 'top',
               }}
             >
+              {add && (
+                <button
+                  type="button"
+                  className="dialkit-select-option dialkit-select-add-option"
+                  data-hint={add.hint}
+                  onClick={() => {
+                    setIsOpen(false);
+                    add.onClick();
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    {ICON_PLUS.map((d) => <path key={d} d={d} />)}
+                  </svg>
+                  {add.label}
+                </button>
+              )}
               {normalized.map((option) => (
                 <button
                   key={option.value}

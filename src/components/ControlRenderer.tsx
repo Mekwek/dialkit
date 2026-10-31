@@ -228,6 +228,7 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration,
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
             display={control.display}
             hideLabel={control.hideLabel}
+            add={control.add ? { ...control.add, onClick: () => DialStore.triggerAction(panelId, `${control.path}.add`) } : undefined}
           />
         );
 

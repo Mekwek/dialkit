@@ -21,7 +21,7 @@ const byClass = (root: ReactTestInstance, className: string) =>
   root.findAll(node => typeof node.type === 'string' && typeof node.props.className === 'string' && node.props.className.split(' ').includes(className));
 const control = (panelId: string, path: string) => {
   const found = DialStore.getControl(panelId, path);
-  assert.ok(found, path);
+  if (!found) throw new Error(`No control at ${path}`);
   return found;
 };
 

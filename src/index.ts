@@ -112,6 +112,7 @@ export type {
   DialConfig,
   DialKitValueUpdates,
   ResolvedValues,
+  SelectAddConfig,
   ControlMeta,
   PanelConfig,
   VisibleWhen,

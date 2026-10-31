@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
 import { describe, it } from 'node:test';
-import { DialStore, flattenDialValueUpdates, resolveDialValues, type DialConfig } from './store/DialStore';
+import { Children, createElement, type ReactElement, type ReactNode } from 'react';
+import { ControlRenderer } from './components/ControlRenderer';
+import { SelectControl } from './components/SelectControl';
+import { DialStore, flattenDialValueUpdates, resolveDialValues, type DialConfig, type EasingConfig } from './store/DialStore';
+
+// A CommonJS module whose named export Node cannot see from ESM.
+const { createRenderer: createShallowRenderer } = createRequire(import.meta.url)('react-test-renderer/shallow') as typeof import('react-test-renderer/shallow');
 
 describe('DialStore config lifecycle', () => {
   it('uses the same defaults before registration, after registration, and after reset', () => {
@@ -293,7 +300,7 @@ describe('DialStore config lifecycle', () => {
 
   it('resets to the host reset values, only at the paths they list, and compares objects by content', () => {
     const id = 'config-reset-values';
-    const ease = { type: 'easing', duration: 0.3, ease: [0.4, 0, 0.2, 1] } as const;
+    const ease: EasingConfig = { type: 'easing', duration: 0.3, ease: [0.4, 0, 0.2, 1] };
     const config = {
       // The host opens the panel on saved values: they are the defaults.
       layout: { _reset: true, gap: [12, 0, 50, 1], count: [40, 1, 100, 1], ease: { type: 'easing', duration: 0.6, ease: [0.4, 0, 0.2, 1] } },
@@ -391,6 +398,32 @@ describe('DialStore config lifecycle', () => {
     // An unknown panel resets and reports nothing.
     DialStore.resetPaths(id, ['other']);
     assert.equal(DialStore.hasChanges(id, ['other']), false);
+  });
+
+  it('keeps the add row of a select on its control, and runs it as the <path>.add action', () => {
+    const id = 'config-select-add';
+    const config = {
+      text: { font: { type: 'select', options: ['Inter', 'Mono'], add: { label: 'Upload font', hint: 'Adds a font from your computer.' } } },
+      plain: { type: 'select', options: ['a', 'b'] },
+    } satisfies DialConfig;
+    const actions: string[] = [];
+    try {
+      DialStore.registerPanel(id, 'Config', config);
+      assert.deepEqual(DialStore.getControl(id, 'text.font')?.add, { label: 'Upload font', hint: 'Adds a font from your computer.' });
+      assert.equal('add' in DialStore.getControl(id, 'plain')!, false);
+      assert.deepEqual(resolveDialValues(config, DialStore.getValues(id)), { text: { font: 'Inter' }, plain: 'a' });
+      const unsubscribe = DialStore.subscribeActions(id, (action) => actions.push(action));
+      const shallow = createShallowRenderer();
+      shallow.render(createElement(ControlRenderer, { panelId: id, controls: DialStore.getControl(id, 'text')!.children!, values: DialStore.getValues(id) }));
+      const [select] = Children.toArray((shallow.getRenderOutput() as ReactElement<{ children: ReactNode }>).props.children) as ReactElement<{ add?: { label: string; hint?: string; onClick: () => void } }>[];
+      assert.equal(select.type, SelectControl);
+      assert.equal(select.props.add?.label, 'Upload font');
+      assert.equal(select.props.add?.hint, 'Adds a font from your computer.');
+      select.props.add?.onClick();
+      assert.deepEqual(actions, ['text.font.add']);
+      shallow.unmount();
+      unsubscribe();
+    } finally { DialStore.unregisterPanel(id); }
   });
 
   it('does not retain an extra registration when an invalid config is rejected', () => {

@@ -35,8 +35,11 @@ export type ActionConfig = {
   label?: string;
 };
 
-/** `icon` is SVG path data in a 24 × 24 box. Segmented controls show it in place of the label. */
-export type SelectOption = string | { value: string; label: string; icon?: string | string[] };
+/**
+ * `icon` is SVG path data in a 24 × 24 box, or a 16 × 16 box with
+ * `iconSize: 16`. Segmented controls show it in place of the label.
+ */
+export type SelectOption = string | { value: string; label: string; icon?: string | string[]; iconSize?: 16 | 24 };
 
 export type SelectConfig = {
   type: 'select';
@@ -46,7 +49,15 @@ export type SelectConfig = {
   display?: 'dropdown' | 'segmented';
   /** Segmented only: the options fill the row, and the label becomes the group's accessible name. */
   hideLabel?: boolean;
+  /**
+   * Dropdown only: a first row in the dropdown that adds an option, such as
+   * an upload. `label` names it and `hint` is its hint. A click runs the
+   * action `<path>.add`.
+   */
+  add?: SelectAddConfig;
 };
+
+export type SelectAddConfig = { label: string; hint?: string };
 
 export type ColorConfig = {
   type: 'color';
@@ -191,6 +202,8 @@ export type ControlMeta = {
   options?: SelectOption[];
   display?: SelectConfig['display'];
   hideLabel?: boolean;
+  /** Select only: the dropdown's add row. See `SelectConfig.add`. */
+  add?: SelectAddConfig;
   placeholder?: string;
   pad?: DialPadConfig;
   anchor?: AnchorConfig;
@@ -1572,7 +1585,7 @@ class DialStoreClass {
         } else if (isActionConfigValue(value)) {
           control = { type: 'action', path, label: value.label || label };
         } else if (isSelectConfigValue(value)) {
-          control = { type: 'select', path, label, options: value.options, display: value.display, hideLabel: value.hideLabel };
+          control = { type: 'select', path, label, options: value.options, display: value.display, hideLabel: value.hideLabel, ...(value.add ? { add: value.add } : {}) };
         } else if (isColorConfigValue(value)) {
           control = { type: 'color', path, label };
         } else if (isImageConfigValue(value)) {
