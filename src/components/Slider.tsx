@@ -1,7 +1,7 @@
 import { handleSliderKey } from '../control-keyboard';
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { motion, useMotionValue, useTransform, animate } from 'motion/react';
-import type { ShortcutConfig } from '../store/DialStore';
+import { DialStore, type ShortcutConfig } from '../store/DialStore';
 import { decimalsForStep, isWordUnit, roundValue, snapToDecile, formatSliderShortcut } from '../shortcut-utils';
 import { useHints } from '../hooks/useHints';
 
@@ -15,8 +15,6 @@ interface SliderProps {
   unit?: string;
   shortcut?: ShortcutConfig;
   shortcutActive?: boolean;
-  /** @internal A value that arrives with a new count springs into place, like a click on the track. */
-  resetCount?: number;
   hint?: string;
 }
 
@@ -36,7 +34,6 @@ export function Slider({
   unit,
   shortcut,
   shortcutActive,
-  resetCount = 0,
   hint,
 }: SliderProps) {
   useHints(!!hint);
@@ -84,10 +81,15 @@ export function Slider({
   );
 
   // Sync from props when not interacting (skip if spring animation is active).
-  // A folder reset springs the fill to its new value instead.
-  const seenResetCount = useRef(resetCount);
+  // A value a reset put back springs there, like a click on the track; any
+  // other outside change (a version, timeline playback) follows at once.
+  const seenResetCount = useRef(DialStore.getResetCount());
   useEffect(() => {
-    const isReset = seenResetCount.current !== resetCount;
+    // A slider that did not draw at the reset still holds an older count,
+    // so the change must also land right after the reset.
+    const resetCount = DialStore.getResetCount();
+    const isReset = seenResetCount.current !== resetCount
+      && performance.now() - DialStore.getLastResetAt() < 150;
     seenResetCount.current = resetCount;
     if (isInteracting) return;
     if (isReset && fillPercent.get() !== percentage) {
@@ -99,7 +101,7 @@ export function Slider({
     } else if (!animRef.current) {
       fillPercent.jump(percentage);
     }
-  }, [percentage, isInteracting, fillPercent, resetCount]);
+  }, [percentage, isInteracting, fillPercent]);
 
   const positionToValue = useCallback(
     (clientX: number) => {

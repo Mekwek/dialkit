@@ -291,6 +291,64 @@ describe('DialStore config lifecycle', () => {
     } finally { DialStore.unregisterPanel(id); }
   });
 
+  it('resets to the host reset values, only at the paths they list, and compares objects by content', () => {
+    const id = 'config-reset-values';
+    const ease = { type: 'easing', duration: 0.3, ease: [0.4, 0, 0.2, 1] } as const;
+    const config = {
+      // The host opens the panel on saved values: they are the defaults.
+      layout: { _reset: true, gap: [12, 0, 50, 1], count: [40, 1, 100, 1], ease: { type: 'easing', duration: 0.6, ease: [0.4, 0, 0.2, 1] } },
+      other: [5, 0, 10],
+    } satisfies DialConfig;
+    try {
+      DialStore.registerPanel(id, 'Config', config);
+      assert.equal(DialStore.isFolderChanged(id, 'layout'), false);
+      DialStore.setResetValues(id, { 'layout.gap': 4, 'layout.ease': ease });
+      DialStore.updateValue(id, 'layout.gap', -0);
+      DialStore.setResetValues(id, { 'layout.gap': 0, 'layout.ease': ease });
+      DialStore.updateValue(id, 'layout.ease', { ...ease });
+      assert.equal(DialStore.isFolderChanged(id, 'layout'), false);
+      DialStore.setResetValues(id, { 'layout.gap': 4, 'layout.ease': ease });
+      assert.equal(DialStore.isFolderChanged(id, 'layout'), true);
+      assert.equal(DialStore.getResetValue(id, 'layout.gap'), 4);
+      // A path the reset values leave out is never reset and never changed.
+      assert.equal(DialStore.getResetValue(id, 'layout.count'), undefined);
+      DialStore.updateValue(id, 'layout.count', 80);
+      const resets = DialStore.getResetCount();
+      DialStore.resetFolder(id, 'layout');
+      assert.equal(DialStore.getResetCount(), resets + 1);
+      assert.equal(DialStore.getValue(id, 'layout.gap'), 4);
+      assert.equal(DialStore.getValue(id, 'layout.count'), 80);
+      assert.equal(DialStore.isFolderChanged(id, 'layout'), false);
+      // A new object with the same content counts as unchanged.
+      DialStore.updateValue(id, 'layout.ease', { ...ease, ease: [...ease.ease] });
+      assert.equal(DialStore.isFolderChanged(id, 'layout'), false);
+      // The values a fields row resets to follow the host values too.
+      assert.deepEqual(DialStore.getResetValues(id), { 'layout.gap': 4, 'layout.ease': ease });
+    } finally { DialStore.unregisterPanel(id); }
+    // The host values go with the panel.
+    DialStore.registerPanel(id, 'Config', config);
+    try {
+      assert.equal(DialStore.getResetValue(id, 'layout.gap'), 12);
+    } finally { DialStore.unregisterPanel(id); }
+  });
+
+  it('draws the panel again when the host reset values change', () => {
+    const id = 'config-reset-values-notify';
+    try {
+      DialStore.registerPanel(id, 'Config', { layout: { _reset: true, gap: [12, 0, 50, 1] } });
+      let draws = 0;
+      const unsubscribe = DialStore.subscribe(id, () => { draws++; });
+      const before = DialStore.getValues(id);
+      DialStore.setResetValues(id, { 'layout.gap': 4 });
+      assert.equal(draws, 1);
+      assert.notEqual(DialStore.getValues(id), before);
+      // The same values again change nothing.
+      DialStore.setResetValues(id, { 'layout.gap': 4 });
+      assert.equal(draws, 1);
+      unsubscribe();
+    } finally { DialStore.unregisterPanel(id); }
+  });
+
   it('does not retain an extra registration when an invalid config is rejected', () => {
     const id = 'config-rejected-owner';
     DialStore.registerPanel(id, 'Original', { amount: 1 });

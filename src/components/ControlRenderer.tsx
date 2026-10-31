@@ -81,16 +81,10 @@ function AnimatedControls({ controls, children }: { controls: ControlMeta[]; chi
 // Shared by the panel and the timeline clip popover.
 export function ControlRenderer({ panelId, controls, values, transitionDuration, openFolder, onOpenFolderChange, animateControls = false }: ControlRendererProps) {
   const shortcutCtx = useContext(ShortcutContext);
-  // Counts folder resets, so sliders can spring to the values a reset sets.
-  const [resetCount, setResetCount] = useState(0);
-
   // The reset button of the folder a control draws: a `_reset` folder, a spring, a transition, or a background.
   const resetProps = (control: ControlMeta) => control.reset ? {
     changed: DialStore.isFolderChanged(panelId, control.path),
-    onReset: () => {
-      setResetCount((count) => count + 1);
-      DialStore.resetFolder(panelId, control.path);
-    },
+    onReset: () => DialStore.resetFolder(panelId, control.path),
   } : {};
 
   // Hinted action buttons are the renderer's own rows; each control mounts its own.
@@ -118,7 +112,6 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration,
             unit={control.unit}
             shortcut={control.shortcut}
             shortcutActive={shortcutCtx.activePanelId === panelId && shortcutCtx.activePath === control.path}
-            resetCount={resetCount}
           />
         );
 
@@ -172,7 +165,7 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration,
               label={control.label}
               controls={control.children ?? []}
               values={values}
-              defaults={DialStore.getDefaultValues(panelId)}
+              defaults={DialStore.getResetValues(panelId)}
               hint={control.hint}
               onChange={(v) => DialStore.updateValues(panelId, v)}
             />

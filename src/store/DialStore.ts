@@ -530,6 +530,11 @@ class DialStoreClass {
   private baseValues: Map<string, Record<string, DialValue>> = new Map();
   private baseNames: Map<string, string> = new Map();
   private defaultValues: Map<string, Record<string, DialValue>> = new Map();
+  /** Host values a reset returns to, over the defaults. See setResetValues. */
+  private hostResetValues: Map<string, Record<string, DialValue>> = new Map();
+  /** How many resets ran: a slider that sees it change springs to its new value instead of jumping. */
+  private resetCount = 0;
+  private lastResetAt = -Infinity;
   private registrationCounts: Map<string, number> = new Map();
   private retainedPanels: Set<string> = new Set();
   private persistConfigs: Map<string, PersistConfig> = new Map();
@@ -646,6 +651,7 @@ class DialStoreClass {
       this.baseValues.delete(id);
       this.baseNames.delete(id);
       this.defaultValues.delete(id);
+      this.hostResetValues.delete(id);
       this.presets.delete(id);
       this.activePreset.delete(id);
       this.gradients.delete(id);
@@ -745,6 +751,8 @@ class DialStoreClass {
     const defaults = this.defaultValues.get(panelId);
     if (!panel || !defaults) return;
 
+    this.resetCount++;
+    this.lastResetAt = now();
     panel.values = { ...defaults };
     this.snapshots.set(panelId, { ...panel.values });
     this.updateVisibility(panel);
@@ -766,19 +774,77 @@ class DialStoreClass {
   resetFolder(panelId: string, path: string): void {
     const panel = this.panels.get(panelId);
     const keys = panel && this.resetKeysByPanel.get(panel)?.get(path);
-    const defaults = this.defaultValues.get(panelId);
-    if (!keys || !defaults) return;
+    const targets = this.resetTargets(panelId);
+    if (!keys || !targets) return;
     this.notifyReset(panelId, path);
-    this.updateValues(panelId, Object.fromEntries(keys.map((key) => [key, defaults[key]])));
+    this.writeResetValues(panelId, keys, targets);
   }
 
-  /** True when a value that `resetFolder` restores differs from its default, so the reset button shows. */
+  /** True when a value that `resetFolder` restores differs from its reset value, so the reset button shows. */
   isFolderChanged(panelId: string, path: string): boolean {
     const panel = this.panels.get(panelId);
     const keys = panel && this.resetKeysByPanel.get(panel)?.get(path);
-    const defaults = this.defaultValues.get(panelId);
-    if (!panel || !keys || !defaults) return false;
-    return keys.some((key) => !sameValue(panel.values[key], defaults[key]));
+    const targets = this.resetTargets(panelId);
+    if (!panel || !keys || !targets) return false;
+    return keys.some((key) => key in targets && !sameValue(panel.values[key], targets[key]));
+  }
+
+  /**
+   * The values a reset returns to, by path, when they are not the config's
+   * defaults: for example when the host passes saved values as defaults, so
+   * a panel opens on them, but a reset goes back to its own defaults. Each
+   * call replaces the last. Once set, `resetFolder` and `isFolderChanged`
+   * use only these paths: a path left out is one no reset returns to a
+   * default. List `<path>.__mode` to reset a transition's mode too.
+   */
+  setResetValues(panelId: string, values: Record<string, DialValue>): void {
+    const previous = this.hostResetValues.get(panelId);
+    if (previous && sameValue(previous, values)) return;
+    this.hostResetValues.set(panelId, { ...values });
+    // Reset buttons show whether their folder changed: draw the panel again.
+    const panel = this.panels.get(panelId);
+    if (!panel) return;
+    this.snapshots.set(panelId, { ...panel.values });
+    this.notify(panelId);
+  }
+
+  /** The value each path resets to: the values from `setResetValues`, else the defaults. */
+  getResetValues(panelId: string): Record<string, DialValue> {
+    return this.resetTargets(panelId) ?? EMPTY_VALUES;
+  }
+
+  /** The value a reset puts at `path`, or undefined when no reset changes it. */
+  getResetValue(panelId: string, path: string): DialValue | undefined {
+    return this.resetTargets(panelId)?.[path];
+  }
+
+  /**
+   * Counts the resets so far. A value that changes right after a new count
+   * came from a reset, so a control can animate it; other outside changes,
+   * like timeline playback, keep following the value at once.
+   */
+  getResetCount(): number {
+    return this.resetCount;
+  }
+
+  /** When the last reset ran, in `performance.now()` time. */
+  getLastResetAt(): number {
+    return this.lastResetAt;
+  }
+
+  private resetTargets(panelId: string): Record<string, DialValue> | undefined {
+    return this.hostResetValues.get(panelId) ?? this.defaultValues.get(panelId);
+  }
+
+  /** Writes the reset value of each listed path that has one, and counts the reset. */
+  private writeResetValues(panelId: string, paths: string[], targets: Record<string, DialValue>): void {
+    this.resetCount++;
+    this.lastResetAt = now();
+    const updates: Record<string, DialValue> = {};
+    for (const path of paths) {
+      if (path in targets) updates[path] = targets[path];
+    }
+    this.updateValues(panelId, updates);
   }
 
   updateSpringMode(panelId: string, path: string, mode: 'simple' | 'advanced'): void {
@@ -1596,6 +1662,10 @@ class DialStoreClass {
         return defaultValue;
     }
   }
+}
+
+function now(): number {
+  return typeof performance === 'undefined' ? Date.now() : performance.now();
 }
 
 function isVisible(rule: VisibleWhen | undefined, values: Record<string, DialValue>): boolean {
