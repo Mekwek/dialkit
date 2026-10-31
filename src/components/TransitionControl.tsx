@@ -28,6 +28,8 @@ interface TransitionControlProps {
     min?: number;
     max?: number;
     step?: number;
+    /** Replaces the curve's own Duration hint. */
+    hint?: string;
   };
   /** Shows a reset button in the header. See Folder.onReset. */
   onReset?: () => void;
@@ -138,7 +140,7 @@ export function TransitionControl({
       max={durationControl?.max ?? (isEasing ? 2 : 5)}
       step={durationControl?.step ?? 0.05}
       unit="s"
-      hint={isEasing ? HINTS.easingDuration : HINTS.springDuration}
+      hint={durationControl?.hint ?? (isEasing ? HINTS.easingDuration : HINTS.springDuration)}
     />
   ) : null;
 

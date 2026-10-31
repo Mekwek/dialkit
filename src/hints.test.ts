@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { createElement } from 'react';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { HintTip, HintTooltip } from './components/Hint';
 import { getHintPosition, HintStore, isHintKey, mountHints, setHint } from './hints';
 import { DialStore, flattenDialValueUpdates, resolveDialValues, type DialConfig } from './store/DialStore';
+import { parseTimelineConfig } from './timeline-core';
 
 const press = (key: string, extra: Partial<KeyboardEvent> = {}) => ({
   key, altKey: false, ctrlKey: false, metaKey: false, shiftKey: false, target: null, ...extra,
@@ -132,6 +136,66 @@ describe('hints', () => {
       DialStore.updatePanel(id, 'Hints', { radius: [12, 0, 32], shadow: { blur: [8, 0, 40] } });
       assert.equal(DialStore.getPanel(id)!.controls[0].hint, undefined);
     } finally { DialStore.unregisterPanel(id); }
+  });
+
+  it('names rows from _labels and gives a panel its own hint, without adding values', () => {
+    const id = 'hints-labels';
+    const config = {
+      _labels: { billboard: 'Face Camera', run: 'Go' },
+      billboard: true,
+      run: { type: 'action' },
+      named: { type: 'action', label: 'Own label' },
+      pin: { _labels: { screenPin: 'Pin' }, screenPin: false },
+    } satisfies DialConfig;
+    try {
+      DialStore.registerPanel(id, 'Labels', config, undefined, { hint: 'The text layer.' });
+      const controls = DialStore.getPanel(id)!.controls;
+      assert.deepEqual(controls.map(control => [control.path, control.label]), [
+        ['billboard', 'Face Camera'], ['run', 'Go'], ['named', 'Own label'], ['pin', 'Pin'],
+      ]);
+      assert.deepEqual(controls[3].children!.map(control => control.label), ['Pin']);
+      assert.deepEqual(resolveDialValues(config, DialStore.getValues(id)), { billboard: true, run: config.run, named: config.named, pin: { screenPin: false } });
+      assert.equal(DialStore.getPanel(id)!.hint, 'The text layer.');
+      DialStore.updatePanel(id, 'Labels', config);
+      assert.equal(DialStore.getPanel(id)!.hint, 'The text layer.');
+    } finally { DialStore.unregisterPanel(id); }
+  });
+
+  it('gives timeline clips a bar hint and hints for their editor controls', () => {
+    const parsed = parseTimelineConfig({
+      fade: {
+        at: 0, duration: 1, from: { opacity: 0 }, to: { opacity: 1 },
+        hint: 'Fades the card in.', hints: { duration: 'How long the fade takes.', at: 'When the fade starts.' },
+      },
+      plain: { at: 1, duration: 1 },
+    });
+    assert.deepEqual(parsed.clips.map(clip => [clip.key, clip.hint]), [['fade', 'Fades the card in.'], ['plain', undefined]]);
+    const id = 'hints-clips';
+    try {
+      DialStore.registerPanel(id, 'Clips', parsed.dialConfig);
+      assert.equal(DialStore.getControl(id, 'fade.duration')?.hint, 'How long the fade takes.');
+      assert.equal(DialStore.getControl(id, 'fade.at')?.hint, 'When the fade starts.');
+      assert.equal(DialStore.getControl(id, 'plain.at')?.hint, undefined);
+      assert.equal('_hints' in DialStore.getValues(id), false);
+    } finally { DialStore.unregisterPanel(id); }
+  });
+
+  it('holds the key a page sets instead of H, and names it in the tip', () => {
+    let renderer: ReactTestRenderer | undefined;
+    try {
+      act(() => { renderer = create(createElement(HintTip, { always: true })); });
+      const key = () => renderer!.root.findByProps({ className: 'dialkit-hint-tip-key' }).children.join('');
+      assert.equal(key(), 'H');
+      act(() => HintStore.setKey('Q'));
+      assert.equal(HintStore.getKey(), 'q');
+      assert.equal(key(), 'Q');
+      assert.equal(isHintKey(press('q')), true);
+      assert.equal(isHintKey(press('h')), false);
+    } finally {
+      act(() => HintStore.setKey('h'));
+      act(() => renderer?.unmount());
+    }
+    assert.equal(isHintKey(press('h')), true);
   });
 
   it('holds H only for a plain press outside fields', () => {
@@ -304,6 +368,30 @@ describe('hints', () => {
       }
       await settle();
       assert.equal(tooltip(), undefined);
+    });
+  });
+
+  it('mounts the listeners for a host layout with HintTooltip, and dims the box it marks', async () => {
+    await withDom(async ({ body, listeners, fire }) => {
+      let renderer: ReactTestRenderer | undefined;
+      const { root, row, control } = layout(body);
+      const area = new FakeElement('DIV', 'host-shell');
+      area.setAttribute('data-hint-area', '');
+      root.append(area);
+      area.append(row);
+      try {
+        act(() => { renderer = create(createElement(HintTooltip)); });
+        assert.equal(renderer!.toJSON(), null);
+        assert.equal(listeners.get('keydown')?.size, 1);
+        fire('pointerover', { target: control });
+        fire('keydown', { key: 'h' });
+        assert.equal(partIn(root, 'dialkit-hint')?.textContent, 'Hint in a custom layout');
+        assert.equal(area.hasAttribute('data-hinting'), true, 'the marked box dims, not the whole root');
+        assert.equal(root.hasAttribute('data-hinting'), false);
+        fire('keyup', { key: 'h' });
+      } finally { act(() => renderer?.unmount()); }
+      await settle();
+      assert.equal(listeners.size, 0);
     });
   });
 

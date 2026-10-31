@@ -71,6 +71,14 @@ export type TextConfig = {
 
 export type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue | BackgroundConfig | BackgroundValue | AnchorConfig | AnchorValue;
 
+/**
+ * Folder keys that configure the folder instead of adding a control:
+ * `_collapsed`, `_fields`, `_reset`, `_hints` (a sentence per child key) and
+ * `_labels` (the text a child's row shows in place of its key's own words).
+ */
+const FOLDER_META_KEYS = ['_collapsed', '_fields', '_reset', '_hints', '_labels'] as const;
+type FolderMetaKey = (typeof FOLDER_META_KEYS)[number];
+
 export type DialConfig = {
   [key: string]: DialValue | [number, number, number, number?, string?] | DialConfig | ControlWithVisibility;
 };
@@ -109,7 +117,7 @@ export function unwrapVisibility(value: DialConfig[string]): DialConfig[string] 
 }
 
 export type ResolvedValues<T extends DialConfig> = {
-  [K in keyof T as K extends '_collapsed' | '_fields' | '_reset' | '_hints' ? never : K]: T[K] extends ControlWithVisibility<infer U extends DialConfig[string]>
+  [K in keyof T as K extends FolderMetaKey ? never : K]: T[K] extends ControlWithVisibility<infer U extends DialConfig[string]>
     ? ResolvedValues<{ value: U }>['value']
     : T[K] extends [number, number, number, number?, string?]
     ? number
@@ -135,7 +143,7 @@ export type ResolvedValues<T extends DialConfig> = {
 };
 
 export type DialKitValueUpdates<T extends DialConfig> = {
-  [K in keyof T as K extends '_collapsed' | '_fields' | '_reset' | '_hints' ? never : K]?: T[K] extends ControlWithVisibility<infer U extends DialConfig[string]>
+  [K in keyof T as K extends FolderMetaKey ? never : K]?: T[K] extends ControlWithVisibility<infer U extends DialConfig[string]>
     ? DialKitValueUpdates<{ value: U }>['value']
     : T[K] extends [number, number, number, number?, string?]
     ? number
@@ -207,6 +215,8 @@ export type PanelConfig = {
   presetsEditable?: boolean;
   /** `false` drops the lock button from the version menu. Default `true`. */
   presetsLockable?: boolean;
+  /** A short sentence about the panel, shown on its header while the hint key is held. */
+  hint?: string;
 };
 
 type Listener = () => void;
@@ -254,6 +264,8 @@ export type DialStorePanelOptions = {
   presetsEditable?: boolean;
   /** `false` drops the lock button from the version menu. Default `true`. */
   presetsLockable?: boolean;
+  /** A short sentence about the panel, shown on its header while the hint key is held. */
+  hint?: string;
 };
 
 type PersistConfig = {
@@ -386,7 +398,7 @@ function flattenConfigUpdates(
 
 /** Folder metadata such as `_collapsed` configures the folder and is not a value. */
 export function isFolderMetaKey(key: string): boolean {
-  return key === '_collapsed' || key === '_fields' || key === '_reset' || key === '_hints';
+  return (FOLDER_META_KEYS as readonly string[]).includes(key);
 }
 
 /** A field row holds two to four numbers and at most one boolean, its lock. */
@@ -581,7 +593,7 @@ class DialStoreClass {
 
     const panel: PanelConfig = {
       id, name, controls, values, shortcuts: shortcuts ?? {}, kind: options.kind,
-      presetsEditable: options.presetsEditable, presetsLockable: options.presetsLockable,
+      presetsEditable: options.presetsEditable, presetsLockable: options.presetsLockable, hint: options.hint,
     };
     this.panels.set(id, panel);
     this.controlsByPanel.set(panel, controlsByPath);
@@ -625,6 +637,7 @@ class DialStoreClass {
       id, name, controls, values: nextValues, shortcuts: shortcuts ?? existing.shortcuts, kind: options.kind ?? existing.kind,
       presetsEditable: options.presetsEditable ?? existing.presetsEditable,
       presetsLockable: options.presetsLockable ?? existing.presetsLockable,
+      hint: options.hint ?? existing.hint,
     };
     this.panels.set(id, nextPanel);
     this.controlsByPanel.set(nextPanel, controlsByPath);
@@ -1524,12 +1537,15 @@ class DialStoreClass {
     const visit = (config: DialConfig, prefix: string): ControlMeta[] => {
       const controls: ControlMeta[] = [];
       const hints = config._hints as Record<string, unknown> | undefined;
+      // `_labels` names a child in place of its key's own words; the key stays its path.
+      const labels = config._labels as Record<string, unknown> | undefined;
 
       for (const [key, rawValue] of Object.entries(config)) {
         if (isFolderMetaKey(key)) continue;
         const value = unwrapVisibility(rawValue);
         const path = prefix ? `${prefix}.${key}` : key;
-        const label = formatLabel(key);
+        const ownLabel = labels?.[key];
+        const label = typeof ownLabel === 'string' && ownLabel ? ownLabel : formatLabel(key);
         const shortcut = shortcuts?.[path];
         let control: ControlMeta | undefined;
 

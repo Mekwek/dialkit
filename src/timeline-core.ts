@@ -88,6 +88,14 @@ type TimelineClipBase = {
   loop?: boolean | TimelineClipLoop;
   /** The name shown in the dock. Defaults to the config key, formatted. */
   label?: string;
+  /**
+   * Hints for the clip's editor controls, by key: `at`, `duration`,
+   * `transition`, `from` or `to`. Each shows while the hint key (H) is held
+   * over its control. `duration` replaces the curve's own Duration hint.
+   */
+  hints?: Record<string, string>;
+  /** The clip bar's own hint, shown while the hint key (H) is held over it. */
+  hint?: string;
 };
 
 // The three clip shapes are mutually exclusive, encoded with optional-never
@@ -479,6 +487,7 @@ export function parseTimelineConfig(config: TimelineConfig): ParsedTimeline {
     const clipDial: DialConfig = {
       at: [clipAt, 0, duration, CLIP_VALUE_STEP],
     };
+    if (clip.hints) clipDial._hints = { ...clip.hints };
     // Sequence and props clips derive their length from their parts — no
     // duration dial.
     if (!hasSteps && !hasProps) {
@@ -600,6 +609,7 @@ export function parseTimelineConfig(config: TimelineConfig): ParsedTimeline {
       group,
       stepKeys,
       tracks,
+      ...(typeof clip.hint === 'string' && clip.hint ? { hint: clip.hint } : {}),
     });
   });
 

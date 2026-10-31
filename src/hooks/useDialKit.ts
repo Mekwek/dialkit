@@ -28,6 +28,8 @@ export interface UseDialOptions {
   presetsEditable?: boolean;
   /** `false` drops the lock button from the version menu. Default `true`. */
   presetsLockable?: boolean;
+  /** A short sentence about the panel, shown on its header while the hint key is held. */
+  hint?: string;
 }
 
 export interface DialKitController<T extends DialConfig> {
@@ -60,6 +62,7 @@ export function useDialKitController<T extends DialConfig>(
     shortcuts: options?.shortcuts,
     presetsEditable: options?.presetsEditable,
     presetsLockable: options?.presetsLockable,
+    hint: options?.hint,
   });
 
   const configRef = useRef(config);

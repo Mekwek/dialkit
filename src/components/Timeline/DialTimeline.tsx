@@ -1351,6 +1351,7 @@ function ClipPopover({
         min: durationMin,
         max: durationMax,
         step: durationMeta.step,
+        hint: durationMeta.hint,
       }
     : undefined;
 
@@ -1691,6 +1692,7 @@ function TimelineClip({
       })}
       <div
         className="dialkit-timeline-clip"
+        data-hint={clip.hint}
         data-steps={isSteps || undefined}
         data-composite={composite || undefined}
         data-selected={selected || undefined}

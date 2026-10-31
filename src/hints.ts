@@ -7,7 +7,6 @@ export type HintPosition = { left: number; y: number; above: boolean };
 
 type Box = { left: number; top: number; right?: number; bottom: number };
 
-const HINT_KEY = 'h';
 const TIP_KEY = 'dialkit-hint-tip-seen';
 const GAP = 6;
 const MARGIN = 8;
@@ -75,7 +74,21 @@ export const TIMELINE_HINTS = {
  */
 class HintStoreClass {
   private tipSeen = false;
+  private key = 'h';
   private listeners = new Set<Listener>();
+
+  /** The key held to show hints, H by default. */
+  getKey(): string {
+    return this.key;
+  }
+
+  /** Changes the key held to show hints, for a page that uses H itself. */
+  setKey(key: string): void {
+    const next = key.toLowerCase();
+    if (next === this.key) return;
+    this.key = next;
+    this.notify();
+  }
 
   /** True once a hint has shown in this browser, and on the server. */
   isTipSeen(): boolean {
@@ -122,14 +135,16 @@ function isEditable(target: EventTarget | null): boolean {
 }
 
 /**
- * Whether a key press holds the hint key, H. Typing in a field, a press with
- * a modifier, and a shortcut assigned to H all leave it alone.
+ * Whether a key press holds the hint key, H unless `HintStore.setKey` changed
+ * it. Typing in a field, a press with a modifier, and a shortcut assigned to
+ * the key all leave it alone.
  */
 export function isHintKey(event: Pick<KeyboardEvent, 'key' | 'altKey' | 'ctrlKey' | 'metaKey' | 'shiftKey' | 'target'>): boolean {
-  if (event.key?.toLowerCase() !== HINT_KEY) return false;
+  const key = HintStore.getKey();
+  if (event.key?.toLowerCase() !== key) return false;
   if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return false;
   if (isEditable(event.target)) return false;
-  return !DialStore.resolveShortcutTarget(HINT_KEY);
+  return !DialStore.resolveShortcutTarget(key);
 }
 
 /**
@@ -151,7 +166,8 @@ export function getHintPosition(
 }
 
 /**
- * The areas a hint dims, nearest first: an open picker or clip editor, the
+ * The areas a hint dims, nearest first: an open picker or clip editor, a box
+ * a host draws around DialKit rows and marks with `data-hint-area`, the
  * panel's outer box (its root folder inside can be taller and scroll), the
  * root folder, the timeline bar. Without one, the root of a custom layout
  * dims.
@@ -162,6 +178,7 @@ const DIM_AREAS = [
   '.dialkit-timeline-popover',
   '.dialkit-background-popover',
   '.dialkit-background-shape-menu',
+  '[data-hint-area]',
   '.dialkit-panel-inner',
   '.dialkit-folder-root',
   '.dialkit-timeline-dock',
@@ -453,7 +470,7 @@ function listen(): () => void {
   };
 
   const handleKeyUp = (event: KeyboardEvent) => {
-    if (event.key?.toLowerCase() === HINT_KEY) release();
+    if (event.key?.toLowerCase() === HintStore.getKey()) release();
   };
 
   // While the key is held, a hint stays in the gaps between rows and goes

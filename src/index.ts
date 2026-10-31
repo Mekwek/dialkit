@@ -64,6 +64,10 @@ export { PresetManager } from './components/PresetManager';
 export { VersionGallery } from './components/VersionGallery';
 export { ShortcutsMenu } from './components/ShortcutsMenu';
 
+// Hints (hold H over a control to read what it does)
+export { HintStore } from './hints';
+export { HintTip, HintTooltip } from './components/Hint';
+
 // Store (for advanced usage)
 export { DialStore, withVisibility } from './store/DialStore';
 export type {

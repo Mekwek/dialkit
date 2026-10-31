@@ -4,11 +4,12 @@ import { motion, AnimatePresence } from 'motion/react';
 import { DialStore, PanelConfig } from '../store/DialStore';
 import { buildCopyInstruction } from '../copy-instruction';
 import { resolveOpenFolder } from '../accordion';
-import { HINTS, HintStore } from '../hints';
+import { HINTS } from '../hints';
 import { useHints } from '../hooks/useHints';
 import { ICON_CLIPBOARD_PLAIN, ICON_CHECK } from '../icons';
 import { ControlRenderer } from './ControlRenderer';
 import { Folder } from './Folder';
+import { HintTip } from './Hint';
 import { PresetManager } from './PresetManager';
 import { VersionGallery } from './VersionGallery';
 import type { DialVersions } from '../versions/gallery';
@@ -26,10 +27,6 @@ interface PanelProps {
   versions?: DialVersions;
   theme?: 'light' | 'dark' | 'system';
 }
-
-const subscribeHints = (listener: () => void) => HintStore.subscribe(listener);
-const getHintTipSeen = () => HintStore.isTipSeen();
-const getServerHintTipSeen = () => true;
 
 export function Panel({ panel, defaultOpen = true, inline = false, accordion = false, openFolder, onOpenFolderChange, onOpenChange, variant = 'root', toolbarExtra, versions = 'thumbnails', theme }: PanelProps) {
   const [copied, setCopied] = useState(false);
@@ -55,7 +52,6 @@ export function Panel({ panel, defaultOpen = true, inline = false, accordion = f
   // The store owns open/collapsed state so it can be driven programmatically.
   const storeOpen = useSyncExternalStore(subscribe, getOpenSnapshot, getOpenSnapshot);
   const isOpen = storeOpen ?? defaultOpen;
-  const hintTipSeen = useSyncExternalStore(subscribeHints, getHintTipSeen, getServerHintTipSeen);
 
   useEffect(() => {
     DialStore.initPanelOpen(panel.id, defaultOpen);
@@ -91,11 +87,7 @@ export function Panel({ panel, defaultOpen = true, inline = false, accordion = f
         onOpenFolderChange={onOpenFolderChange}
         animateControls
       />
-      {!hintTipSeen && (
-        <p className="dialkit-hint-tip">
-          Hold <kbd className="dialkit-hint-tip-key">H</kbd> over a control to see what it does.
-        </p>
-      )}
+      <HintTip />
     </>
   );
 
@@ -165,7 +157,7 @@ export function Panel({ panel, defaultOpen = true, inline = false, accordion = f
 
   if (variant === 'section') {
     return (
-      <Folder title={panel.name} open={isOpen} onOpenChange={handleOpenChange} toolbar={toolbar}>
+      <Folder title={panel.name} open={isOpen} onOpenChange={handleOpenChange} toolbar={toolbar} hint={panel.hint}>
         {renderControls()}
       </Folder>
     );
@@ -173,7 +165,7 @@ export function Panel({ panel, defaultOpen = true, inline = false, accordion = f
 
   return (
     <div className="dialkit-panel-wrapper">
-      <Folder title={panel.name} open={isOpen} isRoot={true} inline={inline} onOpenChange={handleOpenChange} toolbar={toolbar}>
+      <Folder title={panel.name} open={isOpen} isRoot={true} inline={inline} onOpenChange={handleOpenChange} toolbar={toolbar} hint={panel.hint}>
         {renderControls()}
       </Folder>
     </div>

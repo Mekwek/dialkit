@@ -21,6 +21,8 @@ export type TimelineClipMeta = {
   stepKeys?: string[];
   /** Independent property tracks of a props clip — full rows when expanded. */
   tracks?: TimelineClipTrackMeta[];
+  /** The bar's hint, shown while the hint key is held over it. */
+  hint?: string;
 };
 
 export type TimelineMeta = {

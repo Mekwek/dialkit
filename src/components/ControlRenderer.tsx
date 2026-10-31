@@ -34,6 +34,8 @@ interface ControlRendererProps {
     min?: number;
     max?: number;
     step?: number;
+    /** Replaces the curve's own Duration hint. */
+    hint?: string;
   };
   /** Path of the one open top-level folder in accordion mode, or null when all are closed. */
   openFolder?: string | null;
