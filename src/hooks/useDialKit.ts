@@ -37,6 +37,17 @@ export interface UseDialOptions {
    * follows its DialRoot's `accordion`.
    */
   folderMode?: FolderMode;
+  /**
+   * Called by the X in the panel's header, instead of closing the panel to
+   * a small button: the host removes the panel (a selection panel clears
+   * the selection).
+   */
+  onClose?: () => void;
+  /**
+   * `false` drops the toolbar (versions and copy) from the panel's header.
+   * Default `true`.
+   */
+  toolbar?: boolean;
 }
 
 export interface DialKitController<T extends DialConfig> {
@@ -71,6 +82,8 @@ export function useDialKitController<T extends DialConfig>(
     presetsLockable: options?.presetsLockable,
     hint: options?.hint,
     folderMode: options?.folderMode,
+    onClose: options?.onClose,
+    toolbar: options?.toolbar,
   });
 
   const configRef = useRef(config);

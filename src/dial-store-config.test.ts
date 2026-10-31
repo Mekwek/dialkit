@@ -494,6 +494,59 @@ describe('DialStore config lifecycle', () => {
     shallow.unmount();
   });
 
+  it('keeps onClose and toolbar per panel, and through an update', () => {
+    const plain = 'config-close-plain';
+    const closable = 'config-close-given';
+    let closed = 0;
+    const onClose = () => { closed += 1; };
+    try {
+      DialStore.registerPanel(plain, 'Plain', { a: 1 });
+      assert.equal(DialStore.getPanel(plain)!.onClose, undefined);
+      assert.equal(DialStore.getPanel(plain)!.toolbar, undefined);
+
+      DialStore.registerPanel(closable, 'Closable', { a: 1 }, undefined, { onClose, toolbar: false });
+      DialStore.getPanel(closable)!.onClose!();
+      assert.equal(closed, 1);
+      assert.equal(DialStore.getPanel(closable)!.toolbar, false);
+
+      // The same handler is no change, so the store does not rebuild the panel.
+      const before = DialStore.getPanel(closable);
+      DialStore.updatePanel(closable, 'Closable', { a: 1 }, undefined, { onClose });
+      assert.equal(DialStore.getPanel(closable), before);
+
+      // An update without the options keeps them.
+      DialStore.updatePanel(closable, 'Closable', { a: 1, b: 2 });
+      assert.equal(DialStore.getPanel(closable)!.onClose, onClose);
+      assert.equal(DialStore.getPanel(closable)!.toolbar, false);
+    } finally {
+      DialStore.unregisterPanel(plain);
+      DialStore.unregisterPanel(closable);
+    }
+  });
+
+  it('closes a panel through its host when the open header has onClose', () => {
+    let closed = 0;
+    const opened: boolean[] = [];
+    const find = (node: unknown, className: string): ReactElement<{ onClick?: () => void; 'data-hint'?: string; children?: ReactNode }> | undefined => {
+      if (!node || typeof node !== 'object') return undefined;
+      const element = node as ReactElement<{ className?: string; children?: ReactNode }>;
+      if (typeof element.props?.className === 'string' && element.props.className.split(' ').includes(className)) return element as ReactElement<{ onClick?: () => void }>;
+      for (const child of Children.toArray(element.props?.children)) {
+        const found = find(child, className);
+        if (found) return found;
+      }
+      return undefined;
+    };
+    const shallow = createShallowRenderer();
+    shallow.render(createElement(Folder, { title: 'Text', isRoot: true, open: true, onOpenChange: (open: boolean) => opened.push(open), onClose: () => { closed += 1; }, children: null }));
+    const header = find(shallow.getRenderOutput(), 'dialkit-folder-header');
+    header?.props.onClick?.();
+    assert.equal(closed, 1);
+    assert.deepEqual(opened, [], 'the panel does not fold into a button');
+    assert.equal(find(shallow.getRenderOutput(), 'dialkit-folder-header-top')?.props['data-hint'], 'Closes the panel.');
+    shallow.unmount();
+  });
+
   it('does not retain an extra registration when an invalid config is rejected', () => {
     const id = 'config-rejected-owner';
     DialStore.registerPanel(id, 'Original', { amount: 1 });

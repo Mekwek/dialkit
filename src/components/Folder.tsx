@@ -25,11 +25,13 @@ interface FolderProps {
   onReset?: () => void;
   changed?: boolean;
   hint?: string;
+  /** On a panel's own header: the X calls this instead of closing the panel to a small button. */
+  onClose?: () => void;
 }
 
-export function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, meta, actions, panelHeightOffset = 0, onReset, changed = false, hint }: FolderProps) {
+export function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, meta, actions, panelHeightOffset = 0, onReset, changed = false, hint, onClose }: FolderProps) {
   // A panel's own header, which closes the panel, has a hint by default.
-  const headerHint = hint ?? (isRoot && !inline ? HINTS.panel : undefined);
+  const headerHint = hint ?? (isRoot && !inline ? (onClose ? HINTS.panelClose : HINTS.panel) : undefined);
   useHints(!!headerHint || (!isRoot && !!onReset));
   const [localOpen, setIsOpen] = useState(defaultOpen);
   const isOpen = open ?? localOpen;
@@ -77,6 +79,11 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
 
   const handleToggle = () => {
     if (inline && isRoot) return;
+    // An open panel's header shows the X. With onClose, the host closes it.
+    if (isRoot && isOpen && onClose) {
+      onClose();
+      return;
+    }
     const next = !isOpen;
     setIsOpen(next);
     onOpenChange?.(next);

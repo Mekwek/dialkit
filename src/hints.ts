@@ -25,6 +25,8 @@ const ALIGN = '.dialkit-panel-toolbar, .dialkit-panel-section-toolbar';
  */
 export const HINTS = {
   panel: 'Closes the panel to a small button. Click the button to open it again.',
+  /** A panel's header when its host closes the panel (`onClose`). */
+  panelClose: 'Closes the panel.',
   copy: "Copies the panel's values as text, ready to paste into code.",
   sectionReset: 'Sets every control in this section back to its default.',
   saveVersion: 'Saves the current values as a new version, with a picture of the page.',

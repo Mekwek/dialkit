@@ -313,6 +313,17 @@ export type PanelConfig = {
    * follows its DialRoot's `accordion`.
    */
   folderMode?: FolderMode;
+  /**
+   * Called by the X in the panel's header, instead of closing the panel to
+   * a small button: the host removes the panel (a selection panel clears
+   * the selection).
+   */
+  onClose?: () => void;
+  /**
+   * `false` drops the toolbar (versions and copy) from the panel's header.
+   * Default `true`.
+   */
+  toolbar?: boolean;
 };
 
 type Listener = () => void;
@@ -368,6 +379,17 @@ export type DialStorePanelOptions = {
    * follows its DialRoot's `accordion`.
    */
   folderMode?: FolderMode;
+  /**
+   * Called by the X in the panel's header, instead of closing the panel to
+   * a small button: the host removes the panel (a selection panel clears
+   * the selection).
+   */
+  onClose?: () => void;
+  /**
+   * `false` drops the toolbar (versions and copy) from the panel's header.
+   * Default `true`.
+   */
+  toolbar?: boolean;
 };
 
 type PersistConfig = {
@@ -734,7 +756,7 @@ class DialStoreClass {
     const panel: PanelConfig = {
       id, name, controls, values, shortcuts: shortcuts ?? {}, kind: options.kind,
       presetsEditable: options.presetsEditable, presetsLockable: options.presetsLockable, hint: options.hint,
-      folderMode: options.folderMode,
+      folderMode: options.folderMode, onClose: options.onClose, toolbar: options.toolbar,
     };
     this.panels.set(id, panel);
     this.controlsByPanel.set(panel, controlsByPath);
@@ -778,7 +800,9 @@ class DialStoreClass {
       (options.presetsEditable ?? existing.presetsEditable) === existing.presetsEditable &&
       (options.presetsLockable ?? existing.presetsLockable) === existing.presetsLockable &&
       (options.hint ?? existing.hint) === existing.hint &&
-      (options.folderMode ?? existing.folderMode) === existing.folderMode;
+      (options.folderMode ?? existing.folderMode) === existing.folderMode &&
+      (options.onClose ?? existing.onClose) === existing.onClose &&
+      (options.toolbar ?? existing.toolbar) === existing.toolbar;
     this.configurePanelRetention(id, options);
     if (unchanged) {
       // Same config, same options: nothing the panel draws can differ, so
@@ -796,6 +820,8 @@ class DialStoreClass {
       presetsLockable: options.presetsLockable ?? existing.presetsLockable,
       hint: options.hint ?? existing.hint,
       folderMode: options.folderMode ?? existing.folderMode,
+      onClose: options.onClose ?? existing.onClose,
+      toolbar: options.toolbar ?? existing.toolbar,
     };
     this.panels.set(id, nextPanel);
     this.controlsByPanel.set(nextPanel, controlsByPath);

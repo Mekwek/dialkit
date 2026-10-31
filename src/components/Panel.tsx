@@ -165,7 +165,7 @@ export function Panel({ panel, defaultOpen = true, inline = false, accordion = f
 
   return (
     <div className="dialkit-panel-wrapper">
-      <Folder title={panel.name} open={isOpen} isRoot={true} inline={inline} onOpenChange={handleOpenChange} toolbar={toolbar} hint={panel.hint}>
+      <Folder title={panel.name} open={isOpen} isRoot={true} inline={inline} onOpenChange={handleOpenChange} onClose={panel.onClose} toolbar={panel.toolbar === false ? undefined : toolbar} hint={panel.hint}>
         {renderControls()}
       </Folder>
     </div>

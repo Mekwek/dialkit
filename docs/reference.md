@@ -453,6 +453,8 @@ DialStore.getPanelOpen("card");
 
 `DialStore.getDefaultValues("card")` returns the panel's config defaults, keyed by path like its values.
 
+With the panel option `onClose`, the X in an open panel's header calls it instead of closing the panel to a small button, so the host can remove the panel, as a selection panel does when it clears the selection. `toolbar: false` drops the versions and copy buttons from the panel's header. Both apply to a panel drawn on its own, not to a section of a shared shell. React only for now.
+
 `Folder` also accepts controlled `open` and `onOpenChange` (`@open-change` in Vue), or an initial `defaultOpen`. Inline roots fill their container, ignore `position`, and disable collapse-to-icon interaction.
 
 ## Keyboard
