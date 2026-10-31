@@ -260,6 +260,37 @@ describe('DialStore config lifecycle', () => {
     } finally { DialStore.unregisterPanel(id); }
   });
 
+  it('tells reset listeners which folder resets, before its values change', () => {
+    const id = 'config-reset-event';
+    const config = {
+      camera: { _reset: true, distance: [10, 0, 50, 1] },
+      enter: { type: 'spring', visualDuration: 0.3, bounce: 0.2 },
+    } satisfies DialConfig;
+    const heard: Array<[string, unknown]> = [];
+    try {
+      DialStore.registerPanel(id, 'Config', config);
+      const unsubscribe = DialStore.subscribeResets(id, (folderPath) => {
+        heard.push([folderPath, DialStore.getValue(id, 'camera.distance')]);
+      });
+      DialStore.updateValue(id, 'camera.distance', 30);
+      DialStore.resetFolder(id, 'camera');
+      // The listener read the value the reset was about to replace.
+      assert.deepEqual(heard, [['camera', 30]]);
+      assert.equal(DialStore.getValue(id, 'camera.distance'), 10);
+      // A reset with nothing changed still fires, and a transition's own reset names its path.
+      DialStore.resetFolder(id, 'camera');
+      DialStore.resetFolder(id, 'enter');
+      assert.deepEqual(heard.map(([path]) => path), ['camera', 'camera', 'enter']);
+      // A path with no reset button is not a reset.
+      DialStore.resetFolder(id, 'camera.distance');
+      assert.equal(heard.length, 3);
+      unsubscribe();
+      DialStore.updateValue(id, 'camera.distance', 30);
+      DialStore.resetFolder(id, 'camera');
+      assert.equal(heard.length, 3);
+    } finally { DialStore.unregisterPanel(id); }
+  });
+
   it('does not retain an extra registration when an invalid config is rejected', () => {
     const id = 'config-rejected-owner';
     DialStore.registerPanel(id, 'Original', { amount: 1 });

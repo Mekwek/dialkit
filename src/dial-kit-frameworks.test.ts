@@ -51,6 +51,28 @@ describe('DialKit framework values', () => {
     assert.equal(DialStore.getPanel(id), undefined);
   });
 
+  it('calls the React onReset option before a folder reset writes its values', () => {
+    const id = 'reset-react';
+    const resetConfig = { camera: { _reset: true, distance: [10, 0, 50, 1] } } satisfies DialConfig;
+    const heard: Array<[string, unknown]> = [];
+    let dial: ReturnType<typeof useDialKitController<typeof resetConfig>>;
+    let renderer: ReactTestRenderer | undefined;
+    function Harness() {
+      dial = useDialKitController('Reset', resetConfig, {
+        id,
+        onReset: (folderPath) => heard.push([folderPath, DialStore.getValue(id, 'camera.distance')]),
+      });
+      return null;
+    }
+    try {
+      act(() => { renderer = create(createElement(StrictMode, null, createElement(Harness))); });
+      act(() => dial.setValue('camera.distance', 40));
+      act(() => DialStore.resetFolder(id, 'camera'));
+      assert.deepEqual(heard, [['camera', 40]]);
+      assert.equal(dial!.values.camera.distance, 10);
+    } finally { act(() => renderer?.unmount()); }
+  });
+
   it('renders a segmented select as radios, naming the group and icon options', () => {
     const changes: string[] = [];
     const props = {

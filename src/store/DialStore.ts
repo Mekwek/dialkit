@@ -204,6 +204,7 @@ export type PanelConfig = {
 
 type Listener = () => void;
 type ActionListener = (action: string) => void;
+type ResetListener = (folderPath: string) => void;
 
 export type Preset = {
   id: string;
@@ -522,6 +523,7 @@ class DialStoreClass {
   private globalListeners: Set<Listener> = new Set();
   private snapshots: Map<string, Record<string, DialValue>> = new Map();
   private actionListeners: Map<string, Set<ActionListener>> = new Map();
+  private resetListeners: Map<string, Set<ResetListener>> = new Map();
   private presets: Map<string, Preset[]> = new Map();
   private activePreset: Map<string, string | null> = new Map();
   private gradients: Map<string, SavedGradient[]> = new Map();
@@ -636,6 +638,7 @@ class DialStoreClass {
     // notifications. Cleanup happens via unsubscribe closures.
     if (this.listeners.get(id)?.size === 0) this.listeners.delete(id);
     if (this.actionListeners.get(id)?.size === 0) this.actionListeners.delete(id);
+    if (this.resetListeners.get(id)?.size === 0) this.resetListeners.delete(id);
 
     if (!this.retainedPanels.has(id)) {
       this.panelOpenStates.delete(id);
@@ -755,12 +758,17 @@ class DialStoreClass {
    * Restore the defaults behind a folder's reset button: every value inside a
    * `_reset` folder, nested folders included, or a spring, transition or
    * background's own value. Saves like any other edit.
+   *
+   * Reset listeners (see `subscribeResets`) hear the folder's path first,
+   * before any value changes, so a host can start its own motion from the
+   * values the reset is about to replace.
    */
   resetFolder(panelId: string, path: string): void {
     const panel = this.panels.get(panelId);
     const keys = panel && this.resetKeysByPanel.get(panel)?.get(path);
     const defaults = this.defaultValues.get(panelId);
     if (!keys || !defaults) return;
+    this.notifyReset(panelId, path);
     this.updateValues(panelId, Object.fromEntries(keys.map((key) => [key, defaults[key]])));
   }
 
@@ -871,6 +879,30 @@ class DialStoreClass {
 
   triggerAction(panelId: string, path: string): void {
     this.actionListeners.get(panelId)?.forEach(fn => fn(path));
+  }
+
+  /**
+   * Hear each folder reset of a panel, with the path of the folder (or the
+   * spring, transition or background) being reset. The listener runs before
+   * the reset writes its values, so the values it reads are still the old ones.
+   */
+  subscribeResets(panelId: string, listener: ResetListener): () => void {
+    if (!this.resetListeners.has(panelId)) {
+      this.resetListeners.set(panelId, new Set());
+    }
+    this.resetListeners.get(panelId)!.add(listener);
+
+    return () => {
+      const listeners = this.resetListeners.get(panelId);
+      listeners?.delete(listener);
+      if (listeners?.size === 0 && !this.panels.has(panelId)) {
+        this.resetListeners.delete(panelId);
+      }
+    };
+  }
+
+  private notifyReset(panelId: string, folderPath: string): void {
+    this.resetListeners.get(panelId)?.forEach(fn => fn(folderPath));
   }
 
   /**

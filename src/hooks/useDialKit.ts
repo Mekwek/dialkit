@@ -15,6 +15,11 @@ export interface UseDialOptions {
   defaultCollapsed?: boolean;
   persist?: DialKitPersistOptions;
   onAction?: (action: string) => void;
+  /**
+   * Called with a folder's path when its reset button (or `DialStore.resetFolder`)
+   * resets it, before the reset writes the values back.
+   */
+  onReset?: (folderPath: string) => void;
   shortcuts?: Record<string, ShortcutConfig>;
 }
 
@@ -52,11 +57,20 @@ export function useDialKitController<T extends DialConfig>(
   configRef.current = config;
   const onActionRef = useRef(options?.onAction);
   onActionRef.current = options?.onAction;
+  const onResetRef = useRef(options?.onReset);
+  onResetRef.current = options?.onReset;
 
   // Subscribe to action events
   useEffect(() => {
     return DialStore.subscribeActions(panelId, (action) => {
       onActionRef.current?.(action);
+    });
+  }, [panelId]);
+
+  // Subscribe to folder resets, which fire before their values change
+  useEffect(() => {
+    return DialStore.subscribeResets(panelId, (folderPath) => {
+      onResetRef.current?.(folderPath);
     });
   }, [panelId]);
 
