@@ -929,12 +929,17 @@ const TimelineSection = memo(function TimelineSection({
     const label = lane === undefined
       ? null
       : laneClips.find((clip) => clip.laneLabel)?.laneLabel ?? laneClips[0]?.label ?? lane;
+    const stats = laneClips.map((clip) => ({ clip, stat: computeClipStaticFromValues(values, clip, meta.duration) }));
+    // The bar that opens the timeline: the earliest, not the first in the
+    // config, so a reorder hands the pin to whichever bar is first now.
+    const pinnedKey = lane === undefined && meta.pinStart && stats.length
+      ? stats.reduce((a, b) => (b.stat.at < a.stat.at ? b : a)).clip.key
+      : null;
     rows.push(
       <div key={lane === undefined ? 'single' : `lane:${lane}`} className="dialkit-timeline-row" data-lane={lane === undefined ? undefined : ''}>
         <div className="dialkit-timeline-label">{label}</div>
         <div className="dialkit-timeline-lane">
-          {laneClips.map((clip) => {
-            const stat = computeClipStaticFromValues(values, clip, meta.duration);
+          {stats.map(({ clip, stat }) => {
             return (
               <TimelineClip
                 key={clip.key}
@@ -945,6 +950,7 @@ const TimelineSection = memo(function TimelineSection({
                 loop={stat.loop}
                 fixedDuration={stat.isPhysics}
                 single
+                pinned={clip.key === pinnedKey}
                 pxPerSecond={pxPerSecond}
                 viewStart={safeViewStart}
                 timelineDuration={meta.duration}
@@ -1510,6 +1516,9 @@ type DragState = {
   stepDurations?: number[];
   clickEl: HTMLElement | null;
   moved: boolean;
+  /** A pinned bar's press: the bar holds still, and the press still opens
+   * its popover on release. */
+  locked?: boolean;
 };
 
 function TimelineClip({
@@ -1522,6 +1531,7 @@ function TimelineClip({
   fixedDuration,
   composite = false,
   single = false,
+  pinned = false,
   baseAt = 0,
   delayMode = false,
   pxPerSecond,
@@ -1545,6 +1555,10 @@ function TimelineClip({
   composite?: boolean;
   /** Single track: the bar carries its name and fills as the playhead crosses it. */
   single?: boolean;
+  /** Single track: this bar opens the timeline and holds its start (the
+   * `pinStart` option): it does not move along the lane and has no start
+   * handle. */
+  pinned?: boolean;
   /** Track rows: position = baseAt + delay; dragging edits the delay. */
   baseAt?: number;
   delayMode?: boolean;
@@ -1591,16 +1605,17 @@ function TimelineClip({
         stepDurations: steps?.map((step) => step.duration),
         clickEl: target.closest?.('[data-step]') ?? null,
         moved: false,
+        locked: pinned && mode === 'move',
       };
       e.currentTarget.setPointerCapture(e.pointerId);
     },
-    [at, clip.key, duration, fixedDuration, getDragBounds, onSelect, steps]
+    [at, clip.key, duration, fixedDuration, getDragBounds, onSelect, pinned, steps]
   );
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       const drag = dragRef.current;
-      if (!drag || pxPerSecond <= 0) return;
+      if (!drag || pxPerSecond <= 0 || drag.locked) return;
 
       const dx = e.clientX - drag.pointerX;
       if (!drag.moved) {
@@ -1762,6 +1777,7 @@ function TimelineClip({
         data-selected={selected || undefined}
         data-dragging={dragging || undefined}
         data-segmented={segmentParts ? '' : undefined}
+        data-pinned={pinned || undefined}
         style={{
           // A single-track bar draws 1px short of its span on each side, so butted bars keep a hairline of lane between them.
           left: (at - viewStart) * pxPerSecond + (single ? 1 : 0),
@@ -1817,7 +1833,7 @@ function TimelineClip({
                 <span className="dialkit-timeline-clip-seg" data-seg="out" style={{ width: segmentParts.out * pxPerSecond }} aria-hidden="true" />
               </>
             )}
-            {resizable && <div className="dialkit-timeline-clip-handle" data-edge="start" />}
+            {resizable && !pinned && <div className="dialkit-timeline-clip-handle" data-edge="start" />}
             {single && <span className="dialkit-timeline-clip-name">{clip.label}</span>}
             {width > 56 && <span className="dialkit-timeline-clip-duration">{durationText}</span>}
             {resizable && <div className="dialkit-timeline-clip-handle" data-edge="end" />}

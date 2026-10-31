@@ -457,6 +457,17 @@ describe('single track', () => {
     assert.equal(warnings.length, 1);
   });
 
+  it('holds the opening bar\'s start only on a single track that asks for it', () => {
+    const plain = parseTimelineConfig({ a: { at: 0, duration: 1 } });
+    assert.equal(buildTimelineMeta('t', 'T', 1, plain, false, 'single', { pinStart: true }).pinStart, true);
+    assert.equal('pinStart' in buildTimelineMeta('t', 'T', 1, plain, false, 'single'), false);
+    assert.equal('pinStart' in buildTimelineMeta('t', 'T', 1, plain, false, 'rows', { pinStart: true }), false);
+    const looping = parseTimelineConfig({ a: { at: 0, duration: 1, loop: true } });
+    captureWarnings(() => {
+      assert.equal('pinStart' in buildTimelineMeta('t', 'T', 1, looping, false, 'single', { pinStart: true }), false);
+    });
+  });
+
   it('a free drag over the whole timeline is the rows clamps, edge cases included', () => {
     const rows = { start: 0, end: 4, targets: [] };
     const cases: Array<[number, number, number]> = [

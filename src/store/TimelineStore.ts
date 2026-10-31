@@ -45,6 +45,9 @@ export type TimelineMeta = {
   /** `rows` (the default) gives each clip a row; `single` lines every
    * clip up on one track, one after another. */
   track?: 'rows' | 'single';
+  /** Single track: the bar that opens the main lane holds its start (see
+   * the `pinStart` option). */
+  pinStart?: boolean;
   clips: TimelineClipMeta[];
 };
 

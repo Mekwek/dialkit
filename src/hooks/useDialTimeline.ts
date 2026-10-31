@@ -70,9 +70,10 @@ export function useDialTimeline<T extends TimelineConfig>(
       timelineDuration,
       parsedRef.current,
       loopEnabled ? { from: loopStart } : false,
-      options?.track
+      options?.track,
+      { pinStart: options?.pinStart }
     ),
-    [panelId, name, timelineDuration, loopEnabled, loopStart, options?.track]
+    [panelId, name, timelineDuration, loopEnabled, loopStart, options?.track, options?.pinStart]
   );
 
   // Transport registration mirrors the panel lifecycle: register on mount,
