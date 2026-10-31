@@ -1716,6 +1716,18 @@
   color: var(--dial-text-label);
 }
 
+/* The Export button carries a word as well as its icon. */
+.dialkit-timeline-export {
+  width: auto;
+  gap: 6px;
+  padding: 0 14px 0 9px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--dial-text-label);
+  white-space: nowrap;
+}
+
 .dialkit-timeline-toolkit-only {
   height: var(--dial-row-height);
   display: flex;
