@@ -440,6 +440,39 @@ describe('hints', () => {
     });
   });
 
+  it('shows hints for a host column marked data-hint-area, with the key and on a host hover', async () => {
+    // Theca's docked editor: one .dialkit-root around the page, a column
+    // shell marked data-hint-area, and tab buttons with their own hints.
+    await withDom(async ({ body, fire }) => {
+      const root = new FakeElement('DIV', 'dialkit-root');
+      const column = new FakeElement('DIV', 'editor-shell');
+      column.setAttribute('data-hint-area', '');
+      const tab = new FakeElement('BUTTON', 'dialkit-segmented-button');
+      tab.setAttribute('data-hint', 'Shows the effects.');
+      column.append(tab);
+      root.append(column);
+      body.append(root);
+      const element = tab as unknown as HTMLElement;
+      const hints = mountHints();
+      try {
+        fire('pointerover', { target: tab });
+        fire('keydown', { key: 'h' });
+        assert.equal(partIn(root, 'dialkit-hint')?.textContent, 'Shows the effects.');
+        assert.equal(column.hasAttribute('data-hinting'), true, 'the column dims, not the whole page');
+        fire('keyup', { key: 'h' });
+        assert.equal(column.hasAttribute('data-hinting'), false);
+
+        HintStore.show('Coming soon.', element);
+        assert.equal(partIn(root, 'dialkit-hint')?.textContent, 'Coming soon.');
+        assert.equal(column.hasAttribute('data-hinting'), true);
+        HintStore.hide(element);
+        assert.equal(partIn(root, 'dialkit-hint')?.hasAttribute('data-open'), false);
+        assert.equal(column.hasAttribute('data-hinting'), false);
+      } finally { hints.destroy(); }
+      await settle();
+    });
+  });
+
   it('mounts nothing on the server', () => {
     assert.equal(typeof document, 'undefined');
     assert.doesNotThrow(() => mountHints().destroy());
