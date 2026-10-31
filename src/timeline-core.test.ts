@@ -29,6 +29,8 @@ import {
   timelineClipProgress,
   timelineClipSpans,
   timelinePopoverDisplayValues,
+  timelineReorderAts,
+  timelineReorderSlot,
 } from './timeline-core';
 import type { TimelineConfig } from './timeline-core';
 import { foldLoopTime, loopSpan } from './store/TimelineStore';
@@ -536,6 +538,31 @@ describe('snapping drags', () => {
     assert.deepEqual(dragTimelineClip('start', spans[1], -0.8, bounds, true), { at: 2, duration: 3 });
     const none = { ...bounds, targets: [] };
     near(dragTimelineClip('move', spans[1], 0.33, none, true).at, 3.33);
+  });
+});
+
+describe('single track reorder', () => {
+  // A [0,2] butted by B [2,4], a 1.5s gap, then C [5.5,7.5].
+  const spans = [
+    { key: 'a', at: 0, duration: 2 },
+    { key: 'b', at: 2, duration: 2 },
+    { key: 'c', at: 5.5, duration: 2 },
+  ];
+
+  it('moves a clip to a slot and keeps the gap pattern by position', () => {
+    // B before A: slot 0 among the others [A, C].
+    assert.deepEqual(timelineReorderAts(spans, 'b', 0), { b: 0, a: 2, c: 5.5 });
+    // A after C (slot 2): the gaps stay [0, 0, 1.5] by position.
+    assert.deepEqual(timelineReorderAts(spans, 'a', 2), { b: 0, c: 2, a: 5.5 });
+    // Its own slot changes nothing.
+    assert.deepEqual(timelineReorderAts(spans, 'c', 2), { a: 0, b: 2, c: 5.5 });
+  });
+
+  it('lands before the first other clip whose middle lies past the pointer', () => {
+    assert.equal(timelineReorderSlot(spans, 'c', 0.5), 0);
+    assert.equal(timelineReorderSlot(spans, 'c', 1.5), 1);
+    assert.equal(timelineReorderSlot(spans, 'a', 6), 1);
+    assert.equal(timelineReorderSlot(spans, 'a', 7), 2);
   });
 });
 

@@ -26,8 +26,10 @@ import {
   timelineClipProgress,
   timelineClipSpans,
   timelinePopoverDisplayValues,
+  timelineReorderAts,
+  timelineReorderSlot,
 } from '../../timeline-core';
-import type { TimelineClipDragBounds, TimelineClipLoop, TimelineStepStatic } from '../../timeline-core';
+import type { TimelineClipDragBounds, TimelineClipLoop, TimelineClipSpan, TimelineStepStatic } from '../../timeline-core';
 import { clamp } from '../../transition-math';
 import { buildCopyInstruction } from '../../copy-instruction';
 import { isDevDefault } from '../../env';
@@ -41,6 +43,9 @@ import { useHints } from '../../hooks/useHints';
 import type { DialTheme } from '../DialRoot';
 
 const DRAG_THRESHOLD_PX = 3;
+/** Vertical travel that turns a single-track move into a reorder. Once
+ * lifted, the drag stays a reorder until the pointer is released. */
+const LIFT_PX = 12;
 /** A tail starts this far under its bar's rounded end (it draws behind the
  * bar), so it comes out of the bar with no notch. */
 const TAIL_TUCK_PX = 8;
@@ -887,6 +892,41 @@ const TimelineSection = memo(function TimelineSection({
     );
   }, [meta.clips, meta.duration, meta.id, singleTrack]);
 
+  // Single track: lifting a bar past LIFT_PX turns its move into a reorder.
+  // The bar goes back to where it was pressed, a cue marks where it would
+  // land among the other bars of its lane, and the drop moves it there.
+  const [reorderCue, setReorderCue] = useState<{ key: string; lane: string | undefined; time: number | null } | null>(null);
+  const reorderRef = useRef<{ key: string; spans: TimelineClipSpan[]; slot: number | null } | null>(null);
+  const liftClip = (clip: TimelineClipMeta) => {
+    const laneClips = meta.clips.filter((other) => other.lane === clip.lane);
+    const spans = timelineClipSpans(DialStore.getValues(meta.id), laneClips, meta.duration).sort((a, b) => a.at - b.at);
+    reorderRef.current = { key: clip.key, spans, slot: null };
+    setReorderCue({ key: clip.key, lane: clip.lane, time: null });
+  };
+  const hoverReorder = (clientX: number) => {
+    const reorder = reorderRef.current;
+    const rect = laneAreaRef.current?.getBoundingClientRect();
+    if (!reorder || !rect || pxPerSecond <= 0) return;
+    const time = safeViewStart + (clientX - rect.left) / pxPerSecond;
+    const slot = timelineReorderSlot(reorder.spans, reorder.key, time);
+    reorder.slot = slot;
+    const others = reorder.spans.filter((span) => span.key !== reorder.key);
+    const last = others[others.length - 1];
+    const cueTime = others[slot]?.at ?? (last ? last.at + last.duration : 0);
+    setReorderCue((prev) => (prev && prev.time !== cueTime ? { ...prev, time: cueTime } : prev));
+  };
+  const dropReorder = () => {
+    const reorder = reorderRef.current;
+    reorderRef.current = null;
+    setReorderCue(null);
+    if (!reorder || reorder.slot === null) return;
+    const writes: Record<string, DialValue> = {};
+    for (const [key, at] of Object.entries(timelineReorderAts(reorder.spans, reorder.key, reorder.slot))) {
+      writes[`${key}.at`] = at;
+    }
+    DialStore.updateValues(meta.id, writes);
+  };
+
   const toggleGroup = useCallback((group: string) => {
     setCollapsedGroups((prev) => {
       const next = new Set(prev);
@@ -951,6 +991,10 @@ const TimelineSection = memo(function TimelineSection({
                 fixedDuration={stat.isPhysics}
                 single
                 pinned={clip.key === pinnedKey}
+                lifted={reorderCue?.key === clip.key}
+                onLift={liftClip}
+                onReorderHover={hoverReorder}
+                onReorderDrop={dropReorder}
                 pxPerSecond={pxPerSecond}
                 viewStart={safeViewStart}
                 timelineDuration={meta.duration}
@@ -962,6 +1006,9 @@ const TimelineSection = memo(function TimelineSection({
               />
             );
           })}
+          {reorderCue && reorderCue.time !== null && reorderCue.lane === lane && (
+            <div className="dialkit-timeline-reorder-cue" style={{ left: (reorderCue.time - safeViewStart) * pxPerSecond }} aria-hidden="true" />
+          )}
         </div>
       </div>
     );
@@ -1510,6 +1557,7 @@ type DragState = {
   mode: 'move' | 'start' | 'end' | 'boundary';
   boundaryIndex?: number;
   pointerX: number;
+  pointerY: number;
   at: number;
   duration: number;
   bounds: TimelineClipDragBounds;
@@ -1519,6 +1567,8 @@ type DragState = {
   /** A pinned bar's press: the bar holds still, and the press still opens
    * its popover on release. */
   locked?: boolean;
+  /** Single track: the move became a reorder. */
+  lifted?: boolean;
 };
 
 function TimelineClip({
@@ -1532,6 +1582,10 @@ function TimelineClip({
   composite = false,
   single = false,
   pinned = false,
+  lifted = false,
+  onLift,
+  onReorderHover,
+  onReorderDrop,
   baseAt = 0,
   delayMode = false,
   pxPerSecond,
@@ -1559,6 +1613,12 @@ function TimelineClip({
    * `pinStart` option): it does not move along the lane and has no start
    * handle. */
   pinned?: boolean;
+  /** Single track: this bar is being lifted to a new place. */
+  lifted?: boolean;
+  /** Single track: a move lifted past LIFT_PX becomes a reorder. */
+  onLift?: (clip: TimelineClipMeta) => void;
+  onReorderHover?: (clientX: number) => void;
+  onReorderDrop?: () => void;
   /** Track rows: position = baseAt + delay; dragging edits the delay. */
   baseAt?: number;
   delayMode?: boolean;
@@ -1599,6 +1659,7 @@ function TimelineClip({
         mode,
         boundaryIndex,
         pointerX: e.clientX,
+        pointerY: e.clientY,
         at,
         duration,
         bounds: getDragBounds(clip.key),
@@ -1618,11 +1679,26 @@ function TimelineClip({
       if (!drag || pxPerSecond <= 0 || drag.locked) return;
 
       const dx = e.clientX - drag.pointerX;
+      const dy = e.clientY - drag.pointerY;
+      const liftable = drag.mode === 'move' && onLift !== undefined;
       if (!drag.moved) {
-        if (Math.abs(dx) <= DRAG_THRESHOLD_PX) return;
+        if (Math.abs(dx) <= DRAG_THRESHOLD_PX && !(liftable && Math.abs(dy) > DRAG_THRESHOLD_PX)) return;
         drag.moved = true;
         setDragging(true);
         onDrag();
+      }
+      if (liftable) {
+        // A lift puts the bar back where it was pressed; from then on only
+        // the cue follows the pointer.
+        if (!drag.lifted && Math.abs(dy) > LIFT_PX) {
+          drag.lifted = true;
+          DialStore.updateValue(timelineId, `${clip.key}.at`, drag.at);
+          onLift(clip);
+        }
+        if (drag.lifted) {
+          onReorderHover?.(e.clientX);
+          return;
+        }
       }
 
       const dt = dx / pxPerSecond;
@@ -1679,7 +1755,7 @@ function TimelineClip({
         });
       }
     },
-    [baseAt, clip.key, clip.segments, delayMode, onDrag, pxPerSecond, steps, tail, timelineId, timelineDuration]
+    [baseAt, clip, delayMode, onDrag, onLift, onReorderHover, pxPerSecond, steps, tail, timelineId, timelineDuration]
   );
 
   const handlePointerUp = useCallback(
@@ -1687,19 +1763,25 @@ function TimelineClip({
       const drag = dragRef.current;
       dragRef.current = null;
       setDragging(false);
+      if (drag?.lifted) {
+        onReorderDrop?.();
+        return;
+      }
       if (drag && !drag.moved) {
         const stepKey = drag.clickEl?.dataset?.step;
         const anchorEl = drag.clickEl ?? e.currentTarget;
         onClick(clip, anchorEl.getBoundingClientRect(), stepKey);
       }
     },
-    [clip, onClick]
+    [clip, onClick, onReorderDrop]
   );
 
   const handlePointerCancel = useCallback(() => {
+    const drag = dragRef.current;
     dragRef.current = null;
     setDragging(false);
-  }, []);
+    if (drag?.lifted) onReorderDrop?.();
+  }, [onReorderDrop]);
 
   const width = Math.max(duration * pxPerSecond, 14);
   const resizable = duration > 0 && !fixedDuration && !composite;
@@ -1778,6 +1860,7 @@ function TimelineClip({
         data-dragging={dragging || undefined}
         data-segmented={segmentParts ? '' : undefined}
         data-pinned={pinned || undefined}
+        data-lifted={lifted || undefined}
         style={{
           // A single-track bar draws 1px short of its span on each side, so butted bars keep a hairline of lane between them.
           left: (at - viewStart) * pxPerSecond + (single ? 1 : 0),

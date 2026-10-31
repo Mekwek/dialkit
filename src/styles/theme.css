@@ -3785,6 +3785,23 @@
   opacity: 1;
 }
 
+/* A bar lifted to a new place fades; a line marks where it would land. */
+.dialkit-timeline-section[data-track="single"] .dialkit-timeline-clip[data-lifted] {
+  opacity: 0.3;
+}
+
+.dialkit-timeline-reorder-cue {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 3;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 2px;
+  background: var(--dial-text-root);
+  pointer-events: none;
+}
+
 /* Extra lanes (clips with a `lane`) bring back the label column, so each
    row says what it holds. The ruler and the playhead read the same width,
    so every row stays aligned. */

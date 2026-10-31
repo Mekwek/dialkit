@@ -1570,6 +1570,41 @@ export function dragTimelineClip(
   return { at: next, duration: round2(at + duration - next) };
 }
 
+/**
+ * Reorder on a single track: the clip `key` moves to `slot`, an index among
+ * the OTHER clips (0 to their count), which keep their order. The gaps stay
+ * where they were by position, not with their clips: the n-th clip keeps
+ * the n-th gap. `spans` is one lane, sorted by `at`. Returns the new `at` of
+ * every clip, by key.
+ */
+export function timelineReorderAts(
+  spans: TimelineClipSpan[],
+  key: string,
+  slot: number
+): Record<string, number> {
+  const gaps = spans.map((span, i) => (i === 0 ? span.at : span.at - (spans[i - 1].at + spans[i - 1].duration)));
+  const moved = spans.find((span) => span.key === key);
+  const others = spans.filter((span) => span.key !== key);
+  const bounded = Math.max(0, Math.min(others.length, Math.round(slot)));
+  const order = moved ? [...others.slice(0, bounded), moved, ...others.slice(bounded)] : others;
+  const ats: Record<string, number> = {};
+  let cursor = 0;
+  order.forEach((span, i) => {
+    const at = round2(cursor + gaps[i]);
+    ats[span.key] = at;
+    cursor = at + span.duration;
+  });
+  return ats;
+}
+
+/** Where a lifted clip would land: the slot among the other clips of its
+ * lane before the first one whose middle lies past `time`. */
+export function timelineReorderSlot(spans: TimelineClipSpan[], key: string, time: number): number {
+  const others = spans.filter((span) => span.key !== key);
+  const index = others.findIndex((span) => time < span.at + span.duration / 2);
+  return index < 0 ? others.length : index;
+}
+
 /** How much of a clip the playhead has crossed, 0 to 1. A clip with no
  * length counts as played once the playhead reaches it. */
 export function timelineClipProgress(time: number, at: number, duration: number): number {
