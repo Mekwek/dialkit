@@ -101,10 +101,12 @@ function createFieldLock() {
     }
   };
 }
-function fieldText(value, { min, max, step }, decimals) {
+function fieldText(value, { min, max, step }, decimals, trim = false) {
   const own = decimalsForStep(step, min, max);
-  if (decimals === void 0 || decimals >= own) return value.toFixed(own);
-  const text = value.toFixed(Math.max(0, Math.floor(decimals)));
+  const capped = decimals !== void 0 && decimals < own;
+  let text = value.toFixed(capped ? Math.max(0, Math.floor(decimals)) : own);
+  if (trim && text.includes(".")) text = text.replace(/0+$/, "").replace(/\.$/, "");
+  if (!capped && !trim) return text;
   return Number(text) === 0 ? text.replace("-", "") : text;
 }
 function resetFields(controls, values, defaults) {
@@ -169,11 +171,8 @@ function mountFields(host, initial) {
     const value = values[control.path];
     return typeof value === "number" ? value : rangeOf(control).min;
   };
-  const format = (control) => {
-    const { min, max, step } = rangeOf(control);
-    return read(control).toFixed(decimalsForStep(step, min, max));
-  };
-  const display = (control) => fieldText(read(control), rangeOf(control), props.decimals);
+  const format = (control) => fieldText(read(control), rangeOf(control), void 0, props.trim);
+  const display = (control) => fieldText(read(control), rangeOf(control), props.decimals, props.trim);
   function emit(updates) {
     if (Object.keys(updates).length === 0) return;
     values = { ...values, ...updates };

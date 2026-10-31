@@ -15,6 +15,7 @@ function oneOf(options, value, fallback) {
   return options.includes(value) ? value : fallback;
 }
 function normalizeAnchorValue(value, config = {}) {
+  if (value === null || config.default === null && (typeof value !== "object" || Array.isArray(value))) return null;
   const input = typeof value === "object" && value !== null ? value : {};
   return {
     x: oneOf(ANCHOR_COLUMNS, input.x, oneOf(ANCHOR_COLUMNS, config.default?.x, "center")),
@@ -72,6 +73,12 @@ function slideAxis(from, velocity, to, t) {
   const decay = Math.exp(-PILL_OMEGA * t);
   return [to + (offset + b * t) * decay, (velocity - PILL_OMEGA * b * t) * decay];
 }
+var MIDDLE = { x: "center", y: "center" };
+function anchorKeyPick(value, key) {
+  if (value) return anchorValueFromKey(value, key);
+  const next = anchorValueFromKey(MIDDLE, key);
+  return next && key.startsWith("Arrow") ? { ...MIDDLE } : next;
+}
 function mountAnchorControl(host, initial) {
   let props = initial;
   let value = normalizeAnchorValue(props.value);
@@ -123,27 +130,33 @@ function mountAnchorControl(host, initial) {
   function render() {
     setHint(grid, props.hint);
     grid.setAttribute("aria-label", props.label);
-    move([ANCHOR_COLUMNS.indexOf(value.x), ANCHOR_ROWS.indexOf(value.y)]);
+    grid.toggleAttribute("data-empty", !value);
+    if (value) move([ANCHOR_COLUMNS.indexOf(value.x), ANCHOR_ROWS.indexOf(value.y)]);
+    else {
+      slide?.animation.cancel();
+      at = void 0;
+    }
+    const stop = value ?? MIDDLE;
     for (const { cell, option } of cells) {
-      const checked = option.x === value.x && option.y === value.y;
+      const checked = !!value && option.x === value.x && option.y === value.y;
       cell.setAttribute("aria-checked", String(checked));
-      cell.tabIndex = checked ? 0 : -1;
+      cell.tabIndex = option.x === stop.x && option.y === stop.y ? 0 : -1;
     }
   }
   function commit(next) {
-    if (next.x === value.x && next.y === value.y) return;
+    if (value && next.x === value.x && next.y === value.y) return;
     value = next;
     render();
     props.onChange({ ...value });
   }
   grid.addEventListener("keydown", (event) => {
     if (event.altKey || event.metaKey || event.ctrlKey) return;
-    const next = anchorValueFromKey(value, event.key);
+    const next = anchorKeyPick(value, event.key);
     if (!next) return;
     event.preventDefault();
     event.stopPropagation();
     commit(next);
-    cells.find(({ option }) => option.x === value.x && option.y === value.y)?.cell.focus({ preventScroll: true });
+    cells.find(({ option }) => option.x === next.x && option.y === next.y)?.cell.focus({ preventScroll: true });
   });
   render();
   return {
@@ -160,6 +173,7 @@ function mountAnchorControl(host, initial) {
   };
 }
 export {
+  anchorKeyPick,
   mountAnchorControl
 };
 //# sourceMappingURL=anchor-control.js.map

@@ -464,6 +464,7 @@ function oneOf(options, value, fallback) {
   return options.includes(value) ? value : fallback;
 }
 function normalizeAnchorValue(value, config = {}) {
+  if (value === null || config.default === null && (typeof value !== "object" || Array.isArray(value))) return null;
   const input = typeof value === "object" && value !== null ? value : {};
   return {
     x: oneOf(ANCHOR_COLUMNS, input.x, oneOf(ANCHOR_COLUMNS, config.default?.x, "center")),
@@ -1023,7 +1024,7 @@ function resolveConfigValues(config, flatValues, prefix) {
     const path = prefix ? `${prefix}.${key}` : key;
     const configValue = unwrapVisibility(rawValue);
     if (isLeafConfigValue(configValue)) {
-      result[key] = flatValues[path] ?? configDefaultValue(configValue);
+      result[key] = flatValues[path] !== void 0 ? flatValues[path] : configDefaultValue(configValue);
     } else if (typeof configValue === "object" && configValue !== null) {
       result[key] = resolveConfigValues(configValue, flatValues, path);
     }
@@ -2150,6 +2151,7 @@ var DialStoreClass = class {
             if (canShowFields(children)) {
               control.fields = true;
               if (typeof fields.decimals === "number" && Number.isFinite(fields.decimals)) control.decimals = fields.decimals;
+              if (fields.trim === true) control.trim = true;
             } else {
               console.warn(`[dialkit] "${path}" sets _fields but needs two to four numbers and at most one boolean; showing it as a folder.`);
             }
@@ -7864,10 +7866,12 @@ function createFieldLock() {
     }
   };
 }
-function fieldText(value, { min, max, step }, decimals) {
+function fieldText(value, { min, max, step }, decimals, trim = false) {
   const own = decimalsForStep(step, min, max);
-  if (decimals === void 0 || decimals >= own) return value.toFixed(own);
-  const text = value.toFixed(Math.max(0, Math.floor(decimals)));
+  const capped = decimals !== void 0 && decimals < own;
+  let text = value.toFixed(capped ? Math.max(0, Math.floor(decimals)) : own);
+  if (trim && text.includes(".")) text = text.replace(/0+$/, "").replace(/\.$/, "");
+  if (!capped && !trim) return text;
   return Number(text) === 0 ? text.replace("-", "") : text;
 }
 function resetFields(controls, values, defaults) {
@@ -7932,11 +7936,8 @@ function mountFields(host, initial) {
     const value = values[control.path];
     return typeof value === "number" ? value : rangeOf(control).min;
   };
-  const format = (control) => {
-    const { min, max, step } = rangeOf(control);
-    return read(control).toFixed(decimalsForStep(step, min, max));
-  };
-  const display = (control) => fieldText(read(control), rangeOf(control), props.decimals);
+  const format = (control) => fieldText(read(control), rangeOf(control), void 0, props.trim);
+  const display = (control) => fieldText(read(control), rangeOf(control), props.decimals, props.trim);
   function emit(updates) {
     if (Object.keys(updates).length === 0) return;
     values = { ...values, ...updates };
@@ -8156,6 +8157,12 @@ function slideAxis(from, velocity, to, t) {
   const decay = Math.exp(-PILL_OMEGA * t);
   return [to + (offset + b * t) * decay, (velocity - PILL_OMEGA * b * t) * decay];
 }
+var MIDDLE = { x: "center", y: "center" };
+function anchorKeyPick(value, key) {
+  if (value) return anchorValueFromKey(value, key);
+  const next = anchorValueFromKey(MIDDLE, key);
+  return next && key.startsWith("Arrow") ? { ...MIDDLE } : next;
+}
 function mountAnchorControl(host, initial) {
   let props = initial;
   let value = normalizeAnchorValue(props.value);
@@ -8207,27 +8214,33 @@ function mountAnchorControl(host, initial) {
   function render() {
     setHint(grid, props.hint);
     grid.setAttribute("aria-label", props.label);
-    move([ANCHOR_COLUMNS.indexOf(value.x), ANCHOR_ROWS.indexOf(value.y)]);
+    grid.toggleAttribute("data-empty", !value);
+    if (value) move([ANCHOR_COLUMNS.indexOf(value.x), ANCHOR_ROWS.indexOf(value.y)]);
+    else {
+      slide?.animation.cancel();
+      at = void 0;
+    }
+    const stop3 = value ?? MIDDLE;
     for (const { cell, option } of cells) {
-      const checked = option.x === value.x && option.y === value.y;
+      const checked = !!value && option.x === value.x && option.y === value.y;
       cell.setAttribute("aria-checked", String(checked));
-      cell.tabIndex = checked ? 0 : -1;
+      cell.tabIndex = option.x === stop3.x && option.y === stop3.y ? 0 : -1;
     }
   }
   function commit(next) {
-    if (next.x === value.x && next.y === value.y) return;
+    if (value && next.x === value.x && next.y === value.y) return;
     value = next;
     render();
     props.onChange({ ...value });
   }
   grid.addEventListener("keydown", (event) => {
     if (event.altKey || event.metaKey || event.ctrlKey) return;
-    const next = anchorValueFromKey(value, event.key);
+    const next = anchorKeyPick(value, event.key);
     if (!next) return;
     event.preventDefault();
     event.stopPropagation();
     commit(next);
-    cells.find(({ option }) => option.x === value.x && option.y === value.y)?.cell.focus({ preventScroll: true });
+    cells.find(({ option }) => option.x === next.x && option.y === next.y)?.cell.focus({ preventScroll: true });
   });
   render();
   return {

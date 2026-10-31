@@ -173,6 +173,7 @@ function oneOf(options, value, fallback) {
   return options.includes(value) ? value : fallback;
 }
 function normalizeAnchorValue(value, config = {}) {
+  if (value === null || config.default === null && (typeof value !== "object" || Array.isArray(value))) return null;
   const input = typeof value === "object" && value !== null ? value : {};
   return {
     x: oneOf(ANCHOR_COLUMNS, input.x, oneOf(ANCHOR_COLUMNS, config.default?.x, "center")),
@@ -473,7 +474,7 @@ function resolveConfigValues(config, flatValues, prefix) {
     const path = prefix ? `${prefix}.${key}` : key;
     const configValue = unwrapVisibility(rawValue);
     if (isLeafConfigValue(configValue)) {
-      result[key] = flatValues[path] ?? configDefaultValue(configValue);
+      result[key] = flatValues[path] !== void 0 ? flatValues[path] : configDefaultValue(configValue);
     } else if (typeof configValue === "object" && configValue !== null) {
       result[key] = resolveConfigValues(configValue, flatValues, path);
     }
@@ -1600,6 +1601,7 @@ var DialStoreClass = class {
             if (canShowFields(children)) {
               control.fields = true;
               if (typeof fields.decimals === "number" && Number.isFinite(fields.decimals)) control.decimals = fields.decimals;
+              if (fields.trim === true) control.trim = true;
             } else {
               console.warn(`[dialkit] "${path}" sets _fields but needs two to four numbers and at most one boolean; showing it as a folder.`);
             }

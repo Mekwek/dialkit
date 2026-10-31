@@ -109,7 +109,7 @@ type TextConfig = {
     default?: string;
     placeholder?: string;
 };
-type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue | BackgroundConfig | BackgroundValue | AnchorConfig | AnchorValue | LayersConfig | LayersValue;
+type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue | BackgroundConfig | BackgroundValue | AnchorConfig | AnchorValue | LayersConfig | LayersValue | null;
 /**
  * A row: set `_row: true` on a folder with two controls. The folder shows
  * no header; its two controls sit side by side, each with its label above
@@ -165,6 +165,8 @@ type ControlMeta = {
     fields?: boolean;
     /** Fields only: the most decimals a field shows, from `_fields: { decimals }`. See {@link FieldsConfig}. */
     decimals?: number;
+    /** Fields only: values show without trailing zeros, from `_fields: { trim: true }`. See {@link FieldsConfig}. */
+    trim?: boolean;
     /** Folder only: `_row` shows the folder's two controls side by side. See {@link RowConfig}. */
     row?: RowConfig;
     /** Row only: the names its controls show inside. See {@link InlineLabelsConfig}. */

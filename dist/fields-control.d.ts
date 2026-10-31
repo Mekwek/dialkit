@@ -1,4 +1,4 @@
-import { C as ControlMeta, D as DialValue } from './DialStore-B5eZ5TGT.js';
+import { C as ControlMeta, D as DialValue } from './DialStore-BIFUV5H0.js';
 import './dial-pad.js';
 import './anchor.js';
 import './background.js';
@@ -19,6 +19,8 @@ type FieldsProps = {
      * only the display rounds, and typing starts from the exact value.
      */
     decimals?: number;
+    /** Shows each value without trailing zeros: "1" for 1.00, "1.5" for 1.50. */
+    trim?: boolean;
 };
 type FieldRange = {
     min: number;
@@ -52,9 +54,10 @@ declare function createFieldLock(): {
 };
 /**
  * A field's value at rest: the decimals its step has, or at most
- * `decimals` of them, and never -0 once rounded.
+ * `decimals` of them, and never -0 once rounded. With `trim`, without
+ * trailing zeros.
  */
-declare function fieldText(value: number, { min, max, step }: FieldRange, decimals?: number): string;
+declare function fieldText(value: number, { min, max, step }: FieldRange, decimals?: number, trim?: boolean): string;
 /** The updates that put every value in the row back to its default; empty when none changed. */
 declare function resetFields(controls: ControlMeta[], values: Record<string, DialValue>, defaults: Record<string, DialValue>): Record<string, DialValue>;
 /**

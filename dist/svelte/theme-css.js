@@ -2140,6 +2140,8 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 .dialkit-anchor { position: relative; display: grid; grid-template: repeat(3, 26px) / repeat(3, minmax(0, 1fr)); padding: 4px; border-radius: var(--dial-radius); background: var(--dial-surface); }
 /* The pill spans one cell and draws its highlight inset from the cell's edges. */
 .dialkit-anchor-pill { position: absolute; top: 4px; left: 4px; width: calc((100% - 8px) / 3); height: 26px; pointer-events: none; }
+/* No cell picked: no highlight. */
+.dialkit-anchor[data-empty] .dialkit-anchor-pill { display: none; }
 .dialkit-anchor-pill::before { content: ''; position: absolute; inset: 2px 4px; border-radius: 4px; background: var(--dial-surface-active); }
 .dialkit-anchor-cell { position: relative; display: grid; place-items: center; min-width: 0; padding: 0; border: 0; background: none; cursor: pointer; outline: none; }
 /* A hovered cell other than the picked one shows a faint pill. */

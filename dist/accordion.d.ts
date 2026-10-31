@@ -1,4 +1,4 @@
-import { C as ControlMeta, P as PanelConfig } from './DialStore-B5eZ5TGT.js';
+import { C as ControlMeta, P as PanelConfig } from './DialStore-BIFUV5H0.js';
 import './dial-pad.js';
 import './anchor.js';
 import './background.js';

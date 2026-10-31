@@ -15,6 +15,7 @@ function oneOf(options, value, fallback) {
   return options.includes(value) ? value : fallback;
 }
 function normalizeAnchorValue(value, config = {}) {
+  if (value === null || config.default === null && (typeof value !== "object" || Array.isArray(value))) return null;
   const input = typeof value === "object" && value !== null ? value : {};
   return {
     x: oneOf(ANCHOR_COLUMNS, input.x, oneOf(ANCHOR_COLUMNS, config.default?.x, "center")),

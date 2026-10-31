@@ -32,8 +32,11 @@ type AnchorValue = {
 };
 type AnchorConfig = {
     type: 'anchor';
-    /** Omitted axes default to 'center'. */
-    default?: Partial<AnchorValue>;
+    /**
+     * Omitted axes default to 'center'. `null` starts with no cell picked: the
+     * grid highlights none, and a click on any cell picks it.
+     */
+    default?: Partial<AnchorValue> | null;
 };
 
 /**
@@ -304,7 +307,7 @@ type TextConfig = {
     default?: string;
     placeholder?: string;
 };
-type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue | BackgroundConfig | BackgroundValue | AnchorConfig | AnchorValue | LayersConfig | LayersValue;
+type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue | BackgroundConfig | BackgroundValue | AnchorConfig | AnchorValue | LayersConfig | LayersValue | null;
 /**
  * Folder keys that configure the folder instead of adding a control:
  * `_collapsed`, `_fields`, `_reset`, `_hints` (a sentence per child key),
@@ -354,15 +357,19 @@ type ControlWithVisibility<T = DialValue | [number, number, number, number?, str
 };
 /** Shows `control` (any control or folder) only while `rule` holds. Hidden controls keep their values. */
 declare function withVisibility<T extends DialValue | [number, number, number, number?, string?] | DialConfig>(control: T, rule: VisibleWhen): ControlWithVisibility<T>;
+/** An anchor's value: a cell, or `null` (no cell picked) when its default is `null`. */
+type AnchorConfigValue<C> = C extends {
+    default: null;
+} ? AnchorValue | null : AnchorValue;
 type ResolvedValues<T extends DialConfig> = {
     [K in keyof T as K extends FolderMetaKey ? never : K]: T[K] extends ControlWithVisibility<infer U extends DialConfig[string]> ? ResolvedValues<{
         value: U;
-    }>['value'] : T[K] extends [number, number, number, number?, string?] ? number : T[K] extends SpringConfig ? TransitionConfig : T[K] extends EasingConfig ? TransitionConfig : T[K] extends SelectConfig ? string : T[K] extends ColorConfig | ImageConfig ? string : T[K] extends TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends BackgroundConfig ? BackgroundValue : T[K] extends AnchorConfig ? AnchorValue : T[K] extends LayersConfig ? LayersValue : T[K] extends DialConfig ? ResolvedValues<T[K]> : T[K];
+    }>['value'] : T[K] extends [number, number, number, number?, string?] ? number : T[K] extends SpringConfig ? TransitionConfig : T[K] extends EasingConfig ? TransitionConfig : T[K] extends SelectConfig ? string : T[K] extends ColorConfig | ImageConfig ? string : T[K] extends TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends BackgroundConfig ? BackgroundValue : T[K] extends AnchorConfig ? AnchorConfigValue<T[K]> : T[K] extends LayersConfig ? LayersValue : T[K] extends DialConfig ? ResolvedValues<T[K]> : T[K];
 };
 type DialKitValueUpdates<T extends DialConfig> = {
     [K in keyof T as K extends FolderMetaKey ? never : K]?: T[K] extends ControlWithVisibility<infer U extends DialConfig[string]> ? DialKitValueUpdates<{
         value: U;
-    }>['value'] : T[K] extends [number, number, number, number?, string?] ? number : T[K] extends SpringConfig | EasingConfig ? TransitionConfig : T[K] extends ActionConfig ? never : T[K] extends SelectConfig | ColorConfig | ImageConfig | TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends BackgroundConfig ? BackgroundValueUpdate : T[K] extends AnchorConfig ? AnchorValue : T[K] extends LayersConfig ? LayersValue : T[K] extends DialConfig ? DialKitValueUpdates<T[K]> : T[K];
+    }>['value'] : T[K] extends [number, number, number, number?, string?] ? number : T[K] extends SpringConfig | EasingConfig ? TransitionConfig : T[K] extends ActionConfig ? never : T[K] extends SelectConfig | ColorConfig | ImageConfig | TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends BackgroundConfig ? BackgroundValueUpdate : T[K] extends AnchorConfig ? AnchorConfigValue<T[K]> : T[K] extends LayersConfig ? LayersValue : T[K] extends DialConfig ? DialKitValueUpdates<T[K]> : T[K];
 };
 type ShortcutMode = 'fine' | 'normal' | 'coarse';
 type ShortcutInteraction = 'scroll' | 'drag' | 'move' | 'scroll-only';
@@ -388,6 +395,8 @@ type ControlMeta = {
     fields?: boolean;
     /** Fields only: the most decimals a field shows, from `_fields: { decimals }`. See {@link FieldsConfig}. */
     decimals?: number;
+    /** Fields only: values show without trailing zeros, from `_fields: { trim: true }`. See {@link FieldsConfig}. */
+    trim?: boolean;
     /** Folder only: `_row` shows the folder's two controls side by side. See {@link RowConfig}. */
     row?: RowConfig;
     /** Row only: the names its controls show inside. See {@link InlineLabelsConfig}. */
@@ -1379,12 +1388,16 @@ declare function mountDialPad(host: HTMLElement, initial: DialPadProps): {
 
 type AnchorControlProps = {
     label: string;
-    value: AnchorValue;
+    /** `null`: no cell is picked, and a click on any cell picks it. */
+    value: AnchorValue | null;
     onChange: (value: AnchorValue) => void;
     /** A short sentence shown while H is held over the control. */
     hint?: string;
 };
-/** A 3 × 3 radio grid: one pick sets both axes, and the highlight slides to it. */
+/**
+ * A 3 × 3 radio grid: one pick sets both axes, and the highlight slides to
+ * it. With no cell picked, nothing is highlighted.
+ */
 declare function mountAnchorControl(host: HTMLElement, initial: AnchorControlProps): {
     update(next: AnchorControlProps): void;
     destroy(): void;

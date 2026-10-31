@@ -1,5 +1,5 @@
 import { BezierPoints } from './easing-geometry.js';
-import { T as TransitionConfig, a as TransitionMode, b as TransitionPreset } from './DialStore-B5eZ5TGT.js';
+import { T as TransitionConfig, a as TransitionMode, b as TransitionPreset } from './DialStore-BIFUV5H0.js';
 import './dial-pad.js';
 import './anchor.js';
 import './background.js';

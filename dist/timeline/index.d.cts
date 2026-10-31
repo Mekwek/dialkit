@@ -32,8 +32,11 @@ type AnchorValue = {
 };
 type AnchorConfig = {
     type: 'anchor';
-    /** Omitted axes default to 'center'. */
-    default?: Partial<AnchorValue>;
+    /**
+     * Omitted axes default to 'center'. `null` starts with no cell picked: the
+     * grid highlights none, and a click on any cell picks it.
+     */
+    default?: Partial<AnchorValue> | null;
 };
 
 /**
@@ -217,7 +220,7 @@ type TextConfig = {
     default?: string;
     placeholder?: string;
 };
-type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue | BackgroundConfig | BackgroundValue | AnchorConfig | AnchorValue | LayersConfig | LayersValue;
+type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue | BackgroundConfig | BackgroundValue | AnchorConfig | AnchorValue | LayersConfig | LayersValue | null;
 /**
  * Folder keys that configure the folder instead of adding a control:
  * `_collapsed`, `_fields`, `_reset`, `_hints` (a sentence per child key),
@@ -246,10 +249,14 @@ type ControlWithVisibility<T = DialValue | [number, number, number, number?, str
     value: T;
     visibleWhen: VisibleWhen;
 };
+/** An anchor's value: a cell, or `null` (no cell picked) when its default is `null`. */
+type AnchorConfigValue<C> = C extends {
+    default: null;
+} ? AnchorValue | null : AnchorValue;
 type ResolvedValues<T extends DialConfig> = {
     [K in keyof T as K extends FolderMetaKey ? never : K]: T[K] extends ControlWithVisibility<infer U extends DialConfig[string]> ? ResolvedValues<{
         value: U;
-    }>['value'] : T[K] extends [number, number, number, number?, string?] ? number : T[K] extends SpringConfig ? TransitionConfig : T[K] extends EasingConfig ? TransitionConfig : T[K] extends SelectConfig ? string : T[K] extends ColorConfig | ImageConfig ? string : T[K] extends TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends BackgroundConfig ? BackgroundValue : T[K] extends AnchorConfig ? AnchorValue : T[K] extends LayersConfig ? LayersValue : T[K] extends DialConfig ? ResolvedValues<T[K]> : T[K];
+    }>['value'] : T[K] extends [number, number, number, number?, string?] ? number : T[K] extends SpringConfig ? TransitionConfig : T[K] extends EasingConfig ? TransitionConfig : T[K] extends SelectConfig ? string : T[K] extends ColorConfig | ImageConfig ? string : T[K] extends TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends BackgroundConfig ? BackgroundValue : T[K] extends AnchorConfig ? AnchorConfigValue<T[K]> : T[K] extends LayersConfig ? LayersValue : T[K] extends DialConfig ? ResolvedValues<T[K]> : T[K];
 };
 type DialKitPersistOptions = boolean | {
     key?: string;

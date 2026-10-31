@@ -4,14 +4,21 @@ type AnchorValue = {
 };
 type AnchorConfig = {
     type: 'anchor';
-    /** Omitted axes default to 'center'. */
-    default?: Partial<AnchorValue>;
+    /**
+     * Omitted axes default to 'center'. `null` starts with no cell picked: the
+     * grid highlights none, and a click on any cell picks it.
+     */
+    default?: Partial<AnchorValue> | null;
 };
 /** Columns left to right and rows top to bottom. */
 declare const ANCHOR_COLUMNS: readonly AnchorValue['x'][];
 declare const ANCHOR_ROWS: readonly AnchorValue['y'][];
-/** Invalid or missing axes fall back to the configured default, then to 'center'. */
-declare function normalizeAnchorValue(value: unknown, config?: Pick<AnchorConfig, 'default'>): AnchorValue;
+/**
+ * Invalid or missing axes fall back to the configured default, then to
+ * 'center'. `null` (no cell picked) stays `null`, and so does a missing
+ * or malformed value when the configured default is `null`.
+ */
+declare function normalizeAnchorValue(value: unknown, config?: Pick<AnchorConfig, 'default'>): AnchorValue | null;
 /** "Top left", "Center", "Bottom center", … */
 declare function anchorLabel({ x, y }: AnchorValue): string;
 /** Arrow keys move one cell and stop at the edges; Home and End go to the first and last cells. */
