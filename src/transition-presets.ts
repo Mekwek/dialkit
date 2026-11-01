@@ -69,13 +69,14 @@ export const easingCurves: EasingCurve[] = [
 ];
 
 /**
- * React Spring's named configs, with its default as Crisp, then more named
- * springs. All of them fit the Physics sliders: Molasses is 125 / 55 rather
+ * Default first (150 / 30 / 1, smooth with no bounce), then React Spring's
+ * named configs, with its default as Crisp, then more named springs. All of them fit the Physics sliders: Molasses is 125 / 55 rather
  * than React Spring's 280 / 120, which settles in about the same 2.2s with
  * damping under the slider's 100. The Time values take the bounce from the
  * damping ratio and a duration that settles like the physics.
  */
 export const springPresets: SpringPreset[] = [
+  { name: 'Default', description: 'Smooth, no bounce, almost one second.', physics: { stiffness: 150, damping: 30, mass: 1 }, time: { visualDuration: 0.83, bounce: 0 } },
   // React Spring
   { name: 'Crisp', description: 'Quick and firm, no bounce.', physics: { stiffness: 170, damping: 26, mass: 1 }, time: { visualDuration: 0.4, bounce: 0 } },
   { name: 'Gentle', description: 'Soft, with a little bounce.', physics: { stiffness: 120, damping: 14, mass: 1 }, time: { visualDuration: 0.5, bounce: 0.35 } },

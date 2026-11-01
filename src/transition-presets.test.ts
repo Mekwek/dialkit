@@ -24,8 +24,9 @@ describe('transition presets', () => {
       assert.ok(Math.abs(settle(physics) - settle(time)) <= 0.1, `${name}: ${settle(physics)} vs ${settle(time)}`);
     }
     assert.equal(defaultTransitionPresets('easing').length, 40);
-    assert.equal(defaultTransitionPresets('simple').length, 15);
-    assert.equal(defaultTransitionPresets('advanced').length, 15);
+    assert.equal(defaultTransitionPresets('simple').length, 16);
+    assert.equal(defaultTransitionPresets('advanced').length, 16);
+    assert.equal(defaultTransitionPresets('advanced')[0].name, 'Default');
     for (const mode of ['easing', 'simple', 'advanced'] as const) {
       assert.deepEqual(DialStore.getDefaultTransitionPresets(mode), defaultTransitionPresets(mode));
       assert.ok(DialStore.getDefaultTransitionPresets(mode).every(preset => preset.description));
@@ -33,7 +34,7 @@ describe('transition presets', () => {
   });
 
   it('matches and applies presets by the values their mode edits', () => {
-    const [time, physics] = [defaultTransitionPresets('simple')[2], defaultTransitionPresets('advanced')[2]];
+    const [time, physics] = [defaultTransitionPresets('simple')[3], defaultTransitionPresets('advanced')[3]];
     assert.equal(time.name, 'Wobbly');
     assert.deepEqual(time.value, { type: 'spring', visualDuration: 0.4, bounce: 0.55 });
     assert.deepEqual(physics.value, { type: 'spring', stiffness: 180, damping: 12, mass: 1 });
@@ -53,6 +54,7 @@ describe('transition presets', () => {
     assert.equal(transitionPresetName(curve, 'easing', saved), 'Custom 1');
     assert.equal(transitionPresetName(curve, 'easing', []), 'Custom');
     assert.equal(transitionPresetName({ type: 'spring', visualDuration: 0.4, bounce: 0.55 }, 'simple', saved), 'Wobbly');
+    assert.equal(transitionPresetName({ type: 'spring', stiffness: 150, damping: 30, mass: 1 }, 'advanced', []), 'Default');
   });
 });
 
