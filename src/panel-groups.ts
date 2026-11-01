@@ -7,7 +7,8 @@ import type { PanelConfig } from './store/DialStore';
  * - `shell`: the panels without a group, when there are two or more, as
  *   sections of the one "DialKit" shell.
  * - `group`: the panels that share a `group`, as sections of a shell titled
- *   by the group.
+ *   by the group. A group of one panel that is not its `groupHeader` is that
+ *   panel on its own (`panel`), so its title shows once.
  */
 export type PanelRootEntry =
   | { kind: 'panel'; key: string; panel: PanelConfig }
@@ -44,7 +45,8 @@ export function filterRootPanels(panels: PanelConfig[], include?: PanelRootFilte
  *
  * Panels without a group follow DialKit's own rule: one shows on its own,
  * two or more share the "DialKit" shell. Panels that share a group share a
- * shell of their own. A panel with `beside` and no group never joins the
+ * shell of their own; a group of one panel (not its `groupHeader`) shows
+ * that panel on its own, still apart from the panels without a group. A panel with `beside` and no group never joins the
  * "DialKit" shell: it rides with the shell it names (a group, or the one
  * panel without a group), or, when that shell is missing or `placeBeside`
  * is false (an inline root), it shows as a shell of its own in its place.
@@ -84,6 +86,16 @@ export function layoutRootPanels(panels: PanelConfig[], { placeBeside = true }: 
       add(shell);
     } else {
       shell.panels.push(panel);
+    }
+  }
+
+  // A group of one panel draws it on its own: a shell around one section
+  // would show the same title twice. A `groupHeader` panel has no section,
+  // so its group stays a shell.
+  for (const slot of slots) {
+    const { entry } = slot;
+    if (entry.kind === 'group' && entry.panels.length === 1 && !entry.panels[0].groupHeader) {
+      slot.entry = { kind: 'panel', key: entry.panels[0].id, panel: entry.panels[0] };
     }
   }
 

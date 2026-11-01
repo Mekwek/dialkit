@@ -39,20 +39,28 @@ describe('layoutRootPanels', () => {
       panel('three', 'A'),
       panel('four', ''),
       panel('five'),
-    ]), [groupRootKey('A'), groupRootKey('B'), UNGROUPED_ROOT_KEY]);
+    ]), [groupRootKey('A'), 'two', UNGROUPED_ROOT_KEY]);
+  });
+
+  it('draws a group of one panel as that panel on its own, unless it is the group header', () => {
+    const [lone] = layoutRootPanels([panel('Theca OS', 'Theca OS'), panel('Views')]).map((slot) => slot.entry);
+    assert.equal(lone.kind === 'panel' && lone.panel.id, 'Theca OS');
+    const header = { ...panel('Versions', 'Theca OS'), groupHeader: true };
+    assert.deepEqual(keys([header]), [groupRootKey('Theca OS')]);
   });
 
   it('gives two panels their own shells when each has its own group, as theca\'s Views and Theca OS', () => {
-    assert.deepEqual(keys([panel('Views', 'Views'), panel('Layout', 'Theca OS'), panel('Settings', 'Theca OS')]), [groupRootKey('Views'), groupRootKey('Theca OS')]);
+    assert.deepEqual(keys([panel('Views', 'Views'), panel('Layout', 'Theca OS'), panel('Settings', 'Theca OS')]), ['Views', groupRootKey('Theca OS')]);
   });
 
   it('attaches a beside panel to the group it names and takes it out of the column', () => {
     const slots = layoutRootPanels([
       panel('text', undefined, 'Theca OS'),
       panel('layout', 'Theca OS'),
+      panel('settings', 'Theca OS'),
       panel('views', 'Views'),
     ]);
-    assert.deepEqual(slots.map((slot) => slot.entry.key), [groupRootKey('Theca OS'), groupRootKey('Views')]);
+    assert.deepEqual(slots.map((slot) => slot.entry.key), [groupRootKey('Theca OS'), 'views']);
     assert.deepEqual(slots[0].beside.map((p) => p.id), ['text']);
     assert.deepEqual(slots[1].beside, []);
   });
@@ -77,10 +85,10 @@ describe('layoutRootPanels', () => {
   });
 
   it('leaves a grouped panel in its group even with beside, and keeps beside panels in the column when asked', () => {
-    const slots = layoutRootPanels([panel('main'), panel('member', 'G', 'main')]);
+    const slots = layoutRootPanels([panel('main'), panel('member', 'G', 'main'), panel('other', 'G')]);
     assert.deepEqual(slots.map((slot) => slot.entry.key), ['main', groupRootKey('G')]);
     assert.deepEqual(slots[0].beside, []);
-    assert.deepEqual(keys([panel('layout', 'Theca OS'), panel('text', undefined, 'Theca OS')], { placeBeside: false }), [groupRootKey('Theca OS'), 'text']);
+    assert.deepEqual(keys([panel('layout', 'Theca OS'), panel('settings', 'Theca OS'), panel('text', undefined, 'Theca OS')], { placeBeside: false }), [groupRootKey('Theca OS'), 'text']);
   });
 });
 
