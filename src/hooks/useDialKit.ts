@@ -66,6 +66,12 @@ export interface UseDialOptions {
    * group stays in its group.
    */
   beside?: string;
+  /**
+   * The word saved versions are named with: the base version is
+   * "<prefix> 1" and each new one the next number ("Version 2"). Without it,
+   * versions are "V1", "V2"…
+   */
+  versionPrefix?: string;
 }
 
 export interface DialKitController<T extends DialConfig> {
@@ -105,6 +111,7 @@ export function useDialKitController<T extends DialConfig>(
     group: options?.group,
     groupHeader: options?.groupHeader,
     beside: options?.beside,
+    versionPrefix: options?.versionPrefix,
   });
 
   const configRef = useRef(config);

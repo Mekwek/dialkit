@@ -352,6 +352,12 @@ export type PanelConfig = {
    * group stays in its group.
    */
   beside?: string;
+  /**
+   * The word saved versions are named with: the base version is
+   * "<prefix> 1" and each new one the next number ("Version 2"). Without it,
+   * versions are "V1", "V2"…
+   */
+  versionPrefix?: string;
 };
 
 type Listener = () => void;
@@ -436,6 +442,12 @@ export type DialStorePanelOptions = {
    * group stays in its group.
    */
   beside?: string;
+  /**
+   * The word saved versions are named with: the base version is
+   * "<prefix> 1" and each new one the next number ("Version 2"). Without it,
+   * versions are "V1", "V2"…
+   */
+  versionPrefix?: string;
 };
 
 type PersistConfig = {
@@ -819,6 +831,7 @@ class DialStoreClass {
       presetsEditable: options.presetsEditable, presetsLockable: options.presetsLockable, hint: options.hint,
       folderMode: options.folderMode, onClose: options.onClose, toolbar: options.toolbar,
       group: options.group, groupHeader: options.groupHeader, beside: options.beside,
+      versionPrefix: options.versionPrefix,
     };
     this.panels.set(id, panel);
     this.controlsByPanel.set(panel, controlsByPath);
@@ -867,7 +880,8 @@ class DialStoreClass {
       (options.toolbar ?? existing.toolbar) === existing.toolbar &&
       (options.group ?? existing.group) === existing.group &&
       (options.groupHeader ?? existing.groupHeader) === existing.groupHeader &&
-      (options.beside ?? existing.beside) === existing.beside;
+      (options.beside ?? existing.beside) === existing.beside &&
+      (options.versionPrefix ?? existing.versionPrefix) === existing.versionPrefix;
     this.configurePanelRetention(id, options);
     if (unchanged) {
       // Same config, same options: nothing the panel draws can differ, so
@@ -890,6 +904,7 @@ class DialStoreClass {
       group: options.group ?? existing.group,
       groupHeader: options.groupHeader ?? existing.groupHeader,
       beside: options.beside ?? existing.beside,
+      versionPrefix: options.versionPrefix ?? existing.versionPrefix,
     };
     this.panels.set(id, nextPanel);
     this.controlsByPanel.set(nextPanel, controlsByPath);
@@ -1310,9 +1325,10 @@ class DialStoreClass {
 
   /**
    * Saves the current values as the next numbered version: "V2", "V3"…, or under its own
-   * `prefix` ("Sequence 2" in a timeline). Older saves used "Version N"; both count toward the next V.
+   * `prefix` ("Sequence 2" in a timeline), else the panel's `versionPrefix` ("Version 2").
+   * Older saves used "Version N"; both count toward the next V.
    */
-  saveNewPreset(panelId: string, prefix?: string): string {
+  saveNewPreset(panelId: string, prefix = this.panels.get(panelId)?.versionPrefix): string {
     const pattern = prefix ? new RegExp(`^${prefix} (\\d+)$`) : /^(?:V|Version )(\d+)$/;
     const highest = this.getPresets(panelId).reduce((max, preset) => {
       const match = pattern.exec(preset.name);
@@ -1403,9 +1419,10 @@ class DialStoreClass {
     return config?.presets ? { key: config.key, storage: config.storage } : null;
   }
 
-  /** Display name of the base version (the values before any saved preset). */
+  /** Display name of the base version (the values before any saved preset): "V1", or "<versionPrefix> 1". */
   getBaseName(panelId: string): string {
-    return this.baseNames.get(panelId) ?? 'V1';
+    const prefix = this.panels.get(panelId)?.versionPrefix;
+    return this.baseNames.get(panelId) ?? (prefix ? `${prefix} 1` : 'V1');
   }
 
   setPresetLocked(panelId: string, presetId: string, locked: boolean): void {

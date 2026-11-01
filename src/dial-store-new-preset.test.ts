@@ -33,6 +33,19 @@ describe('new version creation', () => {
     } finally { DialStore.unregisterPanel(id); }
   });
 
+  it("names a panel's versions with its versionPrefix, the base version included", () => {
+    const id = 'new-version-panel-prefix';
+    DialStore.registerPanel(id, id, { amount: 1 }, undefined, { versionPrefix: 'Version' });
+    try {
+      assert.equal(DialStore.getBaseName(id), 'Version 1');
+      DialStore.saveNewPreset(id);
+      DialStore.saveNewPreset(id);
+      assert.deepEqual(DialStore.getPresets(id).map(p => p.name), ['Version 2', 'Version 3']);
+      DialStore.renamePreset(id, null, 'Start');
+      assert.equal(DialStore.getBaseName(id), 'Start');
+    } finally { DialStore.unregisterPanel(id); }
+  });
+
   it('numbers versions under their own prefix', () => {
     const id = 'new-version-prefix';
     DialStore.registerPanel(id, id, { amount: 1 });
