@@ -129,7 +129,7 @@ export function TransitionControl(props: TransitionControlProps) {
       changed={props.changed}
       actions={<TransitionCopy mode={mode()} value={isEasing() ? easing() : spring()} onPaste={handlePaste} />}
     >
-      <div style={{ display: 'flex', 'flex-direction': 'column', gap: '6px' }}>
+      <div style={{ display: 'flex', 'flex-direction': 'column', gap: 'var(--dial-row-gap)' }}>
         <div class="dialkit-labeled-control dialkit-transition-type" data-hint={HINTS.transitionType}>
           <span class="dialkit-labeled-control-label">Type</span>
           <SegmentedControl

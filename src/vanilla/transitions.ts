@@ -57,7 +57,7 @@ export function mountTransitionControl(host: HTMLElement, initial: TransitionCon
   const folderProps = () => ({ title: props.label, hint: props.hint, onReset: props.onReset, changed: props.changed });
   const folder = mountFolder(host, { ...folderProps(), actions: !springOnly });
   const body = element('div');
-  Object.assign(body.style, { display: 'flex', flexDirection: 'column', gap: '6px' });
+  Object.assign(body.style, { display: 'flex', flexDirection: 'column', gap: 'var(--dial-row-gap)' });
   folder.body.append(body);
   type Mode = 'easing' | 'simple' | 'advanced';
   let mode: Mode;

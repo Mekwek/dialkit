@@ -157,7 +157,7 @@ export function TransitionControl({
   ) : null;
 
   const body = (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--dial-row-gap)' }}>
         <div className="dialkit-labeled-control dialkit-transition-type" data-hint={HINTS.transitionType}>
           <span className="dialkit-labeled-control-label">Type</span>
           <SegmentedControl

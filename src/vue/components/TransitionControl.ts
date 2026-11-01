@@ -202,7 +202,7 @@ export const TransitionControl = defineComponent({
         actions: () => h(TransitionCopy, { mode: mode.value, value: current, onPaste: handlePaste }),
       }, {
         default: () => [
-          h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } }, [
+          h('div', { style: { display: 'flex', flexDirection: 'column', gap: 'var(--dial-row-gap)' } }, [
             h('div', { class: 'dialkit-labeled-control dialkit-transition-type', 'data-hint': HINTS.transitionType }, [
               h('span', { class: 'dialkit-labeled-control-label' }, 'Type'),
               h(SegmentedControl, {
