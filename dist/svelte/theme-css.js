@@ -1417,7 +1417,7 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   border-image: var(--dial-nested-line-image);
 }
 
-.dialkit-folder-inner:has(> div > :is(.dialkit-easing-host, .dialkit-easing-viz, .dialkit-spring-viz) ~ .dialkit-folder:last-child) {
+.dialkit-folder-inner:has(> div > :is(.dialkit-easing-host, .dialkit-easing-viz, .dialkit-spring-viz) ~ .dialkit-folder:last-child, > .dialkit-control-wrapper:last-child > div > :is(.dialkit-easing-host, .dialkit-easing-viz, .dialkit-spring-viz) ~ .dialkit-folder:last-child) {
   padding-bottom: 0;
 }
 
