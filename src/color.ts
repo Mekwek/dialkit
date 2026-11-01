@@ -212,3 +212,8 @@ export function parseColor(value: string): Color | null {
   if (values.some(n => n === null)) return null;
   return rgbToColor(values.map(n => p3 ? n! : clamp(n! / 255)) as Triple, alpha, p3 ? 'p3' : 'srgb');
 }
+
+/** A color as its row shows it: hex in capitals, like the picker's Hex field; any other format as written. */
+export function shownColorValue(value: string): string {
+  return /^#[\da-f]+$/i.test(value.trim()) ? value.trim().toUpperCase() : value;
+}

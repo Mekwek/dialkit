@@ -1,10 +1,16 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { channelsToColor, clampChannel, COLOR_CHANNELS, colorChannels, colorFormat, colorToHsv, colorToRgb, fitGamut, formatColor, hsvToColor, inGamut, maxChroma, parseColor } from './color';
+import { channelsToColor, clampChannel, COLOR_CHANNELS, colorChannels, colorFormat, colorToHsv, colorToRgb, fitGamut, formatColor, hsvToColor, inGamut, maxChroma, parseColor, shownColorValue } from './color';
 import { DialStore } from './store/DialStore';
 
 const near = (a: number, b: number, epsilon = 0.00001) => assert.ok(Math.abs(a - b) < epsilon, `${a} ≈ ${b}`);
 describe('color conversion and editing', () => {
+  it('shows a hex value in capitals in the row, and other formats as written', () => {
+    assert.equal(shownColorValue('#0d0d0d'), '#0D0D0D');
+    assert.equal(shownColorValue('#0d0d0d80'), '#0D0D0D80');
+    assert.equal(shownColorValue('oklch(0.7 0.2 145)'), 'oklch(0.7 0.2 145)');
+  });
+
   it('round-trips sRGB primaries, gray, shorthand, and alpha', () => {
     for (const hex of ['#ff0000', '#00ff00', '#0000ff', '#ffffff', '#000000', '#808080', '#1e82f080', '#abcdef00']) {
       assert.equal(formatColor(parseColor(hex)!, 'hex'), hex.toUpperCase());

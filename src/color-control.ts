@@ -1,7 +1,6 @@
 import {
   channelsToColor, clamp, clampChannel, COLOR_CHANNELS, colorChannels, colorFormat, colorToHsv, colorToRgb, fitGamut, formatColor, formatGamut, hsvToColor, maxChroma, parseColor,
-  type Color, type ColorChannel, type ColorFormat,
-} from './color';
+  type Color, type ColorChannel, type ColorFormat, shownColorValue } from './color';
 import { numberField, segmentedControl, textField, type SegmentedOption } from './control-fields';
 import { getDialKitPortalRoot, getDropdownPosition, observeDropdownPosition } from './dropdown-position';
 import { HINTS, isHintKey, setHint } from './hints';
@@ -88,7 +87,7 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
     label.textContent = props.label;
     setHint(row, props.hint);
     valueInput.setAttribute('aria-label', `${props.label} color value`);
-    if (document.activeElement !== valueInput) valueInput.value = props.value;
+    if (document.activeElement !== valueInput) valueInput.value = shownColorValue(props.value);
     swatch.style.setProperty('--dial-color', props.value);
     swatch.setAttribute('aria-label', `Pick ${props.label.toLowerCase()} color`);
     updatePicker();
@@ -124,13 +123,13 @@ export function mountColorControl(host: HTMLElement, initial: ColorControlProps,
   valueInput.addEventListener('change', () => acceptText(valueInput));
   valueInput.addEventListener('blur', () => {
     if (valueInput.getAttribute('aria-invalid')) {
-      valueInput.value = props.value;
+      valueInput.value = shownColorValue(props.value);
       valueInput.removeAttribute('aria-invalid');
     }
   });
   valueInput.addEventListener('keydown', e => {
     if (e.key === 'Enter') { if (acceptText(valueInput)) valueInput.blur(); }
-    if (e.key === 'Escape') { valueInput.value = props.value; valueInput.removeAttribute('aria-invalid'); valueInput.blur(); }
+    if (e.key === 'Escape') { valueInput.value = shownColorValue(props.value); valueInput.removeAttribute('aria-invalid'); valueInput.blur(); }
     e.stopPropagation();
   });
 
