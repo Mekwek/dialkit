@@ -186,6 +186,9 @@ function parseColor(value) {
   if (values.some((n) => n === null)) return null;
   return rgbToColor(values.map((n) => p3 ? n : clamp(n / 255)), alpha, p3 ? "p3" : "srgb");
 }
+function shownColorValue(value) {
+  return /^#[\da-f]+$/i.test(value.trim()) ? value.trim().toUpperCase() : value;
+}
 
 // src/control-keyboard.ts
 function optionKeyIndex(key, index, count, wrap = false) {
@@ -556,7 +559,7 @@ function mountColorControl(host, initial, presentation = "popover") {
     label.textContent = props.label;
     setHint(row, props.hint);
     valueInput.setAttribute("aria-label", `${props.label} color value`);
-    if (document.activeElement !== valueInput) valueInput.value = props.value;
+    if (document.activeElement !== valueInput) valueInput.value = shownColorValue(props.value);
     swatch.style.setProperty("--dial-color", props.value);
     swatch.setAttribute("aria-label", `Pick ${props.label.toLowerCase()} color`);
     updatePicker();
@@ -590,7 +593,7 @@ function mountColorControl(host, initial, presentation = "popover") {
   valueInput.addEventListener("change", () => acceptText(valueInput));
   valueInput.addEventListener("blur", () => {
     if (valueInput.getAttribute("aria-invalid")) {
-      valueInput.value = props.value;
+      valueInput.value = shownColorValue(props.value);
       valueInput.removeAttribute("aria-invalid");
     }
   });
@@ -599,7 +602,7 @@ function mountColorControl(host, initial, presentation = "popover") {
       if (acceptText(valueInput)) valueInput.blur();
     }
     if (e.key === "Escape") {
-      valueInput.value = props.value;
+      valueInput.value = shownColorValue(props.value);
       valueInput.removeAttribute("aria-invalid");
       valueInput.blur();
     }

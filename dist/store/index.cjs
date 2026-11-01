@@ -263,6 +263,7 @@ var easingCurves = [
   { name: "Back In Out", description: "Pulls back at the start and overshoots at the end.", ease: [0.68, -0.55, 0.27, 1.55] }
 ];
 var springPresets = [
+  { name: "Default", description: "Smooth, no bounce, almost one second.", physics: { stiffness: 150, damping: 30, mass: 1 }, time: { visualDuration: 0.83, bounce: 0 } },
   // React Spring
   { name: "Crisp", description: "Quick and firm, no bounce.", physics: { stiffness: 170, damping: 26, mass: 1 }, time: { visualDuration: 0.4, bounce: 0 } },
   { name: "Gentle", description: "Soft, with a little bounce.", physics: { stiffness: 120, damping: 14, mass: 1 }, time: { visualDuration: 0.5, bounce: 0.35 } },
@@ -695,7 +696,8 @@ var DialStoreClass = class {
       toolbar: options.toolbar,
       group: options.group,
       groupHeader: options.groupHeader,
-      beside: options.beside
+      beside: options.beside,
+      versionPrefix: options.versionPrefix
     };
     this.panels.set(id, panel);
     this.controlsByPanel.set(panel, controlsByPath);
@@ -728,7 +730,7 @@ var DialStoreClass = class {
       return;
     }
     const { key, parsed: { controls, controlsByPath, defaultValues, resetKeys, conditional } } = this.parseCached(id, config, shortcuts ?? existing.shortcuts);
-    const unchanged = key !== void 0 && this.panelConfigKeys.get(id) === key && name === existing.name && (options.kind ?? existing.kind) === existing.kind && (options.presetsEditable ?? existing.presetsEditable) === existing.presetsEditable && (options.presetsLockable ?? existing.presetsLockable) === existing.presetsLockable && (options.hint ?? existing.hint) === existing.hint && (options.folderMode ?? existing.folderMode) === existing.folderMode && (options.onClose ?? existing.onClose) === existing.onClose && (options.toolbar ?? existing.toolbar) === existing.toolbar && (options.group ?? existing.group) === existing.group && (options.groupHeader ?? existing.groupHeader) === existing.groupHeader && (options.beside ?? existing.beside) === existing.beside;
+    const unchanged = key !== void 0 && this.panelConfigKeys.get(id) === key && name === existing.name && (options.kind ?? existing.kind) === existing.kind && (options.presetsEditable ?? existing.presetsEditable) === existing.presetsEditable && (options.presetsLockable ?? existing.presetsLockable) === existing.presetsLockable && (options.hint ?? existing.hint) === existing.hint && (options.folderMode ?? existing.folderMode) === existing.folderMode && (options.onClose ?? existing.onClose) === existing.onClose && (options.toolbar ?? existing.toolbar) === existing.toolbar && (options.group ?? existing.group) === existing.group && (options.groupHeader ?? existing.groupHeader) === existing.groupHeader && (options.beside ?? existing.beside) === existing.beside && (options.versionPrefix ?? existing.versionPrefix) === existing.versionPrefix;
     this.configurePanelRetention(id, options);
     if (unchanged) {
       this.persistPanel(id);
@@ -751,7 +753,8 @@ var DialStoreClass = class {
       toolbar: options.toolbar ?? existing.toolbar,
       group: options.group ?? existing.group,
       groupHeader: options.groupHeader ?? existing.groupHeader,
-      beside: options.beside ?? existing.beside
+      beside: options.beside ?? existing.beside,
+      versionPrefix: options.versionPrefix ?? existing.versionPrefix
     };
     this.panels.set(id, nextPanel);
     this.controlsByPanel.set(nextPanel, controlsByPath);
@@ -1091,9 +1094,10 @@ var DialStoreClass = class {
   }
   /**
    * Saves the current values as the next numbered version: "V2", "V3"…, or under its own
-   * `prefix` ("Sequence 2" in a timeline). Older saves used "Version N"; both count toward the next V.
+   * `prefix` ("Sequence 2" in a timeline), else the panel's `versionPrefix` ("Version 2").
+   * Older saves used "Version N"; both count toward the next V.
    */
-  saveNewPreset(panelId, prefix) {
+  saveNewPreset(panelId, prefix = this.panels.get(panelId)?.versionPrefix) {
     const pattern = prefix ? new RegExp(`^${prefix} (\\d+)$`) : /^(?:V|Version )(\d+)$/;
     const highest = this.getPresets(panelId).reduce((max, preset) => {
       const match = pattern.exec(preset.name);
@@ -1166,9 +1170,10 @@ var DialStoreClass = class {
     const config = this.persistConfigs.get(panelId);
     return config?.presets ? { key: config.key, storage: config.storage } : null;
   }
-  /** Display name of the base version (the values before any saved preset). */
+  /** Display name of the base version (the values before any saved preset): "V1", or "<versionPrefix> 1". */
   getBaseName(panelId) {
-    return this.baseNames.get(panelId) ?? "V1";
+    const prefix = this.panels.get(panelId)?.versionPrefix;
+    return this.baseNames.get(panelId) ?? (prefix ? `${prefix} 1` : "V1");
   }
   setPresetLocked(panelId, presetId, locked) {
     const presets = this.presets.get(panelId) ?? [];

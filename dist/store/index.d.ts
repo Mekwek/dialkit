@@ -422,6 +422,12 @@ type PanelConfig = {
      * group stays in its group.
      */
     beside?: string;
+    /**
+     * The word saved versions are named with: the base version is
+     * "<prefix> 1" and each new one the next number ("Version 2"). Without it,
+     * versions are "V1", "V2"…
+     */
+    versionPrefix?: string;
 };
 type Listener = () => void;
 type ActionListener = (action: string) => void;
@@ -499,6 +505,12 @@ type DialStorePanelOptions = {
      * group stays in its group.
      */
     beside?: string;
+    /**
+     * The word saved versions are named with: the base version is
+     * "<prefix> 1" and each new one the next number ("Version 2"). Without it,
+     * versions are "V1", "V2"…
+     */
+    versionPrefix?: string;
 };
 declare function resolveDialValues<T extends DialConfig>(config: T, flatValues: Record<string, DialValue>): ResolvedValues<T>;
 declare function flattenDialValueUpdates<T extends DialConfig>(config: T, updates: DialKitValueUpdates<T>): Record<string, DialValue>;
@@ -648,9 +660,10 @@ declare class DialStoreClass {
     private notifyReset;
     /**
      * Saves the current values as the next numbered version: "V2", "V3"…, or under its own
-     * `prefix` ("Sequence 2" in a timeline). Older saves used "Version N"; both count toward the next V.
+     * `prefix` ("Sequence 2" in a timeline), else the panel's `versionPrefix` ("Version 2").
+     * Older saves used "Version N"; both count toward the next V.
      */
-    saveNewPreset(panelId: string, prefix?: string): string;
+    saveNewPreset(panelId: string, prefix?: string | undefined): string;
     savePreset(panelId: string, name: string): string;
     loadPreset(panelId: string, presetId: string): void;
     deletePreset(panelId: string, presetId: string): void;
@@ -661,7 +674,7 @@ declare class DialStoreClass {
         key: string;
         storage: 'localStorage' | 'sessionStorage';
     } | null;
-    /** Display name of the base version (the values before any saved preset). */
+    /** Display name of the base version (the values before any saved preset): "V1", or "<versionPrefix> 1". */
     getBaseName(panelId: string): string;
     setPresetLocked(panelId: string, presetId: string, locked: boolean): void;
     reorderPresets(panelId: string, presetIds: string[]): void;

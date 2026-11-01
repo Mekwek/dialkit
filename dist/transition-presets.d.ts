@@ -1,5 +1,5 @@
 import { BezierPoints } from './easing-geometry.js';
-import { T as TransitionConfig, a as TransitionMode, b as TransitionPreset } from './DialStore-BIFUV5H0.js';
+import { T as TransitionConfig, a as TransitionMode, b as TransitionPreset } from './DialStore-CDYWklsr.js';
 import './dial-pad.js';
 import './anchor.js';
 import './background.js';
@@ -33,8 +33,8 @@ interface SpringPreset {
  */
 declare const easingCurves: EasingCurve[];
 /**
- * React Spring's named configs, with its default as Crisp, then more named
- * springs. All of them fit the Physics sliders: Molasses is 125 / 55 rather
+ * Default first (150 / 30 / 1, smooth with no bounce), then React Spring's
+ * named configs, with its default as Crisp, then more named springs. All of them fit the Physics sliders: Molasses is 125 / 55 rather
  * than React Spring's 280 / 120, which settles in about the same 2.2s with
  * damping under the slider's 100. The Time values take the bounce from the
  * damping ratio and a duration that settles like the physics.

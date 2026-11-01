@@ -244,6 +244,12 @@ type PanelConfig = {
      * group stays in its group.
      */
     beside?: string;
+    /**
+     * The word saved versions are named with: the base version is
+     * "<prefix> 1" and each new one the next number ("Version 2"). Without it,
+     * versions are "V1", "V2"…
+     */
+    versionPrefix?: string;
 };
 type TransitionMode = 'easing' | 'simple' | 'advanced';
 /** A curve or spring the user saved, shared by every transition control. */
