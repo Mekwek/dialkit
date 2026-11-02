@@ -9,7 +9,7 @@ import { cloneGradient, normalizeBackgroundValue, normalizeGradient, sameBackgro
 export type { DialPadAxis, DialPadConfig, DialPadValue } from '../dial-pad';
 export type { AnchorConfig, AnchorValue } from '../anchor';
 export type { LayerItem, LayersConfig, LayersValue, LayerActionKind } from '../layers';
-export type { PictureFamily, PictureItem, PicturesConfig, PictureSection, PicturesValue } from '../pictures';
+export type { PictureFamily, PictureItem, PicturesConfig, PicturesValue } from '../pictures';
 export type {
   BackgroundConfig, BackgroundGradient, BackgroundMedia, BackgroundMediaDisplay, BackgroundMediaFit, BackgroundMediaRatio, BackgroundMode, BackgroundValue, BackgroundValueUpdate,
   GradientHandles, GradientPoint, GradientShape, GradientStop, SavedGradient,

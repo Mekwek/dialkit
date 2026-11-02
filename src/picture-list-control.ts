@@ -1,7 +1,7 @@
 import { animateSpring } from './animation';
 import { ICON_CHEVRON } from './icons';
 import {
-  findPictureFamily, normalizePictureFamilies, normalizePicturesValue, pictureSections,
+  findPictureFamily, normalizePictureFamilies, normalizePicturesValue,
   type PictureFamily, type PictureItem, type PicturesValue,
 } from './pictures';
 import { getPictureHost, subscribePictureHost } from './store/PictureHost';
@@ -29,8 +29,6 @@ type Tile = {
   cleanup?: () => void;
 };
 
-type Section = { root: HTMLDivElement; heading: HTMLDivElement; grid: HTMLDivElement };
-
 type FamilyRow = {
   root: HTMLDivElement;
   row: HTMLButtonElement;
@@ -40,8 +38,8 @@ type FamilyRow = {
   /** The part that opens and closes. Its height springs; `inner` holds the tiles. */
   body: HTMLDivElement;
   inner: HTMLDivElement;
-  /** This family's sections, by heading (`''` for the tiles with no group). */
-  sections: Map<string, Section>;
+  /** The grid of tiles inside `inner`. */
+  grid: HTMLDivElement;
   /** This family's tiles. They stay while the body closes, then go. */
   tiles: Map<string, Tile>;
   /** Open as last rendered; undefined before the first render. */
@@ -67,9 +65,8 @@ function place(parent: HTMLElement, node: HTMLElement, previous: HTMLElement | n
  * Families of presets as accordion rows: each row shows its family's name,
  * a badge with its number of presets and a chevron. At most one family is
  * open; clicking the open row closes it. An open family shows its presets
- * as a grid of tiles (a picture box with the preset's name under it), the
- * tiles with no group first, then one titled grid per group. A family opens
- * and closes with the same spring as a folder.
+ * as a grid of tiles (a picture box with the preset's name under it). A
+ * family opens and closes with the same spring as a folder.
  *
  * The family holding the first selection opens, on mount or when that
  * selection arrives later, unless the user opened or closed a family
@@ -164,14 +161,6 @@ export function mountPictureListControl(host: HTMLElement, initial: PictureListC
     setHint(tile.root, item.hint);
   };
 
-  const buildSection = (): Section => {
-    const sectionRoot = element('div', 'dialkit-pictures-section');
-    const heading = element('div', 'dialkit-pictures-heading');
-    const grid = element('div', 'dialkit-pictures-grid');
-    sectionRoot.append(heading, grid);
-    return { root: sectionRoot, heading, grid };
-  };
-
   const buildFamily = (id: string): FamilyRow => {
     const familyRoot = element('div', 'dialkit-pictures-family');
     const row = element('button', 'dialkit-pictures-row');
@@ -182,6 +171,8 @@ export function mountPictureListControl(host: HTMLElement, initial: PictureListC
     row.append(name, count, chevron);
     const body = element('div', 'dialkit-pictures-body');
     const inner = element('div', 'dialkit-pictures-inner');
+    const grid = element('div', 'dialkit-pictures-grid');
+    inner.append(grid);
     body.append(inner);
     body.id = `${uid}-${++bodies}`;
     body.hidden = true;
@@ -192,7 +183,7 @@ export function mountPictureListControl(host: HTMLElement, initial: PictureListC
       open = open === id ? null : id;
       render();
     });
-    return { root: familyRoot, row, name, count, chevron, body, inner, sections: new Map(), tiles: new Map() };
+    return { root: familyRoot, row, name, count, chevron, body, inner, grid, tiles: new Map() };
   };
 
   /** Shows a family's tiles in its body, keeping every tile that stays shown. */
@@ -201,48 +192,18 @@ export function mountPictureListControl(host: HTMLElement, initial: PictureListC
     const shown = new Set(items.map(item => item.id));
     for (const tile of [...entry.tiles.values()]) if (!shown.has(tile.id)) removeTile(entry, tile);
 
-    const sections = pictureSections(items);
-    const keyOf = (heading: string | null) => heading === null ? '' : `#${heading}`;
-    const keys = new Set(sections.map(section => keyOf(section.heading)));
-    for (const [key, section] of entry.sections) {
-      if (keys.has(key)) continue;
-      section.root.remove();
-      entry.sections.delete(key);
-    }
-
     let newTiles = false;
-    let previousSection: HTMLElement | null = null;
-    for (const section of sections) {
-      const key = keyOf(section.heading);
-      let sectionEntry = entry.sections.get(key);
-      if (!sectionEntry) {
-        sectionEntry = buildSection();
-        entry.sections.set(key, sectionEntry);
+    let previousTile: HTMLElement | null = null;
+    for (const item of items) {
+      let tile = entry.tiles.get(item.id);
+      if (!tile) {
+        tile = buildTile(item.id);
+        entry.tiles.set(item.id, tile);
+        newTiles = true;
       }
-      sectionEntry.heading.textContent = section.heading ?? '';
-      sectionEntry.heading.hidden = section.heading === null;
-      if (section.heading === null) {
-        sectionEntry.root.removeAttribute('role');
-        sectionEntry.root.removeAttribute('aria-label');
-      } else {
-        sectionEntry.root.setAttribute('role', 'group');
-        sectionEntry.root.setAttribute('aria-label', section.heading);
-      }
-      place(entry.inner, sectionEntry.root, previousSection);
-      previousSection = sectionEntry.root;
-
-      let previousTile: HTMLElement | null = null;
-      for (const item of section.items) {
-        let tile = entry.tiles.get(item.id);
-        if (!tile) {
-          tile = buildTile(item.id);
-          entry.tiles.set(item.id, tile);
-          newTiles = true;
-        }
-        paintTile(tile, item);
-        place(sectionEntry.grid, tile.root, previousTile);
-        previousTile = tile.root;
-      }
+      paintTile(tile, item);
+      place(entry.grid, tile.root, previousTile);
+      previousTile = tile.root;
     }
     if (newTiles) queueAttach();
   };
@@ -250,8 +211,6 @@ export function mountPictureListControl(host: HTMLElement, initial: PictureListC
   /** Empties a closed family's body: its tiles leave the picture host. */
   const clearBody = (entry: FamilyRow) => {
     for (const tile of [...entry.tiles.values()]) removeTile(entry, tile);
-    entry.sections.forEach(section => section.root.remove());
-    entry.sections.clear();
   };
 
   /** Opens or closes a family's body (`entry.shown`), with the folder spring when `spring` is set and the control is in the page. */

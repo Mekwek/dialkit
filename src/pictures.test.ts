@@ -1,45 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  findPictureFamily, normalizePictureFamilies, normalizePicturesValue, parsePictureAction, pictureAction, pictureSections,
-  type PictureItem,
+  findPictureFamily, normalizePictureFamilies, normalizePicturesValue, parsePictureAction, pictureAction,
 } from './pictures';
 import { getPictureHost, setPictureHost, subscribePictureHost } from './store/PictureHost';
 import { DialStore, resolveDialValues, type DialConfig } from './store/DialStore';
-
-const ids = (items: PictureItem[]) => items.map(item => item.id);
-
-describe('pictureSections', () => {
-  it('keeps one untitled section when no tile has a group', () => {
-    const items = [{ id: 'g1', label: 'Grid 01' }, { id: 'g2', label: 'Grid 02' }];
-    const sections = pictureSections(items);
-    assert.equal(sections.length, 1);
-    assert.equal(sections[0].heading, null);
-    assert.deepEqual(ids(sections[0].items), ['g1', 'g2']);
-  });
-
-  it('puts tiles with no group first, then groups in the order of their first tile', () => {
-    const sections = pictureSections([
-      { id: 'p1', label: 'Pure 01', group: 'Wheel — Pure' },
-      { id: 'a1', label: 'Arc 01', group: 'Wheel — Arc' },
-      { id: 'loose', label: 'Wheel' },
-      { id: 'p2', label: 'Pure 02', group: 'Wheel — Pure' },
-      { id: 'a2', label: 'Arc 02', group: 'Wheel — Arc' },
-      { id: 'blank', label: 'Blank group', group: '' },
-    ]);
-    assert.deepEqual(sections.map(section => section.heading), [null, 'Wheel — Pure', 'Wheel — Arc']);
-    assert.deepEqual(sections.map(section => ids(section.items)), [['loose', 'blank'], ['p1', 'p2'], ['a1', 'a2']]);
-  });
-
-  it('shows no untitled section when every tile has a group', () => {
-    const sections = pictureSections([{ id: 'a1', label: 'Arc 01', group: 'Arc' }]);
-    assert.deepEqual(sections.map(section => section.heading), ['Arc']);
-  });
-
-  it('gives no sections for no tiles', () => {
-    assert.deepEqual(pictureSections([]), []);
-  });
-});
 
 describe('picture actions', () => {
   it('round-trips a tile id, including one with the separator in it', () => {
@@ -61,14 +26,14 @@ describe('picture actions', () => {
 describe('normalizePictureFamilies', () => {
   it('keeps valid families and tiles, dropping invalid and repeated ones', () => {
     const families = normalizePictureFamilies([
-      { id: 'grid', label: 'Grid', hint: 'Rows and columns.', items: [{ id: 'g1', label: 'Grid 01', group: 'Tight', hint: 'Close.' }, { id: 'g1', label: 'Again' }, { id: '', label: 'No id' }, { id: 'g2' }] },
+      { id: 'grid', label: 'Grid', hint: 'Rows and columns.', items: [{ id: 'g1', label: 'Grid 01', hint: 'Close.' }, { id: 'g1', label: 'Again' }, { id: '', label: 'No id' }, { id: 'g2' }] },
       { id: 'grid', label: 'Repeated family', items: [] },
-      { id: 'wheel', label: 'Wheel', items: [{ id: 'g1', label: 'Taken id' }, { id: 'w1', label: 'Wheel 01', group: '' }] },
+      { id: 'wheel', label: 'Wheel', items: [{ id: 'g1', label: 'Taken id' }, { id: 'w1', label: 'Wheel 01' }] },
       { label: 'No id', items: [] },
       'nope',
     ]);
     assert.deepEqual(families, [
-      { id: 'grid', label: 'Grid', hint: 'Rows and columns.', items: [{ id: 'g1', label: 'Grid 01', group: 'Tight', hint: 'Close.' }] },
+      { id: 'grid', label: 'Grid', hint: 'Rows and columns.', items: [{ id: 'g1', label: 'Grid 01', hint: 'Close.' }] },
       { id: 'wheel', label: 'Wheel', items: [{ id: 'w1', label: 'Wheel 01' }] },
     ]);
     assert.deepEqual(normalizePictureFamilies(undefined), []);
@@ -112,7 +77,7 @@ describe('picture host', () => {
 describe('pictures control in the store', () => {
   const families = [
     { id: 'grid', label: 'Grid', items: [{ id: 'g1', label: 'Grid 01' }, { id: 'g2', label: 'Grid 02' }] },
-    { id: 'wheel', label: 'Wheel', items: [{ id: 'a1', label: 'Arc 01', group: 'Wheel — Arc' }] },
+    { id: 'wheel', label: 'Wheel', items: [{ id: 'a1', label: 'Arc 01' }] },
   ];
 
   it('starts with no selection when the config gives no default', () => {

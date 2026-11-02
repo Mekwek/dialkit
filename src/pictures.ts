@@ -15,12 +15,6 @@ export type PictureItem = {
   id: string;
   /** The text under the tile's picture. */
   label: string;
-  /**
-   * The group heading this tile sits under, shown exactly as given. Tiles of
-   * one family with the same group form one group; groups follow the order
-   * of their first tile. Tiles with no group come first, with no heading.
-   */
-  group?: string;
   /** A short sentence about the preset, shown while the hint key is held. */
   hint?: string;
 };
@@ -44,12 +38,6 @@ export type PicturesConfig = {
 /** The selected tile's id, or `null` when no tile is selected. */
 export type PicturesValue = string | null;
 
-/** One run of tiles inside an open family: a group under its heading, or the tiles with no group (`heading: null`). */
-export type PictureSection = {
-  heading: string | null;
-  items: PictureItem[];
-};
-
 const ACTION_SEPARATOR = ':';
 const PICK = 'pick';
 
@@ -63,25 +51,6 @@ export function parsePictureAction(path: string, action: string): { id: string }
   const prefix = `${path}${ACTION_SEPARATOR}${PICK}${ACTION_SEPARATOR}`;
   if (!action.startsWith(prefix) || action.length === prefix.length) return null;
   return { id: action.slice(prefix.length) };
-}
-
-/**
- * A family's tiles split into the sections an open family shows: the tiles
- * with no group first, under no heading, then one section per group, in the
- * order of each group's first tile. An empty group string counts as no group.
- */
-export function pictureSections(items: readonly PictureItem[]): PictureSection[] {
-  const loose: PictureItem[] = [];
-  const groups = new Map<string, PictureItem[]>();
-  for (const item of items) {
-    if (!item.group) { loose.push(item); continue; }
-    const list = groups.get(item.group);
-    if (list) list.push(item);
-    else groups.set(item.group, [item]);
-  }
-  const sections: PictureSection[] = loose.length ? [{ heading: null, items: loose }] : [];
-  for (const [heading, list] of groups) sections.push({ heading, items: list });
-  return sections;
 }
 
 /** The id of the family holding the tile `id`, or null. */
@@ -114,7 +83,6 @@ export function normalizePictureFamilies(value: unknown): PictureFamily[] {
       if (!isRecord(rawItem) || !nonEmpty(rawItem.id) || typeof rawItem.label !== 'string' || itemIds.has(rawItem.id)) continue;
       itemIds.add(rawItem.id);
       const item: PictureItem = { id: rawItem.id, label: rawItem.label };
-      if (nonEmpty(rawItem.group)) item.group = rawItem.group;
       if (nonEmpty(rawItem.hint)) item.hint = rawItem.hint;
       items.push(item);
     }
