@@ -417,6 +417,68 @@ function sameLayersValue(a, b) {
   });
 }
 
+// src/pictures.ts
+var ACTION_SEPARATOR = ":";
+var PICK = "pick";
+function pictureAction(path, id) {
+  return `${path}${ACTION_SEPARATOR}${PICK}${ACTION_SEPARATOR}${id}`;
+}
+function parsePictureAction(path, action) {
+  const prefix = `${path}${ACTION_SEPARATOR}${PICK}${ACTION_SEPARATOR}`;
+  if (!action.startsWith(prefix) || action.length === prefix.length) return null;
+  return { id: action.slice(prefix.length) };
+}
+function pictureSections(items) {
+  const loose = [];
+  const groups = /* @__PURE__ */ new Map();
+  for (const item of items) {
+    if (!item.group) {
+      loose.push(item);
+      continue;
+    }
+    const list = groups.get(item.group);
+    if (list) list.push(item);
+    else groups.set(item.group, [item]);
+  }
+  const sections = loose.length ? [{ heading: null, items: loose }] : [];
+  for (const [heading, list] of groups) sections.push({ heading, items: list });
+  return sections;
+}
+function findPictureFamily(families, id) {
+  if (id === null) return null;
+  return families.find((family) => family.items.some((item) => item.id === id))?.id ?? null;
+}
+function isRecord2(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+var nonEmpty = (value) => typeof value === "string" && value !== "";
+function normalizePictureFamilies(value) {
+  if (!Array.isArray(value)) return [];
+  const familyIds = /* @__PURE__ */ new Set();
+  const itemIds = /* @__PURE__ */ new Set();
+  const families = [];
+  for (const raw of value) {
+    if (!isRecord2(raw) || !nonEmpty(raw.id) || typeof raw.label !== "string" || familyIds.has(raw.id)) continue;
+    familyIds.add(raw.id);
+    const items = [];
+    for (const rawItem of Array.isArray(raw.items) ? raw.items : []) {
+      if (!isRecord2(rawItem) || !nonEmpty(rawItem.id) || typeof rawItem.label !== "string" || itemIds.has(rawItem.id)) continue;
+      itemIds.add(rawItem.id);
+      const item = { id: rawItem.id, label: rawItem.label };
+      if (nonEmpty(rawItem.group)) item.group = rawItem.group;
+      if (nonEmpty(rawItem.hint)) item.hint = rawItem.hint;
+      items.push(item);
+    }
+    const family = { id: raw.id, label: raw.label, items };
+    if (nonEmpty(raw.hint)) family.hint = raw.hint;
+    families.push(family);
+  }
+  return families;
+}
+function normalizePicturesValue(value) {
+  return nonEmpty(value) ? value : null;
+}
+
 // src/easing-geometry.ts
 var clampY = (value) => Math.max(-1, Math.min(2, value));
 var easingPresets = {
@@ -622,7 +684,7 @@ var MODES = ["solid", "gradient", "media"];
 var POINT_RANGE = { min: -10, max: 11 };
 var COLUMNS = ["left", "center", "right"];
 var ROWS = ["top", "center", "bottom"];
-var isRecord2 = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
+var isRecord3 = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
 var oneOf2 = (options, value, fallback) => options.includes(value) ? value : fallback;
 var finite = (value) => typeof value === "number" && Number.isFinite(value);
 var round2 = (n, digits) => Number(n.toFixed(digits)) || 0;
@@ -656,18 +718,18 @@ function legacyGradientHandles(shape, angle) {
   };
 }
 function normalizePoint(value, fallback) {
-  if (!isRecord2(value) || !finite(value.x) || !finite(value.y)) return { ...fallback };
+  if (!isRecord3(value) || !finite(value.x) || !finite(value.y)) return { ...fallback };
   return { x: round2(clamp(value.x, POINT_RANGE.min, POINT_RANGE.max), 6), y: round2(clamp(value.y, POINT_RANGE.min, POINT_RANGE.max), 6) };
 }
 function sortStops(stops) {
   return stops.map((stop2, i) => ({ stop: stop2, i })).sort((a, b) => a.stop.at - b.stop.at || a.i - b.i).map(({ stop: stop2 }) => stop2);
 }
 function normalizeGradient(value, fallback = defaultBackgroundValue().gradient) {
-  const input = isRecord2(value) ? value : {};
+  const input = isRecord3(value) ? value : {};
   const shape = oneOf2(GRADIENT_SHAPES, input.shape, fallback.shape);
-  const handles = isRecord2(input.handles) ? input.handles : {};
-  const base = isRecord2(input.handles) ? fallback.handles : switchGradientShape(fallback, shape).handles;
-  const stops = Array.isArray(input.stops) ? input.stops.filter((stop2) => isRecord2(stop2) && finite(stop2.at) && validColor(stop2.color)).map((stop2) => ({ at: round2(clamp(stop2.at, 0, 100), 2), color: stop2.color.trim() })) : [];
+  const handles = isRecord3(input.handles) ? input.handles : {};
+  const base = isRecord3(input.handles) ? fallback.handles : switchGradientShape(fallback, shape).handles;
+  const stops = Array.isArray(input.stops) ? input.stops.filter((stop2) => isRecord3(stop2) && finite(stop2.at) && validColor(stop2.color)).map((stop2) => ({ at: round2(clamp(stop2.at, 0, 100), 2), color: stop2.color.trim() })) : [];
   return {
     shape,
     handles: {
@@ -684,8 +746,8 @@ function capStops(sorted) {
   return Array.from({ length: MAX_GRADIENT_STOPS }, (_, i) => sorted[Math.round(i * (n - 1) / (MAX_GRADIENT_STOPS - 1))]);
 }
 function normalizeMediaDisplay(value, fallback) {
-  const input = isRecord2(value) ? value : {};
-  const position = isRecord2(input.position) ? input.position : {};
+  const input = isRecord3(value) ? value : {};
+  const position = isRecord3(input.position) ? input.position : {};
   return {
     fit: oneOf2(MEDIA_FITS, input.fit, fallback.fit),
     ratio: oneOf2(MEDIA_RATIOS, input.ratio, fallback.ratio),
@@ -695,13 +757,13 @@ function normalizeMediaDisplay(value, fallback) {
   };
 }
 function normalizeBackgroundValue(value, fallback = defaultBackgroundValue()) {
-  const input = isRecord2(value) ? value : {};
+  const input = isRecord3(value) ? value : {};
   const media = input.media;
   return {
     mode: oneOf2(MODES, input.mode, fallback.mode),
     color: validColor(input.color) ? input.color.trim() : fallback.color,
     gradient: normalizeGradient(input.gradient, fallback.gradient),
-    media: media === null ? null : isRecord2(media) && typeof media.src === "string" && media.src && (media.kind === "image" || media.kind === "video") ? { src: media.src, kind: media.kind } : fallback.media && { ...fallback.media },
+    media: media === null ? null : isRecord3(media) && typeof media.src === "string" && media.src && (media.kind === "image" || media.kind === "video") ? { src: media.src, kind: media.kind } : fallback.media && { ...fallback.media },
     mediaDisplay: normalizeMediaDisplay(input.mediaDisplay, fallback.mediaDisplay)
   };
 }
@@ -879,7 +941,7 @@ function withVisibility(control, rule) {
   return { value: control, visibleWhen: rule };
 }
 function isVisibilityWrapper(value) {
-  return isRecord3(value) && "value" in value && isRecord3(value.visibleWhen) && typeof value.visibleWhen.field === "string";
+  return isRecord4(value) && "value" in value && isRecord4(value.visibleWhen) && typeof value.visibleWhen.field === "string";
 }
 function unwrapVisibility(value) {
   return isVisibilityWrapper(value) ? value.value : value;
@@ -897,7 +959,7 @@ function nextTransitionPresetName(presets, mode) {
   return `Custom ${highest + 1}`;
 }
 function isStoredTransitionPreset(preset) {
-  if (!isRecord3(preset) || typeof preset.id !== "string" || typeof preset.name !== "string" || !isRecord3(preset.value)) return false;
+  if (!isRecord4(preset) || typeof preset.id !== "string" || typeof preset.name !== "string" || !isRecord4(preset.value)) return false;
   const value = preset.value;
   const finite2 = (...keys) => keys.every((key) => Number.isFinite(value[key]));
   switch (preset.mode) {
@@ -963,7 +1025,7 @@ function canShowFields(children) {
   return axes >= 2 && axes <= 4 && locks <= 1 && axes + locks === children.length;
 }
 function isLeafConfigValue(value) {
-  return Array.isArray(value) && value.length <= 5 && typeof value[0] === "number" || typeof value === "number" || typeof value === "boolean" || typeof value === "string" || isSpringConfigValue(value) || isEasingConfigValue(value) || isActionConfigValue(value) || isSelectConfigValue(value) || isColorConfigValue(value) || isImageConfigValue(value) || isTextConfigValue(value) || isPadConfigValue(value) || isBackgroundConfigValue(value) || isAnchorConfigValue(value) || isLayersConfigValue(value);
+  return Array.isArray(value) && value.length <= 5 && typeof value[0] === "number" || typeof value === "number" || typeof value === "boolean" || typeof value === "string" || isSpringConfigValue(value) || isEasingConfigValue(value) || isActionConfigValue(value) || isSelectConfigValue(value) || isColorConfigValue(value) || isImageConfigValue(value) || isTextConfigValue(value) || isPadConfigValue(value) || isBackgroundConfigValue(value) || isAnchorConfigValue(value) || isLayersConfigValue(value) || isPicturesConfigValue(value);
 }
 function configDefaultValue(value) {
   if (Array.isArray(value)) return value[0];
@@ -975,18 +1037,19 @@ function configDefaultValue(value) {
   if (isAnchorConfigValue(value)) return normalizeAnchorValue(void 0, value);
   if (isBackgroundConfigValue(value)) return normalizeBackgroundValue(value.default);
   if (isLayersConfigValue(value)) return normalizeLayersValue(value.default);
+  if (isPicturesConfigValue(value)) return normalizePicturesValue(value.default);
   return value;
 }
-function isRecord3(value) {
+function isRecord4(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function sameControlValue(previous, next, control) {
   if (Object.is(previous, next)) return true;
   if (control?.type === "layers") return sameLayersValue(previous, next);
   if (control?.type === "background") {
-    return isRecord3(previous) && isRecord3(next) && sameBackgroundValue(previous, next);
+    return isRecord4(previous) && isRecord4(next) && sameBackgroundValue(previous, next);
   }
-  return (control?.type === "pad" || control?.type === "anchor") && isRecord3(previous) && isRecord3(next) && previous.x === next.x && previous.y === next.y;
+  return (control?.type === "pad" || control?.type === "anchor") && isRecord4(previous) && isRecord4(next) && previous.x === next.x && previous.y === next.y;
 }
 function sameValue(a, b) {
   if (a === b) return true;
@@ -1052,6 +1115,9 @@ function isBackgroundConfigValue(value) {
 }
 function isLayersConfigValue(value) {
   return hasType(value, "layers");
+}
+function isPicturesConfigValue(value) {
+  return hasType(value, "pictures");
 }
 function getFirstOptionValue(options) {
   const first = options[0];
@@ -1304,7 +1370,7 @@ var DialStoreClass = class {
       if (control?.type === "action") {
         continue;
       }
-      const next = control?.type === "pad" ? normalizePadValue(value, control.pad) : control?.type === "anchor" ? normalizeAnchorValue(value, control.anchor) : control?.type === "layers" ? normalizeLayersValue(value) : control?.type === "background" ? normalizeBackgroundValue(value, panel.values[path]) : value;
+      const next = control?.type === "pad" ? normalizePadValue(value, control.pad) : control?.type === "anchor" ? normalizeAnchorValue(value, control.anchor) : control?.type === "layers" ? normalizeLayersValue(value) : control?.type === "pictures" ? normalizePicturesValue(value) : control?.type === "background" ? normalizeBackgroundValue(value, panel.values[path]) : value;
       if (sameControlValue(panel.values[path], next, control) && (!target || sameControlValue(target[path], next, control))) continue;
       panel.values[path] = next;
       validUpdates[path] = next;
@@ -1813,14 +1879,14 @@ var DialStoreClass = class {
       const raw = storage.getItem(config.key);
       if (!raw) return null;
       const parsed = JSON.parse(raw);
-      if (!isRecord3(parsed) || parsed.version !== 1) return null;
-      const values = isRecord3(parsed.values) ? parsed.values : void 0;
-      const presets = config.presets && Array.isArray(parsed.presets) ? parsed.presets.filter((preset) => isRecord3(preset) && typeof preset.id === "string" && typeof preset.name === "string" && isRecord3(preset.values)) : [];
-      const gradients = Array.isArray(parsed.gradients) ? parsed.gradients.filter((saved) => isRecord3(saved) && typeof saved.id === "string" && isRecord3(saved.gradient)).map((saved) => ({ id: saved.id, gradient: normalizeGradient(saved.gradient) })) : void 0;
+      if (!isRecord4(parsed) || parsed.version !== 1) return null;
+      const values = isRecord4(parsed.values) ? parsed.values : void 0;
+      const presets = config.presets && Array.isArray(parsed.presets) ? parsed.presets.filter((preset) => isRecord4(preset) && typeof preset.id === "string" && typeof preset.name === "string" && isRecord4(preset.values)) : [];
+      const gradients = Array.isArray(parsed.gradients) ? parsed.gradients.filter((saved) => isRecord4(saved) && typeof saved.id === "string" && isRecord4(saved.gradient)).map((saved) => ({ id: saved.id, gradient: normalizeGradient(saved.gradient) })) : void 0;
       return {
         version: 1,
         values,
-        baseValues: config.presets && isRecord3(parsed.baseValues) ? parsed.baseValues : values,
+        baseValues: config.presets && isRecord4(parsed.baseValues) ? parsed.baseValues : values,
         presets,
         activePresetId: presets.some((preset) => preset.id === parsed.activePresetId) ? parsed.activePresetId : null,
         baseName: config.presets && typeof parsed.baseName === "string" ? parsed.baseName : void 0,
@@ -1837,18 +1903,18 @@ var DialStoreClass = class {
     if (!storage) return;
     const values = this.snapshots.get(id) ?? this.panels.get(id)?.values;
     if (!values) return;
-    const state2 = { version: 1, values };
+    const state3 = { version: 1, values };
     if (config.presets) {
-      state2.baseValues = this.baseValues.get(id) ?? values;
-      state2.presets = this.presets.get(id) ?? [];
-      state2.activePresetId = this.activePreset.get(id) ?? null;
+      state3.baseValues = this.baseValues.get(id) ?? values;
+      state3.presets = this.presets.get(id) ?? [];
+      state3.activePresetId = this.activePreset.get(id) ?? null;
       const baseName = this.baseNames.get(id);
-      if (baseName) state2.baseName = baseName;
+      if (baseName) state3.baseName = baseName;
     }
     const gradients = this.gradients.get(id);
-    if (gradients?.length) state2.gradients = gradients;
+    if (gradients?.length) state3.gradients = gradients;
     try {
-      storage.setItem(config.key, JSON.stringify(state2));
+      storage.setItem(config.key, JSON.stringify(state3));
     } catch {
     }
   }
@@ -1884,7 +1950,7 @@ var DialStoreClass = class {
     let stored = [];
     try {
       const parsed = JSON.parse(storage.getItem(TRANSITION_PRESETS_KEY) ?? "null");
-      if (isRecord3(parsed) && parsed.version === 1 && Array.isArray(parsed.presets)) {
+      if (isRecord4(parsed) && parsed.version === 1 && Array.isArray(parsed.presets)) {
         stored = parsed.presets.filter(isStoredTransitionPreset);
       }
     } catch {
@@ -2019,6 +2085,8 @@ var DialStoreClass = class {
           control = { type: "pad", path, label, pad: value };
         } else if (isLayersConfigValue(value)) {
           control = { type: "layers", path, label, layers: { ...value, default: normalizeLayersValue(value.default) } };
+        } else if (isPicturesConfigValue(value)) {
+          control = { type: "pictures", path, label, pictures: { ...value, families: normalizePictureFamilies(value.families), default: normalizePicturesValue(value.default) } };
         } else if (isAnchorConfigValue(value)) {
           control = { type: "anchor", path, label, anchor: value };
         } else if (isBackgroundConfigValue(value)) {
@@ -2139,6 +2207,11 @@ var DialStoreClass = class {
         return normalizeAnchorValue(existingValue, control.anchor);
       case "layers":
         return normalizeLayersValue(existingValue, control.layers?.default);
+      case "pictures": {
+        if (existingValue === null) return null;
+        const id = normalizePicturesValue(existingValue);
+        return id !== null && control.pictures?.families.some((family) => family.items.some((item) => item.id === id)) ? id : defaultValue;
+      }
       case "background":
         return normalizeBackgroundValue(existingValue, defaultValue);
       case "select": {
@@ -3517,12 +3590,12 @@ function buildTimelineValues(staticClips, transport, timelineDuration, loopStart
   const span = loopSpan(transport.duration, loopStart);
   const cycleTime = (span > 0 ? transport.wraps * span : 0) + transport.time;
   for (const clip of staticClips) {
-    const state2 = computeClipState(clip, transport.time, cycleTime);
+    const state3 = computeClipState(clip, transport.time, cycleTime);
     if (clip.group) {
       const bucket = result[_a = clip.group] ?? (result[_a] = {});
-      bucket[clip.childKey] = state2;
+      bucket[clip.childKey] = state3;
     } else {
-      result[clip.key] = state2;
+      result[clip.key] = state3;
     }
   }
   return result;
@@ -3692,16 +3765,16 @@ function createDialTimeline(name, config, options) {
 }
 
 // src/solid/components/DialRoot.tsx
-import { template as _$template23 } from "solid-js/web";
+import { template as _$template24 } from "solid-js/web";
 import { delegateEvents as _$delegateEvents11 } from "solid-js/web";
 import { memo as _$memo11 } from "solid-js/web";
 import { style as _$style2 } from "solid-js/web";
 import { setAttribute as _$setAttribute14 } from "solid-js/web";
 import { effect as _$effect14 } from "solid-js/web";
 import { insert as _$insert15 } from "solid-js/web";
-import { use as _$use19 } from "solid-js/web";
+import { use as _$use20 } from "solid-js/web";
 import { createComponent as _$createComponent14 } from "solid-js/web";
-import { createSignal as createSignal12, createEffect as createEffect21, onMount as onMount20, onCleanup as onCleanup23, Show as Show10, For as For6 } from "solid-js";
+import { createSignal as createSignal12, createEffect as createEffect22, onMount as onMount21, onCleanup as onCleanup24, Show as Show10, For as For6 } from "solid-js";
 import { Portal as Portal3 } from "solid-js/web";
 
 // src/accordion.ts
@@ -3955,7 +4028,7 @@ function listen() {
   let described = null;
   let fading;
   let hosted = null;
-  const observer = new ResizeObserver(() => place());
+  const observer = new ResizeObserver(() => place2());
   const mutations = new MutationObserver(() => {
     if (shown && shown === hosted?.row) return;
     if (shown?.dataset.hint) show(shown);
@@ -3986,7 +4059,7 @@ function listen() {
     else described.removeAttribute("aria-describedby");
     described = null;
   };
-  const place = () => {
+  const place2 = () => {
     if (!shown) return;
     if (!shown.isConnected || !layer2.parentElement) return hide();
     const scale = topLayer ? scaleOf(area ?? shown) : { x: 1, y: 1 };
@@ -4057,7 +4130,7 @@ function listen() {
       }
     }
     tooltip.textContent = text;
-    place();
+    place2();
     if (!tooltip.hasAttribute("data-open")) {
       tooltip.getBoundingClientRect();
       tooltip.setAttribute("data-open", "");
@@ -4136,12 +4209,12 @@ function listen() {
   window.addEventListener("keydown", handleKeyDown);
   window.addEventListener("keyup", handleKeyUp);
   window.addEventListener("blur", release);
-  window.addEventListener("resize", place);
+  window.addEventListener("resize", place2);
   document.addEventListener("visibilitychange", handleVisibilityChange);
   document.addEventListener("pointerover", handlePointerOver);
   document.addEventListener("pointerout", handlePointerOut);
   document.addEventListener("focusin", handleFocusIn);
-  document.addEventListener("scroll", place, { capture: true, passive: true });
+  document.addEventListener("scroll", place2, { capture: true, passive: true });
   if (topLayer) document.addEventListener("toggle", handleToggle, true);
   return () => {
     detachDisplay();
@@ -4151,12 +4224,12 @@ function listen() {
     window.removeEventListener("keydown", handleKeyDown);
     window.removeEventListener("keyup", handleKeyUp);
     window.removeEventListener("blur", release);
-    window.removeEventListener("resize", place);
+    window.removeEventListener("resize", place2);
     document.removeEventListener("visibilitychange", handleVisibilityChange);
     document.removeEventListener("pointerover", handlePointerOver);
     document.removeEventListener("pointerout", handlePointerOut);
     document.removeEventListener("focusin", handleFocusIn);
-    document.removeEventListener("scroll", place, { capture: true });
+    document.removeEventListener("scroll", place2, { capture: true });
     document.removeEventListener("toggle", handleToggle, true);
     observer.disconnect();
     mutations.disconnect();
@@ -5085,15 +5158,15 @@ function RootPanel(props) {
 _$delegateEvents(["click", "keydown", "pointerdown", "pointerup"]);
 
 // src/solid/components/Panel.tsx
-import { template as _$template21 } from "solid-js/web";
+import { template as _$template22 } from "solid-js/web";
 import { delegateEvents as _$delegateEvents9 } from "solid-js/web";
 import { createComponent as _$createComponent12 } from "solid-js/web";
 import { effect as _$effect12 } from "solid-js/web";
 import { insert as _$insert13 } from "solid-js/web";
 import { setAttribute as _$setAttribute12 } from "solid-js/web";
-import { use as _$use18 } from "solid-js/web";
+import { use as _$use19 } from "solid-js/web";
 import { memo as _$memo10 } from "solid-js/web";
-import { batch as batch2, createSignal as createSignal11, createEffect as createEffect20, on as on7, onMount as onMount19, onCleanup as onCleanup22, Show as Show9 } from "solid-js";
+import { batch as batch2, createSignal as createSignal11, createEffect as createEffect21, on as on7, onMount as onMount20, onCleanup as onCleanup23, Show as Show9 } from "solid-js";
 import { animate as animate7 } from "motion";
 
 // src/solid/components/Folder.tsx
@@ -5330,16 +5403,16 @@ function Folder(props) {
 _$delegateEvents2(["click", "keydown"]);
 
 // src/solid/components/ControlRenderer.tsx
-import { template as _$template18 } from "solid-js/web";
+import { template as _$template19 } from "solid-js/web";
 import { delegateEvents as _$delegateEvents7 } from "solid-js/web";
 import { setAttribute as _$setAttribute10 } from "solid-js/web";
 import { effect as _$effect10 } from "solid-js/web";
 import { mergeProps as _$mergeProps } from "solid-js/web";
 import { memo as _$memo8 } from "solid-js/web";
 import { insert as _$insert11 } from "solid-js/web";
-import { use as _$use15 } from "solid-js/web";
+import { use as _$use16 } from "solid-js/web";
 import { createComponent as _$createComponent10 } from "solid-js/web";
-import { For as For3, batch, createEffect as createEffect17, createMemo as createMemo3, createSignal as createSignal9, on as on5, onCleanup as onCleanup19, onMount as onMount16, untrack as untrack3 } from "solid-js";
+import { For as For3, batch, createEffect as createEffect18, createMemo as createMemo3, createSignal as createSignal9, on as on5, onCleanup as onCleanup20, onMount as onMount17, untrack as untrack3 } from "solid-js";
 import { animate as animate5 } from "motion";
 
 // src/solid/components/ColorControl.tsx
@@ -5379,7 +5452,7 @@ function segmentedControl(className, label, options, pick, buttonClassName = "")
     if (style.boxSizing === "border-box") return inner;
     return inner + parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) + parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth);
   };
-  const place = (slide) => {
+  const place2 = (slide) => {
     const index = buttons.findIndex((button) => button.dataset.active === "true");
     if (!buttons[index]?.offsetWidth) return;
     const row = getComputedStyle(root);
@@ -5394,7 +5467,7 @@ function segmentedControl(className, label, options, pick, buttonClassName = "")
       pill.style.transition = "";
     }
   };
-  const observer = new ResizeObserver(() => place(false));
+  const observer = new ResizeObserver(() => place2(false));
   buttons.forEach((button) => observer.observe(button));
   let current2;
   return {
@@ -5409,7 +5482,7 @@ function segmentedControl(className, label, options, pick, buttonClassName = "")
       });
       if (value !== current2) {
         current2 = value;
-        place(true);
+        place2(true);
       }
     },
     disconnect: () => observer.disconnect()
@@ -6967,10 +7040,356 @@ function AnchorControl(props) {
   })();
 }
 
-// src/solid/components/Fields.tsx
+// src/solid/components/PictureListControl.tsx
 import { template as _$template7 } from "solid-js/web";
 import { use as _$use7 } from "solid-js/web";
 import { createEffect as createEffect9, onCleanup as onCleanup11, onMount as onMount8 } from "solid-js";
+
+// src/animation.ts
+function animateSpring(node, frame, visualDuration = 0.35, bounce = 0.1) {
+  if (typeof node.animate !== "function" || window.matchMedia("(prefers-reduced-motion: reduce)").matches)
+    return;
+  const params = springParams({ type: "spring", visualDuration, bounce });
+  const duration = springSettleDuration(params);
+  const count = Math.max(2, Math.ceil(duration * 60));
+  const frames = Array.from({ length: count + 1 }, (_, index) => frame(index === count ? 1 : springProgress(index / count * duration, params)));
+  return node.animate(frames, { duration: duration * 1e3, easing: "linear" });
+}
+
+// src/store/PictureHost.ts
+var STATE_KEY = /* @__PURE__ */ Symbol.for("dialkit.pictureHost");
+function state() {
+  const scope = globalThis;
+  let current2 = scope[STATE_KEY];
+  if (!current2) {
+    current2 = { host: {}, listeners: /* @__PURE__ */ new Set() };
+    scope[STATE_KEY] = current2;
+  }
+  return current2;
+}
+function setPictureHost(host) {
+  const current2 = state();
+  current2.host = { ...host };
+  current2.listeners.forEach((listener) => listener());
+}
+function getPictureHost() {
+  return state().host;
+}
+function subscribePictureHost(listener) {
+  const listeners = state().listeners;
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+// src/vanilla/dom.ts
+function element6(tag, className = "", text) {
+  const node = document.createElement(tag);
+  node.className = className;
+  if (text !== void 0)
+    node.textContent = text;
+  if (tag === "button")
+    node.type = "button";
+  return node;
+}
+function svg(tag, attrs = {}) {
+  const node = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [key, value] of Object.entries(attrs))
+    node.setAttribute(key, String(value));
+  return node;
+}
+function icon2(paths, className = "", viewBox = "0 0 24 24") {
+  const node = svg("svg", { class: className, viewBox, fill: "none", stroke: "currentColor", "stroke-width": 2, "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true" });
+  for (const d of typeof paths === "string" ? [paths] : paths)
+    node.append(svg("path", { d }));
+  return node;
+}
+
+// src/picture-list-control.ts
+var instances = 0;
+var chevronAngle = (open) => open ? 0 : -90;
+function place(parent, node, previous) {
+  const next = previous ? previous.nextElementSibling : parent.firstElementChild;
+  if (next === node) return;
+  if (previous) previous.after(node);
+  else parent.prepend(node);
+}
+function mountPictureListControl(host, initial) {
+  let props = initial;
+  let families = normalizePictureFamilies(props.families);
+  let value = normalizePicturesValue(props.value);
+  let open = findPictureFamily(families, value);
+  let openedByUser = false;
+  let selectionSeen = value !== null;
+  let destroyed = false;
+  const uid = `dialkit-pictures-${++instances}`;
+  let bodies = 0;
+  const root = element6("div", "dialkit-pictures");
+  root.setAttribute("role", "group");
+  host.append(root);
+  const familyById = /* @__PURE__ */ new Map();
+  const eachTile = (fn) => familyById.forEach((entry) => entry.tiles.forEach(fn));
+  const attach = (tile) => {
+    if (tile.attached) return;
+    tile.attached = true;
+    const hostAttach = getPictureHost().attach;
+    if (!hostAttach) return;
+    try {
+      const cleanup = hostAttach(tile.id, { picture: tile.picture, tile: tile.root });
+      if (typeof cleanup === "function") tile.cleanup = cleanup;
+    } catch (error) {
+      console.error(error);
+    }
+  };
+  const detach = (tile) => {
+    const cleanup = tile.cleanup;
+    tile.cleanup = void 0;
+    tile.attached = false;
+    if (!cleanup) return;
+    try {
+      cleanup();
+    } catch (error) {
+      console.error(error);
+    }
+  };
+  let attachQueued = false;
+  const queueAttach = () => {
+    if (attachQueued) return;
+    attachQueued = true;
+    queueMicrotask(() => {
+      attachQueued = false;
+      if (!destroyed) eachTile(attach);
+    });
+  };
+  const unsubscribeHost = subscribePictureHost(() => {
+    eachTile(detach);
+    eachTile(attach);
+  });
+  const removeTile = (entry, tile) => {
+    detach(tile);
+    setHint(tile.root, void 0);
+    tile.root.remove();
+    entry.tiles.delete(tile.id);
+  };
+  const buildTile = (id) => {
+    const tileRoot = element6("button", "dialkit-pictures-tile");
+    const picture = element6("div", "dialkit-pictures-picture");
+    const label = element6("span", "dialkit-pictures-label");
+    tileRoot.append(picture, label);
+    tileRoot.addEventListener("click", () => props.onPick(id));
+    return { id, root: tileRoot, picture, label, attached: false };
+  };
+  const paintTile = (tile, item) => {
+    const selected = value === item.id;
+    tile.label.textContent = item.label;
+    tile.root.setAttribute("aria-label", item.label);
+    tile.root.setAttribute("aria-pressed", String(selected));
+    tile.root.toggleAttribute("data-active", selected);
+    setHint(tile.root, item.hint);
+  };
+  const buildSection = () => {
+    const sectionRoot = element6("div", "dialkit-pictures-section");
+    const heading = element6("div", "dialkit-pictures-heading");
+    const grid = element6("div", "dialkit-pictures-grid");
+    sectionRoot.append(heading, grid);
+    return { root: sectionRoot, heading, grid };
+  };
+  const buildFamily = (id) => {
+    const familyRoot = element6("div", "dialkit-pictures-family");
+    const row = element6("button", "dialkit-pictures-row");
+    const name = element6("span", "dialkit-pictures-name");
+    const count = element6("span", "dialkit-pictures-count");
+    count.setAttribute("aria-hidden", "true");
+    const chevron = icon2(ICON_CHEVRON, "dialkit-pictures-chevron");
+    row.append(name, count, chevron);
+    const body = element6("div", "dialkit-pictures-body");
+    const inner = element6("div", "dialkit-pictures-inner");
+    body.append(inner);
+    body.id = `${uid}-${++bodies}`;
+    body.hidden = true;
+    row.setAttribute("aria-controls", body.id);
+    familyRoot.append(row, body);
+    row.addEventListener("click", () => {
+      openedByUser = true;
+      open = open === id ? null : id;
+      render();
+    });
+    return { root: familyRoot, row, name, count, chevron, body, inner, sections: /* @__PURE__ */ new Map(), tiles: /* @__PURE__ */ new Map() };
+  };
+  const renderBody = (entry, family) => {
+    const items = family.items;
+    const shown = new Set(items.map((item) => item.id));
+    for (const tile of [...entry.tiles.values()]) if (!shown.has(tile.id)) removeTile(entry, tile);
+    const sections = pictureSections(items);
+    const keyOf = (heading) => heading === null ? "" : `#${heading}`;
+    const keys = new Set(sections.map((section) => keyOf(section.heading)));
+    for (const [key, section] of entry.sections) {
+      if (keys.has(key)) continue;
+      section.root.remove();
+      entry.sections.delete(key);
+    }
+    let newTiles = false;
+    let previousSection = null;
+    for (const section of sections) {
+      const key = keyOf(section.heading);
+      let sectionEntry = entry.sections.get(key);
+      if (!sectionEntry) {
+        sectionEntry = buildSection();
+        entry.sections.set(key, sectionEntry);
+      }
+      sectionEntry.heading.textContent = section.heading ?? "";
+      sectionEntry.heading.hidden = section.heading === null;
+      if (section.heading === null) {
+        sectionEntry.root.removeAttribute("role");
+        sectionEntry.root.removeAttribute("aria-label");
+      } else {
+        sectionEntry.root.setAttribute("role", "group");
+        sectionEntry.root.setAttribute("aria-label", section.heading);
+      }
+      place(entry.inner, sectionEntry.root, previousSection);
+      previousSection = sectionEntry.root;
+      let previousTile = null;
+      for (const item of section.items) {
+        let tile = entry.tiles.get(item.id);
+        if (!tile) {
+          tile = buildTile(item.id);
+          entry.tiles.set(item.id, tile);
+          newTiles = true;
+        }
+        paintTile(tile, item);
+        place(sectionEntry.grid, tile.root, previousTile);
+        previousTile = tile.root;
+      }
+    }
+    if (newTiles) queueAttach();
+  };
+  const clearBody = (entry) => {
+    for (const tile of [...entry.tiles.values()]) removeTile(entry, tile);
+    entry.sections.forEach((section) => section.root.remove());
+    entry.sections.clear();
+  };
+  const setBodyOpen = (entry, spring) => {
+    const isOpen = entry.shown === true;
+    const animate9 = spring && root.getBoundingClientRect().width > 0;
+    const from2 = entry.body.hidden ? 0 : entry.body.getBoundingClientRect().height;
+    entry.animation?.cancel();
+    entry.animation = void 0;
+    entry.body.hidden = false;
+    entry.body.inert = !isOpen;
+    const to = isOpen ? entry.body.scrollHeight : 0;
+    const finish = () => {
+      if (isOpen || entry.shown) return;
+      entry.body.hidden = true;
+      entry.body.inert = false;
+      clearBody(entry);
+    };
+    entry.animation = animate9 ? animateSpring(entry.body, (p) => ({ height: `${from2 + (to - from2) * p}px`, overflow: "hidden" })) : void 0;
+    if (entry.animation) entry.animation.onfinish = finish;
+    else finish();
+    entry.chevronAnimation?.cancel();
+    entry.chevron.style.transform = `rotate(${chevronAngle(isOpen)}deg)`;
+    if (animate9) {
+      const start = chevronAngle(!isOpen);
+      const end = chevronAngle(isOpen);
+      entry.chevronAnimation = animateSpring(entry.chevron, (p) => ({ transform: `rotate(${start + (end - start) * p}deg)` }), 0.35, 0.15);
+    }
+  };
+  function render() {
+    root.setAttribute("aria-label", props.label);
+    setHint(root, props.hint);
+    if (open !== null && !families.some((family) => family.id === open)) open = null;
+    const live = new Set(families.map((family) => family.id));
+    for (const [id, entry] of familyById) {
+      if (live.has(id)) continue;
+      entry.animation?.cancel();
+      clearBody(entry);
+      setHint(entry.row, void 0);
+      entry.root.remove();
+      familyById.delete(id);
+    }
+    let previous = null;
+    for (const family of families) {
+      let entry = familyById.get(family.id);
+      if (!entry) {
+        entry = buildFamily(family.id);
+        familyById.set(family.id, entry);
+      }
+      const isOpen = open === family.id;
+      const count = family.items.length;
+      entry.name.textContent = family.label;
+      entry.count.textContent = String(count);
+      entry.row.setAttribute("aria-label", `${family.label}, ${count} ${count === 1 ? "preset" : "presets"}`);
+      entry.row.setAttribute("aria-expanded", String(isOpen));
+      entry.root.toggleAttribute("data-open", isOpen);
+      setHint(entry.row, family.hint);
+      place(root, entry.root, previous);
+      previous = entry.root;
+      if (isOpen || entry.tiles.size > 0) renderBody(entry, family);
+      if (entry.shown !== isOpen) {
+        const first = entry.shown === void 0;
+        entry.shown = isOpen;
+        setBodyOpen(entry, !first);
+      }
+    }
+  }
+  render();
+  return {
+    update(next) {
+      props = next;
+      families = normalizePictureFamilies(next.families);
+      value = normalizePicturesValue(next.value);
+      if (!selectionSeen && value !== null) {
+        selectionSeen = true;
+        if (!openedByUser && open === null) open = findPictureFamily(families, value);
+      }
+      render();
+    },
+    destroy() {
+      destroyed = true;
+      unsubscribeHost();
+      familyById.forEach((entry) => {
+        entry.animation?.cancel();
+        entry.chevronAnimation?.cancel();
+        clearBody(entry);
+        setHint(entry.row, void 0);
+      });
+      setHint(root, void 0);
+      root.remove();
+    }
+  };
+}
+
+// src/solid/components/PictureListControl.tsx
+var _tmpl$15 = /* @__PURE__ */ _$template7(`<div class=dialkit-pictures-host>`);
+function PictureListControl(props) {
+  let host;
+  let control;
+  onMount8(() => {
+    control = mountPictureListControl(host, {
+      ...props
+    });
+    createEffect9(() => control?.update({
+      label: props.label,
+      families: props.families,
+      value: props.value,
+      onPick: props.onPick,
+      hint: props.hint
+    }));
+  });
+  onCleanup11(() => control?.destroy());
+  return (() => {
+    var _el$ = _tmpl$15();
+    var _ref$ = host;
+    typeof _ref$ === "function" ? _$use7(_ref$, _el$) : host = _el$;
+    return _el$;
+  })();
+}
+
+// src/solid/components/Fields.tsx
+import { template as _$template8 } from "solid-js/web";
+import { use as _$use8 } from "solid-js/web";
+import { createEffect as createEffect10, onCleanup as onCleanup12, onMount as onMount9 } from "solid-js";
 
 // src/fields-control.ts
 function scaleFields(ranges, values, index, next) {
@@ -7034,7 +7453,7 @@ function resetFields(controls, values, defaults) {
   }
   return updates;
 }
-function element6(tag, className, text) {
+function element7(tag, className, text) {
   const el = document.createElement(tag);
   el.className = className;
   if (text) el.textContent = text;
@@ -7067,16 +7486,16 @@ function mountFields(host, initial) {
   const fieldLock = createFieldLock();
   let scrub;
   let fields = [];
-  const root = element6("div", "dialkit-fields");
+  const root = element7("div", "dialkit-fields");
   root.setAttribute("role", "group");
-  const caption = element6("div", "dialkit-fields-caption");
-  const label = element6("span", "dialkit-fields-label");
-  const reset = element6("button", "dialkit-fields-reset");
+  const caption = element7("div", "dialkit-fields-caption");
+  const label = element7("span", "dialkit-fields-label");
+  const reset = element7("button", "dialkit-fields-reset");
   reset.append(strokeIcon(ICON_RESET));
-  const lock = element6("button", "dialkit-fields-lock");
+  const lock = element7("button", "dialkit-fields-lock");
   lock.append(strokeIcon(ICON_LINK));
   caption.append(label, reset);
-  const row = element6("div", "dialkit-fields-row");
+  const row = element7("div", "dialkit-fields-row");
   root.append(caption, row);
   host.append(root);
   const axes = () => props.controls.filter((control) => control.type === "slider");
@@ -7129,18 +7548,18 @@ function mountFields(host, initial) {
     });
   }
   function createField(index) {
-    const field2 = element6("div", "dialkit-fields-field");
-    const axis = element6("span", "dialkit-fields-axis");
+    const field2 = element7("div", "dialkit-fields-field");
+    const axis = element7("span", "dialkit-fields-axis");
     axis.setAttribute("aria-hidden", "true");
-    const value = element6("button", "dialkit-fields-value");
+    const value = element7("button", "dialkit-fields-value");
     field2.append(axis, value);
-    const state2 = { field: field2, axis, value };
+    const state3 = { field: field2, axis, value };
     const control = () => axes()[index];
     let scrubbed = false;
     const finish = (apply) => {
-      const input = state2.input;
+      const input = state3.input;
       if (!input) return;
-      state2.input = void 0;
+      state3.input = void 0;
       const text = input.value.trim();
       const number2 = text === "" ? NaN : Number(text);
       if (apply && text !== format(control()) && Number.isFinite(number2)) commit(index, number2);
@@ -7148,8 +7567,8 @@ function mountFields(host, initial) {
       render();
     };
     value.addEventListener("click", () => {
-      if (state2.input) return;
-      const input = element6("input", "dialkit-fields-input");
+      if (state3.input) return;
+      const input = element7("input", "dialkit-fields-input");
       input.type = "text";
       input.inputMode = "decimal";
       input.autocomplete = "off";
@@ -7173,7 +7592,7 @@ function mountFields(host, initial) {
         input.value = input.defaultValue = format(control());
         input.select();
       });
-      state2.input = input;
+      state3.input = input;
       value.replaceWith(input);
       input.focus();
       input.select();
@@ -7215,7 +7634,7 @@ function mountFields(host, initial) {
       scrubbed = false;
     });
     row.append(field2);
-    return state2;
+    return state3;
   }
   reset.addEventListener("click", () => {
     fieldLock.reset();
@@ -7295,15 +7714,15 @@ function mountFields(host, initial) {
 }
 
 // src/solid/components/Fields.tsx
-var _tmpl$15 = /* @__PURE__ */ _$template7(`<div class=dialkit-fields-host>`);
+var _tmpl$16 = /* @__PURE__ */ _$template8(`<div class=dialkit-fields-host>`);
 function Fields(props) {
   let host;
   let control;
-  onMount8(() => {
+  onMount9(() => {
     control = mountFields(host, {
       ...props
     });
-    createEffect9(() => control?.update({
+    createEffect10(() => control?.update({
       label: props.label,
       controls: props.controls,
       values: props.values,
@@ -7312,30 +7731,19 @@ function Fields(props) {
       hint: props.hint
     }));
   });
-  onCleanup11(() => control?.destroy());
+  onCleanup12(() => control?.destroy());
   return (() => {
-    var _el$ = _tmpl$15();
+    var _el$ = _tmpl$16();
     var _ref$ = host;
-    typeof _ref$ === "function" ? _$use7(_ref$, _el$) : host = _el$;
+    typeof _ref$ === "function" ? _$use8(_ref$, _el$) : host = _el$;
     return _el$;
   })();
 }
 
 // src/solid/components/BackgroundControl.tsx
-import { template as _$template8 } from "solid-js/web";
-import { use as _$use8 } from "solid-js/web";
-import { createEffect as createEffect10, onCleanup as onCleanup12, onMount as onMount9 } from "solid-js";
-
-// src/animation.ts
-function animateSpring(node, frame, visualDuration = 0.35, bounce = 0.1) {
-  if (typeof node.animate !== "function" || window.matchMedia("(prefers-reduced-motion: reduce)").matches)
-    return;
-  const params = springParams({ type: "spring", visualDuration, bounce });
-  const duration = springSettleDuration(params);
-  const count = Math.max(2, Math.ceil(duration * 60));
-  const frames = Array.from({ length: count + 1 }, (_, index) => frame(index === count ? 1 : springProgress(index / count * duration, params)));
-  return node.animate(frames, { duration: duration * 1e3, easing: "linear" });
-}
+import { template as _$template9 } from "solid-js/web";
+import { use as _$use9 } from "solid-js/web";
+import { createEffect as createEffect11, onCleanup as onCleanup13, onMount as onMount10 } from "solid-js";
 
 // src/dropdown-keyboard.ts
 var dropdownId = 0;
@@ -7700,7 +8108,7 @@ function rotateCursor(degrees) {
   }
   return cursor;
 }
-function element7(tag, className) {
+function element8(tag, className) {
   const el = document.createElement(tag);
   el.className = className;
   return el;
@@ -7716,7 +8124,7 @@ function mountGradientGizmo(target, initial, callbacks) {
   let press;
   let hoverStop = -1;
   let destroyed = false;
-  const root = element7("div", "dialkit-background-gizmo");
+  const root = element8("div", "dialkit-background-gizmo");
   const svg2 = svgElement("svg", { class: "dialkit-background-gizmo-lines", "aria-hidden": "true" });
   const shadowLine = svgElement("line", { class: "dialkit-background-gizmo-shadow" });
   const line = svgElement("line", { class: "dialkit-background-gizmo-line" });
@@ -7725,23 +8133,23 @@ function mountGradientGizmo(target, initial, callbacks) {
   const band = svgElement("path", { class: "dialkit-background-gizmo-hit", "fill-rule": "evenodd" });
   svg2.append(shadowRim, rim, shadowLine, line, band);
   const handles = {
-    start: element7("div", "dialkit-background-gizmo-handle"),
-    end: element7("div", "dialkit-background-gizmo-handle"),
-    width: element7("div", "dialkit-background-gizmo-handle")
+    start: element8("div", "dialkit-background-gizmo-handle"),
+    end: element8("div", "dialkit-background-gizmo-handle"),
+    width: element8("div", "dialkit-background-gizmo-handle")
   };
   for (const [role, el] of Object.entries(handles)) {
     el.dataset.role = role;
     el.tabIndex = 0;
     el.setAttribute("role", "button");
     el.setAttribute("aria-keyshortcuts", "ArrowUp ArrowDown ArrowLeft ArrowRight");
-    el.append(element7("span", "dialkit-background-gizmo-dot"));
+    el.append(element8("span", "dialkit-background-gizmo-dot"));
   }
-  const swatchLayer = element7("div", "dialkit-background-gizmo-stops");
+  const swatchLayer = element8("div", "dialkit-background-gizmo-stops");
   swatchLayer.setAttribute("aria-hidden", "true");
-  const ghost = element7("div", "dialkit-background-gizmo-stop dialkit-background-gizmo-ghost");
+  const ghost = element8("div", "dialkit-background-gizmo-stop dialkit-background-gizmo-ghost");
   ghost.setAttribute("aria-hidden", "true");
   ghost.hidden = true;
-  const tip = element7("div", "dialkit-background-gizmo-tip");
+  const tip = element8("div", "dialkit-background-gizmo-tip");
   tip.setAttribute("aria-hidden", "true");
   tip.hidden = true;
   let swatches = [];
@@ -7753,19 +8161,19 @@ function mountGradientGizmo(target, initial, callbacks) {
     const rect = root.getBoundingClientRect();
     return { x: event.clientX - rect.left, y: event.clientY - rect.top };
   };
-  const showTip = (text, x, y, place) => {
+  const showTip = (text, x, y, place2) => {
     tip.textContent = text;
     tip.hidden = false;
-    tip.dataset.place = place;
+    tip.dataset.place = place2;
     tip.style.transform = `translate(${x}px, ${y}px)`;
   };
   const hideTip = () => {
     tip.hidden = true;
   };
-  const percentTipAt = (text, place) => {
-    showTip(text, place.x, place.y, "center");
-    const reach = TIP_EDGE + tip.offsetWidth / 2 * Math.abs(place.ox) + tip.offsetHeight / 2 * Math.abs(place.oy);
-    tip.style.transform = `translate(${place.x + place.ox * reach}px, ${place.y + place.oy * reach}px)`;
+  const percentTipAt = (text, place2) => {
+    showTip(text, place2.x, place2.y, "center");
+    const reach = TIP_EDGE + tip.offsetWidth / 2 * Math.abs(place2.ox) + tip.offsetHeight / 2 * Math.abs(place2.oy);
+    tip.style.transform = `translate(${place2.x + place2.ox * reach}px, ${place2.y + place2.oy * reach}px)`;
   };
   const zone = (role, p) => {
     const point = gizmoPoints(props.gradient.handles, box)[role];
@@ -7878,7 +8286,7 @@ function mountGradientGizmo(target, initial, callbacks) {
   const buildSwatches = () => {
     swatchLayer.replaceChildren();
     swatches = props.gradient.stops.map((_, i) => {
-      const el = element7("div", "dialkit-background-gizmo-stop");
+      const el = element8("div", "dialkit-background-gizmo-stop");
       el.addEventListener("pointerenter", () => {
         hoverStop = i;
         if (!press) percentTip(i);
@@ -7939,12 +8347,12 @@ function mountGradientGizmo(target, initial, callbacks) {
       return;
     }
     band.style.cursor = "";
-    const place = stopPlacement(shape, h, at, box);
+    const place2 = stopPlacement(shape, h, at, box);
     ghost.hidden = false;
     root.dataset.ghost = "true";
     ghost.style.setProperty("--dial-color", gradientColorAt(stops, at));
-    placeSwatch(ghost, place);
-    percentTipAt(formatGizmoPercent(at), place);
+    placeSwatch(ghost, place2);
+    percentTipAt(formatGizmoPercent(at), place2);
   });
   band.addEventListener("pointerleave", () => {
     if (!press) {
@@ -7989,10 +8397,10 @@ function mountGradientGizmo(target, initial, callbacks) {
       if (!destroyed && props.themeSource) writeTokens(props.themeSource);
     });
   }
-  function placeSwatch(el, place) {
-    const x = place.x + place.ox * SWATCH_OFFSET;
-    const y = place.y + place.oy * SWATCH_OFFSET;
-    el.style.transform = `translate(${x}px, ${y}px) rotate(${place.rotation}rad)`;
+  function placeSwatch(el, place2) {
+    const x = place2.x + place2.ox * SWATCH_OFFSET;
+    const y = place2.y + place2.oy * SWATCH_OFFSET;
+    el.style.transform = `translate(${x}px, ${y}px) rotate(${place2.rotation}rad)`;
   }
   const fit = () => {
     if (destroyed) return;
@@ -8071,35 +8479,35 @@ function mountGradientGizmo(target, initial, callbacks) {
 }
 
 // src/store/BackgroundHost.ts
-var STATE_KEY = /* @__PURE__ */ Symbol.for("dialkit.backgroundHost");
-function state() {
+var STATE_KEY2 = /* @__PURE__ */ Symbol.for("dialkit.backgroundHost");
+function state2() {
   const scope = globalThis;
-  let current2 = scope[STATE_KEY];
+  let current2 = scope[STATE_KEY2];
   if (!current2) {
     current2 = { host: {}, saved: [], listeners: /* @__PURE__ */ new Set() };
-    scope[STATE_KEY] = current2;
+    scope[STATE_KEY2] = current2;
   }
   return current2;
 }
 function notify() {
-  state().listeners.forEach((listener) => listener());
+  state2().listeners.forEach((listener) => listener());
 }
 function setBackgroundHost(host) {
-  state().host = { ...host };
+  state2().host = { ...host };
   notify();
 }
 function getBackgroundHost() {
-  return state().host;
+  return state2().host;
 }
 function hasBackgroundHost() {
-  return Object.values(state().host).some((hook) => hook !== void 0);
+  return Object.values(state2().host).some((hook) => hook !== void 0);
 }
 function setSavedGradients(list) {
-  state().saved = list.map((saved) => ({ id: saved.id, gradient: normalizeGradient(saved.gradient) }));
+  state2().saved = list.map((saved) => ({ id: saved.id, gradient: normalizeGradient(saved.gradient) }));
   notify();
 }
 function getSavedGradients() {
-  return state().saved;
+  return state2().saved;
 }
 function backgroundUploader(own, fallback) {
   if (own) return async (file, kind) => ({ src: await own(file), kind });
@@ -8117,7 +8525,7 @@ function backgroundUploader(own, fallback) {
   return async (file, kind) => ({ src: await fallback(file), kind });
 }
 function subscribeBackgroundHost(listener) {
-  const listeners = state().listeners;
+  const listeners = state2().listeners;
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
@@ -8204,48 +8612,25 @@ function observeTextSize(input) {
   };
 }
 
-// src/vanilla/dom.ts
-function element8(tag, className = "", text) {
-  const node = document.createElement(tag);
-  node.className = className;
-  if (text !== void 0)
-    node.textContent = text;
-  if (tag === "button")
-    node.type = "button";
-  return node;
-}
-function svg(tag, attrs = {}) {
-  const node = document.createElementNS("http://www.w3.org/2000/svg", tag);
-  for (const [key, value] of Object.entries(attrs))
-    node.setAttribute(key, String(value));
-  return node;
-}
-function icon2(paths, className = "", viewBox = "0 0 24 24") {
-  const node = svg("svg", { class: className, viewBox, fill: "none", stroke: "currentColor", "stroke-width": 2, "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true" });
-  for (const d of typeof paths === "string" ? [paths] : paths)
-    node.append(svg("path", { d }));
-  return node;
-}
-
 // src/vanilla/controls.ts
 function appendShortcut(label, shortcut, active = false, toggle = false) {
   if (!shortcut)
     return;
-  label.append(element8("span", `dialkit-shortcut-pill${active ? " dialkit-shortcut-pill-active" : ""}`, toggle ? formatToggleShortcut(shortcut) : formatSliderShortcut(shortcut)));
+  label.append(element6("span", `dialkit-shortcut-pill${active ? " dialkit-shortcut-pill-active" : ""}`, toggle ? formatToggleShortcut(shortcut) : formatSliderShortcut(shortcut)));
 }
 function mountSlider(host, initial) {
   let props = initial;
-  const wrapper = element8("div", "dialkit-slider-wrapper");
-  const track = element8("div", "dialkit-slider");
+  const wrapper = element6("div", "dialkit-slider-wrapper");
+  const track = element6("div", "dialkit-slider");
   track.tabIndex = 0;
   track.setAttribute("role", "slider");
-  const hashes = element8("div", "dialkit-slider-hashmarks");
-  const fill = element8("div", "dialkit-slider-fill");
-  const handle = element8("div", "dialkit-slider-handle");
-  const label = element8("span", "dialkit-slider-label");
-  const display = element8("span", "dialkit-slider-value");
-  const unit = element8("span", "dialkit-slider-unit");
-  const input = element8("input", "dialkit-slider-input");
+  const hashes = element6("div", "dialkit-slider-hashmarks");
+  const fill = element6("div", "dialkit-slider-fill");
+  const handle = element6("div", "dialkit-slider-handle");
+  const label = element6("span", "dialkit-slider-label");
+  const display = element6("span", "dialkit-slider-value");
+  const unit = element6("span", "dialkit-slider-unit");
+  const input = element6("input", "dialkit-slider-input");
   input.type = "text";
   input.inputMode = "decimal";
   input.style.display = "none";
@@ -8300,7 +8685,7 @@ function mountSlider(host, initial) {
       hashes.replaceChildren();
       const count = (max - min) / step;
       for (let i = 1; i < (count <= 10 ? count : 10); i++) {
-        const hash = element8("div", "dialkit-slider-hashmark");
+        const hash = element6("div", "dialkit-slider-hashmark");
         hash.style.left = `${count <= 10 ? i / count * 100 : i * 10}%`;
         hashes.append(hash);
       }
@@ -9735,15 +10120,15 @@ function mountBackgroundControl(host, initial) {
 }
 
 // src/solid/components/BackgroundControl.tsx
-var _tmpl$16 = /* @__PURE__ */ _$template8(`<div class=dialkit-background-host>`);
+var _tmpl$17 = /* @__PURE__ */ _$template9(`<div class=dialkit-background-host>`);
 function BackgroundControl(props) {
   let host;
   let control;
-  onMount9(() => {
+  onMount10(() => {
     control = mountBackgroundControl(host, {
       ...props
     });
-    createEffect10(() => control?.update({
+    createEffect11(() => control?.update({
       panelId: props.panelId,
       label: props.label,
       value: props.value,
@@ -9751,31 +10136,31 @@ function BackgroundControl(props) {
       onChange: props.onChange
     }));
   });
-  onCleanup12(() => control?.destroy());
+  onCleanup13(() => control?.destroy());
   return (() => {
-    var _el$ = _tmpl$16();
+    var _el$ = _tmpl$17();
     var _ref$ = host;
-    typeof _ref$ === "function" ? _$use8(_ref$, _el$) : host = _el$;
+    typeof _ref$ === "function" ? _$use9(_ref$, _el$) : host = _el$;
     return _el$;
   })();
 }
 
 // src/solid/components/SelectControl.tsx
-import { template as _$template10 } from "solid-js/web";
+import { template as _$template11 } from "solid-js/web";
 import { delegateEvents as _$delegateEvents4 } from "solid-js/web";
 import { style as _$style } from "solid-js/web";
 import { memo as _$memo3 } from "solid-js/web";
-import { use as _$use10 } from "solid-js/web";
+import { use as _$use11 } from "solid-js/web";
 import { setAttribute as _$setAttribute4 } from "solid-js/web";
 import { effect as _$effect4 } from "solid-js/web";
 import { insert as _$insert4 } from "solid-js/web";
 import { createComponent as _$createComponent5 } from "solid-js/web";
-import { createSignal as createSignal7, createEffect as createEffect12, on as on4, onMount as onMount11, onCleanup as onCleanup14, Show as Show4, For as For2 } from "solid-js";
+import { createSignal as createSignal7, createEffect as createEffect13, on as on4, onMount as onMount12, onCleanup as onCleanup15, Show as Show4, For as For2 } from "solid-js";
 import { Portal } from "solid-js/web";
 import { animate as animate3 } from "motion";
 
 // src/solid/components/SegmentedControl.tsx
-import { template as _$template9 } from "solid-js/web";
+import { template as _$template10 } from "solid-js/web";
 import { delegateEvents as _$delegateEvents3 } from "solid-js/web";
 import { setStyleProperty as _$setStyleProperty2 } from "solid-js/web";
 import { setAttribute as _$setAttribute3 } from "solid-js/web";
@@ -9783,13 +10168,13 @@ import { effect as _$effect3 } from "solid-js/web";
 import { insert as _$insert3 } from "solid-js/web";
 import { createComponent as _$createComponent4 } from "solid-js/web";
 import { addEventListener as _$addEventListener } from "solid-js/web";
-import { use as _$use9 } from "solid-js/web";
-import { createSignal as createSignal6, createEffect as createEffect11, on as on3, onMount as onMount10, onCleanup as onCleanup13, For, Show as Show3 } from "solid-js";
-var _tmpl$17 = /* @__PURE__ */ _$template9(`<div class=dialkit-segmented role=radiogroup>`);
-var _tmpl$23 = /* @__PURE__ */ _$template9(`<div class=dialkit-segmented-pill>`);
-var _tmpl$33 = /* @__PURE__ */ _$template9(`<button class=dialkit-segmented-button type=button role=radio>`);
-var _tmpl$43 = /* @__PURE__ */ _$template9(`<svg class=dialkit-segmented-icon viewBox="0 0 24 24"fill=none stroke=currentColor stroke-width=2 stroke-linecap=round stroke-linejoin=round aria-hidden=true>`);
-var _tmpl$53 = /* @__PURE__ */ _$template9(`<svg><path></svg>`, false, true, false);
+import { use as _$use10 } from "solid-js/web";
+import { createSignal as createSignal6, createEffect as createEffect12, on as on3, onMount as onMount11, onCleanup as onCleanup14, For, Show as Show3 } from "solid-js";
+var _tmpl$18 = /* @__PURE__ */ _$template10(`<div class=dialkit-segmented role=radiogroup>`);
+var _tmpl$23 = /* @__PURE__ */ _$template10(`<div class=dialkit-segmented-pill>`);
+var _tmpl$33 = /* @__PURE__ */ _$template10(`<button class=dialkit-segmented-button type=button role=radio>`);
+var _tmpl$43 = /* @__PURE__ */ _$template10(`<svg class=dialkit-segmented-icon viewBox="0 0 24 24"fill=none stroke=currentColor stroke-width=2 stroke-linecap=round stroke-linejoin=round aria-hidden=true>`);
+var _tmpl$53 = /* @__PURE__ */ _$template10(`<svg><path></svg>`, false, true, false);
 function SegmentedControl(props) {
   let containerRef;
   const [pillStyle, setPillStyle] = createSignal6(null);
@@ -9807,23 +10192,23 @@ function SegmentedControl(props) {
       width: buttonRect.width / containerRect.width * 100
     });
   };
-  createEffect11(on3(() => [props.value, props.options.length], measure));
-  createEffect11(on3(() => props.value, () => setHasChanged(true), {
+  createEffect12(on3(() => [props.value, props.options.length], measure));
+  createEffect12(on3(() => props.value, () => setHasChanged(true), {
     defer: true
   }));
-  onMount10(() => {
+  onMount11(() => {
     if (!containerRef) return;
     labelSegmentedControl(containerRef);
     const ro = new ResizeObserver(measure);
     ro.observe(containerRef);
-    onCleanup13(() => ro.disconnect());
+    onCleanup14(() => ro.disconnect());
   });
   const transition = () => hasChanged() ? "left 0.2s cubic-bezier(0.25, 1, 0.5, 1), width 0.2s cubic-bezier(0.25, 1, 0.5, 1)" : "none";
   return (() => {
-    var _el$ = _tmpl$17();
+    var _el$ = _tmpl$18();
     _$addEventListener(_el$, "keydown", handleSegmentKey, true);
     var _ref$ = containerRef;
-    typeof _ref$ === "function" ? _$use9(_ref$, _el$) : containerRef = _el$;
+    typeof _ref$ === "function" ? _$use10(_ref$, _el$) : containerRef = _el$;
     _$insert3(_el$, _$createComponent4(Show3, {
       get when() {
         return pillStyle();
@@ -9896,11 +10281,11 @@ function SegmentedControl(props) {
 _$delegateEvents3(["keydown", "click"]);
 
 // src/solid/components/SelectControl.tsx
-var _tmpl$18 = /* @__PURE__ */ _$template10(`<span class=dialkit-labeled-control-label>`);
-var _tmpl$24 = /* @__PURE__ */ _$template10(`<div class=dialkit-labeled-control>`);
-var _tmpl$34 = /* @__PURE__ */ _$template10(`<div class=dialkit-select-dropdown>`);
-var _tmpl$44 = /* @__PURE__ */ _$template10(`<div class=dialkit-select-row><button class=dialkit-select-trigger type=button aria-haspopup=listbox><span class=dialkit-select-label></span><div class=dialkit-select-right><span class=dialkit-select-value></span><svg class=dialkit-select-chevron viewBox="0 0 24 24"fill=none stroke=currentColor stroke-width=2.5 stroke-linecap=round stroke-linejoin=round><path>`);
-var _tmpl$54 = /* @__PURE__ */ _$template10(`<button class=dialkit-select-option>`);
+var _tmpl$19 = /* @__PURE__ */ _$template11(`<span class=dialkit-labeled-control-label>`);
+var _tmpl$24 = /* @__PURE__ */ _$template11(`<div class=dialkit-labeled-control>`);
+var _tmpl$34 = /* @__PURE__ */ _$template11(`<div class=dialkit-select-dropdown>`);
+var _tmpl$44 = /* @__PURE__ */ _$template11(`<div class=dialkit-select-row><button class=dialkit-select-trigger type=button aria-haspopup=listbox><span class=dialkit-select-label></span><div class=dialkit-select-right><span class=dialkit-select-value></span><svg class=dialkit-select-chevron viewBox="0 0 24 24"fill=none stroke=currentColor stroke-width=2.5 stroke-linecap=round stroke-linejoin=round><path>`);
+var _tmpl$54 = /* @__PURE__ */ _$template11(`<button class=dialkit-select-option>`);
 function toTitleCase(s) {
   return s.replace(/\b\w/g, (c) => c.toUpperCase());
 }
@@ -9932,7 +10317,7 @@ function SegmentedSelect(props) {
         return !props.hideLabel;
       },
       get children() {
-        var _el$2 = _tmpl$18();
+        var _el$2 = _tmpl$19();
         _$insert4(_el$2, () => props.label);
         return _el$2;
       }
@@ -9982,11 +10367,11 @@ function SelectDropdown(props) {
     bounce: 0,
     onComplete: done
   }));
-  onMount11(() => {
+  onMount12(() => {
     setPortalTarget(getDialKitPortalRoot(triggerRef) ?? document.body);
-    onCleanup14(() => chevronAnim?.stop());
+    onCleanup15(() => chevronAnim?.stop());
   });
-  createEffect12(on4(dropdown.isOpen, (open) => {
+  createEffect13(on4(dropdown.isOpen, (open) => {
     if (!chevronRef) return;
     chevronAnim?.stop();
     chevronAnim = animate3(chevronRef, {
@@ -10008,10 +10393,10 @@ function SelectDropdown(props) {
       fixed: true
     }));
   };
-  createEffect12(() => {
+  createEffect13(() => {
     if (!dropdown.isOpen() || !triggerRef) return;
-    onCleanup14(observeDropdownPosition(triggerRef, updatePos, () => dropdownRef));
-    onCleanup14(observeDropdownKeyboard(triggerRef, () => dropdownRef, dropdown.close));
+    onCleanup15(observeDropdownPosition(triggerRef, updatePos, () => dropdownRef));
+    onCleanup15(observeDropdownKeyboard(triggerRef, () => dropdownRef, dropdown.close));
   });
   const openDropdown = () => {
     updatePos();
@@ -10040,11 +10425,11 @@ function SelectDropdown(props) {
     _el$4.$$keydown = (e) => openDropdownOnKey(e, openDropdown);
     _el$4.$$click = () => dropdown.isOpen() ? dropdown.close() : openDropdown();
     var _ref$ = triggerRef;
-    typeof _ref$ === "function" ? _$use10(_ref$, _el$4) : triggerRef = _el$4;
+    typeof _ref$ === "function" ? _$use11(_ref$, _el$4) : triggerRef = _el$4;
     _$insert4(_el$5, () => props.label);
     _$insert4(_el$7, () => selectedOption()?.label ?? props.value);
     var _ref$2 = chevronRef;
-    typeof _ref$2 === "function" ? _$use10(_ref$2, _el$8) : chevronRef = _el$8;
+    typeof _ref$2 === "function" ? _$use11(_ref$2, _el$8) : chevronRef = _el$8;
     _$setAttribute4(_el$9, "d", ICON_CHEVRON);
     _$insert4(_el$3, _$createComponent5(Show4, {
       get when() {
@@ -10062,7 +10447,7 @@ function SelectDropdown(props) {
               },
               get children() {
                 var _el$0 = _tmpl$34();
-                _$use10((el) => {
+                _$use11((el) => {
                   dropdownRef = el;
                   dropdown.setRef(el);
                   const above = pos()?.above ?? false;
@@ -10118,7 +10503,7 @@ function SelectDropdown(props) {
 _$delegateEvents4(["click", "keydown"]);
 
 // src/solid/components/Slider.tsx
-import { template as _$template11 } from "solid-js/web";
+import { template as _$template12 } from "solid-js/web";
 import { delegateEvents as _$delegateEvents5 } from "solid-js/web";
 import { setAttribute as _$setAttribute5 } from "solid-js/web";
 import { memo as _$memo4 } from "solid-js/web";
@@ -10126,15 +10511,15 @@ import { createComponent as _$createComponent6 } from "solid-js/web";
 import { className as _$className2 } from "solid-js/web";
 import { effect as _$effect5 } from "solid-js/web";
 import { insert as _$insert5 } from "solid-js/web";
-import { use as _$use11 } from "solid-js/web";
+import { use as _$use12 } from "solid-js/web";
 import { setStyleProperty as _$setStyleProperty3 } from "solid-js/web";
-import { createSignal as createSignal8, createEffect as createEffect13, onMount as onMount12, onCleanup as onCleanup15, Show as Show5 } from "solid-js";
+import { createSignal as createSignal8, createEffect as createEffect14, onMount as onMount13, onCleanup as onCleanup16, Show as Show5 } from "solid-js";
 import { animate as animate4, motionValue } from "motion";
-var _tmpl$19 = /* @__PURE__ */ _$template11(`<div class=dialkit-slider-hashmark>`);
-var _tmpl$25 = /* @__PURE__ */ _$template11(`<span>`);
-var _tmpl$35 = /* @__PURE__ */ _$template11(`<div class=dialkit-slider-wrapper><div role=slider><div class=dialkit-slider-hashmarks></div><div class=dialkit-slider-fill></div><div class=dialkit-slider-handle style="transform:translateY(-50%) scaleX(0.25) scaleY(1);opacity:0"></div><span class=dialkit-slider-label>`);
-var _tmpl$45 = /* @__PURE__ */ _$template11(`<input type=text class=dialkit-slider-input>`);
-var _tmpl$55 = /* @__PURE__ */ _$template11(`<span class=dialkit-slider-unit>`);
+var _tmpl$20 = /* @__PURE__ */ _$template12(`<div class=dialkit-slider-hashmark>`);
+var _tmpl$25 = /* @__PURE__ */ _$template12(`<span>`);
+var _tmpl$35 = /* @__PURE__ */ _$template12(`<div class=dialkit-slider-wrapper><div role=slider><div class=dialkit-slider-hashmarks></div><div class=dialkit-slider-fill></div><div class=dialkit-slider-handle style="transform:translateY(-50%) scaleX(0.25) scaleY(1);opacity:0"></div><span class=dialkit-slider-label>`);
+var _tmpl$45 = /* @__PURE__ */ _$template12(`<input type=text class=dialkit-slider-input>`);
+var _tmpl$55 = /* @__PURE__ */ _$template12(`<span class=dialkit-slider-unit>`);
 var CLICK_THRESHOLD = 3;
 var DEAD_ZONE = 32;
 var MAX_CURSOR_RANGE = 200;
@@ -10185,7 +10570,7 @@ function Slider(props) {
     handleRef.style.transform = `translateY(-50%) scaleX(${handleScaleXMv.get()}) scaleY(${handleScaleYMv.get()})`;
   };
   let seenResetCount = props.resetCount ?? 0;
-  createEffect13(() => {
+  createEffect14(() => {
     const pct = (props.value - min()) / (max() - min()) * 100;
     const resetCount = props.resetCount ?? 0;
     const isReset = seenResetCount !== resetCount;
@@ -10313,11 +10698,11 @@ function Slider(props) {
   const handlePointerCancel = () => {
     cancelInteraction();
   };
-  createEffect13(() => {
+  createEffect14(() => {
     const hovered = isValueHovered();
     const editing = showInput();
     const editable = isValueEditable();
-    onCleanup15(() => {
+    onCleanup16(() => {
       if (hoverTimeout) {
         clearTimeout(hoverTimeout);
         hoverTimeout = null;
@@ -10329,7 +10714,7 @@ function Slider(props) {
       setIsValueEditable(false);
     }
   });
-  onCleanup15(() => {
+  onCleanup16(() => {
     if (hoverTimeout) clearTimeout(hoverTimeout);
     snapAnim?.stop();
     rubberAnim?.stop();
@@ -10337,7 +10722,7 @@ function Slider(props) {
     handleScaleXAnim?.stop();
     handleScaleYAnim?.stop();
   });
-  onMount12(() => {
+  onMount13(() => {
     const unsubFill = fillPercent.on("change", applyFillStyles);
     const unsubRubber = rubberStretchPx.on("change", applyRubberStyles);
     const unsubHandleOpacity = handleOpacityMv.on("change", applyHandleVisualStyles);
@@ -10346,7 +10731,7 @@ function Slider(props) {
     applyFillStyles(fillPercent.get());
     applyRubberStyles(rubberStretchPx.get());
     applyHandleVisualStyles();
-    onCleanup15(() => {
+    onCleanup16(() => {
       unsubFill();
       unsubRubber();
       unsubHandleOpacity();
@@ -10354,7 +10739,7 @@ function Slider(props) {
       unsubHandleScaleY();
     });
   });
-  createEffect13(() => {
+  createEffect14(() => {
     if (showInput() && inputRef) {
       inputRef.focus();
       inputRef.select();
@@ -10420,7 +10805,7 @@ function Slider(props) {
     if (isDragging()) return 0.9;
     return 0.5;
   };
-  createEffect13(() => {
+  createEffect14(() => {
     const targetOpacity = handleOpacity();
     const targetScaleX = isActive() ? 1 : 0.25;
     const targetScaleY = isActive() && valueDodge() ? 0.75 : 1;
@@ -10450,7 +10835,7 @@ function Slider(props) {
       }, (_, i) => {
         const pct = (i + 1) * step() / (max() - min()) * 100;
         return (() => {
-          var _el$ = _tmpl$19();
+          var _el$ = _tmpl$20();
           _$setStyleProperty3(_el$, "left", `${pct}%`);
           return _el$;
         })();
@@ -10461,7 +10846,7 @@ function Slider(props) {
     }, (_, i) => {
       const pct = (i + 1) * 10;
       return (() => {
-        var _el$2 = _tmpl$19();
+        var _el$2 = _tmpl$20();
         _$setStyleProperty3(_el$2, "left", `${pct}%`);
         return _el$2;
       })();
@@ -10470,7 +10855,7 @@ function Slider(props) {
   return (() => {
     var _el$3 = _tmpl$35(), _el$4 = _el$3.firstChild, _el$5 = _el$4.firstChild, _el$6 = _el$5.nextSibling, _el$7 = _el$6.nextSibling, _el$8 = _el$7.nextSibling;
     var _ref$ = wrapperRef;
-    typeof _ref$ === "function" ? _$use11(_ref$, _el$3) : wrapperRef = _el$3;
+    typeof _ref$ === "function" ? _$use12(_ref$, _el$3) : wrapperRef = _el$3;
     _el$4.addEventListener("mouseleave", () => setIsHovered(false));
     _el$4.addEventListener("mouseenter", () => setIsHovered(true));
     _el$4.addEventListener("pointercancel", handlePointerCancel);
@@ -10488,14 +10873,14 @@ function Slider(props) {
       setShowInput(true);
     });
     var _ref$2 = trackRef;
-    typeof _ref$2 === "function" ? _$use11(_ref$2, _el$4) : trackRef = _el$4;
+    typeof _ref$2 === "function" ? _$use12(_ref$2, _el$4) : trackRef = _el$4;
     _$insert5(_el$5, hashMarks);
     var _ref$3 = fillRef;
-    typeof _ref$3 === "function" ? _$use11(_ref$3, _el$6) : fillRef = _el$6;
+    typeof _ref$3 === "function" ? _$use12(_ref$3, _el$6) : fillRef = _el$6;
     var _ref$4 = handleRef;
-    typeof _ref$4 === "function" ? _$use11(_ref$4, _el$7) : handleRef = _el$7;
+    typeof _ref$4 === "function" ? _$use12(_ref$4, _el$7) : handleRef = _el$7;
     var _ref$5 = labelRef;
-    typeof _ref$5 === "function" ? _$use11(_ref$5, _el$8) : labelRef = _el$8;
+    typeof _ref$5 === "function" ? _$use12(_ref$5, _el$8) : labelRef = _el$8;
     _$insert5(_el$8, () => props.label, null);
     _$insert5(_el$8, _$createComponent6(Show5, {
       get when() {
@@ -10519,7 +10904,7 @@ function Slider(props) {
         _el$0.$$keydown = handleInputKeyDown;
         _el$0.$$input = (e) => setInputValue(e.currentTarget.value);
         var _ref$6 = inputRef;
-        typeof _ref$6 === "function" ? _$use11(_ref$6, _el$0) : inputRef = _el$0;
+        typeof _ref$6 === "function" ? _$use12(_ref$6, _el$0) : inputRef = _el$0;
         _$effect5(() => _$setAttribute5(_el$0, "aria-label", `${props.label} value`));
         _$effect5(() => _el$0.value = inputValue());
         return _el$0;
@@ -10531,7 +10916,7 @@ function Slider(props) {
         _el$1.addEventListener("mouseleave", () => setIsValueHovered(false));
         _el$1.addEventListener("mouseenter", () => setIsValueHovered(true));
         var _ref$7 = valueSpanRef;
-        typeof _ref$7 === "function" ? _$use11(_ref$7, _el$1) : valueSpanRef = _el$1;
+        typeof _ref$7 === "function" ? _$use12(_ref$7, _el$1) : valueSpanRef = _el$1;
         _$insert5(_el$1, displayValue, null);
         _$insert5(_el$1, _$createComponent6(Show5, {
           get when() {
@@ -10587,18 +10972,18 @@ function Slider(props) {
 _$delegateEvents5(["keydown", "pointerdown", "pointermove", "pointerup", "input", "click", "mousedown"]);
 
 // src/solid/components/SpringControl.tsx
-import { template as _$template13 } from "solid-js/web";
+import { template as _$template14 } from "solid-js/web";
 import { memo as _$memo5 } from "solid-js/web";
 import { insert as _$insert7 } from "solid-js/web";
 import { createComponent as _$createComponent7 } from "solid-js/web";
 
 // src/solid/components/SpringVisualization.tsx
-import { template as _$template12 } from "solid-js/web";
+import { template as _$template13 } from "solid-js/web";
 import { effect as _$effect6 } from "solid-js/web";
 import { insert as _$insert6 } from "solid-js/web";
 import { setAttribute as _$setAttribute6 } from "solid-js/web";
-var _tmpl$20 = /* @__PURE__ */ _$template12(`<svg><line stroke="rgba(255, 255, 255, 0.08)"stroke-width=1></svg>`, false, true, false);
-var _tmpl$26 = /* @__PURE__ */ _$template12(`<svg viewBox="0 0 256 140"class=dialkit-spring-viz><line x1=0 y1=70 x2=256 y2=70 stroke="rgba(255, 255, 255, 0.15)"stroke-width=1 stroke-dasharray=4,4></line><path fill=none stroke="rgba(255, 255, 255, 0.6)"stroke-width=2 stroke-linecap=round stroke-linejoin=round>`);
+var _tmpl$21 = /* @__PURE__ */ _$template13(`<svg><line stroke="rgba(255, 255, 255, 0.08)"stroke-width=1></svg>`, false, true, false);
+var _tmpl$26 = /* @__PURE__ */ _$template13(`<svg viewBox="0 0 256 140"class=dialkit-spring-viz><line x1=0 y1=70 x2=256 y2=70 stroke="rgba(255, 255, 255, 0.15)"stroke-width=1 stroke-dasharray=4,4></line><path fill=none stroke="rgba(255, 255, 255, 0.6)"stroke-width=2 stroke-linecap=round stroke-linejoin=round>`);
 function generateSpringCurve(stiffness, damping, mass, duration) {
   const points = [];
   const steps = 100;
@@ -10661,7 +11046,7 @@ function SpringVisualization(props) {
   };
   function createLine(x1, y1, x2, y2) {
     return (() => {
-      var _el$ = _tmpl$20();
+      var _el$ = _tmpl$21();
       _$setAttribute6(_el$, "x1", x1);
       _$setAttribute6(_el$, "y1", y1);
       _$setAttribute6(_el$, "x2", x2);
@@ -10678,7 +11063,7 @@ function SpringVisualization(props) {
 }
 
 // src/solid/components/SpringControl.tsx
-var _tmpl$21 = /* @__PURE__ */ _$template13(`<div style=display:flex;flex-direction:column;gap:6px><div class="dialkit-labeled-control dialkit-transition-type"><span class=dialkit-labeled-control-label>Type`);
+var _tmpl$27 = /* @__PURE__ */ _$template14(`<div style=display:flex;flex-direction:column;gap:6px><div class="dialkit-labeled-control dialkit-transition-type"><span class=dialkit-labeled-control-label>Type`);
 function SpringControl(props) {
   const mode = fromStore(() => DialStore.getSpringMode(props.panelId, props.path), (notify2) => DialStore.subscribe(props.panelId, notify2));
   const isSimpleMode = () => mode() === "simple";
@@ -10747,7 +11132,7 @@ function SpringControl(props) {
       return props.changed;
     },
     get children() {
-      var _el$ = _tmpl$21(), _el$2 = _el$.firstChild, _el$3 = _el$2.firstChild;
+      var _el$ = _tmpl$27(), _el$2 = _el$.firstChild, _el$3 = _el$2.firstChild;
       _$insert7(_el$2, _$createComponent7(SegmentedControl, {
         options: [{
           value: "simple",
@@ -10840,35 +11225,35 @@ function SpringControl(props) {
 }
 
 // src/solid/components/TextControl.tsx
-import { template as _$template14 } from "solid-js/web";
+import { template as _$template15 } from "solid-js/web";
 import { delegateEvents as _$delegateEvents6 } from "solid-js/web";
 import { effect as _$effect7 } from "solid-js/web";
-import { use as _$use12 } from "solid-js/web";
+import { use as _$use13 } from "solid-js/web";
 import { insert as _$insert8 } from "solid-js/web";
 import { setAttribute as _$setAttribute7 } from "solid-js/web";
-import { createEffect as createEffect14, createUniqueId as createUniqueId3, onCleanup as onCleanup16, onMount as onMount13 } from "solid-js";
-var _tmpl$27 = /* @__PURE__ */ _$template14(`<div class=dialkit-text-control><label class=dialkit-text-label></label><textarea rows=1 class=dialkit-text-input>`);
+import { createEffect as createEffect15, createUniqueId as createUniqueId3, onCleanup as onCleanup17, onMount as onMount14 } from "solid-js";
+var _tmpl$28 = /* @__PURE__ */ _$template15(`<div class=dialkit-text-control><label class=dialkit-text-label></label><textarea rows=1 class=dialkit-text-input>`);
 function TextControl(props) {
   createHints(() => !!props.hint);
   const inputId = createUniqueId3();
   let inputRef;
   let size;
-  onMount13(() => {
+  onMount14(() => {
     size = observeTextSize(inputRef);
   });
-  onCleanup16(() => size?.destroy());
-  createEffect14(() => {
+  onCleanup17(() => size?.destroy());
+  createEffect15(() => {
     props.value;
     props.placeholder;
     size?.update();
   });
   return (() => {
-    var _el$ = _tmpl$27(), _el$2 = _el$.firstChild, _el$3 = _el$2.nextSibling;
+    var _el$ = _tmpl$28(), _el$2 = _el$.firstChild, _el$3 = _el$2.nextSibling;
     _$setAttribute7(_el$2, "for", inputId);
     _$insert8(_el$2, () => props.label);
     _el$3.$$input = (e) => props.onChange(e.currentTarget.value);
     var _ref$ = inputRef;
-    typeof _ref$ === "function" ? _$use12(_ref$, _el$3) : inputRef = _el$3;
+    typeof _ref$ === "function" ? _$use13(_ref$, _el$3) : inputRef = _el$3;
     _$setAttribute7(_el$3, "id", inputId);
     _$effect7((_p$) => {
       var _v$ = props.hint, _v$2 = props.placeholder;
@@ -10886,7 +11271,7 @@ function TextControl(props) {
 _$delegateEvents6(["input"]);
 
 // src/solid/components/Toggle.tsx
-import { template as _$template15 } from "solid-js/web";
+import { template as _$template16 } from "solid-js/web";
 import { setAttribute as _$setAttribute8 } from "solid-js/web";
 import { memo as _$memo6 } from "solid-js/web";
 import { createComponent as _$createComponent8 } from "solid-js/web";
@@ -10894,19 +11279,19 @@ import { className as _$className3 } from "solid-js/web";
 import { effect as _$effect8 } from "solid-js/web";
 import { insert as _$insert9 } from "solid-js/web";
 import { Show as Show6 } from "solid-js";
-var _tmpl$28 = /* @__PURE__ */ _$template15(`<span>`);
-var _tmpl$29 = /* @__PURE__ */ _$template15(`<div class=dialkit-labeled-control><span class=dialkit-labeled-control-label>`);
+var _tmpl$29 = /* @__PURE__ */ _$template16(`<span>`);
+var _tmpl$210 = /* @__PURE__ */ _$template16(`<div class=dialkit-labeled-control><span class=dialkit-labeled-control-label>`);
 function Toggle(props) {
   createHints(() => !!props.hint);
   return (() => {
-    var _el$ = _tmpl$29(), _el$2 = _el$.firstChild;
+    var _el$ = _tmpl$210(), _el$2 = _el$.firstChild;
     _$insert9(_el$2, () => props.label, null);
     _$insert9(_el$2, _$createComponent8(Show6, {
       get when() {
         return props.shortcut;
       },
       get children() {
-        var _el$3 = _tmpl$28();
+        var _el$3 = _tmpl$29();
         _$insert9(_el$3, () => formatToggleShortcut(props.shortcut));
         _$effect8(() => _$className3(_el$3, `dialkit-shortcut-pill${props.shortcutActive ? " dialkit-shortcut-pill-active" : ""}`));
         return _el$3;
@@ -10931,8 +11316,8 @@ function Toggle(props) {
 }
 
 // src/solid/components/TransitionControl.tsx
-import { template as _$template17 } from "solid-js/web";
-import { use as _$use14 } from "solid-js/web";
+import { template as _$template18 } from "solid-js/web";
+import { use as _$use15 } from "solid-js/web";
 import { setAttribute as _$setAttribute9 } from "solid-js/web";
 import { effect as _$effect9 } from "solid-js/web";
 import { insert as _$insert10 } from "solid-js/web";
@@ -11260,7 +11645,7 @@ function mountEaseFields(host, initial) {
 }
 
 // src/solid/components/TransitionControl.tsx
-import { createEffect as createEffect16, onCleanup as onCleanup18, onMount as onMount15, Show as Show7 } from "solid-js";
+import { createEffect as createEffect17, onCleanup as onCleanup19, onMount as onMount16, Show as Show7 } from "solid-js";
 
 // src/transition-presets-control.ts
 function element10(tag, className, text) {
@@ -11604,34 +11989,34 @@ function mountTransitionCopy(host, initial) {
 }
 
 // src/solid/components/EasingVisualization.tsx
-import { template as _$template16 } from "solid-js/web";
-import { use as _$use13 } from "solid-js/web";
-import { createEffect as createEffect15, onCleanup as onCleanup17, onMount as onMount14 } from "solid-js";
-var _tmpl$30 = /* @__PURE__ */ _$template16(`<div class=dialkit-easing-host>`);
+import { template as _$template17 } from "solid-js/web";
+import { use as _$use14 } from "solid-js/web";
+import { createEffect as createEffect16, onCleanup as onCleanup18, onMount as onMount15 } from "solid-js";
+var _tmpl$30 = /* @__PURE__ */ _$template17(`<div class=dialkit-easing-host>`);
 function EasingVisualization(props) {
   let host;
   let control;
-  onMount14(() => {
+  onMount15(() => {
     control = mountEasingVisualization(host, {
       ...props
     });
-    createEffect15(() => control?.update({
+    createEffect16(() => control?.update({
       easing: props.easing,
       onChange: props.onChange
     }));
   });
-  onCleanup17(() => control?.destroy());
+  onCleanup18(() => control?.destroy());
   return (() => {
     var _el$ = _tmpl$30();
     var _ref$ = host;
-    typeof _ref$ === "function" ? _$use13(_ref$, _el$) : host = _el$;
+    typeof _ref$ === "function" ? _$use14(_ref$, _el$) : host = _el$;
     return _el$;
   })();
 }
 
 // src/solid/components/TransitionControl.tsx
-var _tmpl$31 = /* @__PURE__ */ _$template17(`<div style=display:flex;flex-direction:column;gap:var(--dial-row-gap)><div class="dialkit-labeled-control dialkit-transition-type"><span class=dialkit-labeled-control-label>Type`);
-var _tmpl$210 = /* @__PURE__ */ _$template17(`<div>`);
+var _tmpl$31 = /* @__PURE__ */ _$template18(`<div style=display:flex;flex-direction:column;gap:var(--dial-row-gap)><div class="dialkit-labeled-control dialkit-transition-type"><span class=dialkit-labeled-control-label>Type`);
+var _tmpl$211 = /* @__PURE__ */ _$template18(`<div>`);
 function TransitionControl(props) {
   const mode = fromStore(() => DialStore.getTransitionMode(props.panelId, props.path), (notify2) => DialStore.subscribe(props.panelId, notify2));
   createHints(() => true);
@@ -11934,62 +12319,62 @@ function TransitionControl(props) {
 function EaseFields(props) {
   let host;
   let control;
-  onMount15(() => {
+  onMount16(() => {
     control = mountEaseFields(host, {
       ...props
     });
-    createEffect16(() => control?.update({
+    createEffect17(() => control?.update({
       ease: props.ease,
       onChange: props.onChange
     }));
   });
-  onCleanup18(() => control?.destroy());
+  onCleanup19(() => control?.destroy());
   return (() => {
-    var _el$4 = _tmpl$210();
+    var _el$4 = _tmpl$211();
     var _ref$ = host;
-    typeof _ref$ === "function" ? _$use14(_ref$, _el$4) : host = _el$4;
+    typeof _ref$ === "function" ? _$use15(_ref$, _el$4) : host = _el$4;
     return _el$4;
   })();
 }
 function TransitionPresets(props) {
   let host;
   let control;
-  onMount15(() => {
+  onMount16(() => {
     control = mountTransitionPresets(host, {
       ...props
     });
-    createEffect16(() => control?.update({
+    createEffect17(() => control?.update({
       mode: props.mode,
       value: props.value,
       onChange: props.onChange
     }));
   });
-  onCleanup18(() => control?.destroy());
+  onCleanup19(() => control?.destroy());
   return (() => {
-    var _el$5 = _tmpl$210();
+    var _el$5 = _tmpl$211();
     var _ref$2 = host;
-    typeof _ref$2 === "function" ? _$use14(_ref$2, _el$5) : host = _el$5;
+    typeof _ref$2 === "function" ? _$use15(_ref$2, _el$5) : host = _el$5;
     return _el$5;
   })();
 }
 function TransitionCopy(props) {
   let host;
   let control;
-  onMount15(() => {
+  onMount16(() => {
     control = mountTransitionCopy(host, {
       ...props
     });
-    createEffect16(() => control?.update({
+    createEffect17(() => control?.update({
       mode: props.mode,
       value: props.value,
       onPaste: props.onPaste
     }));
   });
-  onCleanup18(() => control?.destroy());
+  onCleanup19(() => control?.destroy());
   return (() => {
-    var _el$6 = _tmpl$210();
+    var _el$6 = _tmpl$211();
     var _ref$3 = host;
-    typeof _ref$3 === "function" ? _$use14(_ref$3, _el$6) : host = _el$6;
+    typeof _ref$3 === "function" ? _$use15(_ref$3, _el$6) : host = _el$6;
     return _el$6;
   })();
 }
@@ -12009,8 +12394,8 @@ function mergeControls(rendered, controls) {
 }
 
 // src/solid/components/ControlRenderer.tsx
-var _tmpl$36 = /* @__PURE__ */ _$template18(`<div class=dialkit-control-wrapper>`);
-var _tmpl$211 = /* @__PURE__ */ _$template18(`<button class=dialkit-button>`);
+var _tmpl$36 = /* @__PURE__ */ _$template19(`<div class=dialkit-control-wrapper>`);
+var _tmpl$212 = /* @__PURE__ */ _$template19(`<button class=dialkit-button>`);
 var hiddenControl = {
   opacity: 0,
   height: 0,
@@ -12029,14 +12414,14 @@ var controlTransition = {
 function AnimatedControls(props) {
   const [rows2, setRows] = createSignal9(props.controls);
   const present = createMemo3(() => new Set(props.controls.map((control) => control.path)));
-  createEffect17(on5(() => props.controls, (controls) => setRows((rendered) => mergeControls(rendered, controls)), {
+  createEffect18(on5(() => props.controls, (controls) => setRows((rendered) => mergeControls(rendered, controls)), {
     defer: true
   }));
   const remove = (path) => {
     if (!present().has(path)) setRows((rendered) => rendered.filter((control) => control.path !== path));
   };
   let mounted = false;
-  onMount16(() => {
+  onMount17(() => {
     mounted = true;
   });
   return _$createComponent10(For3, {
@@ -12060,14 +12445,14 @@ function AnimatedControls(props) {
           }
         });
       };
-      createEffect17(on5(() => present().has(path), slide, {
+      createEffect18(on5(() => present().has(path), slide, {
         defer: true
       }));
-      onCleanup19(() => animation?.stop());
+      onCleanup20(() => animation?.stop());
       const content = untrack3(() => props.children(control));
       return (() => {
         var _el$ = _tmpl$36();
-        _$use15((el) => {
+        _$use16((el) => {
           wrapper = el;
           if (!mounted) return;
           el.style.opacity = "0";
@@ -12360,6 +12745,22 @@ function ControlRenderer(props) {
           },
           onChange: (next) => DialStore.updateValue(props.panelId, control.path, next)
         });
+      case "pictures":
+        return _$createComponent10(PictureListControl, {
+          get label() {
+            return control.label;
+          },
+          get hint() {
+            return control.hint;
+          },
+          get families() {
+            return control.pictures?.families ?? [];
+          },
+          get value() {
+            return value();
+          },
+          onPick: (id) => DialStore.triggerAction(props.panelId, pictureAction(control.path, id))
+        });
       case "background":
         return _$createComponent10(Folder, _$mergeProps({
           get title() {
@@ -12390,7 +12791,7 @@ function ControlRenderer(props) {
         }));
       case "action":
         return (() => {
-          var _el$2 = _tmpl$211();
+          var _el$2 = _tmpl$212();
           _el$2.$$click = () => DialStore.triggerAction(props.panelId, control.path);
           _$insert11(_el$2, () => control.label);
           _$effect10(() => _$setAttribute10(_el$2, "data-hint", control.hint));
@@ -12405,10 +12806,10 @@ function ControlRenderer(props) {
 _$delegateEvents7(["click"]);
 
 // src/solid/components/PresetManager.tsx
-import { template as _$template19 } from "solid-js/web";
+import { template as _$template20 } from "solid-js/web";
 import { delegateEvents as _$delegateEvents8 } from "solid-js/web";
 import { setStyleProperty as _$setStyleProperty4 } from "solid-js/web";
-import { use as _$use16 } from "solid-js/web";
+import { use as _$use17 } from "solid-js/web";
 import { setAttribute as _$setAttribute11 } from "solid-js/web";
 import { effect as _$effect11 } from "solid-js/web";
 import { insert as _$insert12 } from "solid-js/web";
@@ -12575,20 +12976,20 @@ function observePresetMenu(getPopup, reorder) {
 }
 
 // src/solid/components/PresetManager.tsx
-import { createSignal as createSignal10, createEffect as createEffect18, on as on6, onMount as onMount17, onCleanup as onCleanup20, Show as Show8, For as For4 } from "solid-js";
+import { createSignal as createSignal10, createEffect as createEffect19, on as on6, onMount as onMount18, onCleanup as onCleanup21, Show as Show8, For as For4 } from "solid-js";
 import { Portal as Portal2 } from "solid-js/web";
 import { animate as animate6 } from "motion";
-var _tmpl$37 = /* @__PURE__ */ _$template19(`<button type=button class=dialkit-preset-lock>`);
-var _tmpl$212 = /* @__PURE__ */ _$template19(`<svg><path></svg>`, false, true, false);
-var _tmpl$38 = /* @__PURE__ */ _$template19(`<div class="dialkit-root dialkit-preset-dropdown"style=position:fixed><div class=dialkit-preset-item><svg class=dialkit-preset-check viewBox="0 0 24 24"fill=none stroke=currentColor stroke-width=2 stroke-linecap=round aria-hidden=true></svg><button type=button class=dialkit-preset-name></button></div><div class=dialkit-preset-divider role=separator></div><button type=button class=dialkit-preset-create><svg class=dialkit-preset-check viewBox="0 0 24 24"fill=none stroke=currentColor stroke-width=2.5 stroke-linecap=round aria-hidden=true><path></path></svg>New `);
-var _tmpl$46 = /* @__PURE__ */ _$template19(`<div class=dialkit-preset-manager><button class=dialkit-preset-trigger type=button aria-haspopup=menu aria-label=Versions><span class=dialkit-preset-label></span><svg class=dialkit-select-chevron viewBox="0 0 24 24"fill=none stroke=currentColor stroke-width=2.5 stroke-linecap=round stroke-linejoin=round style=opacity:0.6><path>`);
-var _tmpl$56 = /* @__PURE__ */ _$template19(`<input class=dialkit-preset-input aria-label="Version name">`);
-var _tmpl$63 = /* @__PURE__ */ _$template19(`<div class=dialkit-preset-item><svg class=dialkit-preset-check viewBox="0 0 24 24"fill=none stroke=currentColor stroke-width=2 stroke-linecap=round aria-hidden=true>`);
-var _tmpl$73 = /* @__PURE__ */ _$template19(`<button type=button class=dialkit-preset-name>`);
-var _tmpl$82 = /* @__PURE__ */ _$template19(`<button type=button class=dialkit-preset-more>`);
-var _tmpl$92 = /* @__PURE__ */ _$template19(`<button type=button class=dialkit-preset-delete>`);
-var _tmpl$02 = /* @__PURE__ */ _$template19(`<div class=dialkit-preset-actions><button type=button class=dialkit-preset-rename>`);
-var _tmpl$1 = /* @__PURE__ */ _$template19(`<svg viewBox="0 0 24 24"fill=none stroke=currentColor stroke-width=2 stroke-linecap=round stroke-linejoin=round aria-hidden=true>`);
+var _tmpl$37 = /* @__PURE__ */ _$template20(`<button type=button class=dialkit-preset-lock>`);
+var _tmpl$213 = /* @__PURE__ */ _$template20(`<svg><path></svg>`, false, true, false);
+var _tmpl$38 = /* @__PURE__ */ _$template20(`<div class="dialkit-root dialkit-preset-dropdown"style=position:fixed><div class=dialkit-preset-item><svg class=dialkit-preset-check viewBox="0 0 24 24"fill=none stroke=currentColor stroke-width=2 stroke-linecap=round aria-hidden=true></svg><button type=button class=dialkit-preset-name></button></div><div class=dialkit-preset-divider role=separator></div><button type=button class=dialkit-preset-create><svg class=dialkit-preset-check viewBox="0 0 24 24"fill=none stroke=currentColor stroke-width=2.5 stroke-linecap=round aria-hidden=true><path></path></svg>New `);
+var _tmpl$46 = /* @__PURE__ */ _$template20(`<div class=dialkit-preset-manager><button class=dialkit-preset-trigger type=button aria-haspopup=menu aria-label=Versions><span class=dialkit-preset-label></span><svg class=dialkit-select-chevron viewBox="0 0 24 24"fill=none stroke=currentColor stroke-width=2.5 stroke-linecap=round stroke-linejoin=round style=opacity:0.6><path>`);
+var _tmpl$56 = /* @__PURE__ */ _$template20(`<input class=dialkit-preset-input aria-label="Version name">`);
+var _tmpl$63 = /* @__PURE__ */ _$template20(`<div class=dialkit-preset-item><svg class=dialkit-preset-check viewBox="0 0 24 24"fill=none stroke=currentColor stroke-width=2 stroke-linecap=round aria-hidden=true>`);
+var _tmpl$73 = /* @__PURE__ */ _$template20(`<button type=button class=dialkit-preset-name>`);
+var _tmpl$82 = /* @__PURE__ */ _$template20(`<button type=button class=dialkit-preset-more>`);
+var _tmpl$92 = /* @__PURE__ */ _$template20(`<button type=button class=dialkit-preset-delete>`);
+var _tmpl$02 = /* @__PURE__ */ _$template20(`<div class=dialkit-preset-actions><button type=button class=dialkit-preset-rename>`);
+var _tmpl$1 = /* @__PURE__ */ _$template20(`<svg viewBox="0 0 24 24"fill=none stroke=currentColor stroke-width=2 stroke-linecap=round stroke-linejoin=round aria-hidden=true>`);
 function PresetManager(props) {
   createHints(() => true);
   const hints = () => versionHints(props.noun);
@@ -12614,11 +13015,11 @@ function PresetManager(props) {
     bounce: 0,
     onComplete: done
   }));
-  onMount17(() => {
+  onMount18(() => {
     setPortalTarget(getDialKitPortalRoot(triggerRef) ?? document.body);
-    onCleanup20(() => chevronAnim?.stop());
+    onCleanup21(() => chevronAnim?.stop());
   });
-  createEffect18(on6(dropdown.isOpen, (open) => {
+  createEffect19(on6(dropdown.isOpen, (open) => {
     if (!chevronRef) return;
     chevronAnim?.stop();
     chevronAnim = animate6(chevronRef, {
@@ -12655,10 +13056,10 @@ function PresetManager(props) {
     onDismiss: dropdown.close,
     onViewportChange: updatePos
   });
-  createEffect18(() => {
+  createEffect19(() => {
     if (!dropdown.isOpen()) return;
-    onCleanup20(observeDropdownKeyboard(triggerRef, () => dropdownRef, dropdown.close, "presets"));
-    onCleanup20(observePresetMenu(() => dropdownRef, (ids) => DialStore.reorderPresets(props.panelId, ids)));
+    onCleanup21(observeDropdownKeyboard(triggerRef, () => dropdownRef, dropdown.close, "presets"));
+    onCleanup21(observePresetMenu(() => dropdownRef, (ids) => DialStore.reorderPresets(props.panelId, ids)));
   });
   const handleSelect = (presetId) => {
     if (presetId) DialStore.loadPreset(props.panelId, presetId);
@@ -12685,13 +13086,13 @@ function PresetManager(props) {
     _el$3.$$keydown = (e) => openDropdownOnKey(e, openDropdown);
     _el$3.$$click = toggle;
     var _ref$ = triggerRef;
-    typeof _ref$ === "function" ? _$use16(_ref$, _el$3) : triggerRef = _el$3;
+    typeof _ref$ === "function" ? _$use17(_ref$, _el$3) : triggerRef = _el$3;
     _$insert12(_el$4, (() => {
       var _c$ = _$memo9(() => !!activePreset());
       return () => _c$() ? activePreset().name : DialStore.getBaseName(props.panelId);
     })());
     var _ref$2 = chevronRef;
-    typeof _ref$2 === "function" ? _$use16(_ref$2, _el$5) : chevronRef = _el$5;
+    typeof _ref$2 === "function" ? _$use17(_ref$2, _el$5) : chevronRef = _el$5;
     _$setAttribute11(_el$6, "d", ICON_CHEVRON);
     _$insert12(_el$2, _$createComponent11(Show8, {
       get when() {
@@ -12709,7 +13110,7 @@ function PresetManager(props) {
               },
               get children() {
                 var _el$7 = _tmpl$38(), _el$8 = _el$7.firstChild, _el$9 = _el$8.firstChild, _el$1 = _el$9.nextSibling, _el$10 = _el$8.nextSibling, _el$11 = _el$10.nextSibling, _el$12 = _el$11.firstChild, _el$13 = _el$12.firstChild, _el$14 = _el$12.nextSibling;
-                _$use16((el) => {
+                _$use17((el) => {
                   dropdownRef = el;
                   dropdown.setRef(el);
                   animate6(el, {
@@ -12728,7 +13129,7 @@ function PresetManager(props) {
                     return !props.activePresetId;
                   },
                   get children() {
-                    var _el$0 = _tmpl$212();
+                    var _el$0 = _tmpl$213();
                     _$setAttribute11(_el$0, "d", ICON_CHECK);
                     return _el$0;
                   }
@@ -12748,7 +13149,7 @@ function PresetManager(props) {
                         return preset.id === props.activePresetId;
                       },
                       get children() {
-                        var _el$17 = _tmpl$212();
+                        var _el$17 = _tmpl$213();
                         _$setAttribute11(_el$17, "d", ICON_CHECK);
                         return _el$17;
                       }
@@ -12824,7 +13225,7 @@ function PresetManager(props) {
                           e.preventDefault();
                         };
                         _el$18.addEventListener("focus", (e) => e.currentTarget.select());
-                        _$use16((el) => queueMicrotask(() => el.focus()), _el$18);
+                        _$use17((el) => queueMicrotask(() => el.focus()), _el$18);
                         _$effect11(() => _el$18.value = preset.name);
                         return _el$18;
                       }
@@ -12896,7 +13297,7 @@ function Icon(props) {
         return props.paths;
       },
       children: (d) => (() => {
-        var _el$25 = _tmpl$212();
+        var _el$25 = _tmpl$213();
         _$setAttribute11(_el$25, "d", d);
         return _el$25;
       })()
@@ -12907,9 +13308,9 @@ function Icon(props) {
 _$delegateEvents8(["click", "keydown"]);
 
 // src/solid/components/VersionGallery.tsx
-import { template as _$template20 } from "solid-js/web";
-import { use as _$use17 } from "solid-js/web";
-import { createEffect as createEffect19, onCleanup as onCleanup21, onMount as onMount18 } from "solid-js";
+import { template as _$template21 } from "solid-js/web";
+import { use as _$use18 } from "solid-js/web";
+import { createEffect as createEffect20, onCleanup as onCleanup22, onMount as onMount19 } from "solid-js";
 
 // src/versions/spring.ts
 function bakedSpring(easing, duration) {
@@ -13452,13 +13853,13 @@ function openVersionGrid(options) {
   let focusKey = activeKey;
   let closing = false;
   let animations = [];
-  const overlay = element8("div", "dialkit-version-overlay");
+  const overlay = element6("div", "dialkit-version-overlay");
   overlay.dataset.theme = options.theme ?? "system";
   overlay.setAttribute("role", "dialog");
   overlay.setAttribute("aria-label", "Versions");
-  const scroller = element8("div", "dialkit-version-overlay-scroll");
-  const grid = element8("div", "dialkit-version-overlay-grid");
-  const close2 = element8("button", "dialkit-version-overlay-close");
+  const scroller = element6("div", "dialkit-version-overlay-scroll");
+  const grid = element6("div", "dialkit-version-overlay-grid");
+  const close2 = element6("button", "dialkit-version-overlay-close");
   close2.setAttribute("aria-label", "Close versions");
   close2.append(icon2(ICON_CLOSE));
   scroller.append(grid);
@@ -13471,19 +13872,19 @@ function openVersionGrid(options) {
     grid.style.setProperty("--dialkit-version-aspect", String(window.innerWidth / window.innerHeight));
     grid.style.setProperty("--dialkit-version-columns", String(columnsFor(versions.length)));
     for (const version of versions) {
-      const card = element8("div", "dialkit-version-card");
+      const card = element6("div", "dialkit-version-card");
       card.dataset.key = version.key;
-      const frame = element8("button", "dialkit-version-card-frame");
+      const frame = element6("button", "dialkit-version-card-frame");
       frame.setAttribute("aria-label", version.name);
       if (version.thumbnail) {
-        const img = element8("img");
+        const img = element6("img");
         img.src = version.thumbnail.src;
         img.alt = "";
         img.draggable = false;
         img.decoding = "sync";
         frame.append(img);
       }
-      const label = element8("span", "dialkit-version-card-label");
+      const label = element6("span", "dialkit-version-card-label");
       label.textContent = version.name;
       label.title = "Double-click to rename";
       label.addEventListener("dblclick", () => editLabel(version.key, label, frame));
@@ -13500,7 +13901,7 @@ function openVersionGrid(options) {
   const editLabel = (key, label, frame) => {
     if (closing || !options.onRename) return;
     const previous = versions.find((v) => v.key === key)?.name ?? label.textContent ?? "";
-    const input = element8("input", "dialkit-version-card-input");
+    const input = element6("input", "dialkit-version-card-input");
     input.value = previous;
     input.setAttribute("aria-label", "Version name");
     let done = false;
@@ -13825,20 +14226,20 @@ function mountVersionGallery(host, initial) {
   let editing = null;
   let switchingTo = null;
   let destroyed = false;
-  const root = element8("div", "dialkit-versions");
-  const actions = element8("div", "dialkit-versions-actions");
-  const save = element8("button", "dialkit-versions-button");
+  const root = element6("div", "dialkit-versions");
+  const actions = element6("div", "dialkit-versions-actions");
+  const save = element6("button", "dialkit-versions-button");
   save.dataset.primary = "true";
   save.append(icon2(ICON_PLUS, "", "0 0 24 24"), "Save version");
   setHint(save, HINTS.saveVersion);
-  const toggle = element8("button", "dialkit-versions-button");
+  const toggle = element6("button", "dialkit-versions-button");
   toggle.dataset.icon = "true";
   const grid = svg("svg", { viewBox: "0 0 24 24", fill: "currentColor", "aria-hidden": "true" });
   for (const d of ICON_GRID) grid.append(svg("path", { d }));
   toggle.append(grid);
   setHint(toggle, HINTS.allVersions);
   actions.append(save, toggle);
-  const strip = element8("div", "dialkit-versions-strip");
+  const strip = element6("div", "dialkit-versions-strip");
   strip.setAttribute("role", "listbox");
   strip.setAttribute("aria-label", "Versions");
   root.append(actions, strip);
@@ -13882,7 +14283,7 @@ function mountVersionGallery(host, initial) {
       else delete node.dataset.arrival;
       const img = frame.querySelector("img");
       if (version.thumbnail && img?.getAttribute("src") !== version.thumbnail.src) {
-        const next = img ?? element8("img");
+        const next = img ?? element6("img");
         next.alt = "";
         next.draggable = false;
         next.src = version.thumbnail.src;
@@ -13896,20 +14297,20 @@ function mountVersionGallery(host, initial) {
     });
   };
   const createThumb = (key) => {
-    const node = element8("div", "dialkit-version-thumb");
+    const node = element6("div", "dialkit-version-thumb");
     node.dataset.version = key;
     setHint(node, HINTS.version);
-    const frame = element8("button", "dialkit-version-thumb-frame");
+    const frame = element6("button", "dialkit-version-thumb-frame");
     frame.setAttribute("role", "option");
     frame.addEventListener("click", () => {
       if (overview) overview.select(key);
       else void switchTo(key);
     });
-    const label = element8("span", "dialkit-version-thumb-label");
+    const label = element6("span", "dialkit-version-thumb-label");
     label.addEventListener("dblclick", () => rename(key, label));
     node.append(frame, label);
     if (key !== versionKey(null)) {
-      const remove = element8("button", "dialkit-version-thumb-delete");
+      const remove = element6("button", "dialkit-version-thumb-delete");
       remove.append(icon2(ICON_CLOSE));
       setHint(remove, HINTS.deleteVersion);
       remove.addEventListener("click", () => deleteVersion(props.panelId, key));
@@ -13926,7 +14327,7 @@ function mountVersionGallery(host, initial) {
   };
   const rename = (key, label) => {
     const current2 = listVersions(props.panelId).find((v) => v.key === key)?.name ?? "";
-    const input = element8("input", "dialkit-version-thumb-label dialkit-version-thumb-input");
+    const input = element6("input", "dialkit-version-thumb-label dialkit-version-thumb-input");
     input.value = current2;
     input.setAttribute("aria-label", "Version name");
     editing = key;
@@ -14031,33 +14432,33 @@ function mountVersionGallery(host, initial) {
 }
 
 // src/solid/components/VersionGallery.tsx
-var _tmpl$39 = /* @__PURE__ */ _$template20(`<div class=dialkit-versions-host>`);
+var _tmpl$39 = /* @__PURE__ */ _$template21(`<div class=dialkit-versions-host>`);
 function VersionGallery(props) {
   let host;
-  onMount18(() => {
+  onMount19(() => {
     const gallery = mountVersionGallery(host, {
       panelId: props.panelId,
       theme: props.theme
     });
-    createEffect19(() => gallery.update({
+    createEffect20(() => gallery.update({
       panelId: props.panelId,
       theme: props.theme
     }));
-    onCleanup21(() => gallery.destroy());
+    onCleanup22(() => gallery.destroy());
   });
   return (() => {
     var _el$ = _tmpl$39();
     var _ref$ = host;
-    typeof _ref$ === "function" ? _$use17(_ref$, _el$) : host = _el$;
+    typeof _ref$ === "function" ? _$use18(_ref$, _el$) : host = _el$;
     return _el$;
   })();
 }
 
 // src/solid/components/Panel.tsx
-var _tmpl$40 = /* @__PURE__ */ _$template21(`<button class="dialkit-toolbar-add dialkit-toolbar-primary"aria-label="Copy parameters"><span class=dialkit-toolbar-copy-icon-wrap><span class=dialkit-toolbar-copy-icon style="opacity:1;transform:scale(1);filter:blur(0px);transform-origin:50% 50%"><svg viewBox="0 0 24 24"fill=none width=16 height=16><path stroke=currentColor stroke-width=2 stroke-linejoin=round></path><path stroke=currentColor stroke-width=2 stroke-linecap=round stroke-linejoin=round></path></svg></span><span class=dialkit-toolbar-copy-icon style="opacity:0;transform:scale(0.5);filter:blur(4px);transform-origin:50% 50%"><svg viewBox="0 0 24 24"fill=none stroke=currentColor stroke-width=2 stroke-linecap=round stroke-linejoin=round width=16 height=16><path>`);
-var _tmpl$213 = /* @__PURE__ */ _$template21(`<span>`);
-var _tmpl$310 = /* @__PURE__ */ _$template21(`<p class=dialkit-hint-tip>Hold <kbd class=dialkit-hint-tip-key>H</kbd> over a control to see what it does.`);
-var _tmpl$47 = /* @__PURE__ */ _$template21(`<div class=dialkit-panel-wrapper>`);
+var _tmpl$40 = /* @__PURE__ */ _$template22(`<button class="dialkit-toolbar-add dialkit-toolbar-primary"aria-label="Copy parameters"><span class=dialkit-toolbar-copy-icon-wrap><span class=dialkit-toolbar-copy-icon style="opacity:1;transform:scale(1);filter:blur(0px);transform-origin:50% 50%"><svg viewBox="0 0 24 24"fill=none width=16 height=16><path stroke=currentColor stroke-width=2 stroke-linejoin=round></path><path stroke=currentColor stroke-width=2 stroke-linecap=round stroke-linejoin=round></path></svg></span><span class=dialkit-toolbar-copy-icon style="opacity:0;transform:scale(0.5);filter:blur(4px);transform-origin:50% 50%"><svg viewBox="0 0 24 24"fill=none stroke=currentColor stroke-width=2 stroke-linecap=round stroke-linejoin=round width=16 height=16><path>`);
+var _tmpl$214 = /* @__PURE__ */ _$template22(`<span>`);
+var _tmpl$310 = /* @__PURE__ */ _$template22(`<p class=dialkit-hint-tip>Hold <kbd class=dialkit-hint-tip-key>H</kbd> over a control to see what it does.`);
+var _tmpl$47 = /* @__PURE__ */ _$template22(`<div class=dialkit-panel-wrapper>`);
 function Panel(props) {
   const [copied, setCopied] = createSignal11(false);
   let copyTimeout;
@@ -14081,7 +14482,7 @@ function Panel(props) {
     visualDuration: 0.15,
     bounce: 0.3
   };
-  onMount19(() => {
+  onMount20(() => {
     const unsub = DialStore.subscribe(props.panel.id, () => {
       batch2(() => {
         setValues(DialStore.getValues(props.panel.id));
@@ -14092,7 +14493,7 @@ function Panel(props) {
       });
     });
     DialStore.initPanelOpen(props.panel.id, props.defaultOpen ?? true);
-    onCleanup22(unsub);
+    onCleanup23(unsub);
   });
   const handleCopy = async () => {
     const instruction = buildCopyInstruction("createDialKit", props.panel.name, values());
@@ -14105,7 +14506,7 @@ function Panel(props) {
     clearTimeout(copyTimeout);
     copyTimeout = setTimeout(() => setCopied(false), 1500);
   };
-  createEffect20(on7(copied, (isCopied) => {
+  createEffect21(on7(copied, (isCopied) => {
     if (!copyClipboardIconRef || !copyCheckIconRef) return;
     copyClipboardAnim?.stop();
     copyCheckAnim?.stop();
@@ -14127,7 +14528,7 @@ function Panel(props) {
   }, {
     defer: true
   }));
-  onCleanup22(() => {
+  onCleanup23(() => {
     clearTimeout(copyTimeout);
     copyTapAnim?.stop();
     copyClipboardAnim?.stop();
@@ -14169,16 +14570,16 @@ function Panel(props) {
     _el$.$$pointerdown = handleCopyTapStart;
     _el$.$$click = handleCopy;
     var _ref$ = copyButtonRef;
-    typeof _ref$ === "function" ? _$use18(_ref$, _el$) : copyButtonRef = _el$;
+    typeof _ref$ === "function" ? _$use19(_ref$, _el$) : copyButtonRef = _el$;
     var _ref$2 = copyClipboardIconRef;
-    typeof _ref$2 === "function" ? _$use18(_ref$2, _el$3) : copyClipboardIconRef = _el$3;
+    typeof _ref$2 === "function" ? _$use19(_ref$2, _el$3) : copyClipboardIconRef = _el$3;
     var _ref$3 = copyCheckIconRef;
-    typeof _ref$3 === "function" ? _$use18(_ref$3, _el$7) : copyCheckIconRef = _el$7;
+    typeof _ref$3 === "function" ? _$use19(_ref$3, _el$7) : copyCheckIconRef = _el$7;
     _$setAttribute12(_el$9, "d", ICON_CHECK);
     _$insert13(_el$, (() => {
       var _c$ = _$memo10(() => versions() !== "menu");
       return () => _c$() && (() => {
-        var _el$0 = _tmpl$213();
+        var _el$0 = _tmpl$214();
         _$insert13(_el$0, () => copied() ? "Copied" : "Copy parameters");
         return _el$0;
       })();
@@ -14270,15 +14671,15 @@ function Panel(props) {
 _$delegateEvents9(["click", "pointerdown", "pointerup"]);
 
 // src/solid/components/Timeline/TimelineToggleButton.tsx
-import { template as _$template22 } from "solid-js/web";
+import { template as _$template23 } from "solid-js/web";
 import { delegateEvents as _$delegateEvents10 } from "solid-js/web";
 import { setAttribute as _$setAttribute13 } from "solid-js/web";
 import { effect as _$effect13 } from "solid-js/web";
 import { insert as _$insert14 } from "solid-js/web";
 import { createComponent as _$createComponent13 } from "solid-js/web";
 import { For as For5 } from "solid-js";
-var _tmpl$41 = /* @__PURE__ */ _$template22(`<button class="dialkit-toolbar-add dialkit-timeline-toolbar-toggle"><svg viewBox="0 0 24 24"fill=none aria-hidden=true>`);
-var _tmpl$214 = /* @__PURE__ */ _$template22(`<svg><path fill=currentColor></svg>`, false, true, false);
+var _tmpl$41 = /* @__PURE__ */ _$template23(`<button class="dialkit-toolbar-add dialkit-timeline-toolbar-toggle"><svg viewBox="0 0 24 24"fill=none aria-hidden=true>`);
+var _tmpl$215 = /* @__PURE__ */ _$template23(`<svg><path fill=currentColor></svg>`, false, true, false);
 function TimelineToggleButton() {
   const visible = fromStore(() => TimelineUiStore.getVisible(), (notify2) => TimelineUiStore.subscribe(notify2));
   const label = () => visible() ? "Hide timeline" : "Show timeline";
@@ -14288,7 +14689,7 @@ function TimelineToggleButton() {
     _$insert14(_el$2, _$createComponent13(For5, {
       each: ICON_TIMELINE,
       children: (path) => (() => {
-        var _el$3 = _tmpl$214();
+        var _el$3 = _tmpl$215();
         _$setAttribute13(_el$3, "d", path);
         return _el$3;
       })()
@@ -14457,9 +14858,9 @@ function releasePanelPointer(handle, pointerId) {
 }
 
 // src/solid/components/DialRoot.tsx
-var _tmpl$48 = /* @__PURE__ */ _$template23(`<div class=dialkit-panel-wrapper>`);
-var _tmpl$215 = /* @__PURE__ */ _$template23(`<div class=dialkit-root><div class=dialkit-panel>`);
-var _tmpl$311 = /* @__PURE__ */ _$template23(`<div class=dialkit-timeline-toolkit-only>Timeline`);
+var _tmpl$48 = /* @__PURE__ */ _$template24(`<div class=dialkit-panel-wrapper>`);
+var _tmpl$216 = /* @__PURE__ */ _$template24(`<div class=dialkit-root><div class=dialkit-panel>`);
+var _tmpl$311 = /* @__PURE__ */ _$template24(`<div class=dialkit-timeline-toolkit-only>Timeline`);
 var isDevDefault2 = typeof process !== "undefined" && process?.env?.NODE_ENV ? process.env.NODE_ENV !== "production" : typeof import.meta !== "undefined" && import.meta.env?.MODE ? import.meta.env.MODE !== "production" : true;
 function DialRoot(props) {
   const enabled = () => (props.productionEnabled ?? isDevDefault2) !== false;
@@ -14485,8 +14886,8 @@ function DialRootInner(props) {
   let dragStart = null;
   let didDrag = false;
   let dragTarget = null;
-  onMount20(() => setMounted(true));
-  onMount20(() => onCleanup23(observePointerFocus()));
+  onMount21(() => setMounted(true));
+  onMount21(() => onCleanup24(observePointerFocus()));
   const fallbackOpen = () => inline() || (props.defaultOpen ?? true);
   const panelOpenStates = /* @__PURE__ */ new Map();
   const [shellOpen, setShellOpen] = createSignal12(inline() || (props.defaultOpen ?? true));
@@ -14496,7 +14897,7 @@ function DialRootInner(props) {
     [id]: path
   }));
   let rootFolderOpen;
-  createEffect21(() => {
+  createEffect22(() => {
     const list = panels();
     const ids = new Set(list.map((panel) => panel.id));
     for (const id of panelOpenStates.keys()) {
@@ -14548,8 +14949,8 @@ function DialRootInner(props) {
     rootFolderOpen = open;
     reactToOpenChange(before);
   };
-  onMount20(() => {
-    onCleanup23(DialStore.subscribePanelOpen((id, open) => {
+  onMount21(() => {
+    onCleanup24(DialStore.subscribePanelOpen((id, open) => {
       if (!panels().some((panel) => panel.id === id)) return;
       if (panels().length > 1 && open) handleRootOpenChange(true);
       else if (panels().length === 1) handlePanelOpenChange(id, open);
@@ -14607,13 +15008,13 @@ function DialRootInner(props) {
   });
   const content = () => _$createComponent14(ShortcutListener, {
     get children() {
-      var _el$ = _tmpl$215(), _el$2 = _el$.firstChild;
+      var _el$ = _tmpl$216(), _el$2 = _el$.firstChild;
       _el$2.addEventListener("pointercancel", handlePointerUp);
       _el$2.$$pointerup = handlePointerUp;
       _el$2.$$pointermove = handlePointerMove;
       _el$2.$$pointerdown = handlePointerDown;
       var _ref$ = panelRef;
-      typeof _ref$ === "function" ? _$use19(_ref$, _el$2) : panelRef = _el$2;
+      typeof _ref$ === "function" ? _$use20(_ref$, _el$2) : panelRef = _el$2;
       _$insert15(_el$2, _$createComponent14(Show10, {
         get when() {
           return panels().length > 0;
@@ -14784,7 +15185,7 @@ function DialRootInner(props) {
 _$delegateEvents11(["pointerdown", "pointermove", "pointerup"]);
 
 // src/solid/components/Timeline/DialTimeline.tsx
-import { template as _$template24 } from "solid-js/web";
+import { template as _$template25 } from "solid-js/web";
 import { delegateEvents as _$delegateEvents12 } from "solid-js/web";
 import { addEventListener as _$addEventListener2 } from "solid-js/web";
 import { style as _$style3 } from "solid-js/web";
@@ -14792,46 +15193,46 @@ import { setStyleProperty as _$setStyleProperty5 } from "solid-js/web";
 import { setAttribute as _$setAttribute15 } from "solid-js/web";
 import { effect as _$effect15 } from "solid-js/web";
 import { insert as _$insert16 } from "solid-js/web";
-import { use as _$use20 } from "solid-js/web";
+import { use as _$use21 } from "solid-js/web";
 import { memo as _$memo12 } from "solid-js/web";
 import { createComponent as _$createComponent15 } from "solid-js/web";
-import { For as For7, Show as Show11, createEffect as createEffect22, createMemo as createMemo4, createSignal as createSignal13, onCleanup as onCleanup24, onMount as onMount21 } from "solid-js";
+import { For as For7, Show as Show11, createEffect as createEffect23, createMemo as createMemo4, createSignal as createSignal13, onCleanup as onCleanup25, onMount as onMount22 } from "solid-js";
 import { Portal as Portal4 } from "solid-js/web";
-var _tmpl$49 = /* @__PURE__ */ _$template24(`<div class="dialkit-root dialkit-timeline"><div class=dialkit-timeline-resize-handle role=separator aria-label="Resize timeline height"aria-orientation=horizontal></div><div class=dialkit-timeline-dock>`);
-var _tmpl$216 = /* @__PURE__ */ _$template24(`<svg viewBox="0 0 24 24"fill=none aria-hidden=true>`);
-var _tmpl$312 = /* @__PURE__ */ _$template24(`<button class=dialkit-toolbar-add><span style=position:relative;width:16px;height:16px>`);
-var _tmpl$410 = /* @__PURE__ */ _$template24(`<svg viewBox="0 0 24 24"fill=none aria-hidden=true><path fill=currentColor>`);
-var _tmpl$57 = /* @__PURE__ */ _$template24(`<svg><path fill=currentColor></svg>`, false, true, false);
-var _tmpl$64 = /* @__PURE__ */ _$template24(`<button class=dialkit-toolbar-add aria-label=Replay><svg viewBox="0 0 24 24"fill=none aria-hidden=true>`);
-var _tmpl$74 = /* @__PURE__ */ _$template24(`<button class="dialkit-toolbar-add dialkit-timeline-toolbar-toggle dialkit-timeline-loop"aria-label="Toggle loop"><svg viewBox="0 0 24 24"fill=none stroke=currentColor stroke-width=2 stroke-linecap=round stroke-linejoin=round aria-hidden=true>`);
-var _tmpl$83 = /* @__PURE__ */ _$template24(`<svg><path></svg>`, false, true, false);
-var _tmpl$93 = /* @__PURE__ */ _$template24(`<span class=dialkit-timeline-clip-fill aria-hidden=true>`);
-var _tmpl$03 = /* @__PURE__ */ _$template24(`<div class=dialkit-timeline-overview><div class=dialkit-timeline-overview-viewport></div><div class=dialkit-timeline-overview-progress></div><div class=dialkit-timeline-overview-playhead>`);
-var _tmpl$110 = /* @__PURE__ */ _$template24(`<div class=dialkit-timeline-playhead-control role=slider aria-label="Timeline current time"aria-valuemin=0><div class=dialkit-timeline-playhead-stem></div><div class=dialkit-timeline-playhead-anchor><div class=dialkit-timeline-playhead-flag>`);
-var _tmpl$102 = /* @__PURE__ */ _$template24(`<div class="dialkit-timeline-row dialkit-timeline-group-row"><div class=dialkit-timeline-label><button class=dialkit-timeline-group-toggle></button><span></span></div><div class=dialkit-timeline-lane>`);
-var _tmpl$112 = /* @__PURE__ */ _$template24(`<button class=dialkit-timeline-group-toggle>`);
-var _tmpl$122 = /* @__PURE__ */ _$template24(`<div class=dialkit-timeline-row><div class=dialkit-timeline-label></div><div class=dialkit-timeline-lane>`);
-var _tmpl$132 = /* @__PURE__ */ _$template24(`<div class="dialkit-timeline-row dialkit-timeline-track-row"><div class=dialkit-timeline-label></div><div class=dialkit-timeline-lane>`);
-var _tmpl$142 = /* @__PURE__ */ _$template24(`<svg viewBox="0 0 24 24"fill=none stroke=currentColor stroke-width=2 stroke-linecap=round stroke-linejoin=round aria-hidden=true><path>`);
-var _tmpl$152 = /* @__PURE__ */ _$template24(`<div class=dialkit-timeline-scroll-row><div class=dialkit-timeline-label></div><div class=dialkit-timeline-horizontal-scroll aria-label="Timeline horizontal scroll"><div>`);
-var _tmpl$162 = /* @__PURE__ */ _$template24(`<div class=dialkit-timeline-body><div class=dialkit-timeline-grid><div class="dialkit-timeline-row dialkit-timeline-ruler-row"><div class=dialkit-timeline-label></div><div class=dialkit-timeline-ruler>`);
-var _tmpl$172 = /* @__PURE__ */ _$template24(`<div class=dialkit-timeline-section role=group><div class=dialkit-timeline-header><div class=dialkit-timeline-transport></div><div class=dialkit-timeline-actions><button class=dialkit-toolbar-add><span style=position:relative;width:16px;height:16px></span></button><button class=dialkit-timeline-chevron>`);
-var _tmpl$182 = /* @__PURE__ */ _$template24(`<svg viewBox="0 0 24 24"fill=none aria-hidden=true><path stroke=currentColor stroke-width=2 stroke-linejoin=round></path><path stroke=currentColor stroke-width=2 stroke-linecap=round stroke-linejoin=round>`);
-var _tmpl$192 = /* @__PURE__ */ _$template24(`<div class="dialkit-timeline-tick dialkit-timeline-tick-fine">`);
-var _tmpl$202 = /* @__PURE__ */ _$template24(`<div class="dialkit-timeline-tick dialkit-timeline-tick-medium">`);
-var _tmpl$217 = /* @__PURE__ */ _$template24(`<div class=dialkit-timeline-tick><span class=dialkit-timeline-tick-label>`);
-var _tmpl$222 = /* @__PURE__ */ _$template24(`<svg viewBox="0 0 24 24"fill=none stroke=currentColor stroke-width=2.5 stroke-linecap=round stroke-linejoin=round><path>`);
-var _tmpl$232 = /* @__PURE__ */ _$template24(`<div class=dialkit-root><div class=dialkit-timeline-popover role=dialog><div class=dialkit-timeline-popover-header><span class=dialkit-timeline-popover-title></span><button class=dialkit-timeline-popover-close aria-label="Close editor"><svg viewBox="0 0 24 24"fill=none stroke=currentColor stroke-width=2 stroke-linecap=round><path d="M6 6L18 18M18 6L6 18"></path></svg></button></div><div class=dialkit-timeline-popover-body>`);
-var _tmpl$242 = /* @__PURE__ */ _$template24(`<div class=dialkit-timeline-clip-handle data-edge=start>`);
-var _tmpl$252 = /* @__PURE__ */ _$template24(`<div class=dialkit-timeline-clip>`);
-var _tmpl$262 = /* @__PURE__ */ _$template24(`<span class=dialkit-timeline-loop-infinity aria-hidden=true>\u221E`);
-var _tmpl$272 = /* @__PURE__ */ _$template24(`<div class=dialkit-timeline-clip-ghost aria-hidden=true>`);
-var _tmpl$282 = /* @__PURE__ */ _$template24(`<span class=dialkit-timeline-clip-ghost-segment>`);
-var _tmpl$292 = /* @__PURE__ */ _$template24(`<span class=dialkit-timeline-clip-duration>`);
-var _tmpl$302 = /* @__PURE__ */ _$template24(`<span class=dialkit-timeline-clip-name>`);
-var _tmpl$313 = /* @__PURE__ */ _$template24(`<div class=dialkit-timeline-clip-handle data-edge=end>`);
-var _tmpl$322 = /* @__PURE__ */ _$template24(`<div class=dialkit-timeline-clip-segment>`);
-var _tmpl$332 = /* @__PURE__ */ _$template24(`<div class=dialkit-timeline-clip-handle>`);
+var _tmpl$49 = /* @__PURE__ */ _$template25(`<div class="dialkit-root dialkit-timeline"><div class=dialkit-timeline-resize-handle role=separator aria-label="Resize timeline height"aria-orientation=horizontal></div><div class=dialkit-timeline-dock>`);
+var _tmpl$217 = /* @__PURE__ */ _$template25(`<svg viewBox="0 0 24 24"fill=none aria-hidden=true>`);
+var _tmpl$312 = /* @__PURE__ */ _$template25(`<button class=dialkit-toolbar-add><span style=position:relative;width:16px;height:16px>`);
+var _tmpl$410 = /* @__PURE__ */ _$template25(`<svg viewBox="0 0 24 24"fill=none aria-hidden=true><path fill=currentColor>`);
+var _tmpl$57 = /* @__PURE__ */ _$template25(`<svg><path fill=currentColor></svg>`, false, true, false);
+var _tmpl$64 = /* @__PURE__ */ _$template25(`<button class=dialkit-toolbar-add aria-label=Replay><svg viewBox="0 0 24 24"fill=none aria-hidden=true>`);
+var _tmpl$74 = /* @__PURE__ */ _$template25(`<button class="dialkit-toolbar-add dialkit-timeline-toolbar-toggle dialkit-timeline-loop"aria-label="Toggle loop"><svg viewBox="0 0 24 24"fill=none stroke=currentColor stroke-width=2 stroke-linecap=round stroke-linejoin=round aria-hidden=true>`);
+var _tmpl$83 = /* @__PURE__ */ _$template25(`<svg><path></svg>`, false, true, false);
+var _tmpl$93 = /* @__PURE__ */ _$template25(`<span class=dialkit-timeline-clip-fill aria-hidden=true>`);
+var _tmpl$03 = /* @__PURE__ */ _$template25(`<div class=dialkit-timeline-overview><div class=dialkit-timeline-overview-viewport></div><div class=dialkit-timeline-overview-progress></div><div class=dialkit-timeline-overview-playhead>`);
+var _tmpl$110 = /* @__PURE__ */ _$template25(`<div class=dialkit-timeline-playhead-control role=slider aria-label="Timeline current time"aria-valuemin=0><div class=dialkit-timeline-playhead-stem></div><div class=dialkit-timeline-playhead-anchor><div class=dialkit-timeline-playhead-flag>`);
+var _tmpl$102 = /* @__PURE__ */ _$template25(`<div class="dialkit-timeline-row dialkit-timeline-group-row"><div class=dialkit-timeline-label><button class=dialkit-timeline-group-toggle></button><span></span></div><div class=dialkit-timeline-lane>`);
+var _tmpl$112 = /* @__PURE__ */ _$template25(`<button class=dialkit-timeline-group-toggle>`);
+var _tmpl$122 = /* @__PURE__ */ _$template25(`<div class=dialkit-timeline-row><div class=dialkit-timeline-label></div><div class=dialkit-timeline-lane>`);
+var _tmpl$132 = /* @__PURE__ */ _$template25(`<div class="dialkit-timeline-row dialkit-timeline-track-row"><div class=dialkit-timeline-label></div><div class=dialkit-timeline-lane>`);
+var _tmpl$142 = /* @__PURE__ */ _$template25(`<svg viewBox="0 0 24 24"fill=none stroke=currentColor stroke-width=2 stroke-linecap=round stroke-linejoin=round aria-hidden=true><path>`);
+var _tmpl$152 = /* @__PURE__ */ _$template25(`<div class=dialkit-timeline-scroll-row><div class=dialkit-timeline-label></div><div class=dialkit-timeline-horizontal-scroll aria-label="Timeline horizontal scroll"><div>`);
+var _tmpl$162 = /* @__PURE__ */ _$template25(`<div class=dialkit-timeline-body><div class=dialkit-timeline-grid><div class="dialkit-timeline-row dialkit-timeline-ruler-row"><div class=dialkit-timeline-label></div><div class=dialkit-timeline-ruler>`);
+var _tmpl$172 = /* @__PURE__ */ _$template25(`<div class=dialkit-timeline-section role=group><div class=dialkit-timeline-header><div class=dialkit-timeline-transport></div><div class=dialkit-timeline-actions><button class=dialkit-toolbar-add><span style=position:relative;width:16px;height:16px></span></button><button class=dialkit-timeline-chevron>`);
+var _tmpl$182 = /* @__PURE__ */ _$template25(`<svg viewBox="0 0 24 24"fill=none aria-hidden=true><path stroke=currentColor stroke-width=2 stroke-linejoin=round></path><path stroke=currentColor stroke-width=2 stroke-linecap=round stroke-linejoin=round>`);
+var _tmpl$192 = /* @__PURE__ */ _$template25(`<div class="dialkit-timeline-tick dialkit-timeline-tick-fine">`);
+var _tmpl$202 = /* @__PURE__ */ _$template25(`<div class="dialkit-timeline-tick dialkit-timeline-tick-medium">`);
+var _tmpl$218 = /* @__PURE__ */ _$template25(`<div class=dialkit-timeline-tick><span class=dialkit-timeline-tick-label>`);
+var _tmpl$222 = /* @__PURE__ */ _$template25(`<svg viewBox="0 0 24 24"fill=none stroke=currentColor stroke-width=2.5 stroke-linecap=round stroke-linejoin=round><path>`);
+var _tmpl$232 = /* @__PURE__ */ _$template25(`<div class=dialkit-root><div class=dialkit-timeline-popover role=dialog><div class=dialkit-timeline-popover-header><span class=dialkit-timeline-popover-title></span><button class=dialkit-timeline-popover-close aria-label="Close editor"><svg viewBox="0 0 24 24"fill=none stroke=currentColor stroke-width=2 stroke-linecap=round><path d="M6 6L18 18M18 6L6 18"></path></svg></button></div><div class=dialkit-timeline-popover-body>`);
+var _tmpl$242 = /* @__PURE__ */ _$template25(`<div class=dialkit-timeline-clip-handle data-edge=start>`);
+var _tmpl$252 = /* @__PURE__ */ _$template25(`<div class=dialkit-timeline-clip>`);
+var _tmpl$262 = /* @__PURE__ */ _$template25(`<span class=dialkit-timeline-loop-infinity aria-hidden=true>\u221E`);
+var _tmpl$272 = /* @__PURE__ */ _$template25(`<div class=dialkit-timeline-clip-ghost aria-hidden=true>`);
+var _tmpl$282 = /* @__PURE__ */ _$template25(`<span class=dialkit-timeline-clip-ghost-segment>`);
+var _tmpl$292 = /* @__PURE__ */ _$template25(`<span class=dialkit-timeline-clip-duration>`);
+var _tmpl$302 = /* @__PURE__ */ _$template25(`<span class=dialkit-timeline-clip-name>`);
+var _tmpl$313 = /* @__PURE__ */ _$template25(`<div class=dialkit-timeline-clip-handle data-edge=end>`);
+var _tmpl$322 = /* @__PURE__ */ _$template25(`<div class=dialkit-timeline-clip-segment>`);
+var _tmpl$332 = /* @__PURE__ */ _$template25(`<div class=dialkit-timeline-clip-handle>`);
 var DRAG_THRESHOLD_PX2 = 3;
 var MAJOR_TICK_TARGET_PX = 140;
 var MILLISECOND_STEP = 1e-3;
@@ -14863,24 +15264,24 @@ function DialTimelineDock(props) {
   const controllerId = /* @__PURE__ */ Symbol("dialkit-timeline-visibility");
   let dockRef;
   let resizeCleanup = null;
-  onMount21(() => {
+  onMount22(() => {
     setMounted(true);
     const unregister = TimelineUiStore.registerController(controllerId, {
       visible: props.visible,
       defaultVisible: props.defaultVisible ?? true,
       onVisibilityChange: props.onVisibilityChange
     });
-    onCleanup24(unregister);
-    onCleanup24(observePointerFocus());
+    onCleanup25(unregister);
+    onCleanup25(observePointerFocus());
   });
-  createEffect22(() => {
+  createEffect23(() => {
     TimelineUiStore.updateController(controllerId, {
       visible: props.visible,
       defaultVisible: props.defaultVisible ?? true,
       onVisibilityChange: props.onVisibilityChange
     });
   });
-  onCleanup24(() => resizeCleanup?.());
+  onCleanup25(() => resizeCleanup?.());
   const handleResizePointerDown = (event) => {
     if (!dockRef) return;
     event.preventDefault();
@@ -14919,7 +15320,7 @@ function DialTimelineDock(props) {
           var _el$ = _tmpl$49(), _el$2 = _el$.firstChild, _el$3 = _el$2.nextSibling;
           _el$2.$$pointerdown = handleResizePointerDown;
           var _ref$ = dockRef;
-          typeof _ref$ === "function" ? _$use20(_ref$, _el$3) : dockRef = _el$3;
+          typeof _ref$ === "function" ? _$use21(_ref$, _el$3) : dockRef = _el$3;
           _$insert16(_el$3, _$createComponent15(For7, {
             get each() {
               return timelines().map((timeline) => timeline.id);
@@ -14977,7 +15378,7 @@ function PlayPauseButton(props) {
         })();
       },
       get children() {
-        var _el$6 = _tmpl$216();
+        var _el$6 = _tmpl$217();
         _$insert16(_el$6, _$createComponent15(For7, {
           each: ICON_PAUSE,
           children: (path) => (() => {
@@ -15117,7 +15518,7 @@ function TimelinePlayheadFlag(props) {
     if (!scrub || scrub.rect.width <= 0) return;
     TimelineStore.seek(props.id, clamp2(scrub.viewStart + (clientX - scrub.rect.left) / scrub.rect.width * (scrub.viewEnd - scrub.viewStart), scrub.viewStart, scrub.viewEnd));
   };
-  onCleanup24(() => cleanup?.());
+  onCleanup25(() => cleanup?.());
   const x = () => clamp2((time() - props.viewStart) * props.pxPerSecond, 0, props.laneWidth);
   const flagCenter = () => clamp2(x(), PLAYHEAD_FLAG_WIDTH / 2 - PLAYHEAD_FLAG_EDGE_OVERHANG, props.laneWidth - PLAYHEAD_FLAG_WIDTH / 2 + PLAYHEAD_FLAG_EDGE_OVERHANG);
   const flagOffset = () => flagCenter() - x();
@@ -15214,7 +15615,7 @@ function TimelineSection(props) {
   let laneAreaRef;
   let horizontalScrollRef;
   const [laneWidth, setLaneWidth] = createSignal13(0);
-  createEffect22(() => {
+  createEffect23(() => {
     if (!open() || !laneAreaRef) return;
     const measure = (entries) => {
       if (laneAreaRef) setLaneWidth(entries?.[0]?.borderBoxSize?.[0]?.inlineSize ?? laneAreaRef.offsetWidth);
@@ -15222,22 +15623,22 @@ function TimelineSection(props) {
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(laneAreaRef);
-    onCleanup24(() => observer.disconnect());
+    onCleanup25(() => observer.disconnect());
   });
   const visibleDuration = () => props.meta.duration > 0 ? props.meta.duration / zoom() : props.meta.duration;
   const safeViewStart = () => clampViewStart(viewStart(), props.meta.duration, visibleDuration());
   const viewEnd = () => safeViewStart() + visibleDuration();
   const pxPerSecond = () => visibleDuration() > 0 && laneWidth() > 0 ? laneWidth() / visibleDuration() : 0;
   const maxZoom = () => Math.max(MIN_TIMELINE_MAX_ZOOM, laneWidth() > 0 && props.meta.duration > 0 ? MAJOR_TICK_TARGET_PX * props.meta.duration / (MILLISECOND_STEP * 10 * laneWidth()) : MIN_TIMELINE_MAX_ZOOM);
-  createEffect22(() => setZoom((current2) => clamp2(current2, 1, maxZoom())));
-  createEffect22(() => setViewStart((current2) => clampViewStart(current2, props.meta.duration, props.meta.duration / zoom())));
-  createEffect22(() => {
+  createEffect23(() => setZoom((current2) => clamp2(current2, 1, maxZoom())));
+  createEffect23(() => setViewStart((current2) => clampViewStart(current2, props.meta.duration, props.meta.duration / zoom())));
+  createEffect23(() => {
     const scroller = horizontalScrollRef;
     const next = safeViewStart() * pxPerSecond();
     if (!scroller || pxPerSecond() <= 0) return;
     if (Math.abs(scroller.scrollLeft - next) > 0.5) scroller.scrollLeft = next;
   });
-  createEffect22(() => {
+  createEffect23(() => {
     if (!props.dockVisible) setPopover(null);
   });
   const centerViewAt = (time) => {
@@ -15702,7 +16103,7 @@ function TimelineSection(props) {
         _el$47.$$pointermove = handleRulerPointerMove;
         _el$47.$$pointerdown = handleRulerPointerDown;
         var _ref$2 = laneAreaRef;
-        typeof _ref$2 === "function" ? _$use20(_ref$2, _el$47) : laneAreaRef = _el$47;
+        typeof _ref$2 === "function" ? _$use21(_ref$2, _el$47) : laneAreaRef = _el$47;
         _$insert16(_el$47, _$createComponent15(For7, {
           get each() {
             return ticks().fine;
@@ -15728,7 +16129,7 @@ function TimelineSection(props) {
             return ticks().major;
           },
           children: (time) => (() => {
-            var _el$60 = _tmpl$217(), _el$61 = _el$60.firstChild;
+            var _el$60 = _tmpl$218(), _el$61 = _el$60.firstChild;
             _$insert16(_el$61, () => formatRulerSeconds(time, ticks().majorStep));
             _$effect15((_$p) => _$setStyleProperty5(_el$60, "left", `${(time - safeViewStart()) * pxPerSecond()}px`));
             return _el$60;
@@ -15836,7 +16237,7 @@ function TimelineSection(props) {
             var _el$51 = _tmpl$152(), _el$52 = _el$51.firstChild, _el$53 = _el$52.nextSibling, _el$54 = _el$53.firstChild;
             _el$53.addEventListener("scroll", handleHorizontalScroll);
             var _ref$3 = horizontalScrollRef;
-            typeof _ref$3 === "function" ? _$use20(_ref$3, _el$53) : horizontalScrollRef = _el$53;
+            typeof _ref$3 === "function" ? _$use21(_ref$3, _el$53) : horizontalScrollRef = _el$53;
             _$effect15((_$p) => _$setStyleProperty5(_el$54, "width", `${laneWidth() * zoom()}px`));
             return _el$51;
           }
@@ -15905,7 +16306,7 @@ function ClipPopover(props) {
   let ref;
   const [naturalHeight, setNaturalHeight] = createSignal13(0);
   const [viewport, setViewport] = createSignal13(readViewport());
-  onMount21(() => {
+  onMount22(() => {
     const measure = () => ref && setNaturalHeight(ref.scrollHeight + 2);
     measure();
     const observer = new ResizeObserver(measure);
@@ -15924,7 +16325,7 @@ function ClipPopover(props) {
     window.visualViewport?.addEventListener("scroll", updateViewport);
     document.addEventListener("pointerdown", outside, true);
     document.addEventListener("keydown", keydown);
-    onCleanup24(() => {
+    onCleanup25(() => {
       observer.disconnect();
       window.removeEventListener("resize", updateViewport);
       window.visualViewport?.removeEventListener("resize", updateViewport);
@@ -16007,7 +16408,7 @@ function ClipPopover(props) {
         get children() {
           var _el$64 = _tmpl$232(), _el$65 = _el$64.firstChild, _el$66 = _el$65.firstChild, _el$67 = _el$66.firstChild, _el$68 = _el$67.nextSibling, _el$69 = _el$66.nextSibling;
           var _ref$4 = ref;
-          typeof _ref$4 === "function" ? _$use20(_ref$4, _el$65) : ref = _el$65;
+          typeof _ref$4 === "function" ? _$use21(_ref$4, _el$65) : ref = _el$65;
           _$insert16(_el$67, () => presentation().title);
           _$addEventListener2(_el$68, "click", props.onClose, true);
           _$insert16(_el$69, _$createComponent15(ControlRenderer, {
@@ -16394,14 +16795,14 @@ function TimelineClip(props) {
 _$delegateEvents12(["pointerdown", "click", "pointermove", "pointerup"]);
 
 // src/solid/components/ButtonGroup.tsx
-import { template as _$template25 } from "solid-js/web";
+import { template as _$template26 } from "solid-js/web";
 import { delegateEvents as _$delegateEvents13 } from "solid-js/web";
 import { addEventListener as _$addEventListener3 } from "solid-js/web";
 import { insert as _$insert17 } from "solid-js/web";
 import { createComponent as _$createComponent16 } from "solid-js/web";
 import { For as For8 } from "solid-js";
-var _tmpl$50 = /* @__PURE__ */ _$template25(`<div class=dialkit-button-group>`);
-var _tmpl$218 = /* @__PURE__ */ _$template25(`<button class=dialkit-button>`);
+var _tmpl$50 = /* @__PURE__ */ _$template26(`<div class=dialkit-button-group>`);
+var _tmpl$219 = /* @__PURE__ */ _$template26(`<button class=dialkit-button>`);
 function ButtonGroup(props) {
   return (() => {
     var _el$ = _tmpl$50();
@@ -16410,7 +16811,7 @@ function ButtonGroup(props) {
         return props.buttons;
       },
       children: (button) => (() => {
-        var _el$2 = _tmpl$218();
+        var _el$2 = _tmpl$219();
         _$addEventListener3(_el$2, "click", button.onClick, true);
         _$insert17(_el$2, () => button.label);
         return _el$2;
@@ -16439,20 +16840,20 @@ function paintBackgroundPreview(canvas, value) {
 }
 
 // src/solid/components/ShortcutsMenu.tsx
-import { template as _$template26 } from "solid-js/web";
+import { template as _$template27 } from "solid-js/web";
 import { delegateEvents as _$delegateEvents14 } from "solid-js/web";
 import { setStyleProperty as _$setStyleProperty6 } from "solid-js/web";
 import { insert as _$insert18 } from "solid-js/web";
 import { createComponent as _$createComponent17 } from "solid-js/web";
 import { setAttribute as _$setAttribute16 } from "solid-js/web";
 import { effect as _$effect16 } from "solid-js/web";
-import { use as _$use21 } from "solid-js/web";
-import { createSignal as createSignal14, createEffect as createEffect23, onCleanup as onCleanup25, Show as Show12, For as For9 } from "solid-js";
+import { use as _$use22 } from "solid-js/web";
+import { createSignal as createSignal14, createEffect as createEffect24, onCleanup as onCleanup26, Show as Show12, For as For9 } from "solid-js";
 import { Portal as Portal5 } from "solid-js/web";
 import { animate as animate8 } from "motion";
-var _tmpl$51 = /* @__PURE__ */ _$template26(`<button class=dialkit-shortcuts-trigger aria-label="Keyboard shortcuts"type=button aria-haspopup=dialog><svg viewBox="0 0 24 24"fill=none stroke=currentColor stroke-width=2 stroke-linecap=round stroke-linejoin=round><rect x=2 y=6 width=20 height=12 rx=2></rect><path d="M6 10H6.01"></path><path d="M10 10H10.01"></path><path d="M14 10H14.01"></path><path d="M18 10H18.01"></path><path d="M8 14H16">`);
-var _tmpl$219 = /* @__PURE__ */ _$template26(`<div class="dialkit-root dialkit-shortcuts-dropdown"style=position:fixed><div class=dialkit-shortcuts-title>Keyboard Shortcuts</div><div class=dialkit-shortcuts-list></div><div class=dialkit-shortcuts-hint>See pill badges on controls for keys`);
-var _tmpl$314 = /* @__PURE__ */ _$template26(`<div class=dialkit-shortcuts-row><span class=dialkit-shortcuts-row-key></span><span class=dialkit-shortcuts-row-label></span><span class=dialkit-shortcuts-row-mode>`);
+var _tmpl$51 = /* @__PURE__ */ _$template27(`<button class=dialkit-shortcuts-trigger aria-label="Keyboard shortcuts"type=button aria-haspopup=dialog><svg viewBox="0 0 24 24"fill=none stroke=currentColor stroke-width=2 stroke-linecap=round stroke-linejoin=round><rect x=2 y=6 width=20 height=12 rx=2></rect><path d="M6 10H6.01"></path><path d="M10 10H10.01"></path><path d="M14 10H14.01"></path><path d="M18 10H18.01"></path><path d="M8 14H16">`);
+var _tmpl$220 = /* @__PURE__ */ _$template27(`<div class="dialkit-root dialkit-shortcuts-dropdown"style=position:fixed><div class=dialkit-shortcuts-title>Keyboard Shortcuts</div><div class=dialkit-shortcuts-list></div><div class=dialkit-shortcuts-hint>See pill badges on controls for keys`);
+var _tmpl$314 = /* @__PURE__ */ _$template27(`<div class=dialkit-shortcuts-row><span class=dialkit-shortcuts-row-key></span><span class=dialkit-shortcuts-row-label></span><span class=dialkit-shortcuts-row-mode>`);
 function formatShortcutKey(sc) {
   if (!sc.key) return "\u2014";
   const mod = sc.modifier === "alt" ? "\u2325" : sc.modifier === "shift" ? "\u21E7" : sc.modifier === "meta" ? "\u2318" : "";
@@ -16513,16 +16914,16 @@ function ShortcutsMenu(props) {
     contains: (target) => triggerRef?.contains(target) || dropdown.contains(target),
     onDismiss: dropdown.close
   });
-  createEffect23(() => {
+  createEffect24(() => {
     if (!dropdown.isOpen()) return;
-    onCleanup25(observeDropdownKeyboard(triggerRef, () => dropdownRef, dropdown.close, "help"));
+    onCleanup26(observeDropdownKeyboard(triggerRef, () => dropdownRef, dropdown.close, "help"));
   });
-  onCleanup25(() => triggerTapAnim?.stop());
+  onCleanup26(() => triggerTapAnim?.stop());
   const [panel, setPanel] = createSignal14(DialStore.getPanel(props.panelId));
-  createEffect23(() => {
+  createEffect24(() => {
     const id = props.panelId;
     const update = () => setPanel(DialStore.getPanel(id));
-    onCleanup25(DialStore.subscribeGlobal(update));
+    onCleanup26(DialStore.subscribeGlobal(update));
     update();
   });
   const rows2 = () => {
@@ -16550,7 +16951,7 @@ function ShortcutsMenu(props) {
     _el$.$$pointerdown = () => tapTo(0.9);
     _el$.$$click = toggle;
     var _ref$ = triggerRef;
-    typeof _ref$ === "function" ? _$use21(_ref$, _el$) : triggerRef = _el$;
+    typeof _ref$ === "function" ? _$use22(_ref$, _el$) : triggerRef = _el$;
     _$effect16(() => _$setAttribute16(_el$, "aria-expanded", dropdown.isOpen()));
     return _el$;
   })(), _$createComponent17(Show12, {
@@ -16563,8 +16964,8 @@ function ShortcutsMenu(props) {
           return document.body;
         },
         get children() {
-          var _el$2 = _tmpl$219(), _el$3 = _el$2.firstChild, _el$4 = _el$3.nextSibling;
-          _$use21((el) => {
+          var _el$2 = _tmpl$220(), _el$3 = _el$2.firstChild, _el$4 = _el$3.nextSibling;
+          _$use22((el) => {
             dropdownRef = el;
             dropdown.setRef(el);
             animate8(el, {
@@ -16619,6 +17020,7 @@ export {
   Folder,
   GRADIENT_SHAPES,
   ImageControl,
+  PictureListControl,
   PresetManager,
   RootPanel,
   SelectControl,
@@ -16640,8 +17042,10 @@ export {
   dragGradientCentre,
   dragGradientEnd,
   dragGradientWidth,
+  findPictureFamily,
   formatGizmoAngle,
   getBackgroundHost,
+  getPictureHost,
   getSavedGradients,
   gizmoAngle,
   gizmoPoints,
@@ -16651,14 +17055,21 @@ export {
   legacyGradientHandles,
   mountGradientGizmo,
   normalizeBackgroundValue,
+  normalizePictureFamilies,
+  normalizePicturesValue,
   paintBackgroundPreview,
   paintGradient,
+  parsePictureAction,
+  pictureAction,
+  pictureSections,
   rotateGradientHandles,
   setBackgroundHost,
+  setPictureHost,
   setSavedGradients,
   stopPlacement,
   stopPositionAt,
   subscribeBackgroundHost,
+  subscribePictureHost,
   switchGradientShape,
   withVisibility
 };

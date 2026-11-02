@@ -1,7 +1,8 @@
 <script lang="ts">
   import { getContext } from 'svelte';
   import { DialStore } from 'dialkit/store';
-  import type { ControlMeta, DialValue, SpringConfig, TransitionConfig, DialPadValue, BackgroundValue, AnchorValue } from 'dialkit/store';
+  import type { ControlMeta, DialValue, SpringConfig, TransitionConfig, DialPadValue, BackgroundValue, AnchorValue, PicturesValue } from 'dialkit/store';
+  import { pictureAction } from '../../pictures';
   import { createHints } from '../hints.svelte.js';
   import Slider from './Slider.svelte';
   import Toggle from './Toggle.svelte';
@@ -14,6 +15,7 @@
   import ImageControl from './ImageControl.svelte';
   import DialPad from './DialPad.svelte';
   import AnchorControl from './AnchorControl.svelte';
+  import PictureListControl from './PictureListControl.svelte';
   import Fields from './Fields.svelte';
   import BackgroundControl from './BackgroundControl.svelte';
   import ControlRenderer from './ControlRenderer.svelte';
@@ -189,6 +191,14 @@
     hint={control.hint}
     value={controlValue as AnchorValue}
     onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
+  />
+{:else if control.type === 'pictures'}
+  <PictureListControl
+    label={control.label}
+    hint={control.hint}
+    families={control.pictures?.families ?? []}
+    value={controlValue as PicturesValue}
+    onPick={(id) => DialStore.triggerAction(panelId, pictureAction(control.path, id))}
   />
 {:else if control.type === 'background'}
   <Folder title={control.label} defaultOpen={true} hint={control.hint} {onReset} {changed}>

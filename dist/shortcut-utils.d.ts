@@ -1,6 +1,7 @@
-import { C as ControlMeta, d as ShortcutConfig } from './DialStore-CDYWklsr.js';
+import { C as ControlMeta, d as ShortcutConfig } from './DialStore-BHYnOV-c.js';
 import './dial-pad.js';
 import './anchor.js';
+import './pictures.js';
 import './background.js';
 
 /** Decimal places needed by a step or range endpoint, including scientific notation. */

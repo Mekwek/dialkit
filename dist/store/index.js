@@ -172,6 +172,38 @@ function sameLayersValue(a, b) {
   });
 }
 
+// src/pictures.ts
+function isRecord2(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+var nonEmpty = (value) => typeof value === "string" && value !== "";
+function normalizePictureFamilies(value) {
+  if (!Array.isArray(value)) return [];
+  const familyIds = /* @__PURE__ */ new Set();
+  const itemIds = /* @__PURE__ */ new Set();
+  const families = [];
+  for (const raw of value) {
+    if (!isRecord2(raw) || !nonEmpty(raw.id) || typeof raw.label !== "string" || familyIds.has(raw.id)) continue;
+    familyIds.add(raw.id);
+    const items = [];
+    for (const rawItem of Array.isArray(raw.items) ? raw.items : []) {
+      if (!isRecord2(rawItem) || !nonEmpty(rawItem.id) || typeof rawItem.label !== "string" || itemIds.has(rawItem.id)) continue;
+      itemIds.add(rawItem.id);
+      const item = { id: rawItem.id, label: rawItem.label };
+      if (nonEmpty(rawItem.group)) item.group = rawItem.group;
+      if (nonEmpty(rawItem.hint)) item.hint = rawItem.hint;
+      items.push(item);
+    }
+    const family = { id: raw.id, label: raw.label, items };
+    if (nonEmpty(raw.hint)) family.hint = raw.hint;
+    families.push(family);
+  }
+  return families;
+}
+function normalizePicturesValue(value) {
+  return nonEmpty(value) ? value : null;
+}
+
 // src/easing-geometry.ts
 var easingPresets = {
   linear: [0, 0, 1, 1],
@@ -268,7 +300,7 @@ var MODES = ["solid", "gradient", "media"];
 var POINT_RANGE = { min: -10, max: 11 };
 var COLUMNS = ["left", "center", "right"];
 var ROWS = ["top", "center", "bottom"];
-var isRecord2 = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
+var isRecord3 = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
 var oneOf2 = (options, value, fallback) => options.includes(value) ? value : fallback;
 var finite = (value) => typeof value === "number" && Number.isFinite(value);
 var round = (n, digits) => Number(n.toFixed(digits)) || 0;
@@ -290,18 +322,18 @@ function defaultGradientHandles() {
   return { start: { x: 0.5, y: 0.1 }, end: { x: 0.5, y: 0.9 }, width: { x: 0.1, y: 0.5 } };
 }
 function normalizePoint(value, fallback) {
-  if (!isRecord2(value) || !finite(value.x) || !finite(value.y)) return { ...fallback };
+  if (!isRecord3(value) || !finite(value.x) || !finite(value.y)) return { ...fallback };
   return { x: round(clamp(value.x, POINT_RANGE.min, POINT_RANGE.max), 6), y: round(clamp(value.y, POINT_RANGE.min, POINT_RANGE.max), 6) };
 }
 function sortStops(stops) {
   return stops.map((stop, i) => ({ stop, i })).sort((a, b) => a.stop.at - b.stop.at || a.i - b.i).map(({ stop }) => stop);
 }
 function normalizeGradient(value, fallback = defaultBackgroundValue().gradient) {
-  const input = isRecord2(value) ? value : {};
+  const input = isRecord3(value) ? value : {};
   const shape = oneOf2(GRADIENT_SHAPES, input.shape, fallback.shape);
-  const handles = isRecord2(input.handles) ? input.handles : {};
-  const base = isRecord2(input.handles) ? fallback.handles : switchGradientShape(fallback, shape).handles;
-  const stops = Array.isArray(input.stops) ? input.stops.filter((stop) => isRecord2(stop) && finite(stop.at) && validColor(stop.color)).map((stop) => ({ at: round(clamp(stop.at, 0, 100), 2), color: stop.color.trim() })) : [];
+  const handles = isRecord3(input.handles) ? input.handles : {};
+  const base = isRecord3(input.handles) ? fallback.handles : switchGradientShape(fallback, shape).handles;
+  const stops = Array.isArray(input.stops) ? input.stops.filter((stop) => isRecord3(stop) && finite(stop.at) && validColor(stop.color)).map((stop) => ({ at: round(clamp(stop.at, 0, 100), 2), color: stop.color.trim() })) : [];
   return {
     shape,
     handles: {
@@ -318,8 +350,8 @@ function capStops(sorted) {
   return Array.from({ length: MAX_GRADIENT_STOPS }, (_, i) => sorted[Math.round(i * (n - 1) / (MAX_GRADIENT_STOPS - 1))]);
 }
 function normalizeMediaDisplay(value, fallback) {
-  const input = isRecord2(value) ? value : {};
-  const position = isRecord2(input.position) ? input.position : {};
+  const input = isRecord3(value) ? value : {};
+  const position = isRecord3(input.position) ? input.position : {};
   return {
     fit: oneOf2(MEDIA_FITS, input.fit, fallback.fit),
     ratio: oneOf2(MEDIA_RATIOS, input.ratio, fallback.ratio),
@@ -329,13 +361,13 @@ function normalizeMediaDisplay(value, fallback) {
   };
 }
 function normalizeBackgroundValue(value, fallback = defaultBackgroundValue()) {
-  const input = isRecord2(value) ? value : {};
+  const input = isRecord3(value) ? value : {};
   const media = input.media;
   return {
     mode: oneOf2(MODES, input.mode, fallback.mode),
     color: validColor(input.color) ? input.color.trim() : fallback.color,
     gradient: normalizeGradient(input.gradient, fallback.gradient),
-    media: media === null ? null : isRecord2(media) && typeof media.src === "string" && media.src && (media.kind === "image" || media.kind === "video") ? { src: media.src, kind: media.kind } : fallback.media && { ...fallback.media },
+    media: media === null ? null : isRecord3(media) && typeof media.src === "string" && media.src && (media.kind === "image" || media.kind === "video") ? { src: media.src, kind: media.kind } : fallback.media && { ...fallback.media },
     mediaDisplay: normalizeMediaDisplay(input.mediaDisplay, fallback.mediaDisplay)
   };
 }
@@ -389,7 +421,7 @@ function withVisibility(control, rule) {
   return { value: control, visibleWhen: rule };
 }
 function isVisibilityWrapper(value) {
-  return isRecord3(value) && "value" in value && isRecord3(value.visibleWhen) && typeof value.visibleWhen.field === "string";
+  return isRecord4(value) && "value" in value && isRecord4(value.visibleWhen) && typeof value.visibleWhen.field === "string";
 }
 function unwrapVisibility(value) {
   return isVisibilityWrapper(value) ? value.value : value;
@@ -407,7 +439,7 @@ function nextTransitionPresetName(presets, mode) {
   return `Custom ${highest + 1}`;
 }
 function isStoredTransitionPreset(preset) {
-  if (!isRecord3(preset) || typeof preset.id !== "string" || typeof preset.name !== "string" || !isRecord3(preset.value)) return false;
+  if (!isRecord4(preset) || typeof preset.id !== "string" || typeof preset.name !== "string" || !isRecord4(preset.value)) return false;
   const value = preset.value;
   const finite2 = (...keys) => keys.every((key) => Number.isFinite(value[key]));
   switch (preset.mode) {
@@ -473,7 +505,7 @@ function canShowFields(children) {
   return axes >= 2 && axes <= 4 && locks <= 1 && axes + locks === children.length;
 }
 function isLeafConfigValue(value) {
-  return Array.isArray(value) && value.length <= 5 && typeof value[0] === "number" || typeof value === "number" || typeof value === "boolean" || typeof value === "string" || isSpringConfigValue(value) || isEasingConfigValue(value) || isActionConfigValue(value) || isSelectConfigValue(value) || isColorConfigValue(value) || isImageConfigValue(value) || isTextConfigValue(value) || isPadConfigValue(value) || isBackgroundConfigValue(value) || isAnchorConfigValue(value) || isLayersConfigValue(value);
+  return Array.isArray(value) && value.length <= 5 && typeof value[0] === "number" || typeof value === "number" || typeof value === "boolean" || typeof value === "string" || isSpringConfigValue(value) || isEasingConfigValue(value) || isActionConfigValue(value) || isSelectConfigValue(value) || isColorConfigValue(value) || isImageConfigValue(value) || isTextConfigValue(value) || isPadConfigValue(value) || isBackgroundConfigValue(value) || isAnchorConfigValue(value) || isLayersConfigValue(value) || isPicturesConfigValue(value);
 }
 function configDefaultValue(value) {
   if (Array.isArray(value)) return value[0];
@@ -485,18 +517,19 @@ function configDefaultValue(value) {
   if (isAnchorConfigValue(value)) return normalizeAnchorValue(void 0, value);
   if (isBackgroundConfigValue(value)) return normalizeBackgroundValue(value.default);
   if (isLayersConfigValue(value)) return normalizeLayersValue(value.default);
+  if (isPicturesConfigValue(value)) return normalizePicturesValue(value.default);
   return value;
 }
-function isRecord3(value) {
+function isRecord4(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function sameControlValue(previous, next, control) {
   if (Object.is(previous, next)) return true;
   if (control?.type === "layers") return sameLayersValue(previous, next);
   if (control?.type === "background") {
-    return isRecord3(previous) && isRecord3(next) && sameBackgroundValue(previous, next);
+    return isRecord4(previous) && isRecord4(next) && sameBackgroundValue(previous, next);
   }
-  return (control?.type === "pad" || control?.type === "anchor") && isRecord3(previous) && isRecord3(next) && previous.x === next.x && previous.y === next.y;
+  return (control?.type === "pad" || control?.type === "anchor") && isRecord4(previous) && isRecord4(next) && previous.x === next.x && previous.y === next.y;
 }
 function sameValue(a, b) {
   if (a === b) return true;
@@ -562,6 +595,9 @@ function isBackgroundConfigValue(value) {
 }
 function isLayersConfigValue(value) {
   return hasType(value, "layers");
+}
+function isPicturesConfigValue(value) {
+  return hasType(value, "pictures");
 }
 function getFirstOptionValue(options) {
   const first = options[0];
@@ -814,7 +850,7 @@ var DialStoreClass = class {
       if (control?.type === "action") {
         continue;
       }
-      const next = control?.type === "pad" ? normalizePadValue(value, control.pad) : control?.type === "anchor" ? normalizeAnchorValue(value, control.anchor) : control?.type === "layers" ? normalizeLayersValue(value) : control?.type === "background" ? normalizeBackgroundValue(value, panel.values[path]) : value;
+      const next = control?.type === "pad" ? normalizePadValue(value, control.pad) : control?.type === "anchor" ? normalizeAnchorValue(value, control.anchor) : control?.type === "layers" ? normalizeLayersValue(value) : control?.type === "pictures" ? normalizePicturesValue(value) : control?.type === "background" ? normalizeBackgroundValue(value, panel.values[path]) : value;
       if (sameControlValue(panel.values[path], next, control) && (!target || sameControlValue(target[path], next, control))) continue;
       panel.values[path] = next;
       validUpdates[path] = next;
@@ -1323,14 +1359,14 @@ var DialStoreClass = class {
       const raw = storage.getItem(config.key);
       if (!raw) return null;
       const parsed = JSON.parse(raw);
-      if (!isRecord3(parsed) || parsed.version !== 1) return null;
-      const values = isRecord3(parsed.values) ? parsed.values : void 0;
-      const presets = config.presets && Array.isArray(parsed.presets) ? parsed.presets.filter((preset) => isRecord3(preset) && typeof preset.id === "string" && typeof preset.name === "string" && isRecord3(preset.values)) : [];
-      const gradients = Array.isArray(parsed.gradients) ? parsed.gradients.filter((saved) => isRecord3(saved) && typeof saved.id === "string" && isRecord3(saved.gradient)).map((saved) => ({ id: saved.id, gradient: normalizeGradient(saved.gradient) })) : void 0;
+      if (!isRecord4(parsed) || parsed.version !== 1) return null;
+      const values = isRecord4(parsed.values) ? parsed.values : void 0;
+      const presets = config.presets && Array.isArray(parsed.presets) ? parsed.presets.filter((preset) => isRecord4(preset) && typeof preset.id === "string" && typeof preset.name === "string" && isRecord4(preset.values)) : [];
+      const gradients = Array.isArray(parsed.gradients) ? parsed.gradients.filter((saved) => isRecord4(saved) && typeof saved.id === "string" && isRecord4(saved.gradient)).map((saved) => ({ id: saved.id, gradient: normalizeGradient(saved.gradient) })) : void 0;
       return {
         version: 1,
         values,
-        baseValues: config.presets && isRecord3(parsed.baseValues) ? parsed.baseValues : values,
+        baseValues: config.presets && isRecord4(parsed.baseValues) ? parsed.baseValues : values,
         presets,
         activePresetId: presets.some((preset) => preset.id === parsed.activePresetId) ? parsed.activePresetId : null,
         baseName: config.presets && typeof parsed.baseName === "string" ? parsed.baseName : void 0,
@@ -1394,7 +1430,7 @@ var DialStoreClass = class {
     let stored = [];
     try {
       const parsed = JSON.parse(storage.getItem(TRANSITION_PRESETS_KEY) ?? "null");
-      if (isRecord3(parsed) && parsed.version === 1 && Array.isArray(parsed.presets)) {
+      if (isRecord4(parsed) && parsed.version === 1 && Array.isArray(parsed.presets)) {
         stored = parsed.presets.filter(isStoredTransitionPreset);
       }
     } catch {
@@ -1529,6 +1565,8 @@ var DialStoreClass = class {
           control = { type: "pad", path, label, pad: value };
         } else if (isLayersConfigValue(value)) {
           control = { type: "layers", path, label, layers: { ...value, default: normalizeLayersValue(value.default) } };
+        } else if (isPicturesConfigValue(value)) {
+          control = { type: "pictures", path, label, pictures: { ...value, families: normalizePictureFamilies(value.families), default: normalizePicturesValue(value.default) } };
         } else if (isAnchorConfigValue(value)) {
           control = { type: "anchor", path, label, anchor: value };
         } else if (isBackgroundConfigValue(value)) {
@@ -1649,6 +1687,11 @@ var DialStoreClass = class {
         return normalizeAnchorValue(existingValue, control.anchor);
       case "layers":
         return normalizeLayersValue(existingValue, control.layers?.default);
+      case "pictures": {
+        if (existingValue === null) return null;
+        const id = normalizePicturesValue(existingValue);
+        return id !== null && control.pictures?.families.some((family) => family.items.some((item) => item.id === id)) ? id : defaultValue;
+      }
       case "background":
         return normalizeBackgroundValue(existingValue, defaultValue);
       case "select": {

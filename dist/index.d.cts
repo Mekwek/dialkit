@@ -100,6 +100,75 @@ declare function parseLayerAction(path: string, action: string): {
  */
 declare function normalizeLayersValue(value: unknown, fallback?: LayersValue): LayersValue;
 
+/**
+ * The pictures control: rows of families that open like an accordion, each
+ * showing its child presets as a grid of picture tiles.
+ *
+ * The app owns the presets. The control's value is the id of the selected
+ * tile, and the control never changes it on its own: a click on a tile sends
+ * `pictureAction(path, id)`, the app switches to that preset, then writes the
+ * new value. The pictures themselves are the app's too: DialKit gives each
+ * tile's picture box to the picture host (`setPictureHost`) and draws nothing
+ * in it but a placeholder.
+ */
+type PictureItem = {
+    /** The preset's id: the value while this tile is selected. Unique across every family. */
+    id: string;
+    /** The text under the tile's picture. */
+    label: string;
+    /**
+     * The group heading this tile sits under, shown exactly as given. Tiles of
+     * one family with the same group form one group; groups follow the order
+     * of their first tile. Tiles with no group come first, with no heading.
+     */
+    group?: string;
+    /** A short sentence about the preset, shown while the hint key is held. */
+    hint?: string;
+};
+type PictureFamily = {
+    id: string;
+    /** The family row's text. */
+    label: string;
+    items: PictureItem[];
+    /** A short sentence about the family, shown on its row while the hint key is held. */
+    hint?: string;
+};
+type PicturesConfig = {
+    type: 'pictures';
+    families: PictureFamily[];
+    /** The selected tile's id before the app writes one. Default `null`, no tile selected. */
+    default?: string | null;
+};
+/** The selected tile's id, or `null` when no tile is selected. */
+type PicturesValue = string | null;
+/** One run of tiles inside an open family: a group under its heading, or the tiles with no group (`heading: null`). */
+type PictureSection = {
+    heading: string | null;
+    items: PictureItem[];
+};
+/** The action path a pictures control sends when its tile `id` is clicked: `<path>:pick:<id>`. */
+declare function pictureAction(path: string, id: string): string;
+/** Reads an action path sent by the pictures control at `path`, or null for any other action. */
+declare function parsePictureAction(path: string, action: string): {
+    id: string;
+} | null;
+/**
+ * A family's tiles split into the sections an open family shows: the tiles
+ * with no group first, under no heading, then one section per group, in the
+ * order of each group's first tile. An empty group string counts as no group.
+ */
+declare function pictureSections(items: readonly PictureItem[]): PictureSection[];
+/** The id of the family holding the tile `id`, or null. */
+declare function findPictureFamily(families: readonly PictureFamily[], id: string | null): string | null;
+/**
+ * Valid families: a family or tile without a string id and label is dropped,
+ * a repeated family id keeps its first family, and a tile id already used
+ * (in any family) keeps its first tile.
+ */
+declare function normalizePictureFamilies(value: unknown): PictureFamily[];
+/** A valid value: a non-empty string id, else null. */
+declare function normalizePicturesValue(value: unknown): PicturesValue;
+
 type BezierPoints = EasingConfig['ease'];
 
 /** A named value a transition control can apply in one mode. */
@@ -328,7 +397,7 @@ type TextConfig = {
     default?: string;
     placeholder?: string;
 };
-type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue | BackgroundConfig | BackgroundValue | AnchorConfig | AnchorValue | LayersConfig | LayersValue | null;
+type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue | BackgroundConfig | BackgroundValue | AnchorConfig | AnchorValue | LayersConfig | LayersValue | PicturesConfig | null;
 /**
  * Folder keys that configure the folder instead of adding a control:
  * `_collapsed`, `_fields`, `_reset`, `_hints` (a sentence per child key),
@@ -405,12 +474,12 @@ type AnchorConfigValue<C> = C extends {
 type ResolvedValues<T extends DialConfig> = {
     [K in keyof T as K extends FolderMetaKey ? never : K]: T[K] extends ControlWithVisibility<infer U extends DialConfig[string]> ? ResolvedValues<{
         value: U;
-    }>['value'] : T[K] extends [number, number, number, number?, string?] ? number : T[K] extends SpringConfig ? TransitionConfig : T[K] extends EasingConfig ? TransitionConfig : T[K] extends SelectConfig ? string : T[K] extends ColorConfig | ImageConfig ? string : T[K] extends TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends BackgroundConfig ? BackgroundValue : T[K] extends AnchorConfig ? AnchorConfigValue<T[K]> : T[K] extends LayersConfig ? LayersValue : T[K] extends DialConfig ? ResolvedValues<T[K]> : T[K];
+    }>['value'] : T[K] extends [number, number, number, number?, string?] ? number : T[K] extends SpringConfig ? TransitionConfig : T[K] extends EasingConfig ? TransitionConfig : T[K] extends SelectConfig ? string : T[K] extends ColorConfig | ImageConfig ? string : T[K] extends TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends BackgroundConfig ? BackgroundValue : T[K] extends AnchorConfig ? AnchorConfigValue<T[K]> : T[K] extends LayersConfig ? LayersValue : T[K] extends PicturesConfig ? PicturesValue : T[K] extends DialConfig ? ResolvedValues<T[K]> : T[K];
 };
 type DialKitValueUpdates<T extends DialConfig> = {
     [K in keyof T as K extends FolderMetaKey ? never : K]?: T[K] extends ControlWithVisibility<infer U extends DialConfig[string]> ? DialKitValueUpdates<{
         value: U;
-    }>['value'] : T[K] extends [number, number, number, number?, string?] ? number : T[K] extends SpringConfig | EasingConfig ? TransitionConfig : T[K] extends ActionConfig ? never : T[K] extends SelectConfig | ColorConfig | ImageConfig | TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends BackgroundConfig ? BackgroundValueUpdate : T[K] extends AnchorConfig ? AnchorConfigValue<T[K]> : T[K] extends LayersConfig ? LayersValue : T[K] extends DialConfig ? DialKitValueUpdates<T[K]> : T[K];
+    }>['value'] : T[K] extends [number, number, number, number?, string?] ? number : T[K] extends SpringConfig | EasingConfig ? TransitionConfig : T[K] extends ActionConfig ? never : T[K] extends SelectConfig | ColorConfig | ImageConfig | TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends BackgroundConfig ? BackgroundValueUpdate : T[K] extends AnchorConfig ? AnchorConfigValue<T[K]> : T[K] extends LayersConfig ? LayersValue : T[K] extends PicturesConfig ? PicturesValue : T[K] extends DialConfig ? DialKitValueUpdates<T[K]> : T[K];
 };
 type ShortcutMode = 'fine' | 'normal' | 'coarse';
 type ShortcutInteraction = 'scroll' | 'drag' | 'move' | 'scroll-only';
@@ -421,7 +490,7 @@ type ShortcutConfig = {
     interaction?: ShortcutInteraction;
 };
 type ControlMeta = {
-    type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'image' | 'text' | 'pad' | 'background' | 'anchor' | 'layers';
+    type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'image' | 'text' | 'pad' | 'background' | 'anchor' | 'layers' | 'pictures';
     path: string;
     label: string;
     min?: number;
@@ -456,6 +525,11 @@ type ControlMeta = {
     /** Layers only: the config, with its default made valid. Its add, duplicate and delete send `layerAction` paths. */
     layers?: LayersConfig & {
         default: LayersValue;
+    };
+    /** Pictures only: the config, with its families and default made valid. A tile click sends a `pictureAction` path. */
+    pictures?: PicturesConfig & {
+        families: PictureFamily[];
+        default: PicturesValue;
     };
     shortcut?: ShortcutConfig;
     visibleWhen?: VisibleWhen;
@@ -522,7 +596,7 @@ type PanelConfig = {
      */
     versionPrefix?: string;
 };
-type Listener$3 = () => void;
+type Listener$4 = () => void;
 type ActionListener = (action: string) => void;
 type ResetListener = (folderPath: string) => void;
 type Preset = {
@@ -722,8 +796,8 @@ declare class DialStoreClass {
     getPanel(id: string): PanelConfig | undefined;
     /** Looks up a control by path, including one its visibility rule hides. */
     getControl(panelId: string, path: string): ControlMeta | undefined;
-    subscribe(panelId: string, listener: Listener$3): () => void;
-    subscribeGlobal(listener: Listener$3): () => void;
+    subscribe(panelId: string, listener: Listener$4): () => void;
+    subscribeGlobal(listener: Listener$4): () => void;
     /**
      * Shows or hides a panel, by name, in a timeline clip popover (`panel` on
      * a clip). DialRoot leaves the panel out while a popover shows it.
@@ -782,7 +856,7 @@ declare class DialStoreClass {
     getCopiedTransition(): CopiedTransition | null;
     clearCopiedTransition(): void;
     /** Notifies when saved transitions or the copied transition change. */
-    subscribeTransitions(listener: Listener$3): () => void;
+    subscribeTransitions(listener: Listener$4): () => void;
     resolveShortcutTarget(key: string, modifier?: 'alt' | 'shift' | 'meta'): {
         panelId: string;
         path: string;
@@ -1008,7 +1082,7 @@ type TimelineTransport = {
      * timeline wraps. Reset by seek/replay so scrubbing stays deterministic. */
     wraps: number;
 };
-type Listener$2 = () => void;
+type Listener$3 = () => void;
 declare class TimelineStoreClass {
     private timelines;
     private transports;
@@ -1039,8 +1113,8 @@ declare class TimelineStoreClass {
     getTransport(id: string): TimelineTransport;
     getTimeline(id: string): TimelineMeta | undefined;
     getTimelines(): TimelineMeta[];
-    subscribe(id: string, listener: Listener$2): () => void;
-    subscribeGlobal(listener: Listener$2): () => void;
+    subscribe(id: string, listener: Listener$3): () => void;
+    subscribeGlobal(listener: Listener$3): () => void;
     private applyMeta;
     private ensureLoop;
     private tick;
@@ -1588,6 +1662,48 @@ type LayerListControlProps = {
 /** The layer list: an add button, then rows with an eye, duplicate and delete. */
 declare function LayerListControl(props: LayerListControlProps): react_jsx_runtime.JSX.Element;
 
+type PictureListControlProps = {
+    label: string;
+    families: PictureFamily[];
+    /** The selected tile's id. It only marks that tile: a click never changes it. */
+    value: PicturesValue;
+    /** A tile was clicked: the app switches to that preset, then writes the new value. */
+    onPick: (id: string) => void;
+    /** A short sentence about the control, shown while the hint key is held. Families and tiles have their own. */
+    hint?: string;
+};
+
+/** Families of presets as accordion rows, each opening to a grid of picture tiles. */
+declare function PictureListControl(props: PictureListControlProps): react_jsx_runtime.JSX.Element;
+
+/** The elements of one shown tile: the box the picture goes in, and the tile button around it. */
+type PictureParts = {
+    picture: HTMLElement;
+    tile: HTMLElement;
+};
+/**
+ * What a host gives every pictures control: the pictures themselves.
+ *
+ * `attach` runs when a tile's picture box is shown (its family opens, or the
+ * control mounts with it open), with the tile's item id and its elements.
+ * The host draws into `picture` (for example by adding a canvas) and may
+ * return a cleanup, which runs when the tile is no longer shown: its family
+ * closes, the item is removed, or the control is destroyed. When the host
+ * changes, every shown tile is cleaned up and attached again.
+ *
+ * Without a host (or after `setPictureHost({})`), the picture box shows its
+ * placeholder background.
+ */
+type PictureHost = {
+    attach?: (itemId: string, parts: PictureParts) => (() => void) | void;
+};
+type Listener$2 = () => void;
+/** Sets the host, replacing the previous one. `setPictureHost({})` removes it. */
+declare function setPictureHost(host: PictureHost): void;
+declare function getPictureHost(): PictureHost;
+/** Calls `listener` when the host changes. Returns the unsubscribe. */
+declare function subscribePictureHost(listener: Listener$2): () => void;
+
 /**
  * Draws a background value into a canvas at the canvas's own size: the solid
  * color, or the gradient exactly, every shape (`paintGradient`). For a host
@@ -1821,4 +1937,4 @@ declare function HintTip({ always }: {
  */
 declare function HintTooltip(): null;
 
-export { type ActionConfig, type AnchorConfig, AnchorControl, type AnchorControlProps, type AnchorValue, type BackgroundConfig, BackgroundControl, type BackgroundControlProps, type BackgroundGradient, type BackgroundHost, type BackgroundMedia, type BackgroundMediaDisplay, type BackgroundMediaFit, type BackgroundMediaRatio, type BackgroundMode, type BackgroundValue, type BackgroundValueUpdate, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type CopiedTransition, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, type DialVersions, type EasingConfig, EasingVisualization, type FieldsConfig, Folder, type FolderMode, GRADIENT_SHAPES, type GizmoBox, type GradientFrame, type GradientGizmoCallbacks, type GradientGizmoProps, type GradientHandles, type GradientPoint, type GradientShape, type GradientStop, HintStore, HintTip, HintTooltip, type ImageConfig, ImageControl, type ImageOption, type InlineLabelsConfig, type LayerActionKind, type LayerItem, LayerListControl, type LayerListControlProps, type LayersConfig, type LayersValue, type PadGroupConfig, type PanelConfig, type Preset, PresetManager, type RangeConfig, type ResolvedValues, type RowConfig, type SavedGradient, Section, type SectionProps, type SectionRow, type SelectAddConfig, type SelectConfig, SelectControl, type SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipMeta, type TimelineClipTrackMeta, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelineMeta, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, TimelineStore, type TimelineTransport, Toggle, type TransitionConfig, TransitionControl, TransitionCopyMenu, type TransitionCopyMenuProps, type TransitionMode, type TransitionPreset, type UseDialOptions, type UseDialTimelineOptions, VersionGallery, type VisibleWhen, type VisibleWhenValue, backgroundGradientCss, backgroundMediaCss, defaultBackgroundValue, defaultGradientHandles, dragGradientCentre, dragGradientEnd, dragGradientWidth, formatClock, formatGizmoAngle, getBackgroundHost, getSavedGradients, gizmoAngle, gizmoPoints, gradientFrame, gradientParamAt, hasBackgroundHost, layerAction, legacyGradientHandles, mountGradientGizmo, normalizeBackgroundValue, normalizeLayersValue, paintBackgroundPreview, paintGradient, parseLayerAction, rotateGradientHandles, setBackgroundHost, setSavedGradients, stopPlacement, stopPositionAt, subscribeBackgroundHost, switchGradientShape, useDialKit, useDialKitController, useDialTimeline, withVisibility };
+export { type ActionConfig, type AnchorConfig, AnchorControl, type AnchorControlProps, type AnchorValue, type BackgroundConfig, BackgroundControl, type BackgroundControlProps, type BackgroundGradient, type BackgroundHost, type BackgroundMedia, type BackgroundMediaDisplay, type BackgroundMediaFit, type BackgroundMediaRatio, type BackgroundMode, type BackgroundValue, type BackgroundValueUpdate, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type CopiedTransition, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, type DialVersions, type EasingConfig, EasingVisualization, type FieldsConfig, Folder, type FolderMode, GRADIENT_SHAPES, type GizmoBox, type GradientFrame, type GradientGizmoCallbacks, type GradientGizmoProps, type GradientHandles, type GradientPoint, type GradientShape, type GradientStop, HintStore, HintTip, HintTooltip, type ImageConfig, ImageControl, type ImageOption, type InlineLabelsConfig, type LayerActionKind, type LayerItem, LayerListControl, type LayerListControlProps, type LayersConfig, type LayersValue, type PadGroupConfig, type PanelConfig, type PictureFamily, type PictureHost, type PictureItem, PictureListControl, type PictureListControlProps, type PictureParts, type PictureSection, type PicturesConfig, type PicturesValue, type Preset, PresetManager, type RangeConfig, type ResolvedValues, type RowConfig, type SavedGradient, Section, type SectionProps, type SectionRow, type SelectAddConfig, type SelectConfig, SelectControl, type SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipMeta, type TimelineClipTrackMeta, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelineMeta, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, TimelineStore, type TimelineTransport, Toggle, type TransitionConfig, TransitionControl, TransitionCopyMenu, type TransitionCopyMenuProps, type TransitionMode, type TransitionPreset, type UseDialOptions, type UseDialTimelineOptions, VersionGallery, type VisibleWhen, type VisibleWhenValue, backgroundGradientCss, backgroundMediaCss, defaultBackgroundValue, defaultGradientHandles, dragGradientCentre, dragGradientEnd, dragGradientWidth, findPictureFamily, formatClock, formatGizmoAngle, getBackgroundHost, getPictureHost, getSavedGradients, gizmoAngle, gizmoPoints, gradientFrame, gradientParamAt, hasBackgroundHost, layerAction, legacyGradientHandles, mountGradientGizmo, normalizeBackgroundValue, normalizeLayersValue, normalizePictureFamilies, normalizePicturesValue, paintBackgroundPreview, paintGradient, parseLayerAction, parsePictureAction, pictureAction, pictureSections, rotateGradientHandles, setBackgroundHost, setPictureHost, setSavedGradients, stopPlacement, stopPositionAt, subscribeBackgroundHost, subscribePictureHost, switchGradientShape, useDialKit, useDialKitController, useDialTimeline, withVisibility };

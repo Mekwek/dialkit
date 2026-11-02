@@ -1,5 +1,6 @@
 import { DialPadConfig, DialPadValue } from './dial-pad.js';
 import { AnchorConfig, AnchorValue } from './anchor.js';
+import { PicturesConfig, PictureFamily, PicturesValue } from './pictures.js';
 import { BackgroundConfig, BackgroundValue } from './background.js';
 
 /**
@@ -109,7 +110,7 @@ type TextConfig = {
     default?: string;
     placeholder?: string;
 };
-type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue | BackgroundConfig | BackgroundValue | AnchorConfig | AnchorValue | LayersConfig | LayersValue | null;
+type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue | BackgroundConfig | BackgroundValue | AnchorConfig | AnchorValue | LayersConfig | LayersValue | PicturesConfig | null;
 /**
  * A row: set `_row: true` on a folder with two controls. The folder shows
  * no header; its two controls sit side by side, each with its label above
@@ -150,7 +151,7 @@ type ShortcutConfig = {
     interaction?: ShortcutInteraction;
 };
 type ControlMeta = {
-    type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'image' | 'text' | 'pad' | 'background' | 'anchor' | 'layers';
+    type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'image' | 'text' | 'pad' | 'background' | 'anchor' | 'layers' | 'pictures';
     path: string;
     label: string;
     min?: number;
@@ -185,6 +186,11 @@ type ControlMeta = {
     /** Layers only: the config, with its default made valid. Its add, duplicate and delete send `layerAction` paths. */
     layers?: LayersConfig & {
         default: LayersValue;
+    };
+    /** Pictures only: the config, with its families and default made valid. A tile click sends a `pictureAction` path. */
+    pictures?: PicturesConfig & {
+        families: PictureFamily[];
+        default: PicturesValue;
     };
     shortcut?: ShortcutConfig;
     visibleWhen?: VisibleWhen;

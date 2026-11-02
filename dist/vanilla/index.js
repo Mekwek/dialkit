@@ -412,6 +412,68 @@ function sameLayersValue(a, b) {
   });
 }
 
+// src/pictures.ts
+var ACTION_SEPARATOR = ":";
+var PICK = "pick";
+function pictureAction(path, id) {
+  return `${path}${ACTION_SEPARATOR}${PICK}${ACTION_SEPARATOR}${id}`;
+}
+function parsePictureAction(path, action) {
+  const prefix = `${path}${ACTION_SEPARATOR}${PICK}${ACTION_SEPARATOR}`;
+  if (!action.startsWith(prefix) || action.length === prefix.length) return null;
+  return { id: action.slice(prefix.length) };
+}
+function pictureSections(items) {
+  const loose = [];
+  const groups = /* @__PURE__ */ new Map();
+  for (const item of items) {
+    if (!item.group) {
+      loose.push(item);
+      continue;
+    }
+    const list = groups.get(item.group);
+    if (list) list.push(item);
+    else groups.set(item.group, [item]);
+  }
+  const sections = loose.length ? [{ heading: null, items: loose }] : [];
+  for (const [heading, list] of groups) sections.push({ heading, items: list });
+  return sections;
+}
+function findPictureFamily(families, id) {
+  if (id === null) return null;
+  return families.find((family) => family.items.some((item) => item.id === id))?.id ?? null;
+}
+function isRecord2(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+var nonEmpty = (value) => typeof value === "string" && value !== "";
+function normalizePictureFamilies(value) {
+  if (!Array.isArray(value)) return [];
+  const familyIds = /* @__PURE__ */ new Set();
+  const itemIds = /* @__PURE__ */ new Set();
+  const families = [];
+  for (const raw of value) {
+    if (!isRecord2(raw) || !nonEmpty(raw.id) || typeof raw.label !== "string" || familyIds.has(raw.id)) continue;
+    familyIds.add(raw.id);
+    const items = [];
+    for (const rawItem of Array.isArray(raw.items) ? raw.items : []) {
+      if (!isRecord2(rawItem) || !nonEmpty(rawItem.id) || typeof rawItem.label !== "string" || itemIds.has(rawItem.id)) continue;
+      itemIds.add(rawItem.id);
+      const item = { id: rawItem.id, label: rawItem.label };
+      if (nonEmpty(rawItem.group)) item.group = rawItem.group;
+      if (nonEmpty(rawItem.hint)) item.hint = rawItem.hint;
+      items.push(item);
+    }
+    const family = { id: raw.id, label: raw.label, items };
+    if (nonEmpty(raw.hint)) family.hint = raw.hint;
+    families.push(family);
+  }
+  return families;
+}
+function normalizePicturesValue(value) {
+  return nonEmpty(value) ? value : null;
+}
+
 // src/easing-geometry.ts
 var clampY = (value) => Math.max(-1, Math.min(2, value));
 var easingPresets = {
@@ -617,7 +679,7 @@ var MODES = ["solid", "gradient", "media"];
 var POINT_RANGE = { min: -10, max: 11 };
 var COLUMNS = ["left", "center", "right"];
 var ROWS = ["top", "center", "bottom"];
-var isRecord2 = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
+var isRecord3 = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
 var oneOf2 = (options, value, fallback) => options.includes(value) ? value : fallback;
 var finite = (value) => typeof value === "number" && Number.isFinite(value);
 var round2 = (n, digits) => Number(n.toFixed(digits)) || 0;
@@ -651,18 +713,18 @@ function legacyGradientHandles(shape, angle) {
   };
 }
 function normalizePoint(value, fallback) {
-  if (!isRecord2(value) || !finite(value.x) || !finite(value.y)) return { ...fallback };
+  if (!isRecord3(value) || !finite(value.x) || !finite(value.y)) return { ...fallback };
   return { x: round2(clamp(value.x, POINT_RANGE.min, POINT_RANGE.max), 6), y: round2(clamp(value.y, POINT_RANGE.min, POINT_RANGE.max), 6) };
 }
 function sortStops(stops) {
   return stops.map((stop3, i) => ({ stop: stop3, i })).sort((a, b) => a.stop.at - b.stop.at || a.i - b.i).map(({ stop: stop3 }) => stop3);
 }
 function normalizeGradient(value, fallback = defaultBackgroundValue().gradient) {
-  const input = isRecord2(value) ? value : {};
+  const input = isRecord3(value) ? value : {};
   const shape = oneOf2(GRADIENT_SHAPES, input.shape, fallback.shape);
-  const handles = isRecord2(input.handles) ? input.handles : {};
-  const base = isRecord2(input.handles) ? fallback.handles : switchGradientShape(fallback, shape).handles;
-  const stops = Array.isArray(input.stops) ? input.stops.filter((stop3) => isRecord2(stop3) && finite(stop3.at) && validColor(stop3.color)).map((stop3) => ({ at: round2(clamp(stop3.at, 0, 100), 2), color: stop3.color.trim() })) : [];
+  const handles = isRecord3(input.handles) ? input.handles : {};
+  const base = isRecord3(input.handles) ? fallback.handles : switchGradientShape(fallback, shape).handles;
+  const stops = Array.isArray(input.stops) ? input.stops.filter((stop3) => isRecord3(stop3) && finite(stop3.at) && validColor(stop3.color)).map((stop3) => ({ at: round2(clamp(stop3.at, 0, 100), 2), color: stop3.color.trim() })) : [];
   return {
     shape,
     handles: {
@@ -679,8 +741,8 @@ function capStops(sorted) {
   return Array.from({ length: MAX_GRADIENT_STOPS }, (_, i) => sorted[Math.round(i * (n - 1) / (MAX_GRADIENT_STOPS - 1))]);
 }
 function normalizeMediaDisplay(value, fallback) {
-  const input = isRecord2(value) ? value : {};
-  const position = isRecord2(input.position) ? input.position : {};
+  const input = isRecord3(value) ? value : {};
+  const position = isRecord3(input.position) ? input.position : {};
   return {
     fit: oneOf2(MEDIA_FITS, input.fit, fallback.fit),
     ratio: oneOf2(MEDIA_RATIOS, input.ratio, fallback.ratio),
@@ -690,13 +752,13 @@ function normalizeMediaDisplay(value, fallback) {
   };
 }
 function normalizeBackgroundValue(value, fallback = defaultBackgroundValue()) {
-  const input = isRecord2(value) ? value : {};
+  const input = isRecord3(value) ? value : {};
   const media = input.media;
   return {
     mode: oneOf2(MODES, input.mode, fallback.mode),
     color: validColor(input.color) ? input.color.trim() : fallback.color,
     gradient: normalizeGradient(input.gradient, fallback.gradient),
-    media: media === null ? null : isRecord2(media) && typeof media.src === "string" && media.src && (media.kind === "image" || media.kind === "video") ? { src: media.src, kind: media.kind } : fallback.media && { ...fallback.media },
+    media: media === null ? null : isRecord3(media) && typeof media.src === "string" && media.src && (media.kind === "image" || media.kind === "video") ? { src: media.src, kind: media.kind } : fallback.media && { ...fallback.media },
     mediaDisplay: normalizeMediaDisplay(input.mediaDisplay, fallback.mediaDisplay)
   };
 }
@@ -874,7 +936,7 @@ function withVisibility(control, rule) {
   return { value: control, visibleWhen: rule };
 }
 function isVisibilityWrapper(value) {
-  return isRecord3(value) && "value" in value && isRecord3(value.visibleWhen) && typeof value.visibleWhen.field === "string";
+  return isRecord4(value) && "value" in value && isRecord4(value.visibleWhen) && typeof value.visibleWhen.field === "string";
 }
 function unwrapVisibility(value) {
   return isVisibilityWrapper(value) ? value.value : value;
@@ -892,7 +954,7 @@ function nextTransitionPresetName(presets, mode) {
   return `Custom ${highest + 1}`;
 }
 function isStoredTransitionPreset(preset) {
-  if (!isRecord3(preset) || typeof preset.id !== "string" || typeof preset.name !== "string" || !isRecord3(preset.value)) return false;
+  if (!isRecord4(preset) || typeof preset.id !== "string" || typeof preset.name !== "string" || !isRecord4(preset.value)) return false;
   const value = preset.value;
   const finite2 = (...keys) => keys.every((key) => Number.isFinite(value[key]));
   switch (preset.mode) {
@@ -958,7 +1020,7 @@ function canShowFields(children) {
   return axes >= 2 && axes <= 4 && locks <= 1 && axes + locks === children.length;
 }
 function isLeafConfigValue(value) {
-  return Array.isArray(value) && value.length <= 5 && typeof value[0] === "number" || typeof value === "number" || typeof value === "boolean" || typeof value === "string" || isSpringConfigValue(value) || isEasingConfigValue(value) || isActionConfigValue(value) || isSelectConfigValue(value) || isColorConfigValue(value) || isImageConfigValue(value) || isTextConfigValue(value) || isPadConfigValue(value) || isBackgroundConfigValue(value) || isAnchorConfigValue(value) || isLayersConfigValue(value);
+  return Array.isArray(value) && value.length <= 5 && typeof value[0] === "number" || typeof value === "number" || typeof value === "boolean" || typeof value === "string" || isSpringConfigValue(value) || isEasingConfigValue(value) || isActionConfigValue(value) || isSelectConfigValue(value) || isColorConfigValue(value) || isImageConfigValue(value) || isTextConfigValue(value) || isPadConfigValue(value) || isBackgroundConfigValue(value) || isAnchorConfigValue(value) || isLayersConfigValue(value) || isPicturesConfigValue(value);
 }
 function configDefaultValue(value) {
   if (Array.isArray(value)) return value[0];
@@ -970,18 +1032,19 @@ function configDefaultValue(value) {
   if (isAnchorConfigValue(value)) return normalizeAnchorValue(void 0, value);
   if (isBackgroundConfigValue(value)) return normalizeBackgroundValue(value.default);
   if (isLayersConfigValue(value)) return normalizeLayersValue(value.default);
+  if (isPicturesConfigValue(value)) return normalizePicturesValue(value.default);
   return value;
 }
-function isRecord3(value) {
+function isRecord4(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function sameControlValue(previous, next, control) {
   if (Object.is(previous, next)) return true;
   if (control?.type === "layers") return sameLayersValue(previous, next);
   if (control?.type === "background") {
-    return isRecord3(previous) && isRecord3(next) && sameBackgroundValue(previous, next);
+    return isRecord4(previous) && isRecord4(next) && sameBackgroundValue(previous, next);
   }
-  return (control?.type === "pad" || control?.type === "anchor") && isRecord3(previous) && isRecord3(next) && previous.x === next.x && previous.y === next.y;
+  return (control?.type === "pad" || control?.type === "anchor") && isRecord4(previous) && isRecord4(next) && previous.x === next.x && previous.y === next.y;
 }
 function sameValue(a, b) {
   if (a === b) return true;
@@ -1047,6 +1110,9 @@ function isBackgroundConfigValue(value) {
 }
 function isLayersConfigValue(value) {
   return hasType(value, "layers");
+}
+function isPicturesConfigValue(value) {
+  return hasType(value, "pictures");
 }
 function getFirstOptionValue(options) {
   const first = options[0];
@@ -1299,7 +1365,7 @@ var DialStoreClass = class {
       if (control?.type === "action") {
         continue;
       }
-      const next = control?.type === "pad" ? normalizePadValue(value, control.pad) : control?.type === "anchor" ? normalizeAnchorValue(value, control.anchor) : control?.type === "layers" ? normalizeLayersValue(value) : control?.type === "background" ? normalizeBackgroundValue(value, panel.values[path]) : value;
+      const next = control?.type === "pad" ? normalizePadValue(value, control.pad) : control?.type === "anchor" ? normalizeAnchorValue(value, control.anchor) : control?.type === "layers" ? normalizeLayersValue(value) : control?.type === "pictures" ? normalizePicturesValue(value) : control?.type === "background" ? normalizeBackgroundValue(value, panel.values[path]) : value;
       if (sameControlValue(panel.values[path], next, control) && (!target || sameControlValue(target[path], next, control))) continue;
       panel.values[path] = next;
       validUpdates[path] = next;
@@ -1808,14 +1874,14 @@ var DialStoreClass = class {
       const raw = storage.getItem(config.key);
       if (!raw) return null;
       const parsed = JSON.parse(raw);
-      if (!isRecord3(parsed) || parsed.version !== 1) return null;
-      const values = isRecord3(parsed.values) ? parsed.values : void 0;
-      const presets = config.presets && Array.isArray(parsed.presets) ? parsed.presets.filter((preset) => isRecord3(preset) && typeof preset.id === "string" && typeof preset.name === "string" && isRecord3(preset.values)) : [];
-      const gradients = Array.isArray(parsed.gradients) ? parsed.gradients.filter((saved) => isRecord3(saved) && typeof saved.id === "string" && isRecord3(saved.gradient)).map((saved) => ({ id: saved.id, gradient: normalizeGradient(saved.gradient) })) : void 0;
+      if (!isRecord4(parsed) || parsed.version !== 1) return null;
+      const values = isRecord4(parsed.values) ? parsed.values : void 0;
+      const presets = config.presets && Array.isArray(parsed.presets) ? parsed.presets.filter((preset) => isRecord4(preset) && typeof preset.id === "string" && typeof preset.name === "string" && isRecord4(preset.values)) : [];
+      const gradients = Array.isArray(parsed.gradients) ? parsed.gradients.filter((saved) => isRecord4(saved) && typeof saved.id === "string" && isRecord4(saved.gradient)).map((saved) => ({ id: saved.id, gradient: normalizeGradient(saved.gradient) })) : void 0;
       return {
         version: 1,
         values,
-        baseValues: config.presets && isRecord3(parsed.baseValues) ? parsed.baseValues : values,
+        baseValues: config.presets && isRecord4(parsed.baseValues) ? parsed.baseValues : values,
         presets,
         activePresetId: presets.some((preset) => preset.id === parsed.activePresetId) ? parsed.activePresetId : null,
         baseName: config.presets && typeof parsed.baseName === "string" ? parsed.baseName : void 0,
@@ -1832,18 +1898,18 @@ var DialStoreClass = class {
     if (!storage) return;
     const values = this.snapshots.get(id) ?? this.panels.get(id)?.values;
     if (!values) return;
-    const state2 = { version: 1, values };
+    const state3 = { version: 1, values };
     if (config.presets) {
-      state2.baseValues = this.baseValues.get(id) ?? values;
-      state2.presets = this.presets.get(id) ?? [];
-      state2.activePresetId = this.activePreset.get(id) ?? null;
+      state3.baseValues = this.baseValues.get(id) ?? values;
+      state3.presets = this.presets.get(id) ?? [];
+      state3.activePresetId = this.activePreset.get(id) ?? null;
       const baseName = this.baseNames.get(id);
-      if (baseName) state2.baseName = baseName;
+      if (baseName) state3.baseName = baseName;
     }
     const gradients = this.gradients.get(id);
-    if (gradients?.length) state2.gradients = gradients;
+    if (gradients?.length) state3.gradients = gradients;
     try {
-      storage.setItem(config.key, JSON.stringify(state2));
+      storage.setItem(config.key, JSON.stringify(state3));
     } catch {
     }
   }
@@ -1879,7 +1945,7 @@ var DialStoreClass = class {
     let stored = [];
     try {
       const parsed = JSON.parse(storage.getItem(TRANSITION_PRESETS_KEY) ?? "null");
-      if (isRecord3(parsed) && parsed.version === 1 && Array.isArray(parsed.presets)) {
+      if (isRecord4(parsed) && parsed.version === 1 && Array.isArray(parsed.presets)) {
         stored = parsed.presets.filter(isStoredTransitionPreset);
       }
     } catch {
@@ -2014,6 +2080,8 @@ var DialStoreClass = class {
           control = { type: "pad", path, label, pad: value };
         } else if (isLayersConfigValue(value)) {
           control = { type: "layers", path, label, layers: { ...value, default: normalizeLayersValue(value.default) } };
+        } else if (isPicturesConfigValue(value)) {
+          control = { type: "pictures", path, label, pictures: { ...value, families: normalizePictureFamilies(value.families), default: normalizePicturesValue(value.default) } };
         } else if (isAnchorConfigValue(value)) {
           control = { type: "anchor", path, label, anchor: value };
         } else if (isBackgroundConfigValue(value)) {
@@ -2134,6 +2202,11 @@ var DialStoreClass = class {
         return normalizeAnchorValue(existingValue, control.anchor);
       case "layers":
         return normalizeLayersValue(existingValue, control.layers?.default);
+      case "pictures": {
+        if (existingValue === null) return null;
+        const id = normalizePicturesValue(existingValue);
+        return id !== null && control.pictures?.families.some((family) => family.items.some((item) => item.id === id)) ? id : defaultValue;
+      }
       case "background":
         return normalizeBackgroundValue(existingValue, defaultValue);
       case "select": {
@@ -2965,7 +3038,7 @@ function listen() {
   let described = null;
   let fading;
   let hosted = null;
-  const observer = new ResizeObserver(() => place());
+  const observer = new ResizeObserver(() => place2());
   const mutations = new MutationObserver(() => {
     if (shown && shown === hosted?.row) return;
     if (shown?.dataset.hint) show(shown);
@@ -2996,7 +3069,7 @@ function listen() {
     else described.removeAttribute("aria-describedby");
     described = null;
   };
-  const place = () => {
+  const place2 = () => {
     if (!shown) return;
     if (!shown.isConnected || !layer2.parentElement) return hide();
     const scale = topLayer ? scaleOf(area ?? shown) : { x: 1, y: 1 };
@@ -3067,7 +3140,7 @@ function listen() {
       }
     }
     tooltip.textContent = text;
-    place();
+    place2();
     if (!tooltip.hasAttribute("data-open")) {
       tooltip.getBoundingClientRect();
       tooltip.setAttribute("data-open", "");
@@ -3146,12 +3219,12 @@ function listen() {
   window.addEventListener("keydown", handleKeyDown);
   window.addEventListener("keyup", handleKeyUp);
   window.addEventListener("blur", release);
-  window.addEventListener("resize", place);
+  window.addEventListener("resize", place2);
   document.addEventListener("visibilitychange", handleVisibilityChange);
   document.addEventListener("pointerover", handlePointerOver);
   document.addEventListener("pointerout", handlePointerOut);
   document.addEventListener("focusin", handleFocusIn);
-  document.addEventListener("scroll", place, { capture: true, passive: true });
+  document.addEventListener("scroll", place2, { capture: true, passive: true });
   if (topLayer) document.addEventListener("toggle", handleToggle, true);
   return () => {
     detachDisplay();
@@ -3161,12 +3234,12 @@ function listen() {
     window.removeEventListener("keydown", handleKeyDown);
     window.removeEventListener("keyup", handleKeyUp);
     window.removeEventListener("blur", release);
-    window.removeEventListener("resize", place);
+    window.removeEventListener("resize", place2);
     document.removeEventListener("visibilitychange", handleVisibilityChange);
     document.removeEventListener("pointerover", handlePointerOver);
     document.removeEventListener("pointerout", handlePointerOut);
     document.removeEventListener("focusin", handleFocusIn);
-    document.removeEventListener("scroll", place, { capture: true });
+    document.removeEventListener("scroll", place2, { capture: true });
     document.removeEventListener("toggle", handleToggle, true);
     observer.disconnect();
     mutations.disconnect();
@@ -3286,7 +3359,7 @@ function segmentedControl(className, label, options, pick, buttonClassName = "")
     if (style.boxSizing === "border-box") return inner;
     return inner + parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) + parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth);
   };
-  const place = (slide) => {
+  const place2 = (slide) => {
     const index = buttons.findIndex((button2) => button2.dataset.active === "true");
     if (!buttons[index]?.offsetWidth) return;
     const row = getComputedStyle(root);
@@ -3301,7 +3374,7 @@ function segmentedControl(className, label, options, pick, buttonClassName = "")
       pill.style.transition = "";
     }
   };
-  const observer = new ResizeObserver(() => place(false));
+  const observer = new ResizeObserver(() => place2(false));
   buttons.forEach((button2) => observer.observe(button2));
   let current2;
   return {
@@ -3316,7 +3389,7 @@ function segmentedControl(className, label, options, pick, buttonClassName = "")
       });
       if (value !== current2) {
         current2 = value;
-        place(true);
+        place2(true);
       }
     },
     disconnect: () => observer.disconnect()
@@ -5177,19 +5250,19 @@ function mountGradientGizmo(target, initial, callbacks) {
     const rect = root.getBoundingClientRect();
     return { x: event.clientX - rect.left, y: event.clientY - rect.top };
   };
-  const showTip = (text, x, y, place) => {
+  const showTip = (text, x, y, place2) => {
     tip.textContent = text;
     tip.hidden = false;
-    tip.dataset.place = place;
+    tip.dataset.place = place2;
     tip.style.transform = `translate(${x}px, ${y}px)`;
   };
   const hideTip = () => {
     tip.hidden = true;
   };
-  const percentTipAt = (text, place) => {
-    showTip(text, place.x, place.y, "center");
-    const reach = TIP_EDGE + tip.offsetWidth / 2 * Math.abs(place.ox) + tip.offsetHeight / 2 * Math.abs(place.oy);
-    tip.style.transform = `translate(${place.x + place.ox * reach}px, ${place.y + place.oy * reach}px)`;
+  const percentTipAt = (text, place2) => {
+    showTip(text, place2.x, place2.y, "center");
+    const reach = TIP_EDGE + tip.offsetWidth / 2 * Math.abs(place2.ox) + tip.offsetHeight / 2 * Math.abs(place2.oy);
+    tip.style.transform = `translate(${place2.x + place2.ox * reach}px, ${place2.y + place2.oy * reach}px)`;
   };
   const zone = (role, p) => {
     const point = gizmoPoints(props.gradient.handles, box)[role];
@@ -5363,12 +5436,12 @@ function mountGradientGizmo(target, initial, callbacks) {
       return;
     }
     band.style.cursor = "";
-    const place = stopPlacement(shape, h, at, box);
+    const place2 = stopPlacement(shape, h, at, box);
     ghost.hidden = false;
     root.dataset.ghost = "true";
     ghost.style.setProperty("--dial-color", gradientColorAt(stops, at));
-    placeSwatch(ghost, place);
-    percentTipAt(formatGizmoPercent(at), place);
+    placeSwatch(ghost, place2);
+    percentTipAt(formatGizmoPercent(at), place2);
   });
   band.addEventListener("pointerleave", () => {
     if (!press) {
@@ -5413,10 +5486,10 @@ function mountGradientGizmo(target, initial, callbacks) {
       if (!destroyed && props.themeSource) writeTokens(props.themeSource);
     });
   }
-  function placeSwatch(el, place) {
-    const x = place.x + place.ox * SWATCH_OFFSET;
-    const y = place.y + place.oy * SWATCH_OFFSET;
-    el.style.transform = `translate(${x}px, ${y}px) rotate(${place.rotation}rad)`;
+  function placeSwatch(el, place2) {
+    const x = place2.x + place2.ox * SWATCH_OFFSET;
+    const y = place2.y + place2.oy * SWATCH_OFFSET;
+    el.style.transform = `translate(${x}px, ${y}px) rotate(${place2.rotation}rad)`;
   }
   const fit = () => {
     if (destroyed) return;
@@ -7884,13 +7957,13 @@ function mountFields(host, initial) {
     axis.setAttribute("aria-hidden", "true");
     const value = element8("button", "dialkit-fields-value");
     field2.append(axis, value);
-    const state2 = { field: field2, axis, value };
+    const state3 = { field: field2, axis, value };
     const control = () => axes()[index];
     let scrubbed = false;
     const finish = (apply) => {
-      const input = state2.input;
+      const input = state3.input;
       if (!input) return;
-      state2.input = void 0;
+      state3.input = void 0;
       const text = input.value.trim();
       const number2 = text === "" ? NaN : Number(text);
       if (apply && text !== format(control()) && Number.isFinite(number2)) commit(index, number2);
@@ -7898,7 +7971,7 @@ function mountFields(host, initial) {
       render();
     };
     value.addEventListener("click", () => {
-      if (state2.input) return;
+      if (state3.input) return;
       const input = element8("input", "dialkit-fields-input");
       input.type = "text";
       input.inputMode = "decimal";
@@ -7923,7 +7996,7 @@ function mountFields(host, initial) {
         input.value = input.defaultValue = format(control());
         input.select();
       });
-      state2.input = input;
+      state3.input = input;
       value.replaceWith(input);
       input.focus();
       input.select();
@@ -7965,7 +8038,7 @@ function mountFields(host, initial) {
       scrubbed = false;
     });
     row.append(field2);
-    return state2;
+    return state3;
   }
   reset.addEventListener("click", () => {
     fieldLock.reset();
@@ -8156,6 +8229,287 @@ function mountAnchorControl(host, initial) {
       slide?.animation.cancel();
       setHint(grid, void 0);
       grid.remove();
+    }
+  };
+}
+
+// src/store/PictureHost.ts
+var STATE_KEY2 = /* @__PURE__ */ Symbol.for("dialkit.pictureHost");
+function state2() {
+  const scope = globalThis;
+  let current2 = scope[STATE_KEY2];
+  if (!current2) {
+    current2 = { host: {}, listeners: /* @__PURE__ */ new Set() };
+    scope[STATE_KEY2] = current2;
+  }
+  return current2;
+}
+function setPictureHost(host) {
+  const current2 = state2();
+  current2.host = { ...host };
+  current2.listeners.forEach((listener) => listener());
+}
+function getPictureHost() {
+  return state2().host;
+}
+function subscribePictureHost(listener) {
+  const listeners2 = state2().listeners;
+  listeners2.add(listener);
+  return () => {
+    listeners2.delete(listener);
+  };
+}
+
+// src/picture-list-control.ts
+var instances = 0;
+var chevronAngle = (open) => open ? 0 : -90;
+function place(parent, node, previous) {
+  const next = previous ? previous.nextElementSibling : parent.firstElementChild;
+  if (next === node) return;
+  if (previous) previous.after(node);
+  else parent.prepend(node);
+}
+function mountPictureListControl(host, initial) {
+  let props = initial;
+  let families = normalizePictureFamilies(props.families);
+  let value = normalizePicturesValue(props.value);
+  let open = findPictureFamily(families, value);
+  let openedByUser = false;
+  let selectionSeen = value !== null;
+  let destroyed = false;
+  const uid = `dialkit-pictures-${++instances}`;
+  let bodies = 0;
+  const root = element6("div", "dialkit-pictures");
+  root.setAttribute("role", "group");
+  host.append(root);
+  const familyById = /* @__PURE__ */ new Map();
+  const eachTile = (fn) => familyById.forEach((entry) => entry.tiles.forEach(fn));
+  const attach = (tile) => {
+    if (tile.attached) return;
+    tile.attached = true;
+    const hostAttach = getPictureHost().attach;
+    if (!hostAttach) return;
+    try {
+      const cleanup = hostAttach(tile.id, { picture: tile.picture, tile: tile.root });
+      if (typeof cleanup === "function") tile.cleanup = cleanup;
+    } catch (error) {
+      console.error(error);
+    }
+  };
+  const detach = (tile) => {
+    const cleanup = tile.cleanup;
+    tile.cleanup = void 0;
+    tile.attached = false;
+    if (!cleanup) return;
+    try {
+      cleanup();
+    } catch (error) {
+      console.error(error);
+    }
+  };
+  let attachQueued = false;
+  const queueAttach = () => {
+    if (attachQueued) return;
+    attachQueued = true;
+    queueMicrotask(() => {
+      attachQueued = false;
+      if (!destroyed) eachTile(attach);
+    });
+  };
+  const unsubscribeHost = subscribePictureHost(() => {
+    eachTile(detach);
+    eachTile(attach);
+  });
+  const removeTile = (entry, tile) => {
+    detach(tile);
+    setHint(tile.root, void 0);
+    tile.root.remove();
+    entry.tiles.delete(tile.id);
+  };
+  const buildTile = (id) => {
+    const tileRoot = element6("button", "dialkit-pictures-tile");
+    const picture = element6("div", "dialkit-pictures-picture");
+    const label = element6("span", "dialkit-pictures-label");
+    tileRoot.append(picture, label);
+    tileRoot.addEventListener("click", () => props.onPick(id));
+    return { id, root: tileRoot, picture, label, attached: false };
+  };
+  const paintTile = (tile, item) => {
+    const selected = value === item.id;
+    tile.label.textContent = item.label;
+    tile.root.setAttribute("aria-label", item.label);
+    tile.root.setAttribute("aria-pressed", String(selected));
+    tile.root.toggleAttribute("data-active", selected);
+    setHint(tile.root, item.hint);
+  };
+  const buildSection = () => {
+    const sectionRoot = element6("div", "dialkit-pictures-section");
+    const heading = element6("div", "dialkit-pictures-heading");
+    const grid = element6("div", "dialkit-pictures-grid");
+    sectionRoot.append(heading, grid);
+    return { root: sectionRoot, heading, grid };
+  };
+  const buildFamily = (id) => {
+    const familyRoot = element6("div", "dialkit-pictures-family");
+    const row = element6("button", "dialkit-pictures-row");
+    const name = element6("span", "dialkit-pictures-name");
+    const count = element6("span", "dialkit-pictures-count");
+    count.setAttribute("aria-hidden", "true");
+    const chevron = icon2(ICON_CHEVRON, "dialkit-pictures-chevron");
+    row.append(name, count, chevron);
+    const body = element6("div", "dialkit-pictures-body");
+    const inner = element6("div", "dialkit-pictures-inner");
+    body.append(inner);
+    body.id = `${uid}-${++bodies}`;
+    body.hidden = true;
+    row.setAttribute("aria-controls", body.id);
+    familyRoot.append(row, body);
+    row.addEventListener("click", () => {
+      openedByUser = true;
+      open = open === id ? null : id;
+      render();
+    });
+    return { root: familyRoot, row, name, count, chevron, body, inner, sections: /* @__PURE__ */ new Map(), tiles: /* @__PURE__ */ new Map() };
+  };
+  const renderBody = (entry, family) => {
+    const items = family.items;
+    const shown = new Set(items.map((item) => item.id));
+    for (const tile of [...entry.tiles.values()]) if (!shown.has(tile.id)) removeTile(entry, tile);
+    const sections = pictureSections(items);
+    const keyOf = (heading) => heading === null ? "" : `#${heading}`;
+    const keys = new Set(sections.map((section) => keyOf(section.heading)));
+    for (const [key, section] of entry.sections) {
+      if (keys.has(key)) continue;
+      section.root.remove();
+      entry.sections.delete(key);
+    }
+    let newTiles = false;
+    let previousSection = null;
+    for (const section of sections) {
+      const key = keyOf(section.heading);
+      let sectionEntry = entry.sections.get(key);
+      if (!sectionEntry) {
+        sectionEntry = buildSection();
+        entry.sections.set(key, sectionEntry);
+      }
+      sectionEntry.heading.textContent = section.heading ?? "";
+      sectionEntry.heading.hidden = section.heading === null;
+      if (section.heading === null) {
+        sectionEntry.root.removeAttribute("role");
+        sectionEntry.root.removeAttribute("aria-label");
+      } else {
+        sectionEntry.root.setAttribute("role", "group");
+        sectionEntry.root.setAttribute("aria-label", section.heading);
+      }
+      place(entry.inner, sectionEntry.root, previousSection);
+      previousSection = sectionEntry.root;
+      let previousTile = null;
+      for (const item of section.items) {
+        let tile = entry.tiles.get(item.id);
+        if (!tile) {
+          tile = buildTile(item.id);
+          entry.tiles.set(item.id, tile);
+          newTiles = true;
+        }
+        paintTile(tile, item);
+        place(sectionEntry.grid, tile.root, previousTile);
+        previousTile = tile.root;
+      }
+    }
+    if (newTiles) queueAttach();
+  };
+  const clearBody = (entry) => {
+    for (const tile of [...entry.tiles.values()]) removeTile(entry, tile);
+    entry.sections.forEach((section) => section.root.remove());
+    entry.sections.clear();
+  };
+  const setBodyOpen = (entry, spring) => {
+    const isOpen = entry.shown === true;
+    const animate = spring && root.getBoundingClientRect().width > 0;
+    const from = entry.body.hidden ? 0 : entry.body.getBoundingClientRect().height;
+    entry.animation?.cancel();
+    entry.animation = void 0;
+    entry.body.hidden = false;
+    entry.body.inert = !isOpen;
+    const to = isOpen ? entry.body.scrollHeight : 0;
+    const finish = () => {
+      if (isOpen || entry.shown) return;
+      entry.body.hidden = true;
+      entry.body.inert = false;
+      clearBody(entry);
+    };
+    entry.animation = animate ? animateSpring(entry.body, (p) => ({ height: `${from + (to - from) * p}px`, overflow: "hidden" })) : void 0;
+    if (entry.animation) entry.animation.onfinish = finish;
+    else finish();
+    entry.chevronAnimation?.cancel();
+    entry.chevron.style.transform = `rotate(${chevronAngle(isOpen)}deg)`;
+    if (animate) {
+      const start = chevronAngle(!isOpen);
+      const end = chevronAngle(isOpen);
+      entry.chevronAnimation = animateSpring(entry.chevron, (p) => ({ transform: `rotate(${start + (end - start) * p}deg)` }), 0.35, 0.15);
+    }
+  };
+  function render() {
+    root.setAttribute("aria-label", props.label);
+    setHint(root, props.hint);
+    if (open !== null && !families.some((family) => family.id === open)) open = null;
+    const live = new Set(families.map((family) => family.id));
+    for (const [id, entry] of familyById) {
+      if (live.has(id)) continue;
+      entry.animation?.cancel();
+      clearBody(entry);
+      setHint(entry.row, void 0);
+      entry.root.remove();
+      familyById.delete(id);
+    }
+    let previous = null;
+    for (const family of families) {
+      let entry = familyById.get(family.id);
+      if (!entry) {
+        entry = buildFamily(family.id);
+        familyById.set(family.id, entry);
+      }
+      const isOpen = open === family.id;
+      const count = family.items.length;
+      entry.name.textContent = family.label;
+      entry.count.textContent = String(count);
+      entry.row.setAttribute("aria-label", `${family.label}, ${count} ${count === 1 ? "preset" : "presets"}`);
+      entry.row.setAttribute("aria-expanded", String(isOpen));
+      entry.root.toggleAttribute("data-open", isOpen);
+      setHint(entry.row, family.hint);
+      place(root, entry.root, previous);
+      previous = entry.root;
+      if (isOpen || entry.tiles.size > 0) renderBody(entry, family);
+      if (entry.shown !== isOpen) {
+        const first = entry.shown === void 0;
+        entry.shown = isOpen;
+        setBodyOpen(entry, !first);
+      }
+    }
+  }
+  render();
+  return {
+    update(next) {
+      props = next;
+      families = normalizePictureFamilies(next.families);
+      value = normalizePicturesValue(next.value);
+      if (!selectionSeen && value !== null) {
+        selectionSeen = true;
+        if (!openedByUser && open === null) open = findPictureFamily(families, value);
+      }
+      render();
+    },
+    destroy() {
+      destroyed = true;
+      unsubscribeHost();
+      familyById.forEach((entry) => {
+        entry.animation?.cancel();
+        entry.chevronAnimation?.cancel();
+        clearBody(entry);
+        setHint(entry.row, void 0);
+      });
+      setHint(root, void 0);
+      root.remove();
     }
   };
 }
@@ -9748,6 +10102,9 @@ function mountControlRenderer(host, initial) {
       }
       case "anchor":
         mount(mountAnchorControl, () => ({ label: control.label, hint: control.hint, value: value(), onChange: change }));
+        break;
+      case "pictures":
+        mount(mountPictureListControl, () => ({ label: control.label, hint: control.hint, families: control.pictures?.families ?? [], value: value(), onPick: (id) => DialStore.triggerAction(props.panelId, pictureAction(control.path, id)) }));
         break;
       case "spring":
         mount(mountSpringControl, () => ({ panelId: props.panelId, path: control.path, label: control.label, hint: control.hint, spring: value(), onChange: change, ...resetProps(control) }));
@@ -12223,12 +12580,12 @@ function buildTimelineValues(staticClips, transport, timelineDuration, loopStart
   const span = loopSpan(transport.duration, loopStart);
   const cycleTime = (span > 0 ? transport.wraps * span : 0) + transport.time;
   for (const clip of staticClips) {
-    const state2 = computeClipState(clip, transport.time, cycleTime);
+    const state3 = computeClipState(clip, transport.time, cycleTime);
     if (clip.group) {
       const bucket = result[_a = clip.group] ?? (result[_a] = {});
-      bucket[clip.childKey] = state2;
+      bucket[clip.childKey] = state3;
     } else {
-      result[clip.key] = state2;
+      result[clip.key] = state3;
     }
   }
   return result;
@@ -12580,13 +12937,13 @@ function mountSection(host, initial, options) {
   const visibleDuration = () => meta.duration / zoom;
   const scale = () => meta.duration > 0 ? width() / visibleDuration() : 0;
   function transport() {
-    const state2 = TimelineStore.getTransport(meta.id);
-    play.setAttribute("aria-label", state2.playing ? "Pause timeline" : "Play timeline");
-    if (play.dataset.playing !== String(state2.playing)) {
-      play.dataset.playing = String(state2.playing);
-      play.replaceChildren(icon2(state2.playing ? ICON_PAUSE : ICON_PLAY));
+    const state3 = TimelineStore.getTransport(meta.id);
+    play.setAttribute("aria-label", state3.playing ? "Pause timeline" : "Play timeline");
+    if (play.dataset.playing !== String(state3.playing)) {
+      play.dataset.playing = String(state3.playing);
+      play.replaceChildren(icon2(state3.playing ? ICON_PAUSE : ICON_PLAY));
     }
-    const percent = meta.duration > 0 ? state2.time / meta.duration * 100 : 0;
+    const percent = meta.duration > 0 ? state3.time / meta.duration * 100 : 0;
     progress.style.width = marker.style.left = `${percent}%`;
     viewport.style.left = `${meta.duration > 0 ? viewStart / meta.duration * 100 : 0}%`;
     viewport.style.width = `${100 / zoom}%`;
@@ -12594,18 +12951,18 @@ function mountSection(host, initial, options) {
       viewport.dataset.zoomed = "";
     else
       delete viewport.dataset.zoomed;
-    const x = clamp2((state2.time - viewStart) * scale(), 0, width());
+    const x = clamp2((state3.time - viewStart) * scale(), 0, width());
     const flagOffset = clamp2(x, 18, Math.max(18, width() - 18)) - x;
-    playhead.style.display = state2.time < viewStart || state2.time > viewStart + visibleDuration() || !width() ? "none" : "";
+    playhead.style.display = state3.time < viewStart || state3.time > viewStart + visibleDuration() || !width() ? "none" : "";
     playhead.style.left = `calc(var(--dial-timeline-label-w) + ${x}px)`;
     playhead.style.setProperty("--dial-timeline-playhead-flag-offset", `${flagOffset}px`);
     playhead.dataset.edge = flagOffset > 0.5 ? "start" : flagOffset < -0.5 ? "end" : "center";
-    flag.textContent = state2.time.toFixed(2);
+    flag.textContent = state3.time.toFixed(2);
     for (const fill of fills)
-      fill.node.style.width = `${timelineClipProgress(state2.time, fill.at, fill.duration) * 100}%`;
+      fill.node.style.width = `${timelineClipProgress(state3.time, fill.at, fill.duration) * 100}%`;
     playhead.setAttribute("aria-valuemin", "0");
     playhead.setAttribute("aria-valuemax", String(meta.duration));
-    playhead.setAttribute("aria-valuenow", String(state2.time));
+    playhead.setAttribute("aria-valuenow", String(state3.time));
   }
   function scrub(event, full = false) {
     const rect = (full ? overview : ruler).getBoundingClientRect();
@@ -12789,8 +13146,8 @@ function mountSection(host, initial, options) {
     editor?.update();
   }
   function dragBounds(clipKey) {
-    const state2 = TimelineStore.getTransport(meta.id);
-    return timelineClipDragBounds(timelineClipSpans(DialStore.getValues(meta.id), meta.clips, meta.duration), clipKey, meta.duration, { singleTrack: meta.track === "single", playhead: state2.playing ? void 0 : state2.time });
+    const state3 = TimelineStore.getTransport(meta.id);
+    return timelineClipDragBounds(timelineClipSpans(DialStore.getValues(meta.id), meta.clips, meta.duration), clipKey, meta.duration, { singleTrack: meta.track === "single", playhead: state3.playing ? void 0 : state3.time });
   }
   function bar(lane, clip, at, duration, steps, physics, composite = false, baseAt = 0, delayMode = false, single = false) {
     const px = scale();
@@ -13034,6 +13391,7 @@ export {
   mountFolder as Folder,
   GRADIENT_SHAPES,
   mountImageControl as ImageControl,
+  mountPictureListControl as PictureListControl,
   mountPresetManager as PresetManager,
   mountSegmentedControl as SegmentedControl,
   mountSelectControl as SelectControl,
@@ -13058,9 +13416,11 @@ export {
   dragGradientCentre,
   dragGradientEnd,
   dragGradientWidth,
+  findPictureFamily,
   formatClock,
   formatGizmoAngle,
   getBackgroundHost,
+  getPictureHost,
   getSavedGradients,
   gizmoAngle,
   gizmoPoints,
@@ -13078,6 +13438,7 @@ export {
   mountFolder,
   mountGradientGizmo,
   mountImageControl,
+  mountPictureListControl,
   mountPresetManager,
   mountSegmentedControl,
   mountSelectControl,
@@ -13091,14 +13452,21 @@ export {
   mountTransitionControl,
   mountVersionGallery,
   normalizeBackgroundValue,
+  normalizePictureFamilies,
+  normalizePicturesValue,
   paintBackgroundPreview,
   paintGradient,
+  parsePictureAction,
+  pictureAction,
+  pictureSections,
   rotateGradientHandles,
   setBackgroundHost,
+  setPictureHost,
   setSavedGradients,
   stopPlacement,
   stopPositionAt,
   subscribeBackgroundHost,
+  subscribePictureHost,
   switchGradientShape,
   withVisibility
 };

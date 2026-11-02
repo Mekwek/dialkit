@@ -79,6 +79,48 @@ type LayersConfig = {
     empty?: string;
 };
 
+/**
+ * The pictures control: rows of families that open like an accordion, each
+ * showing its child presets as a grid of picture tiles.
+ *
+ * The app owns the presets. The control's value is the id of the selected
+ * tile, and the control never changes it on its own: a click on a tile sends
+ * `pictureAction(path, id)`, the app switches to that preset, then writes the
+ * new value. The pictures themselves are the app's too: DialKit gives each
+ * tile's picture box to the picture host (`setPictureHost`) and draws nothing
+ * in it but a placeholder.
+ */
+type PictureItem = {
+    /** The preset's id: the value while this tile is selected. Unique across every family. */
+    id: string;
+    /** The text under the tile's picture. */
+    label: string;
+    /**
+     * The group heading this tile sits under, shown exactly as given. Tiles of
+     * one family with the same group form one group; groups follow the order
+     * of their first tile. Tiles with no group come first, with no heading.
+     */
+    group?: string;
+    /** A short sentence about the preset, shown while the hint key is held. */
+    hint?: string;
+};
+type PictureFamily = {
+    id: string;
+    /** The family row's text. */
+    label: string;
+    items: PictureItem[];
+    /** A short sentence about the family, shown on its row while the hint key is held. */
+    hint?: string;
+};
+type PicturesConfig = {
+    type: 'pictures';
+    families: PictureFamily[];
+    /** The selected tile's id before the app writes one. Default `null`, no tile selected. */
+    default?: string | null;
+};
+/** The selected tile's id, or `null` when no tile is selected. */
+type PicturesValue = string | null;
+
 type BackgroundMode = 'solid' | 'gradient' | 'media';
 type GradientShape = 'linear' | 'radial' | 'angular' | 'diamond';
 type GradientStop = {
@@ -220,7 +262,7 @@ type TextConfig = {
     default?: string;
     placeholder?: string;
 };
-type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue | BackgroundConfig | BackgroundValue | AnchorConfig | AnchorValue | LayersConfig | LayersValue | null;
+type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue | BackgroundConfig | BackgroundValue | AnchorConfig | AnchorValue | LayersConfig | LayersValue | PicturesConfig | null;
 /**
  * Folder keys that configure the folder instead of adding a control:
  * `_collapsed`, `_fields`, `_reset`, `_hints` (a sentence per child key),
@@ -256,7 +298,7 @@ type AnchorConfigValue<C> = C extends {
 type ResolvedValues<T extends DialConfig> = {
     [K in keyof T as K extends FolderMetaKey ? never : K]: T[K] extends ControlWithVisibility<infer U extends DialConfig[string]> ? ResolvedValues<{
         value: U;
-    }>['value'] : T[K] extends [number, number, number, number?, string?] ? number : T[K] extends SpringConfig ? TransitionConfig : T[K] extends EasingConfig ? TransitionConfig : T[K] extends SelectConfig ? string : T[K] extends ColorConfig | ImageConfig ? string : T[K] extends TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends BackgroundConfig ? BackgroundValue : T[K] extends AnchorConfig ? AnchorConfigValue<T[K]> : T[K] extends LayersConfig ? LayersValue : T[K] extends DialConfig ? ResolvedValues<T[K]> : T[K];
+    }>['value'] : T[K] extends [number, number, number, number?, string?] ? number : T[K] extends SpringConfig ? TransitionConfig : T[K] extends EasingConfig ? TransitionConfig : T[K] extends SelectConfig ? string : T[K] extends ColorConfig | ImageConfig ? string : T[K] extends TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends BackgroundConfig ? BackgroundValue : T[K] extends AnchorConfig ? AnchorConfigValue<T[K]> : T[K] extends LayersConfig ? LayersValue : T[K] extends PicturesConfig ? PicturesValue : T[K] extends DialConfig ? ResolvedValues<T[K]> : T[K];
 };
 type DialKitPersistOptions = boolean | {
     key?: string;

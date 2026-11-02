@@ -23,6 +23,8 @@ export { default as ColorControl } from './components/ColorControl.svelte';
 export { default as ImageControl } from './components/ImageControl.svelte';
 export { default as DialPad } from './components/DialPad.svelte';
 export { default as AnchorControl } from './components/AnchorControl.svelte';
+export { default as PictureListControl } from './components/PictureListControl.svelte';
+export * from '../picture-api';
 export { default as BackgroundControl } from './components/BackgroundControl.svelte';
 export { backgroundGradientCss, backgroundMediaCss, paintGradient } from '../background';
 export * from '../background-api';

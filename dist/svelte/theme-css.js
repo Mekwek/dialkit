@@ -74,6 +74,30 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   /* A layer row's height: the panel's row height unless a host sets its own. */
   --dial-layer-row-height: var(--dial-row-height);
   --dial-layer-delete-hover: #ff3b30;
+  /* The pictures control (picture-list-control.ts): family rows that open
+     to a grid of picture tiles. The colours point at theme values, so the
+     light theme's values apply to them too. */
+  /* A family row's height: the same as a text layer row. */
+  --dial-pictures-row-height: var(--dial-layer-row-height);
+  --dial-pictures-row-fill: var(--dial-surface);
+  --dial-pictures-row-hover-fill: var(--dial-surface-hover);
+  /* The open family's row. */
+  --dial-pictures-row-open-fill: var(--dial-surface-active);
+  /* The badge with a family's number of presets. */
+  --dial-pictures-count-fill: var(--dial-surface-hover);
+  --dial-pictures-count-color: var(--dial-text-secondary);
+  /* A group's heading inside an open family. */
+  --dial-pictures-heading-color: var(--dial-text-tertiary);
+  /* The tile grid: its columns and the space between tiles. */
+  --dial-pictures-columns: 2;
+  --dial-pictures-gap: 8px;
+  /* A tile's picture box: its shape, corners and the fill shown until the host draws in it. */
+  --dial-pictures-ratio: 1 / 1;
+  --dial-pictures-radius: 6px;
+  --dial-pictures-placeholder: var(--dial-surface-subtle);
+  /* The ring around the selected tile's picture. */
+  --dial-pictures-selected-color: var(--dial-text-primary);
+  --dial-pictures-selected-width: 2px;
   --dial-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
   --dial-shadow-collapsed: 0 4px 16px rgba(0, 0, 0, 0.25);
   --dial-shadow-dropdown: 0 8px 24px rgba(0, 0, 0, 0.4);
@@ -2198,6 +2222,37 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
     0 6px 16px rgba(0, 0, 0, 0.28);
 }
 @media (prefers-reduced-motion: reduce) { .dialkit-layers-list[data-dragging] .dialkit-layer { transition: none; } }
+
+/* ── Pictures (picture-list-control.ts) ── */
+.dialkit-pictures { display: flex; flex-direction: column; gap: var(--dial-row-gap); }
+.dialkit-pictures-family { display: flex; flex-direction: column; }
+/* A family row: its name, the badge with its number of presets, and a chevron that points down while it is open. */
+.dialkit-pictures-row { display: flex; align-items: center; gap: 8px; width: 100%; min-height: var(--dial-pictures-row-height); padding: 0 10px 0 12px; box-sizing: border-box; border: 0; border-radius: var(--dial-radius); background: var(--dial-pictures-row-fill); color: var(--dial-text-label); font: inherit; font-size: 13px; font-weight: 500; text-align: left; cursor: pointer; transition: background 0.15s, color 0.15s; }
+.dialkit-pictures-row:hover { background: var(--dial-pictures-row-hover-fill); color: var(--dial-text-focus); }
+.dialkit-pictures-row[aria-expanded="true"] { background: var(--dial-pictures-row-open-fill); color: var(--dial-text-primary); }
+.dialkit-pictures-row:focus-visible { outline: 2px solid var(--dial-focus-ring); outline-offset: -2px; }
+.dialkit-pictures-name { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.dialkit-pictures-count { flex-shrink: 0; min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 10px; background: var(--dial-pictures-count-fill); color: var(--dial-pictures-count-color); font-size: 11px; font-weight: 500; line-height: 20px; text-align: center; font-variant-numeric: tabular-nums; }
+/* The chevron's turn is set and sprung by the control, as a folder's chevron is. */
+.dialkit-pictures-chevron { flex-shrink: 0; width: 16px; height: 16px; opacity: 0.6; transition: opacity 0.15s; }
+.dialkit-pictures-row:hover .dialkit-pictures-chevron { opacity: 1; }
+/* The open family. The body's height springs open and closed; the inner part holds its tiles with no group, then one titled grid per group. */
+.dialkit-pictures-inner { display: flex; flex-direction: column; gap: 12px; padding: calc(var(--dial-row-gap) + 4px) 2px 6px; }
+.dialkit-pictures-body[hidden] { display: none; }
+.dialkit-pictures-section { display: flex; flex-direction: column; gap: 6px; }
+.dialkit-pictures-heading { font-size: 11px; font-weight: 500; color: var(--dial-pictures-heading-color); }
+.dialkit-pictures-heading[hidden] { display: none; }
+.dialkit-pictures-grid { display: grid; grid-template-columns: repeat(var(--dial-pictures-columns), minmax(0, 1fr)); gap: var(--dial-pictures-gap); }
+/* A tile: the picture box the host draws in, with the preset's name under it. */
+.dialkit-pictures-tile { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 0; border: 0; border-radius: var(--dial-pictures-radius); background: none; color: var(--dial-text-label); font: inherit; font-size: 12px; font-weight: 500; text-align: center; cursor: pointer; transition: color 0.15s; }
+.dialkit-pictures-tile:hover { color: var(--dial-text-focus); }
+.dialkit-pictures-tile[data-active] { color: var(--dial-text-primary); }
+.dialkit-pictures-tile:focus-visible { outline: 2px solid var(--dial-focus-ring); outline-offset: 2px; }
+.dialkit-pictures-picture { position: relative; width: 100%; aspect-ratio: var(--dial-pictures-ratio); box-sizing: border-box; overflow: hidden; border-radius: var(--dial-pictures-radius); background: var(--dial-pictures-placeholder); transition: box-shadow 0.15s; }
+.dialkit-pictures-tile:hover .dialkit-pictures-picture { box-shadow: 0 0 0 1px var(--dial-border-hover); }
+.dialkit-pictures-tile[data-active] .dialkit-pictures-picture { box-shadow: 0 0 0 var(--dial-pictures-selected-width) var(--dial-pictures-selected-color); }
+.dialkit-pictures-label { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+@media (prefers-reduced-motion: reduce) { .dialkit-pictures-chevron, .dialkit-pictures-picture { transition: none; } }
 
 /* Field rows: a \`_fields\` folder's numbers side by side */
 .dialkit-fields { display: grid; gap: var(--dial-row-gap); min-width: 0; padding-top: var(--dial-row-gap); border-top: 1px solid var(--dial-divider); }

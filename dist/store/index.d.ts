@@ -80,6 +80,53 @@ type LayersConfig = {
 };
 type LayerActionKind = 'add' | 'duplicate' | 'delete';
 
+/**
+ * The pictures control: rows of families that open like an accordion, each
+ * showing its child presets as a grid of picture tiles.
+ *
+ * The app owns the presets. The control's value is the id of the selected
+ * tile, and the control never changes it on its own: a click on a tile sends
+ * `pictureAction(path, id)`, the app switches to that preset, then writes the
+ * new value. The pictures themselves are the app's too: DialKit gives each
+ * tile's picture box to the picture host (`setPictureHost`) and draws nothing
+ * in it but a placeholder.
+ */
+type PictureItem = {
+    /** The preset's id: the value while this tile is selected. Unique across every family. */
+    id: string;
+    /** The text under the tile's picture. */
+    label: string;
+    /**
+     * The group heading this tile sits under, shown exactly as given. Tiles of
+     * one family with the same group form one group; groups follow the order
+     * of their first tile. Tiles with no group come first, with no heading.
+     */
+    group?: string;
+    /** A short sentence about the preset, shown while the hint key is held. */
+    hint?: string;
+};
+type PictureFamily = {
+    id: string;
+    /** The family row's text. */
+    label: string;
+    items: PictureItem[];
+    /** A short sentence about the family, shown on its row while the hint key is held. */
+    hint?: string;
+};
+type PicturesConfig = {
+    type: 'pictures';
+    families: PictureFamily[];
+    /** The selected tile's id before the app writes one. Default `null`, no tile selected. */
+    default?: string | null;
+};
+/** The selected tile's id, or `null` when no tile is selected. */
+type PicturesValue = string | null;
+/** One run of tiles inside an open family: a group under its heading, or the tiles with no group (`heading: null`). */
+type PictureSection = {
+    heading: string | null;
+    items: PictureItem[];
+};
+
 /** A named value a transition control can apply in one mode. */
 interface TransitionPresetOption {
     name: string;
@@ -233,7 +280,7 @@ type TextConfig = {
     default?: string;
     placeholder?: string;
 };
-type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue | BackgroundConfig | BackgroundValue | AnchorConfig | AnchorValue | LayersConfig | LayersValue | null;
+type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue | BackgroundConfig | BackgroundValue | AnchorConfig | AnchorValue | LayersConfig | LayersValue | PicturesConfig | null;
 /**
  * Folder keys that configure the folder instead of adding a control:
  * `_collapsed`, `_fields`, `_reset`, `_hints` (a sentence per child key),
@@ -312,12 +359,12 @@ type AnchorConfigValue<C> = C extends {
 type ResolvedValues<T extends DialConfig> = {
     [K in keyof T as K extends FolderMetaKey ? never : K]: T[K] extends ControlWithVisibility<infer U extends DialConfig[string]> ? ResolvedValues<{
         value: U;
-    }>['value'] : T[K] extends [number, number, number, number?, string?] ? number : T[K] extends SpringConfig ? TransitionConfig : T[K] extends EasingConfig ? TransitionConfig : T[K] extends SelectConfig ? string : T[K] extends ColorConfig | ImageConfig ? string : T[K] extends TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends BackgroundConfig ? BackgroundValue : T[K] extends AnchorConfig ? AnchorConfigValue<T[K]> : T[K] extends LayersConfig ? LayersValue : T[K] extends DialConfig ? ResolvedValues<T[K]> : T[K];
+    }>['value'] : T[K] extends [number, number, number, number?, string?] ? number : T[K] extends SpringConfig ? TransitionConfig : T[K] extends EasingConfig ? TransitionConfig : T[K] extends SelectConfig ? string : T[K] extends ColorConfig | ImageConfig ? string : T[K] extends TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends BackgroundConfig ? BackgroundValue : T[K] extends AnchorConfig ? AnchorConfigValue<T[K]> : T[K] extends LayersConfig ? LayersValue : T[K] extends PicturesConfig ? PicturesValue : T[K] extends DialConfig ? ResolvedValues<T[K]> : T[K];
 };
 type DialKitValueUpdates<T extends DialConfig> = {
     [K in keyof T as K extends FolderMetaKey ? never : K]?: T[K] extends ControlWithVisibility<infer U extends DialConfig[string]> ? DialKitValueUpdates<{
         value: U;
-    }>['value'] : T[K] extends [number, number, number, number?, string?] ? number : T[K] extends SpringConfig | EasingConfig ? TransitionConfig : T[K] extends ActionConfig ? never : T[K] extends SelectConfig | ColorConfig | ImageConfig | TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends BackgroundConfig ? BackgroundValueUpdate : T[K] extends AnchorConfig ? AnchorConfigValue<T[K]> : T[K] extends LayersConfig ? LayersValue : T[K] extends DialConfig ? DialKitValueUpdates<T[K]> : T[K];
+    }>['value'] : T[K] extends [number, number, number, number?, string?] ? number : T[K] extends SpringConfig | EasingConfig ? TransitionConfig : T[K] extends ActionConfig ? never : T[K] extends SelectConfig | ColorConfig | ImageConfig | TextConfig ? string : T[K] extends DialPadConfig ? DialPadValue : T[K] extends BackgroundConfig ? BackgroundValueUpdate : T[K] extends AnchorConfig ? AnchorConfigValue<T[K]> : T[K] extends LayersConfig ? LayersValue : T[K] extends PicturesConfig ? PicturesValue : T[K] extends DialConfig ? DialKitValueUpdates<T[K]> : T[K];
 };
 type ShortcutMode = 'fine' | 'normal' | 'coarse';
 type ShortcutInteraction = 'scroll' | 'drag' | 'move' | 'scroll-only';
@@ -328,7 +375,7 @@ type ShortcutConfig = {
     interaction?: ShortcutInteraction;
 };
 type ControlMeta = {
-    type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'image' | 'text' | 'pad' | 'background' | 'anchor' | 'layers';
+    type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'image' | 'text' | 'pad' | 'background' | 'anchor' | 'layers' | 'pictures';
     path: string;
     label: string;
     min?: number;
@@ -363,6 +410,11 @@ type ControlMeta = {
     /** Layers only: the config, with its default made valid. Its add, duplicate and delete send `layerAction` paths. */
     layers?: LayersConfig & {
         default: LayersValue;
+    };
+    /** Pictures only: the config, with its families and default made valid. A tile click sends a `pictureAction` path. */
+    pictures?: PicturesConfig & {
+        families: PictureFamily[];
+        default: PicturesValue;
     };
     shortcut?: ShortcutConfig;
     visibleWhen?: VisibleWhen;
@@ -749,4 +801,4 @@ declare class DialStoreClass {
 }
 declare const DialStore: DialStoreClass;
 
-export { type ActionConfig, type AnchorConfig, type AnchorValue, type BackgroundConfig, type BackgroundGradient, type BackgroundMedia, type BackgroundMediaDisplay, type BackgroundMediaFit, type BackgroundMediaRatio, type BackgroundMode, type BackgroundValue, type BackgroundValueUpdate, type ColorConfig, type ControlMeta, type ControlWithVisibility, type CopiedTransition, type DialConfig, type DialKitPersistOptions, type DialKitValueUpdates, type DialPadAxis, type DialPadConfig, type DialPadValue, DialStore, type DialStorePanelOptions, type DialValue, type EasingConfig, type FieldsConfig, type FolderMode, type GradientHandles, type GradientPoint, type GradientShape, type GradientStop, type ImageConfig, type ImageOption, type InlineLabelsConfig, type LayerActionKind, type LayerItem, type LayersConfig, type LayersValue, type PadGroupConfig, type PanelConfig, type Preset, type RangeConfig, type ResolvedValues, type RowConfig, type SavedGradient, type SelectAddConfig, type SelectConfig, type SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, type SpringConfig, type TextConfig, type TransitionConfig, type TransitionMode, type TransitionPreset, type VisibleWhen, type VisibleWhenValue, flattenDialValueUpdates, formatLabel, inferStep, isEasingConfigValue, isFolderMetaKey, isHexColor, isLeafConfigValue, isSpringConfigValue, resolveDialValues, unwrapVisibility, withVisibility };
+export { type ActionConfig, type AnchorConfig, type AnchorValue, type BackgroundConfig, type BackgroundGradient, type BackgroundMedia, type BackgroundMediaDisplay, type BackgroundMediaFit, type BackgroundMediaRatio, type BackgroundMode, type BackgroundValue, type BackgroundValueUpdate, type ColorConfig, type ControlMeta, type ControlWithVisibility, type CopiedTransition, type DialConfig, type DialKitPersistOptions, type DialKitValueUpdates, type DialPadAxis, type DialPadConfig, type DialPadValue, DialStore, type DialStorePanelOptions, type DialValue, type EasingConfig, type FieldsConfig, type FolderMode, type GradientHandles, type GradientPoint, type GradientShape, type GradientStop, type ImageConfig, type ImageOption, type InlineLabelsConfig, type LayerActionKind, type LayerItem, type LayersConfig, type LayersValue, type PadGroupConfig, type PanelConfig, type PictureFamily, type PictureItem, type PictureSection, type PicturesConfig, type PicturesValue, type Preset, type RangeConfig, type ResolvedValues, type RowConfig, type SavedGradient, type SelectAddConfig, type SelectConfig, type SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, type SpringConfig, type TextConfig, type TransitionConfig, type TransitionMode, type TransitionPreset, type VisibleWhen, type VisibleWhenValue, flattenDialValueUpdates, formatLabel, inferStep, isEasingConfigValue, isFolderMetaKey, isHexColor, isLeafConfigValue, isSpringConfigValue, resolveDialValues, unwrapVisibility, withVisibility };
