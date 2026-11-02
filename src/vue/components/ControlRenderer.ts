@@ -6,10 +6,12 @@ import { ColorControl } from './ColorControl';
 import { ImageControl } from './ImageControl';
 import { DialPad } from './DialPad';
 import { AnchorControl } from './AnchorControl';
+import { PictureListControl } from './PictureListControl';
 import { Fields } from './Fields';
 import { BackgroundControl } from './BackgroundControl';
 import type { DialPadValue } from '../../dial-pad';
 import type { AnchorValue } from '../../anchor';
+import { pictureAction, type PicturesValue } from '../../pictures';
 import { hasActionHints } from '../../hints';
 import { useHints } from '../useHints';
 import type { BackgroundValue } from '../../background';
@@ -215,6 +217,15 @@ export const ControlRenderer = defineComponent({
             hint: control.hint,
             value: value as AnchorValue,
             onChange: (next: AnchorValue) => DialStore.updateValue(props.panelId, control.path, next),
+          });
+        case 'pictures':
+          return h(PictureListControl, {
+            key: control.path,
+            label: control.label,
+            hint: control.hint,
+            families: control.pictures?.families ?? [],
+            value: value as PicturesValue,
+            onPick: (id: string) => DialStore.triggerAction(props.panelId, pictureAction(control.path, id)),
           });
         case 'action':
           return h('button', {

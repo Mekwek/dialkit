@@ -19,9 +19,11 @@ import { AnchorControl } from './AnchorControl';
 import { Fields } from './Fields';
 import { BackgroundControl } from './BackgroundControl';
 import { LayerListControl } from './LayerListControl';
+import { PictureListControl } from './PictureListControl';
 import type { DialPadValue } from '../dial-pad';
 import type { AnchorValue } from '../anchor';
 import { layerAction, type LayersValue } from '../layers';
+import { pictureAction, type PicturesValue } from '../pictures';
 import { hasActionHints } from '../hints';
 import { useHints } from '../hooks/useHints';
 import type { BackgroundValue } from '../background';
@@ -326,6 +328,18 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration,
             empty={control.layers?.empty}
             onChange={(v) => DialStore.updateValue(panelId, control.path, v)}
             onAction={(kind, id) => DialStore.triggerAction(panelId, layerAction(control.path, kind, id))}
+          />
+        );
+
+      case 'pictures':
+        return (
+          <PictureListControl
+            key={control.path}
+            label={control.label}
+            hint={control.hint}
+            families={control.pictures?.families ?? []}
+            value={value as PicturesValue}
+            onPick={(id) => DialStore.triggerAction(panelId, pictureAction(control.path, id))}
           />
         );
 

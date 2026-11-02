@@ -42,6 +42,8 @@ export { ColorControl } from './components/ColorControl';
 export { ImageControl } from './components/ImageControl';
 export { DialPad } from './components/DialPad';
 export { AnchorControl } from './components/AnchorControl';
+export { PictureListControl } from './components/PictureListControl';
+export * from '../picture-api';
 export { BackgroundControl } from './components/BackgroundControl';
 export { backgroundGradientCss, backgroundMediaCss, paintGradient } from '../background';
 export * from '../background-api';

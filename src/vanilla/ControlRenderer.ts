@@ -8,6 +8,8 @@ import type { DialPadValue } from '../dial-pad';
 import type { BackgroundValue } from '../background';
 import { mountAnchorControl } from '../anchor-control';
 import type { AnchorValue } from '../anchor';
+import { mountPictureListControl } from '../picture-list-control';
+import { pictureAction, type PicturesValue } from '../pictures';
 import { setHint } from '../hints';
 import { mountFolder, mountSlider, mountTextControl, mountToggle } from './controls';
 import { mountSelectControl } from './menus';
@@ -126,6 +128,9 @@ export function mountControlRenderer(host: HTMLElement, initial: ControlRenderer
       }
       case 'anchor':
         mount(mountAnchorControl, () => ({ label: control.label, hint: control.hint, value: value() as AnchorValue, onChange: change }));
+        break;
+      case 'pictures':
+        mount(mountPictureListControl, () => ({ label: control.label, hint: control.hint, families: control.pictures?.families ?? [], value: value() as PicturesValue, onPick: (id: string) => DialStore.triggerAction(props.panelId, pictureAction(control.path, id)) }));
         break;
       case 'spring':
         mount(mountSpringControl, () => ({ panelId: props.panelId, path: control.path, label: control.label, hint: control.hint, spring: value() as SpringConfig, onChange: change, ...resetProps(control) }));

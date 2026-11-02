@@ -3,11 +3,13 @@ import { parseColor } from '../color';
 import { normalizePadValue, type DialPadConfig, type DialPadValue } from '../dial-pad';
 import { normalizeAnchorValue, type AnchorConfig, type AnchorValue } from '../anchor';
 import { normalizeLayersValue, sameLayersValue, type LayersConfig, type LayersValue } from '../layers';
+import { normalizePictureFamilies, normalizePicturesValue, type PictureFamily, type PicturesConfig, type PicturesValue } from '../pictures';
 import { defaultTransitionPresets, type TransitionPresetOption } from '../transition-presets';
 import { cloneGradient, normalizeBackgroundValue, normalizeGradient, sameBackgroundValue, type BackgroundConfig, type BackgroundGradient, type BackgroundValue, type BackgroundValueUpdate, type SavedGradient } from '../background';
 export type { DialPadAxis, DialPadConfig, DialPadValue } from '../dial-pad';
 export type { AnchorConfig, AnchorValue } from '../anchor';
 export type { LayerItem, LayersConfig, LayersValue, LayerActionKind } from '../layers';
+export type { PictureFamily, PictureItem, PicturesConfig, PictureSection, PicturesValue } from '../pictures';
 export type {
   BackgroundConfig, BackgroundGradient, BackgroundMedia, BackgroundMediaDisplay, BackgroundMediaFit, BackgroundMediaRatio, BackgroundMode, BackgroundValue, BackgroundValueUpdate,
   GradientHandles, GradientPoint, GradientShape, GradientStop, SavedGradient,
@@ -82,7 +84,7 @@ export type TextConfig = {
   placeholder?: string;
 };
 
-export type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue | BackgroundConfig | BackgroundValue | AnchorConfig | AnchorValue | LayersConfig | LayersValue | null;
+export type DialValue = number | boolean | string | SpringConfig | EasingConfig | ActionConfig | SelectConfig | ColorConfig | ImageConfig | TextConfig | DialPadConfig | DialPadValue | BackgroundConfig | BackgroundValue | AnchorConfig | AnchorValue | LayersConfig | LayersValue | PicturesConfig | null;
 
 /**
  * Folder keys that configure the folder instead of adding a control:
@@ -218,6 +220,8 @@ export type ResolvedValues<T extends DialConfig> = {
                   ? AnchorConfigValue<T[K]>
                 : T[K] extends LayersConfig
                   ? LayersValue
+                : T[K] extends PicturesConfig
+                  ? PicturesValue
                   : T[K] extends DialConfig
                     ? ResolvedValues<T[K]>
                     : T[K];
@@ -242,6 +246,8 @@ export type DialKitValueUpdates<T extends DialConfig> = {
               ? AnchorConfigValue<T[K]>
             : T[K] extends LayersConfig
               ? LayersValue
+            : T[K] extends PicturesConfig
+              ? PicturesValue
               : T[K] extends DialConfig
                 ? DialKitValueUpdates<T[K]>
                 : T[K];
@@ -258,7 +264,7 @@ export type ShortcutConfig = {
 };
 
 export type ControlMeta = {
-  type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'image' | 'text' | 'pad' | 'background' | 'anchor' | 'layers';
+  type: 'slider' | 'toggle' | 'spring' | 'transition' | 'folder' | 'action' | 'select' | 'color' | 'image' | 'text' | 'pad' | 'background' | 'anchor' | 'layers' | 'pictures';
   path: string;
   label: string;
   min?: number;
@@ -292,6 +298,8 @@ export type ControlMeta = {
   background?: BackgroundConfig;
   /** Layers only: the config, with its default made valid. Its add, duplicate and delete send `layerAction` paths. */
   layers?: LayersConfig & { default: LayersValue };
+  /** Pictures only: the config, with its families and default made valid. A tile click sends a `pictureAction` path. */
+  pictures?: PicturesConfig & { families: PictureFamily[]; default: PicturesValue };
   shortcut?: ShortcutConfig;
   visibleWhen?: VisibleWhen;
   /** A short sentence about the control, from its folder's `_hints`. */
@@ -607,7 +615,8 @@ export function isLeafConfigValue(value: unknown): boolean {
     isPadConfigValue(value) ||
     isBackgroundConfigValue(value) ||
     isAnchorConfigValue(value) ||
-    isLayersConfigValue(value)
+    isLayersConfigValue(value) ||
+    isPicturesConfigValue(value)
   );
 }
 
@@ -622,6 +631,7 @@ function configDefaultValue(value: DialConfig[string]): DialValue {
   if (isAnchorConfigValue(value)) return normalizeAnchorValue(undefined, value);
   if (isBackgroundConfigValue(value)) return normalizeBackgroundValue(value.default);
   if (isLayersConfigValue(value)) return normalizeLayersValue(value.default);
+  if (isPicturesConfigValue(value)) return normalizePicturesValue(value.default);
   return value as DialValue;
 }
 
@@ -728,6 +738,10 @@ function isBackgroundConfigValue(value: unknown): value is BackgroundConfig {
 
 function isLayersConfigValue(value: unknown): value is LayersConfig {
   return hasType(value, 'layers');
+}
+
+function isPicturesConfigValue(value: unknown): value is PicturesConfig {
+  return hasType(value, 'pictures');
 }
 
 function getFirstOptionValue(options: (string | { value: string; label: string })[]): string {
@@ -1027,6 +1041,7 @@ class DialStoreClass {
       const next = control?.type === 'pad' ? normalizePadValue(value, control.pad)
         : control?.type === 'anchor' ? normalizeAnchorValue(value, control.anchor)
         : control?.type === 'layers' ? normalizeLayersValue(value)
+        : control?.type === 'pictures' ? normalizePicturesValue(value)
         // Missing fields keep the current value, so a partial update changes only what it names.
         : control?.type === 'background' ? normalizeBackgroundValue(value, panel.values[path] as BackgroundValue)
         : value;
@@ -1911,6 +1926,8 @@ class DialStoreClass {
           control = { type: 'pad', path, label, pad: value };
         } else if (isLayersConfigValue(value)) {
           control = { type: 'layers', path, label, layers: { ...value, default: normalizeLayersValue(value.default) } };
+        } else if (isPicturesConfigValue(value)) {
+          control = { type: 'pictures', path, label, pictures: { ...value, families: normalizePictureFamilies(value.families), default: normalizePicturesValue(value.default) } };
         } else if (isAnchorConfigValue(value)) {
           control = { type: 'anchor', path, label, anchor: value };
         } else if (isBackgroundConfigValue(value)) {
@@ -2050,6 +2067,12 @@ class DialStoreClass {
       case 'layers':
         // The app owns the rows: a valid stored value is kept, else the default.
         return normalizeLayersValue(existingValue, control.layers?.default);
+      case 'pictures': {
+        // The app owns the selection: a stored id kept while a tile still has it, and no selection kept as none.
+        if (existingValue === null) return null;
+        const id = normalizePicturesValue(existingValue);
+        return id !== null && control.pictures?.families.some(family => family.items.some(item => item.id === id)) ? id : defaultValue;
+      }
       case 'background':
         return normalizeBackgroundValue(existingValue, defaultValue as BackgroundValue);
       case 'select': {
