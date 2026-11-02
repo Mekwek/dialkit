@@ -96,12 +96,6 @@ type PictureItem = {
     id: string;
     /** The text under the tile's picture. */
     label: string;
-    /**
-     * The group heading this tile sits under, shown exactly as given. Tiles of
-     * one family with the same group form one group; groups follow the order
-     * of their first tile. Tiles with no group come first, with no heading.
-     */
-    group?: string;
     /** A short sentence about the preset, shown while the hint key is held. */
     hint?: string;
 };
@@ -121,11 +115,6 @@ type PicturesConfig = {
 };
 /** The selected tile's id, or `null` when no tile is selected. */
 type PicturesValue = string | null;
-/** One run of tiles inside an open family: a group under its heading, or the tiles with no group (`heading: null`). */
-type PictureSection = {
-    heading: string | null;
-    items: PictureItem[];
-};
 
 /** A named value a transition control can apply in one mode. */
 interface TransitionPresetOption {
@@ -801,4 +790,4 @@ declare class DialStoreClass {
 }
 declare const DialStore: DialStoreClass;
 
-export { type ActionConfig, type AnchorConfig, type AnchorValue, type BackgroundConfig, type BackgroundGradient, type BackgroundMedia, type BackgroundMediaDisplay, type BackgroundMediaFit, type BackgroundMediaRatio, type BackgroundMode, type BackgroundValue, type BackgroundValueUpdate, type ColorConfig, type ControlMeta, type ControlWithVisibility, type CopiedTransition, type DialConfig, type DialKitPersistOptions, type DialKitValueUpdates, type DialPadAxis, type DialPadConfig, type DialPadValue, DialStore, type DialStorePanelOptions, type DialValue, type EasingConfig, type FieldsConfig, type FolderMode, type GradientHandles, type GradientPoint, type GradientShape, type GradientStop, type ImageConfig, type ImageOption, type InlineLabelsConfig, type LayerActionKind, type LayerItem, type LayersConfig, type LayersValue, type PadGroupConfig, type PanelConfig, type PictureFamily, type PictureItem, type PictureSection, type PicturesConfig, type PicturesValue, type Preset, type RangeConfig, type ResolvedValues, type RowConfig, type SavedGradient, type SelectAddConfig, type SelectConfig, type SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, type SpringConfig, type TextConfig, type TransitionConfig, type TransitionMode, type TransitionPreset, type VisibleWhen, type VisibleWhenValue, flattenDialValueUpdates, formatLabel, inferStep, isEasingConfigValue, isFolderMetaKey, isHexColor, isLeafConfigValue, isSpringConfigValue, resolveDialValues, unwrapVisibility, withVisibility };
+export { type ActionConfig, type AnchorConfig, type AnchorValue, type BackgroundConfig, type BackgroundGradient, type BackgroundMedia, type BackgroundMediaDisplay, type BackgroundMediaFit, type BackgroundMediaRatio, type BackgroundMode, type BackgroundValue, type BackgroundValueUpdate, type ColorConfig, type ControlMeta, type ControlWithVisibility, type CopiedTransition, type DialConfig, type DialKitPersistOptions, type DialKitValueUpdates, type DialPadAxis, type DialPadConfig, type DialPadValue, DialStore, type DialStorePanelOptions, type DialValue, type EasingConfig, type FieldsConfig, type FolderMode, type GradientHandles, type GradientPoint, type GradientShape, type GradientStop, type ImageConfig, type ImageOption, type InlineLabelsConfig, type LayerActionKind, type LayerItem, type LayersConfig, type LayersValue, type PadGroupConfig, type PanelConfig, type PictureFamily, type PictureItem, type PicturesConfig, type PicturesValue, type Preset, type RangeConfig, type ResolvedValues, type RowConfig, type SavedGradient, type SelectAddConfig, type SelectConfig, type SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, type SpringConfig, type TextConfig, type TransitionConfig, type TransitionMode, type TransitionPreset, type VisibleWhen, type VisibleWhenValue, flattenDialValueUpdates, formatLabel, inferStep, isEasingConfigValue, isFolderMetaKey, isHexColor, isLeafConfigValue, isSpringConfigValue, resolveDialValues, unwrapVisibility, withVisibility };

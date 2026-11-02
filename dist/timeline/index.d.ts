@@ -95,12 +95,6 @@ type PictureItem = {
     id: string;
     /** The text under the tile's picture. */
     label: string;
-    /**
-     * The group heading this tile sits under, shown exactly as given. Tiles of
-     * one family with the same group form one group; groups follow the order
-     * of their first tile. Tiles with no group come first, with no heading.
-     */
-    group?: string;
     /** A short sentence about the preset, shown while the hint key is held. */
     hint?: string;
 };

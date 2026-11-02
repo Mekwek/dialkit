@@ -190,7 +190,6 @@ function normalizePictureFamilies(value) {
       if (!isRecord2(rawItem) || !nonEmpty(rawItem.id) || typeof rawItem.label !== "string" || itemIds.has(rawItem.id)) continue;
       itemIds.add(rawItem.id);
       const item = { id: rawItem.id, label: rawItem.label };
-      if (nonEmpty(rawItem.group)) item.group = rawItem.group;
       if (nonEmpty(rawItem.hint)) item.hint = rawItem.hint;
       items.push(item);
     }

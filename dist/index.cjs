@@ -82,7 +82,6 @@ __export(index_exports, {
   parseLayerAction: () => parseLayerAction,
   parsePictureAction: () => parsePictureAction,
   pictureAction: () => pictureAction,
-  pictureSections: () => pictureSections,
   rotateGradientHandles: () => rotateGradientHandles,
   setBackgroundHost: () => setBackgroundHost,
   setPictureHost: () => setPictureHost,
@@ -549,22 +548,6 @@ function parsePictureAction(path, action) {
   if (!action.startsWith(prefix) || action.length === prefix.length) return null;
   return { id: action.slice(prefix.length) };
 }
-function pictureSections(items) {
-  const loose = [];
-  const groups = /* @__PURE__ */ new Map();
-  for (const item of items) {
-    if (!item.group) {
-      loose.push(item);
-      continue;
-    }
-    const list = groups.get(item.group);
-    if (list) list.push(item);
-    else groups.set(item.group, [item]);
-  }
-  const sections = loose.length ? [{ heading: null, items: loose }] : [];
-  for (const [heading, list] of groups) sections.push({ heading, items: list });
-  return sections;
-}
 function findPictureFamily(families, id) {
   if (id === null) return null;
   return families.find((family) => family.items.some((item) => item.id === id))?.id ?? null;
@@ -586,7 +569,6 @@ function normalizePictureFamilies(value) {
       if (!isRecord2(rawItem) || !nonEmpty(rawItem.id) || typeof rawItem.label !== "string" || itemIds.has(rawItem.id)) continue;
       itemIds.add(rawItem.id);
       const item = { id: rawItem.id, label: rawItem.label };
-      if (nonEmpty(rawItem.group)) item.group = rawItem.group;
       if (nonEmpty(rawItem.hint)) item.hint = rawItem.hint;
       items.push(item);
     }
@@ -10745,13 +10727,6 @@ function mountPictureListControl(host, initial) {
     tile.root.toggleAttribute("data-active", selected);
     setHint(tile.root, item.hint);
   };
-  const buildSection = () => {
-    const sectionRoot = element9("div", "dialkit-pictures-section");
-    const heading = element9("div", "dialkit-pictures-heading");
-    const grid = element9("div", "dialkit-pictures-grid");
-    sectionRoot.append(heading, grid);
-    return { root: sectionRoot, heading, grid };
-  };
   const buildFamily = (id) => {
     const familyRoot = element9("div", "dialkit-pictures-family");
     const row = element9("button", "dialkit-pictures-row");
@@ -10762,6 +10737,8 @@ function mountPictureListControl(host, initial) {
     row.append(name, count, chevron);
     const body = element9("div", "dialkit-pictures-body");
     const inner = element9("div", "dialkit-pictures-inner");
+    const grid = element9("div", "dialkit-pictures-grid");
+    inner.append(grid);
     body.append(inner);
     body.id = `${uid}-${++bodies}`;
     body.hidden = true;
@@ -10772,59 +10749,29 @@ function mountPictureListControl(host, initial) {
       open = open === id ? null : id;
       render();
     });
-    return { root: familyRoot, row, name, count, chevron, body, inner, sections: /* @__PURE__ */ new Map(), tiles: /* @__PURE__ */ new Map() };
+    return { root: familyRoot, row, name, count, chevron, body, inner, grid, tiles: /* @__PURE__ */ new Map() };
   };
   const renderBody = (entry, family) => {
     const items = family.items;
     const shown = new Set(items.map((item) => item.id));
     for (const tile of [...entry.tiles.values()]) if (!shown.has(tile.id)) removeTile(entry, tile);
-    const sections = pictureSections(items);
-    const keyOf = (heading) => heading === null ? "" : `#${heading}`;
-    const keys = new Set(sections.map((section) => keyOf(section.heading)));
-    for (const [key, section] of entry.sections) {
-      if (keys.has(key)) continue;
-      section.root.remove();
-      entry.sections.delete(key);
-    }
     let newTiles = false;
-    let previousSection = null;
-    for (const section of sections) {
-      const key = keyOf(section.heading);
-      let sectionEntry = entry.sections.get(key);
-      if (!sectionEntry) {
-        sectionEntry = buildSection();
-        entry.sections.set(key, sectionEntry);
+    let previousTile = null;
+    for (const item of items) {
+      let tile = entry.tiles.get(item.id);
+      if (!tile) {
+        tile = buildTile(item.id);
+        entry.tiles.set(item.id, tile);
+        newTiles = true;
       }
-      sectionEntry.heading.textContent = section.heading ?? "";
-      sectionEntry.heading.hidden = section.heading === null;
-      if (section.heading === null) {
-        sectionEntry.root.removeAttribute("role");
-        sectionEntry.root.removeAttribute("aria-label");
-      } else {
-        sectionEntry.root.setAttribute("role", "group");
-        sectionEntry.root.setAttribute("aria-label", section.heading);
-      }
-      place(entry.inner, sectionEntry.root, previousSection);
-      previousSection = sectionEntry.root;
-      let previousTile = null;
-      for (const item of section.items) {
-        let tile = entry.tiles.get(item.id);
-        if (!tile) {
-          tile = buildTile(item.id);
-          entry.tiles.set(item.id, tile);
-          newTiles = true;
-        }
-        paintTile(tile, item);
-        place(sectionEntry.grid, tile.root, previousTile);
-        previousTile = tile.root;
-      }
+      paintTile(tile, item);
+      place(entry.grid, tile.root, previousTile);
+      previousTile = tile.root;
     }
     if (newTiles) queueAttach();
   };
   const clearBody = (entry) => {
     for (const tile of [...entry.tiles.values()]) removeTile(entry, tile);
-    entry.sections.forEach((section) => section.root.remove());
-    entry.sections.clear();
   };
   const setBodyOpen = (entry, spring) => {
     const isOpen = entry.shown === true;
@@ -16527,7 +16474,6 @@ function ShortcutsMenu({ panelId }) {
   parseLayerAction,
   parsePictureAction,
   pictureAction,
-  pictureSections,
   rotateGradientHandles,
   setBackgroundHost,
   setPictureHost,

@@ -98,12 +98,6 @@ type PictureItem = {
     id: string;
     /** The text under the tile's picture. */
     label: string;
-    /**
-     * The group heading this tile sits under, shown exactly as given. Tiles of
-     * one family with the same group form one group; groups follow the order
-     * of their first tile. Tiles with no group come first, with no heading.
-     */
-    group?: string;
     /** A short sentence about the preset, shown while the hint key is held. */
     hint?: string;
 };
@@ -123,23 +117,12 @@ type PicturesConfig = {
 };
 /** The selected tile's id, or `null` when no tile is selected. */
 type PicturesValue = string | null;
-/** One run of tiles inside an open family: a group under its heading, or the tiles with no group (`heading: null`). */
-type PictureSection = {
-    heading: string | null;
-    items: PictureItem[];
-};
 /** The action path a pictures control sends when its tile `id` is clicked: `<path>:pick:<id>`. */
 declare function pictureAction(path: string, id: string): string;
 /** Reads an action path sent by the pictures control at `path`, or null for any other action. */
 declare function parsePictureAction(path: string, action: string): {
     id: string;
 } | null;
-/**
- * A family's tiles split into the sections an open family shows: the tiles
- * with no group first, under no heading, then one section per group, in the
- * order of each group's first tile. An empty group string counts as no group.
- */
-declare function pictureSections(items: readonly PictureItem[]): PictureSection[];
 /** The id of the family holding the tile `id`, or null. */
 declare function findPictureFamily(families: readonly PictureFamily[], id: string | null): string | null;
 /**
@@ -1579,4 +1562,4 @@ interface ControlRendererProps {
 }
 declare function ControlRenderer(props: ControlRendererProps): JSX.Element;
 
-export { type ActionConfig, type AnchorConfig, AnchorControl, type AnchorControlProps, type AnchorValue, type BackgroundConfig, BackgroundControl, type BackgroundControlProps, type BackgroundGradient, type BackgroundHost, type BackgroundMedia, type BackgroundMediaDisplay, type BackgroundMediaFit, type BackgroundMediaRatio, type BackgroundMode, type BackgroundValue, type BackgroundValueUpdate, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type CopiedTransition, type CreateDialOptions, type CreateDialTimelineOptions, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, type DialVersions, type EasingConfig, EasingVisualization, Folder, GRADIENT_SHAPES, type GizmoBox, type GradientFrame, type GradientGizmoCallbacks, type GradientGizmoProps, type GradientHandles, type GradientPoint, type GradientShape, type GradientStop, type ImageConfig, ImageControl, type ImageOption, type PanelConfig, type PictureFamily, type PictureHost, type PictureItem, PictureListControl, type PictureListControlProps, type PictureParts, type PictureSection, type PicturesConfig, type PicturesValue, type Preset, PresetManager, type ResolvedValues, RootPanel, type SavedGradient, type SelectConfig, SelectControl, type SelectOption, type ShortcutConfig, ShortcutsMenu, Slider, type SpringConfig, SpringControl, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, Toggle, type TransitionConfig, TransitionControl, type TransitionMode, type TransitionPreset, VersionGallery, type VisibleWhen, type VisibleWhenValue, backgroundGradientCss, backgroundMediaCss, createDialKit, createDialKitController, createDialTimeline, defaultBackgroundValue, defaultGradientHandles, dragGradientCentre, dragGradientEnd, dragGradientWidth, findPictureFamily, formatGizmoAngle, getBackgroundHost, getPictureHost, getSavedGradients, gizmoAngle, gizmoPoints, gradientFrame, gradientParamAt, hasBackgroundHost, legacyGradientHandles, mountGradientGizmo, normalizeBackgroundValue, normalizePictureFamilies, normalizePicturesValue, paintBackgroundPreview, paintGradient, parsePictureAction, pictureAction, pictureSections, rotateGradientHandles, setBackgroundHost, setPictureHost, setSavedGradients, stopPlacement, stopPositionAt, subscribeBackgroundHost, subscribePictureHost, switchGradientShape, withVisibility };
+export { type ActionConfig, type AnchorConfig, AnchorControl, type AnchorControlProps, type AnchorValue, type BackgroundConfig, BackgroundControl, type BackgroundControlProps, type BackgroundGradient, type BackgroundHost, type BackgroundMedia, type BackgroundMediaDisplay, type BackgroundMediaFit, type BackgroundMediaRatio, type BackgroundMode, type BackgroundValue, type BackgroundValueUpdate, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type CopiedTransition, type CreateDialOptions, type CreateDialTimelineOptions, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, type DialVersions, type EasingConfig, EasingVisualization, Folder, GRADIENT_SHAPES, type GizmoBox, type GradientFrame, type GradientGizmoCallbacks, type GradientGizmoProps, type GradientHandles, type GradientPoint, type GradientShape, type GradientStop, type ImageConfig, ImageControl, type ImageOption, type PanelConfig, type PictureFamily, type PictureHost, type PictureItem, PictureListControl, type PictureListControlProps, type PictureParts, type PicturesConfig, type PicturesValue, type Preset, PresetManager, type ResolvedValues, RootPanel, type SavedGradient, type SelectConfig, SelectControl, type SelectOption, type ShortcutConfig, ShortcutsMenu, Slider, type SpringConfig, SpringControl, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, Toggle, type TransitionConfig, TransitionControl, type TransitionMode, type TransitionPreset, VersionGallery, type VisibleWhen, type VisibleWhenValue, backgroundGradientCss, backgroundMediaCss, createDialKit, createDialKitController, createDialTimeline, defaultBackgroundValue, defaultGradientHandles, dragGradientCentre, dragGradientEnd, dragGradientWidth, findPictureFamily, formatGizmoAngle, getBackgroundHost, getPictureHost, getSavedGradients, gizmoAngle, gizmoPoints, gradientFrame, gradientParamAt, hasBackgroundHost, legacyGradientHandles, mountGradientGizmo, normalizeBackgroundValue, normalizePictureFamilies, normalizePicturesValue, paintBackgroundPreview, paintGradient, parsePictureAction, pictureAction, rotateGradientHandles, setBackgroundHost, setPictureHost, setSavedGradients, stopPlacement, stopPositionAt, subscribeBackgroundHost, subscribePictureHost, switchGradientShape, withVisibility };

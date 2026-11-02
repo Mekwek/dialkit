@@ -9,22 +9,6 @@ function parsePictureAction(path, action) {
   if (!action.startsWith(prefix) || action.length === prefix.length) return null;
   return { id: action.slice(prefix.length) };
 }
-function pictureSections(items) {
-  const loose = [];
-  const groups = /* @__PURE__ */ new Map();
-  for (const item of items) {
-    if (!item.group) {
-      loose.push(item);
-      continue;
-    }
-    const list = groups.get(item.group);
-    if (list) list.push(item);
-    else groups.set(item.group, [item]);
-  }
-  const sections = loose.length ? [{ heading: null, items: loose }] : [];
-  for (const [heading, list] of groups) sections.push({ heading, items: list });
-  return sections;
-}
 function findPictureFamily(families, id) {
   if (id === null) return null;
   return families.find((family) => family.items.some((item) => item.id === id))?.id ?? null;
@@ -46,7 +30,6 @@ function normalizePictureFamilies(value) {
       if (!isRecord(rawItem) || !nonEmpty(rawItem.id) || typeof rawItem.label !== "string" || itemIds.has(rawItem.id)) continue;
       itemIds.add(rawItem.id);
       const item = { id: rawItem.id, label: rawItem.label };
-      if (nonEmpty(rawItem.group)) item.group = rawItem.group;
       if (nonEmpty(rawItem.hint)) item.hint = rawItem.hint;
       items.push(item);
     }
@@ -64,7 +47,6 @@ export {
   normalizePictureFamilies,
   normalizePicturesValue,
   parsePictureAction,
-  pictureAction,
-  pictureSections
+  pictureAction
 };
 //# sourceMappingURL=pictures.js.map

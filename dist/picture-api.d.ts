@@ -1,4 +1,4 @@
-export { PictureFamily, PictureItem, PictureSection, PicturesConfig, PicturesValue, findPictureFamily, normalizePictureFamilies, normalizePicturesValue, parsePictureAction, pictureAction, pictureSections } from './pictures.js';
+export { PictureFamily, PictureItem, PicturesConfig, PicturesValue, findPictureFamily, normalizePictureFamilies, normalizePicturesValue, parsePictureAction, pictureAction } from './pictures.js';
 
 /** The elements of one shown tile: the box the picture goes in, and the tile button around it. */
 type PictureParts = {
