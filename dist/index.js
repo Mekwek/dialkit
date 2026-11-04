@@ -454,6 +454,10 @@ function findPictureFamily(families, id) {
   if (id === null) return null;
   return families.find((family) => family.items.some((item) => item.id === id))?.id ?? null;
 }
+function familyAfterSelection(families, open, before, after) {
+  if (after === before) return open;
+  return findPictureFamily(families, after) ?? open;
+}
 function isRecord2(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -10560,8 +10564,6 @@ function mountPictureListControl(host, initial) {
   let families = normalizePictureFamilies(props.families);
   let value = normalizePicturesValue(props.value);
   let open = findPictureFamily(families, value);
-  let openedByUser = false;
-  let selectionSeen = value !== null;
   let destroyed = false;
   const uid = `dialkit-pictures-${++instances}`;
   let bodies = 0;
@@ -10646,7 +10648,6 @@ function mountPictureListControl(host, initial) {
     row.setAttribute("aria-controls", body.id);
     familyRoot.append(row, body);
     row.addEventListener("click", () => {
-      openedByUser = true;
       open = open === id ? null : id;
       render();
     });
@@ -10743,11 +10744,9 @@ function mountPictureListControl(host, initial) {
     update(next) {
       props = next;
       families = normalizePictureFamilies(next.families);
+      const before = value;
       value = normalizePicturesValue(next.value);
-      if (!selectionSeen && value !== null) {
-        selectionSeen = true;
-        if (!openedByUser && open === null) open = findPictureFamily(families, value);
-      }
+      open = familyAfterSelection(families, open, before, value);
       render();
     },
     destroy() {

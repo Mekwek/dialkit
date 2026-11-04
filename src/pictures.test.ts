@@ -1,10 +1,32 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  findPictureFamily, normalizePictureFamilies, normalizePicturesValue, parsePictureAction, pictureAction,
+  familyAfterSelection, findPictureFamily, normalizePictureFamilies, normalizePicturesValue, parsePictureAction, pictureAction,
 } from './pictures';
 import { getPictureHost, setPictureHost, subscribePictureHost } from './store/PictureHost';
 import { DialStore, resolveDialValues, type DialConfig } from './store/DialStore';
+
+describe('familyAfterSelection', () => {
+  const families = normalizePictureFamilies([
+    { id: 'grid', label: 'Grid', items: [{ id: 'g1', label: 'G1' }] },
+    { id: 'path', label: 'Path', items: [{ id: 'p1', label: 'P1' }] },
+  ]);
+
+  it('opens the family of a new selection', () => {
+    assert.equal(familyAfterSelection(families, 'grid', 'g1', 'p1'), 'path');
+    assert.equal(familyAfterSelection(families, null, null, 'p1'), 'path');
+  });
+
+  it('keeps the family the user opened while the selection stays', () => {
+    assert.equal(familyAfterSelection(families, 'path', 'g1', 'g1'), 'path');
+    assert.equal(familyAfterSelection(families, null, 'g1', 'g1'), null);
+  });
+
+  it('keeps the family when the selection clears or is unknown', () => {
+    assert.equal(familyAfterSelection(families, 'path', 'p1', null), 'path');
+    assert.equal(familyAfterSelection(families, 'grid', 'g1', 'missing'), 'grid');
+  });
+});
 
 describe('picture actions', () => {
   it('round-trips a tile id, including one with the separator in it', () => {

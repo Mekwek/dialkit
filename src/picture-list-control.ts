@@ -1,7 +1,7 @@
 import { animateSpring } from './animation';
 import { ICON_CHEVRON } from './icons';
 import {
-  findPictureFamily, normalizePictureFamilies, normalizePicturesValue,
+  familyAfterSelection, findPictureFamily, normalizePictureFamilies, normalizePicturesValue,
   type PictureFamily, type PictureItem, type PicturesValue,
 } from './pictures';
 import { getPictureHost, subscribePictureHost } from './store/PictureHost';
@@ -83,11 +83,6 @@ export function mountPictureListControl(host: HTMLElement, initial: PictureListC
   let families = normalizePictureFamilies(props.families);
   let value = normalizePicturesValue(props.value);
   let open = findPictureFamily(families, value);
-  // The family of the first selection opens, also when that selection comes
-  // after the mount (a host that knows its selection one frame later), as
-  // long as the user has not opened or closed a family yet.
-  let openedByUser = false;
-  let selectionSeen = value !== null;
   let destroyed = false;
   const uid = `dialkit-pictures-${++instances}`;
   let bodies = 0;
@@ -179,7 +174,6 @@ export function mountPictureListControl(host: HTMLElement, initial: PictureListC
     row.setAttribute('aria-controls', body.id);
     familyRoot.append(row, body);
     row.addEventListener('click', () => {
-      openedByUser = true;
       open = open === id ? null : id;
       render();
     });
@@ -293,11 +287,9 @@ export function mountPictureListControl(host: HTMLElement, initial: PictureListC
     update(next: PictureListControlProps) {
       props = next;
       families = normalizePictureFamilies(next.families);
+      const before = value;
       value = normalizePicturesValue(next.value);
-      if (!selectionSeen && value !== null) {
-        selectionSeen = true;
-        if (!openedByUser && open === null) open = findPictureFamily(families, value);
-      }
+      open = familyAfterSelection(families, open, before, value);
       render();
     },
     destroy() {
