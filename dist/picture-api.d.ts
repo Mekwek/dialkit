@@ -27,5 +27,15 @@ declare function setPictureHost(host: PictureHost): void;
 declare function getPictureHost(): PictureHost;
 /** Calls `listener` when the host changes. Returns the unsubscribe. */
 declare function subscribePictureHost(listener: Listener): () => void;
+/**
+ * Opens a family in every pictures control, also one mounted later. A host
+ * calls it when what it shows belongs to a family but matches no tile, so no
+ * selection can name the family. Every call opens the family again, so it
+ * also closes a family the user opened since.
+ */
+declare function showPictureFamily(id: string): void;
+declare function getShownPictureFamily(): string | null;
+/** Calls `listener` on every `showPictureFamily`. Returns the unsubscribe. */
+declare function subscribePictureFamily(listener: Listener): () => void;
 
-export { type PictureHost, type PictureParts, getPictureHost, setPictureHost, subscribePictureHost };
+export { type PictureHost, type PictureParts, getPictureHost, getShownPictureFamily, setPictureHost, showPictureFamily, subscribePictureFamily, subscribePictureHost };

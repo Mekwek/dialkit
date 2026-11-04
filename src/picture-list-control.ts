@@ -4,7 +4,9 @@ import {
   familyAfterSelection, findPictureFamily, normalizePictureFamilies, normalizePicturesValue,
   type PictureFamily, type PictureItem, type PicturesValue,
 } from './pictures';
-import { getPictureHost, subscribePictureHost } from './store/PictureHost';
+import {
+  getPictureHost, getShownPictureFamily, subscribePictureFamily, subscribePictureHost,
+} from './store/PictureHost';
 import { setHint } from './hints';
 import { element, icon } from './vanilla/dom';
 
@@ -82,7 +84,8 @@ export function mountPictureListControl(host: HTMLElement, initial: PictureListC
   let props = initial;
   let families = normalizePictureFamilies(props.families);
   let value = normalizePicturesValue(props.value);
-  let open = findPictureFamily(families, value);
+  const knownFamily = (id: string | null) => (families.some(family => family.id === id) ? id : null);
+  let open = findPictureFamily(families, value) ?? knownFamily(getShownPictureFamily());
   let destroyed = false;
   const uid = `dialkit-pictures-${++instances}`;
   let bodies = 0;
@@ -283,6 +286,11 @@ export function mountPictureListControl(host: HTMLElement, initial: PictureListC
 
   render();
 
+  const unsubscribeFamily = subscribePictureFamily(() => {
+    open = knownFamily(getShownPictureFamily()) ?? open;
+    render();
+  });
+
   return {
     update(next: PictureListControlProps) {
       props = next;
@@ -295,6 +303,7 @@ export function mountPictureListControl(host: HTMLElement, initial: PictureListC
     destroy() {
       destroyed = true;
       unsubscribeHost();
+      unsubscribeFamily();
       familyById.forEach(entry => {
         entry.animation?.cancel();
         entry.chevronAnimation?.cancel();

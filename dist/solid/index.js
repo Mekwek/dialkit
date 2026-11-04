@@ -7049,7 +7049,7 @@ function state() {
   const scope = globalThis;
   let current2 = scope[STATE_KEY];
   if (!current2) {
-    current2 = { host: {}, listeners: /* @__PURE__ */ new Set() };
+    current2 = { host: {}, listeners: /* @__PURE__ */ new Set(), family: null, familyListeners: /* @__PURE__ */ new Set() };
     scope[STATE_KEY] = current2;
   }
   return current2;
@@ -7064,6 +7064,21 @@ function getPictureHost() {
 }
 function subscribePictureHost(listener) {
   const listeners = state().listeners;
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+function showPictureFamily(id) {
+  const current2 = state();
+  current2.family = id;
+  current2.familyListeners.forEach((listener) => listener());
+}
+function getShownPictureFamily() {
+  return state().family;
+}
+function subscribePictureFamily(listener) {
+  const listeners = state().familyListeners;
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
@@ -7106,7 +7121,8 @@ function mountPictureListControl(host, initial) {
   let props = initial;
   let families = normalizePictureFamilies(props.families);
   let value = normalizePicturesValue(props.value);
-  let open = findPictureFamily(families, value);
+  const knownFamily = (id) => families.some((family) => family.id === id) ? id : null;
+  let open = findPictureFamily(families, value) ?? knownFamily(getShownPictureFamily());
   let destroyed = false;
   const uid = `dialkit-pictures-${++instances}`;
   let bodies = 0;
@@ -7283,6 +7299,10 @@ function mountPictureListControl(host, initial) {
     }
   }
   render();
+  const unsubscribeFamily = subscribePictureFamily(() => {
+    open = knownFamily(getShownPictureFamily()) ?? open;
+    render();
+  });
   return {
     update(next) {
       props = next;
@@ -7295,6 +7315,7 @@ function mountPictureListControl(host, initial) {
     destroy() {
       destroyed = true;
       unsubscribeHost();
+      unsubscribeFamily();
       familyById.forEach((entry) => {
         entry.animation?.cancel();
         entry.chevronAnimation?.cancel();
@@ -16994,6 +17015,7 @@ export {
   getBackgroundHost,
   getPictureHost,
   getSavedGradients,
+  getShownPictureFamily,
   gizmoAngle,
   gizmoPoints,
   gradientFrame,
@@ -17012,9 +17034,11 @@ export {
   setBackgroundHost,
   setPictureHost,
   setSavedGradients,
+  showPictureFamily,
   stopPlacement,
   stopPositionAt,
   subscribeBackgroundHost,
+  subscribePictureFamily,
   subscribePictureHost,
   switchGradientShape,
   withVisibility

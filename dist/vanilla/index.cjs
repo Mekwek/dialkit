@@ -64,6 +64,7 @@ __export(vanilla_exports, {
   getBackgroundHost: () => getBackgroundHost,
   getPictureHost: () => getPictureHost,
   getSavedGradients: () => getSavedGradients,
+  getShownPictureFamily: () => getShownPictureFamily,
   gizmoAngle: () => gizmoAngle,
   gizmoPoints: () => gizmoPoints,
   gradientFrame: () => gradientFrame,
@@ -104,9 +105,11 @@ __export(vanilla_exports, {
   setBackgroundHost: () => setBackgroundHost,
   setPictureHost: () => setPictureHost,
   setSavedGradients: () => setSavedGradients,
+  showPictureFamily: () => showPictureFamily,
   stopPlacement: () => stopPlacement,
   stopPositionAt: () => stopPositionAt,
   subscribeBackgroundHost: () => subscribeBackgroundHost,
+  subscribePictureFamily: () => subscribePictureFamily,
   subscribePictureHost: () => subscribePictureHost,
   switchGradientShape: () => switchGradientShape,
   withVisibility: () => withVisibility
@@ -8341,7 +8344,7 @@ function state2() {
   const scope = globalThis;
   let current2 = scope[STATE_KEY2];
   if (!current2) {
-    current2 = { host: {}, listeners: /* @__PURE__ */ new Set() };
+    current2 = { host: {}, listeners: /* @__PURE__ */ new Set(), family: null, familyListeners: /* @__PURE__ */ new Set() };
     scope[STATE_KEY2] = current2;
   }
   return current2;
@@ -8361,6 +8364,21 @@ function subscribePictureHost(listener) {
     listeners2.delete(listener);
   };
 }
+function showPictureFamily(id) {
+  const current2 = state2();
+  current2.family = id;
+  current2.familyListeners.forEach((listener) => listener());
+}
+function getShownPictureFamily() {
+  return state2().family;
+}
+function subscribePictureFamily(listener) {
+  const listeners2 = state2().familyListeners;
+  listeners2.add(listener);
+  return () => {
+    listeners2.delete(listener);
+  };
+}
 
 // src/picture-list-control.ts
 var instances = 0;
@@ -8375,7 +8393,8 @@ function mountPictureListControl(host, initial) {
   let props = initial;
   let families = normalizePictureFamilies(props.families);
   let value = normalizePicturesValue(props.value);
-  let open = findPictureFamily(families, value);
+  const knownFamily = (id) => families.some((family) => family.id === id) ? id : null;
+  let open = findPictureFamily(families, value) ?? knownFamily(getShownPictureFamily());
   let destroyed = false;
   const uid = `dialkit-pictures-${++instances}`;
   let bodies = 0;
@@ -8552,6 +8571,10 @@ function mountPictureListControl(host, initial) {
     }
   }
   render();
+  const unsubscribeFamily = subscribePictureFamily(() => {
+    open = knownFamily(getShownPictureFamily()) ?? open;
+    render();
+  });
   return {
     update(next) {
       props = next;
@@ -8564,6 +8587,7 @@ function mountPictureListControl(host, initial) {
     destroy() {
       destroyed = true;
       unsubscribeHost();
+      unsubscribeFamily();
       familyById.forEach((entry) => {
         entry.animation?.cancel();
         entry.chevronAnimation?.cancel();
@@ -13485,6 +13509,7 @@ function mountSection(host, initial, options) {
   getBackgroundHost,
   getPictureHost,
   getSavedGradients,
+  getShownPictureFamily,
   gizmoAngle,
   gizmoPoints,
   gradientFrame,
@@ -13525,9 +13550,11 @@ function mountSection(host, initial, options) {
   setBackgroundHost,
   setPictureHost,
   setSavedGradients,
+  showPictureFamily,
   stopPlacement,
   stopPositionAt,
   subscribeBackgroundHost,
+  subscribePictureFamily,
   subscribePictureHost,
   switchGradientShape,
   withVisibility

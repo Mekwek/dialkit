@@ -3,7 +3,9 @@ import { describe, it } from 'node:test';
 import {
   familyAfterSelection, findPictureFamily, normalizePictureFamilies, normalizePicturesValue, parsePictureAction, pictureAction,
 } from './pictures';
-import { getPictureHost, setPictureHost, subscribePictureHost } from './store/PictureHost';
+import {
+  getPictureHost, getShownPictureFamily, setPictureHost, showPictureFamily, subscribePictureFamily, subscribePictureHost,
+} from './store/PictureHost';
 import { DialStore, resolveDialValues, type DialConfig } from './store/DialStore';
 
 describe('familyAfterSelection', () => {
@@ -25,6 +27,20 @@ describe('familyAfterSelection', () => {
   it('keeps the family when the selection clears or is unknown', () => {
     assert.equal(familyAfterSelection(families, 'path', 'p1', null), 'path');
     assert.equal(familyAfterSelection(families, 'grid', 'g1', 'missing'), 'grid');
+  });
+});
+
+describe('showPictureFamily', () => {
+  it('keeps the family for a later control and tells every call to the listeners', () => {
+    let calls = 0;
+    const stop = subscribePictureFamily(() => { calls += 1; });
+    showPictureFamily('path');
+    showPictureFamily('path');
+    assert.equal(getShownPictureFamily(), 'path');
+    assert.equal(calls, 2);
+    stop();
+    showPictureFamily('grid');
+    assert.equal(calls, 2);
   });
 });
 

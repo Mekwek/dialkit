@@ -120,7 +120,7 @@ function state() {
   const scope = globalThis;
   let current = scope[STATE_KEY];
   if (!current) {
-    current = { host: {}, listeners: /* @__PURE__ */ new Set() };
+    current = { host: {}, listeners: /* @__PURE__ */ new Set(), family: null, familyListeners: /* @__PURE__ */ new Set() };
     scope[STATE_KEY] = current;
   }
   return current;
@@ -130,6 +130,16 @@ function getPictureHost() {
 }
 function subscribePictureHost(listener) {
   const listeners = state().listeners;
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+function getShownPictureFamily() {
+  return state().family;
+}
+function subscribePictureFamily(listener) {
+  const listeners = state().familyListeners;
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
@@ -175,7 +185,8 @@ function mountPictureListControl(host, initial) {
   let props = initial;
   let families = normalizePictureFamilies(props.families);
   let value = normalizePicturesValue(props.value);
-  let open = findPictureFamily(families, value);
+  const knownFamily = (id) => families.some((family) => family.id === id) ? id : null;
+  let open = findPictureFamily(families, value) ?? knownFamily(getShownPictureFamily());
   let destroyed = false;
   const uid = `dialkit-pictures-${++instances}`;
   let bodies = 0;
@@ -352,6 +363,10 @@ function mountPictureListControl(host, initial) {
     }
   }
   render();
+  const unsubscribeFamily = subscribePictureFamily(() => {
+    open = knownFamily(getShownPictureFamily()) ?? open;
+    render();
+  });
   return {
     update(next) {
       props = next;
@@ -364,6 +379,7 @@ function mountPictureListControl(host, initial) {
     destroy() {
       destroyed = true;
       unsubscribeHost();
+      unsubscribeFamily();
       familyById.forEach((entry) => {
         entry.animation?.cancel();
         entry.chevronAnimation?.cancel();

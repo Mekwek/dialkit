@@ -49,7 +49,7 @@ function state() {
   const scope = globalThis;
   let current = scope[STATE_KEY];
   if (!current) {
-    current = { host: {}, listeners: /* @__PURE__ */ new Set() };
+    current = { host: {}, listeners: /* @__PURE__ */ new Set(), family: null, familyListeners: /* @__PURE__ */ new Set() };
     scope[STATE_KEY] = current;
   }
   return current;
@@ -69,14 +69,32 @@ function subscribePictureHost(listener) {
     listeners.delete(listener);
   };
 }
+function showPictureFamily(id) {
+  const current = state();
+  current.family = id;
+  current.familyListeners.forEach((listener) => listener());
+}
+function getShownPictureFamily() {
+  return state().family;
+}
+function subscribePictureFamily(listener) {
+  const listeners = state().familyListeners;
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
 export {
   findPictureFamily,
   getPictureHost,
+  getShownPictureFamily,
   normalizePictureFamilies,
   normalizePicturesValue,
   parsePictureAction,
   pictureAction,
   setPictureHost,
+  showPictureFamily,
+  subscribePictureFamily,
   subscribePictureHost
 };
 //# sourceMappingURL=picture-api.js.map
