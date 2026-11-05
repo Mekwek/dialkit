@@ -13821,10 +13821,13 @@ function openVersionGrid(options) {
   let focusKey = activeKey;
   let closing = false;
   let animations = [];
+  let releases = [];
+  const { host } = options;
   const overlay = element6("div", "dialkit-version-overlay");
   overlay.dataset.theme = options.theme ?? "system";
   overlay.setAttribute("role", "dialog");
   overlay.setAttribute("aria-label", "Versions");
+  if (host) overlay.dataset.hosted = "true";
   const scroller = element6("div", "dialkit-version-overlay-scroll");
   const grid = element6("div", "dialkit-version-overlay-grid");
   const close2 = element6("button", "dialkit-version-overlay-close");
@@ -13834,17 +13837,27 @@ function openVersionGrid(options) {
   overlay.append(scroller, close2);
   const cards = /* @__PURE__ */ new Map();
   const focusCard = (key, opts) => cards.get(key)?.querySelector(".dialkit-version-card-frame")?.focus(opts);
+  const releasePictures = () => {
+    releases.forEach((release) => release());
+    releases = [];
+  };
   const render = () => {
+    releasePictures();
     grid.textContent = "";
     cards.clear();
-    grid.style.setProperty("--dialkit-version-aspect", String(window.innerWidth / window.innerHeight));
-    grid.style.setProperty("--dialkit-version-columns", String(columnsFor(versions.length)));
+    const area = overlay.getBoundingClientRect();
+    grid.style.setProperty("--dialkit-version-aspect", String(area.width / area.height));
+    grid.style.setProperty("--dialkit-version-columns", String(columnsFor(versions.length, area.width)));
     for (const version of versions) {
       const card = element6("div", "dialkit-version-card");
       card.dataset.key = version.key;
       const frame = element6("button", "dialkit-version-card-frame");
       frame.setAttribute("aria-label", version.name);
-      if (version.thumbnail) {
+      if (options.picture) {
+        const picture = element6("div", "dialkit-version-card-picture");
+        frame.append(picture);
+        releases.push(options.picture(version.key, picture, frame));
+      } else if (version.thumbnail) {
         const img = element6("img");
         img.src = version.thumbnail.src;
         img.alt = "";
@@ -13854,8 +13867,10 @@ function openVersionGrid(options) {
       }
       const label = element6("span", "dialkit-version-card-label");
       label.textContent = version.name;
-      label.title = "Double-click to rename";
-      label.addEventListener("dblclick", () => editLabel(version.key, label, frame));
+      if (options.canRename?.(version.key) !== false) {
+        label.title = "Double-click to rename";
+        label.addEventListener("dblclick", () => editLabel(version.key, label, frame));
+      }
       card.append(frame, label);
       frame.addEventListener("click", () => choose(version.key));
       frame.addEventListener("focus", () => {
@@ -13878,8 +13893,8 @@ function openVersionGrid(options) {
       done = true;
       const name = input.value.trim();
       if (save && name && name !== previous) {
-        options.onRename(key, name);
         versions = versions.map((v) => v.key === key ? { ...v, name } : v);
+        options.onRename(key, name);
         label.textContent = name;
         frame.setAttribute("aria-label", name);
       }
@@ -13901,6 +13916,7 @@ function openVersionGrid(options) {
     input.select();
   };
   const reserveDialKitSpace = () => {
+    if (host) return;
     const panel = document.querySelector('.dialkit-panel:not([data-mode="inline"])');
     const rect = panel?.getBoundingClientRect();
     const gutter = 32;
@@ -13918,9 +13934,10 @@ function openVersionGrid(options) {
     const home = frame.getBoundingClientRect();
     const origin = grid.getBoundingClientRect();
     grid.style.transform = prev;
-    const s = window.innerWidth / home.width;
-    const tx = -origin.x - s * (home.x - origin.x);
-    const ty = -origin.y - s * (home.y - origin.y);
+    const area = overlay.getBoundingClientRect();
+    const s = area.width / home.width;
+    const tx = area.x - origin.x - s * (home.x - origin.x);
+    const ty = area.y - origin.y - s * (home.y - origin.y);
     return `translate3d(${tx}px, ${ty}px, 0) scale(${s})`;
   };
   const animateTo = (transform, scene) => {
@@ -13941,7 +13958,7 @@ function openVersionGrid(options) {
     animations = [
       grid.animate([
         { transform: from2.transform, "--dialkit-card-radius": from2.radius },
-        { transform, "--dialkit-card-radius": `${CARD_RADIUS * scene / scale}px` }
+        { transform, "--dialkit-card-radius": `${cardRadius * scene / scale}px` }
       ], timing),
       overlay.animate([{ "--dialkit-scene": from2.scene }, { "--dialkit-scene": scene }], timing)
     ];
@@ -13963,7 +13980,10 @@ function openVersionGrid(options) {
       easing: "linear",
       fill: "forwards"
     });
-    fade.onfinish = () => overlay.remove();
+    fade.onfinish = () => {
+      releasePictures();
+      overlay.remove();
+    };
     options.onClose?.();
   };
   const choose = (key) => {
@@ -13997,7 +14017,7 @@ function openVersionGrid(options) {
       choose(activeKey);
       return;
     }
-    const columns = columnsFor(versions.length);
+    const columns = getComputedStyle(grid).gridTemplateColumns.split(" ").length;
     const arrows = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -columns, ArrowDown: columns };
     if (e.key in arrows) {
       e.preventDefault();
@@ -14016,7 +14036,9 @@ function openVersionGrid(options) {
   window.addEventListener("resize", onResize);
   overlay.style.setProperty("--dialkit-scene", "0");
   overlay.style.visibility = "hidden";
-  document.body.append(overlay);
+  (host ?? document.body).append(overlay);
+  const cardRadius = host && parseFloat(getComputedStyle(overlay).getPropertyValue("--dial-pictures-radius")) || CARD_RADIUS;
+  if (host) overlay.style.setProperty("--dialkit-card-radius", `${cardRadius}px`);
   render();
   const anchor = cards.get(activeKey);
   if (anchor) scroller.scrollTop = Math.max(0, anchor.offsetTop - (scroller.clientHeight - anchor.offsetHeight) / 2);
@@ -14045,8 +14067,13 @@ function openVersionGrid(options) {
       finish();
     },
     update: (next, nextActive) => {
+      const changed = next.length !== versions.length || next.some((version, index) => version.key !== versions[index]?.key || version.name !== versions[index]?.name);
       versions = next;
       activeKey = nextActive;
+      if (options.picture) {
+        if (changed && !closing) render();
+        return;
+      }
       for (const version of versions) {
         const img = cards.get(version.key)?.querySelector("img");
         if (img && version.thumbnail && img.src !== version.thumbnail.src) img.src = version.thumbnail.src;
@@ -14074,8 +14101,7 @@ function registerSceneProperties() {
     }
   }
 }
-function columnsFor(count) {
-  const width = window.innerWidth;
+function columnsFor(count, width) {
   const max = width >= 1100 ? 3 : width >= 680 ? 2 : 1;
   return Math.max(1, Math.min(max, Math.max(count, 2)));
 }

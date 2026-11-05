@@ -25,10 +25,20 @@ export type VersionGridOptions = {
   versions: GridVersion[];
   activeKey: string;
   theme?: 'light' | 'dark' | 'system';
+  /**
+   * The element the grid fills, instead of the window. The chosen card grows
+   * to fill this element, so the live view under the grid must sit in the
+   * same box.
+   */
+  host?: HTMLElement;
+  /** Fills a card's picture box, instead of its thumbnail. Returns the release. */
+  picture?: (key: string, picture: HTMLElement, tile: HTMLElement) => () => void;
   /** Load a version into the live page. Called before the zoom-in starts. */
   onSelect: (key: string) => void;
   /** Rename a version (double-click its name). */
   onRename?: (key: string, name: string) => void;
+  /** Whether a version's name can change. Every version's can without it. */
+  canRename?: (key: string) => boolean;
   onClose?: () => void;
 };
 
@@ -57,11 +67,14 @@ export function openVersionGrid(options: VersionGridOptions): VersionGridHandle 
   let focusKey = activeKey;
   let closing = false;
   let animations: Animation[] = [];
+  let releases: (() => void)[] = [];
+  const { host } = options;
 
   const overlay = element('div', 'dialkit-version-overlay');
   overlay.dataset.theme = options.theme ?? 'system';
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-label', 'Versions');
+  if (host) overlay.dataset.hosted = 'true';
 
   const scroller = element('div', 'dialkit-version-overlay-scroll');
   const grid = element('div', 'dialkit-version-overlay-grid');
@@ -75,17 +88,28 @@ export function openVersionGrid(options: VersionGridOptions): VersionGridHandle 
   const focusCard = (key: string, opts?: FocusOptions) =>
     cards.get(key)?.querySelector<HTMLElement>('.dialkit-version-card-frame')?.focus(opts);
 
+  const releasePictures = () => {
+    releases.forEach((release) => release());
+    releases = [];
+  };
+
   const render = () => {
+    releasePictures();
     grid.textContent = '';
     cards.clear();
-    grid.style.setProperty('--dialkit-version-aspect', String(window.innerWidth / window.innerHeight));
-    grid.style.setProperty('--dialkit-version-columns', String(columnsFor(versions.length)));
+    const area = overlay.getBoundingClientRect();
+    grid.style.setProperty('--dialkit-version-aspect', String(area.width / area.height));
+    grid.style.setProperty('--dialkit-version-columns', String(columnsFor(versions.length, area.width)));
     for (const version of versions) {
       const card = element('div', 'dialkit-version-card');
       card.dataset.key = version.key;
       const frame = element('button', 'dialkit-version-card-frame');
       frame.setAttribute('aria-label', version.name);
-      if (version.thumbnail) {
+      if (options.picture) {
+        const picture = element('div', 'dialkit-version-card-picture');
+        frame.append(picture);
+        releases.push(options.picture(version.key, picture, frame));
+      } else if (version.thumbnail) {
         const img = element('img');
         img.src = version.thumbnail.src;
         img.alt = '';
@@ -95,8 +119,10 @@ export function openVersionGrid(options: VersionGridOptions): VersionGridHandle 
       }
       const label = element('span', 'dialkit-version-card-label');
       label.textContent = version.name;
-      label.title = 'Double-click to rename';
-      label.addEventListener('dblclick', () => editLabel(version.key, label, frame));
+      if (options.canRename?.(version.key) !== false) {
+        label.title = 'Double-click to rename';
+        label.addEventListener('dblclick', () => editLabel(version.key, label, frame));
+      }
       card.append(frame, label);
       frame.addEventListener('click', () => choose(version.key));
       frame.addEventListener('focus', () => { focusKey = version.key; });
@@ -119,8 +145,8 @@ export function openVersionGrid(options: VersionGridOptions): VersionGridHandle 
       done = true;
       const name = input.value.trim();
       if (save && name && name !== previous) {
-        options.onRename!(key, name);
         versions = versions.map((v) => (v.key === key ? { ...v, name } : v));
+        options.onRename!(key, name);
         label.textContent = name;
         frame.setAttribute('aria-label', name);
       }
@@ -139,6 +165,7 @@ export function openVersionGrid(options: VersionGridOptions): VersionGridHandle 
 
   // Keep cards out from under the DialKit panel when it's docked on a side.
   const reserveDialKitSpace = () => {
+    if (host) return;
     const panel = document.querySelector('.dialkit-panel:not([data-mode="inline"])');
     const rect = panel?.getBoundingClientRect();
     const gutter = 32;
@@ -149,7 +176,7 @@ export function openVersionGrid(options: VersionGridOptions): VersionGridHandle 
     else scroller.style.paddingLeft = `${rect.right + gutter}px`;
   };
 
-  // Camera transform that makes `key`'s card exactly cover the viewport.
+  // Camera transform that makes `key`'s card exactly cover the overlay.
   const zoomedInto = (key: string): string | null => {
     const frame = cards.get(key)?.querySelector<HTMLElement>('.dialkit-version-card-frame');
     if (!frame) return null;
@@ -158,9 +185,10 @@ export function openVersionGrid(options: VersionGridOptions): VersionGridHandle 
     const home = frame.getBoundingClientRect();
     const origin = grid.getBoundingClientRect();
     grid.style.transform = prev;
-    const s = window.innerWidth / home.width;
-    const tx = -origin.x - s * (home.x - origin.x);
-    const ty = -origin.y - s * (home.y - origin.y);
+    const area = overlay.getBoundingClientRect();
+    const s = area.width / home.width;
+    const tx = area.x - origin.x - s * (home.x - origin.x);
+    const ty = area.y - origin.y - s * (home.y - origin.y);
     return `translate3d(${tx}px, ${ty}px, 0) scale(${s})`;
   };
 
@@ -184,7 +212,7 @@ export function openVersionGrid(options: VersionGridOptions): VersionGridHandle 
     animations = [
       grid.animate([
         { transform: from.transform, '--dialkit-card-radius': from.radius },
-        { transform, '--dialkit-card-radius': `${(CARD_RADIUS * scene) / scale}px` },
+        { transform, '--dialkit-card-radius': `${(cardRadius * scene) / scale}px` },
       ], timing),
       overlay.animate([{ '--dialkit-scene': from.scene }, { '--dialkit-scene': scene }], timing),
     ];
@@ -203,7 +231,10 @@ export function openVersionGrid(options: VersionGridOptions): VersionGridHandle 
       easing: 'linear',
       fill: 'forwards',
     });
-    fade.onfinish = () => overlay.remove();
+    fade.onfinish = () => {
+      releasePictures();
+      overlay.remove();
+    };
     options.onClose?.();
   };
 
@@ -233,7 +264,7 @@ export function openVersionGrid(options: VersionGridOptions): VersionGridHandle 
       choose(activeKey);
       return;
     }
-    const columns = columnsFor(versions.length);
+    const columns = getComputedStyle(grid).gridTemplateColumns.split(' ').length;
     const arrows: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -columns, ArrowDown: columns };
     if (e.key in arrows) {
       e.preventDefault();
@@ -257,7 +288,10 @@ export function openVersionGrid(options: VersionGridOptions): VersionGridHandle 
   // paint is the live page's twin rather than the resting grid.
   overlay.style.setProperty('--dialkit-scene', '0');
   overlay.style.visibility = 'hidden';
-  document.body.append(overlay);
+  (host ?? document.body).append(overlay);
+  // A hosted grid takes the host's own card radius.
+  const cardRadius = (host && parseFloat(getComputedStyle(overlay).getPropertyValue('--dial-pictures-radius'))) || CARD_RADIUS;
+  if (host) overlay.style.setProperty('--dialkit-card-radius', `${cardRadius}px`);
   render();
   const anchor = cards.get(activeKey);
   if (anchor) scroller.scrollTop = Math.max(0, anchor.offsetTop - (scroller.clientHeight - anchor.offsetHeight) / 2);
@@ -288,8 +322,15 @@ export function openVersionGrid(options: VersionGridOptions): VersionGridHandle 
       finish();
     },
     update: (next, nextActive) => {
+      const changed = next.length !== versions.length
+        || next.some((version, index) => version.key !== versions[index]?.key || version.name !== versions[index]?.name);
       versions = next;
       activeKey = nextActive;
+      // A live picture needs no refresh, so only a changed list renders again.
+      if (options.picture) {
+        if (changed && !closing) render();
+        return;
+      }
       // Only refresh thumbnails in place; re-rendering would reset motion.
       for (const version of versions) {
         const img = cards.get(version.key)?.querySelector('img');
@@ -320,8 +361,7 @@ function registerSceneProperties() {
   }
 }
 
-function columnsFor(count: number): number {
-  const width = window.innerWidth;
+function columnsFor(count: number, width: number): number {
   const max = width >= 1100 ? 3 : width >= 680 ? 2 : 1;
   return Math.max(1, Math.min(max, Math.max(count, 2)));
 }

@@ -96,6 +96,13 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   /* The ring around the selected tile's picture. */
   --dial-pictures-selected-color: var(--dial-text-primary);
   --dial-pictures-selected-width: 2px;
+  /* The version gallery. */
+  --dial-versions-columns: 3;
+  --dial-versions-row-gap: 10px;
+  --dial-versions-column-gap: 6px;
+  --dial-versions-max-height: 195px;
+  --dial-versions-radius: 6px;
+  --dial-versions-label-size: 11px;
   --dial-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
   --dial-shadow-collapsed: 0 4px 16px rgba(0, 0, 0, 0.25);
   --dial-shadow-dropdown: 0 8px 24px rgba(0, 0, 0, 0.4);
@@ -2248,6 +2255,8 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 .dialkit-pictures-tile[data-active] .dialkit-pictures-picture { box-shadow: 0 0 0 var(--dial-pictures-selected-width) var(--dial-pictures-selected-color); }
 .dialkit-pictures-label { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 @media (prefers-reduced-motion: reduce) { .dialkit-pictures-chevron, .dialkit-pictures-picture { transition: none; } }
+.dialkit-versions-list[data-dragging] .dialkit-version-action { opacity: 0; }
+.dialkit-version-action:focus-visible { outline: 2px solid var(--dial-focus-ring); outline-offset: 1px; }
 
 /* Field rows: a \`_fields\` folder's numbers side by side */
 .dialkit-fields { display: grid; gap: var(--dial-row-gap); min-width: 0; padding-top: var(--dial-row-gap); border-top: 1px solid var(--dial-divider); }
@@ -4570,11 +4579,12 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 }
 
 .dialkit-versions-strip {
+  position: relative;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px 6px;
+  grid-template-columns: repeat(var(--dial-versions-columns), minmax(0, 1fr));
+  gap: var(--dial-versions-row-gap) var(--dial-versions-column-gap);
   /* About two and a half rows; the rest scrolls. */
-  max-height: calc(var(--dialkit-version-row, 78px) * 2.5);
+  max-height: var(--dial-versions-max-height);
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: none;
@@ -4616,7 +4626,7 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   padding: 0;
   overflow: hidden;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--dial-versions-radius);
   background: var(--dial-surface);
   cursor: pointer;
   box-shadow: 0 0 0 1px var(--dial-border);
@@ -4650,8 +4660,14 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   box-shadow: 0 0 0 1.5px var(--dial-text-primary);
 }
 
+/* A live picture: the host draws in this box. */
+.dialkit-version-thumb-picture {
+  position: absolute;
+  inset: 0;
+}
+
 .dialkit-version-thumb-label {
-  font-size: 11px;
+  font-size: var(--dial-versions-label-size);
   font-weight: 500;
   line-height: 1;
   transition: opacity 0.3s cubic-bezier(0.42, 0, 1, 1);
@@ -4725,8 +4741,42 @@ span.dialkit-version-thumb-label {
 }
 
 /* A locked version (locked from the version menu) can't be deleted. */
-.dialkit-version-thumb[data-locked="true"] .dialkit-version-thumb-delete {
+.dialkit-version-thumb[data-locked="true"] .dialkit-version-thumb-delete:not(.dialkit-version-thumb-lock) {
   display: none;
+}
+
+/* The lock sits beside the delete button, and stays in view on a locked version. */
+.dialkit-version-thumb-lock {
+  right: 22px;
+}
+
+.dialkit-version-thumb[data-locked="true"] .dialkit-version-thumb-lock {
+  right: 3px;
+  display: grid;
+  opacity: 1;
+}
+
+/* Dragging a picture to reorder the strip. */
+.dialkit-version-thumb[data-draggable="true"] {
+  touch-action: pan-y;
+}
+
+.dialkit-versions-strip[data-dragging] {
+  user-select: none;
+}
+
+.dialkit-versions-strip[data-dragging] .dialkit-version-thumb {
+  transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.dialkit-versions-strip .dialkit-version-thumb[data-dragging] {
+  z-index: 1;
+  transition: none;
+  cursor: grabbing;
+}
+
+.dialkit-versions-strip[data-dragging] .dialkit-version-thumb-delete {
+  opacity: 0;
 }
 
 .dialkit-versions-actions {
@@ -5015,5 +5065,51 @@ span.dialkit-version-thumb-label {
 .dialkit-version-overlay-close svg {
   width: 14px;
   height: 14px;
+}
+
+/* The grid inside a host's element, with the preset gallery's look. */
+.dialkit-version-overlay[data-hosted] {
+  --dialkit-overlay-bg: var(--dial-glass-bg);
+  --dialkit-overlay-card: var(--dial-pictures-placeholder);
+  --dialkit-overlay-text: var(--dial-text-primary);
+  --dialkit-overlay-muted: var(--dial-text-label);
+  --dialkit-overlay-ring: var(--dial-focus-ring);
+  --dialkit-overlay-shadow: none;
+  position: absolute;
+  z-index: auto;
+  overflow: hidden;
+  border-radius: inherit;
+  font-family: inherit;
+}
+
+.dialkit-version-overlay[data-hosted] .dialkit-version-overlay-scroll {
+  padding: var(--dial-gallery-padding);
+  overscroll-behavior: contain;
+}
+
+.dialkit-version-overlay[data-hosted] .dialkit-version-overlay-grid {
+  grid-template-columns: repeat(var(--dial-gallery-columns), minmax(0, 1fr));
+  gap: var(--dial-gallery-gap);
+  max-width: none;
+}
+
+.dialkit-version-overlay[data-hosted] .dialkit-version-card {
+  gap: 6px;
+}
+
+.dialkit-version-overlay[data-hosted] .dialkit-version-card-label {
+  align-self: center;
+  height: auto;
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
+.dialkit-version-overlay[data-hosted] .dialkit-version-overlay-close {
+  display: none;
+}
+
+.dialkit-version-card-picture {
+  position: absolute;
+  inset: 0;
 }
 `;

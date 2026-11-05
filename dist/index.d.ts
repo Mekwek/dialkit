@@ -1865,6 +1865,52 @@ declare function PresetManager({ panelId, presets, activePresetId, onAdd, noun }
 /** Mounts the shared version gallery (see versions/gallery.ts). */
 declare function VersionGallery(props: VersionGalleryProps): react_jsx_runtime.JSX.Element;
 
+declare const BASE_VERSION = "base";
+type Thumbnail = {
+    src: string;
+    width: number;
+    height: number;
+    capturedAt: number;
+};
+
+type GridVersion = {
+    key: string;
+    name: string;
+    thumbnail?: Thumbnail;
+};
+type VersionGridHandle = {
+    /** Zoom into a version's card, load it, then hand off to the live page. */
+    select: (key: string) => void;
+    /** Zoom back into the active version, then hand off to the live page. */
+    dismiss: () => void;
+    /** Remove immediately. */
+    close: () => void;
+    update: (versions: GridVersion[], activeKey: string) => void;
+};
+
+/** The item id a version's picture has in the picture host. */
+declare function versionPictureId(key: string): string;
+/** The version key in a picture id, or null for a picture of something else. */
+declare function versionOfPicture(itemId: string): string | null;
+interface VersionPicturesProps {
+    panelId: string;
+    /** True while the grid of every version is open. */
+    gridOpen?: boolean;
+    /** Opens or closes the grid. Without it, the grid button does not show. */
+    onToggleGrid?: () => void;
+}
+type VersionPicturesGridOptions = {
+    theme?: 'light' | 'dark' | 'system';
+    /** The element the grid fills. See `VersionGridOptions.host`. */
+    host: HTMLElement;
+    onClose?: () => void;
+};
+/** Opens the grid of every version, with the same live pictures as the list. */
+declare function openVersionPicturesGrid(panelId: string, options: VersionPicturesGridOptions): VersionGridHandle;
+
+/** Mounts the shared version list (see versions/pictures.ts). */
+declare function VersionPictures(props: VersionPicturesProps): react_jsx_runtime.JSX.Element;
+
 interface ShortcutsMenuProps {
     panelId: string;
 }
@@ -1930,4 +1976,4 @@ declare function HintTip({ always }: {
  */
 declare function HintTooltip(): null;
 
-export { type ActionConfig, type AnchorConfig, AnchorControl, type AnchorControlProps, type AnchorValue, type BackgroundConfig, BackgroundControl, type BackgroundControlProps, type BackgroundGradient, type BackgroundHost, type BackgroundMedia, type BackgroundMediaDisplay, type BackgroundMediaFit, type BackgroundMediaRatio, type BackgroundMode, type BackgroundValue, type BackgroundValueUpdate, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type CopiedTransition, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, type DialVersions, type EasingConfig, EasingVisualization, type FieldsConfig, Folder, type FolderMode, GRADIENT_SHAPES, type GizmoBox, type GradientFrame, type GradientGizmoCallbacks, type GradientGizmoProps, type GradientHandles, type GradientPoint, type GradientShape, type GradientStop, HintStore, HintTip, HintTooltip, type ImageConfig, ImageControl, type ImageOption, type InlineLabelsConfig, type LayerActionKind, type LayerItem, LayerListControl, type LayerListControlProps, type LayersConfig, type LayersValue, type PadGroupConfig, type PanelConfig, type PictureFamily, type PictureHost, type PictureItem, PictureListControl, type PictureListControlProps, type PictureParts, type PicturesConfig, type PicturesValue, type Preset, PresetManager, type RangeConfig, type ResolvedValues, type RowConfig, type SavedGradient, Section, type SectionProps, type SectionRow, type SelectAddConfig, type SelectConfig, SelectControl, type SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipMeta, type TimelineClipTrackMeta, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelineMeta, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, TimelineStore, type TimelineTransport, Toggle, type TransitionConfig, TransitionControl, TransitionCopyMenu, type TransitionCopyMenuProps, type TransitionMode, type TransitionPreset, type UseDialOptions, type UseDialTimelineOptions, VersionGallery, type VisibleWhen, type VisibleWhenValue, backgroundGradientCss, backgroundMediaCss, defaultBackgroundValue, defaultGradientHandles, dragGradientCentre, dragGradientEnd, dragGradientWidth, findPictureFamily, formatClock, formatGizmoAngle, getBackgroundHost, getPictureHost, getSavedGradients, getShownPictureFamily, gizmoAngle, gizmoPoints, gradientFrame, gradientParamAt, hasBackgroundHost, layerAction, legacyGradientHandles, mountGradientGizmo, normalizeBackgroundValue, normalizeLayersValue, normalizePictureFamilies, normalizePicturesValue, paintBackgroundPreview, paintGradient, parseLayerAction, parsePictureAction, pictureAction, rotateGradientHandles, setBackgroundHost, setPictureHost, setSavedGradients, showPictureFamily, stopPlacement, stopPositionAt, subscribeBackgroundHost, subscribePictureFamily, subscribePictureHost, switchGradientShape, useDialKit, useDialKitController, useDialTimeline, withVisibility };
+export { type ActionConfig, type AnchorConfig, AnchorControl, type AnchorControlProps, type AnchorValue, BASE_VERSION, type BackgroundConfig, BackgroundControl, type BackgroundControlProps, type BackgroundGradient, type BackgroundHost, type BackgroundMedia, type BackgroundMediaDisplay, type BackgroundMediaFit, type BackgroundMediaRatio, type BackgroundMode, type BackgroundValue, type BackgroundValueUpdate, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type CopiedTransition, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, type DialVersions, type EasingConfig, EasingVisualization, type FieldsConfig, Folder, type FolderMode, GRADIENT_SHAPES, type GizmoBox, type GradientFrame, type GradientGizmoCallbacks, type GradientGizmoProps, type GradientHandles, type GradientPoint, type GradientShape, type GradientStop, HintStore, HintTip, HintTooltip, type ImageConfig, ImageControl, type ImageOption, type InlineLabelsConfig, type LayerActionKind, type LayerItem, LayerListControl, type LayerListControlProps, type LayersConfig, type LayersValue, type PadGroupConfig, type PanelConfig, type PictureFamily, type PictureHost, type PictureItem, PictureListControl, type PictureListControlProps, type PictureParts, type PicturesConfig, type PicturesValue, type Preset, PresetManager, type RangeConfig, type ResolvedValues, type RowConfig, type SavedGradient, Section, type SectionProps, type SectionRow, type SelectAddConfig, type SelectConfig, SelectControl, type SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipMeta, type TimelineClipTrackMeta, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelineMeta, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, TimelineStore, type TimelineTransport, Toggle, type TransitionConfig, TransitionControl, TransitionCopyMenu, type TransitionCopyMenuProps, type TransitionMode, type TransitionPreset, type UseDialOptions, type UseDialTimelineOptions, VersionGallery, type VersionGridHandle, VersionPictures, type VersionPicturesGridOptions, type VersionPicturesProps, type VisibleWhen, type VisibleWhenValue, backgroundGradientCss, backgroundMediaCss, defaultBackgroundValue, defaultGradientHandles, dragGradientCentre, dragGradientEnd, dragGradientWidth, findPictureFamily, formatClock, formatGizmoAngle, getBackgroundHost, getPictureHost, getSavedGradients, getShownPictureFamily, gizmoAngle, gizmoPoints, gradientFrame, gradientParamAt, hasBackgroundHost, layerAction, legacyGradientHandles, mountGradientGizmo, normalizeBackgroundValue, normalizeLayersValue, normalizePictureFamilies, normalizePicturesValue, openVersionPicturesGrid, paintBackgroundPreview, paintGradient, parseLayerAction, parsePictureAction, pictureAction, rotateGradientHandles, setBackgroundHost, setPictureHost, setSavedGradients, showPictureFamily, stopPlacement, stopPositionAt, subscribeBackgroundHost, subscribePictureFamily, subscribePictureHost, switchGradientShape, useDialKit, useDialKitController, useDialTimeline, versionOfPicture, versionPictureId, withVisibility };

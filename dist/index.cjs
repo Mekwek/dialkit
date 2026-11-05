@@ -22,6 +22,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var index_exports = {};
 __export(index_exports, {
   AnchorControl: () => AnchorControl,
+  BASE_VERSION: () => BASE_VERSION,
   BackgroundControl: () => BackgroundControl,
   ButtonGroup: () => ButtonGroup,
   ColorControl: () => ColorControl,
@@ -52,6 +53,7 @@ __export(index_exports, {
   TransitionControl: () => TransitionControl,
   TransitionCopyMenu: () => TransitionCopyMenu,
   VersionGallery: () => VersionGallery,
+  VersionPictures: () => VersionPictures,
   backgroundGradientCss: () => backgroundGradientCss,
   backgroundMediaCss: () => backgroundMediaCss,
   defaultBackgroundValue: () => defaultBackgroundValue,
@@ -78,6 +80,7 @@ __export(index_exports, {
   normalizeLayersValue: () => normalizeLayersValue,
   normalizePictureFamilies: () => normalizePictureFamilies,
   normalizePicturesValue: () => normalizePicturesValue,
+  openVersionPicturesGrid: () => openVersionPicturesGrid,
   paintBackgroundPreview: () => paintBackgroundPreview,
   paintGradient: () => paintGradient,
   parseLayerAction: () => parseLayerAction,
@@ -97,6 +100,8 @@ __export(index_exports, {
   useDialKit: () => useDialKit,
   useDialKitController: () => useDialKitController,
   useDialTimeline: () => useDialTimeline,
+  versionOfPicture: () => versionOfPicture,
+  versionPictureId: () => versionPictureId,
   withVisibility: () => withVisibility
 });
 module.exports = __toCommonJS(index_exports);
@@ -12108,10 +12113,13 @@ function openVersionGrid(options) {
   let focusKey = activeKey;
   let closing = false;
   let animations = [];
+  let releases = [];
+  const { host } = options;
   const overlay = element9("div", "dialkit-version-overlay");
   overlay.dataset.theme = options.theme ?? "system";
   overlay.setAttribute("role", "dialog");
   overlay.setAttribute("aria-label", "Versions");
+  if (host) overlay.dataset.hosted = "true";
   const scroller = element9("div", "dialkit-version-overlay-scroll");
   const grid = element9("div", "dialkit-version-overlay-grid");
   const close2 = element9("button", "dialkit-version-overlay-close");
@@ -12121,17 +12129,27 @@ function openVersionGrid(options) {
   overlay.append(scroller, close2);
   const cards = /* @__PURE__ */ new Map();
   const focusCard = (key, opts) => cards.get(key)?.querySelector(".dialkit-version-card-frame")?.focus(opts);
+  const releasePictures = () => {
+    releases.forEach((release) => release());
+    releases = [];
+  };
   const render = () => {
+    releasePictures();
     grid.textContent = "";
     cards.clear();
-    grid.style.setProperty("--dialkit-version-aspect", String(window.innerWidth / window.innerHeight));
-    grid.style.setProperty("--dialkit-version-columns", String(columnsFor(versions.length)));
+    const area = overlay.getBoundingClientRect();
+    grid.style.setProperty("--dialkit-version-aspect", String(area.width / area.height));
+    grid.style.setProperty("--dialkit-version-columns", String(columnsFor(versions.length, area.width)));
     for (const version of versions) {
       const card = element9("div", "dialkit-version-card");
       card.dataset.key = version.key;
       const frame = element9("button", "dialkit-version-card-frame");
       frame.setAttribute("aria-label", version.name);
-      if (version.thumbnail) {
+      if (options.picture) {
+        const picture = element9("div", "dialkit-version-card-picture");
+        frame.append(picture);
+        releases.push(options.picture(version.key, picture, frame));
+      } else if (version.thumbnail) {
         const img = element9("img");
         img.src = version.thumbnail.src;
         img.alt = "";
@@ -12141,8 +12159,10 @@ function openVersionGrid(options) {
       }
       const label = element9("span", "dialkit-version-card-label");
       label.textContent = version.name;
-      label.title = "Double-click to rename";
-      label.addEventListener("dblclick", () => editLabel(version.key, label, frame));
+      if (options.canRename?.(version.key) !== false) {
+        label.title = "Double-click to rename";
+        label.addEventListener("dblclick", () => editLabel(version.key, label, frame));
+      }
       card.append(frame, label);
       frame.addEventListener("click", () => choose(version.key));
       frame.addEventListener("focus", () => {
@@ -12165,8 +12185,8 @@ function openVersionGrid(options) {
       done = true;
       const name = input.value.trim();
       if (save && name && name !== previous) {
-        options.onRename(key, name);
         versions = versions.map((v) => v.key === key ? { ...v, name } : v);
+        options.onRename(key, name);
         label.textContent = name;
         frame.setAttribute("aria-label", name);
       }
@@ -12188,6 +12208,7 @@ function openVersionGrid(options) {
     input.select();
   };
   const reserveDialKitSpace = () => {
+    if (host) return;
     const panel = document.querySelector('.dialkit-panel:not([data-mode="inline"])');
     const rect = panel?.getBoundingClientRect();
     const gutter = 32;
@@ -12205,9 +12226,10 @@ function openVersionGrid(options) {
     const home = frame.getBoundingClientRect();
     const origin = grid.getBoundingClientRect();
     grid.style.transform = prev;
-    const s = window.innerWidth / home.width;
-    const tx = -origin.x - s * (home.x - origin.x);
-    const ty = -origin.y - s * (home.y - origin.y);
+    const area = overlay.getBoundingClientRect();
+    const s = area.width / home.width;
+    const tx = area.x - origin.x - s * (home.x - origin.x);
+    const ty = area.y - origin.y - s * (home.y - origin.y);
     return `translate3d(${tx}px, ${ty}px, 0) scale(${s})`;
   };
   const animateTo = (transform, scene) => {
@@ -12228,7 +12250,7 @@ function openVersionGrid(options) {
     animations = [
       grid.animate([
         { transform: from.transform, "--dialkit-card-radius": from.radius },
-        { transform, "--dialkit-card-radius": `${CARD_RADIUS * scene / scale}px` }
+        { transform, "--dialkit-card-radius": `${cardRadius * scene / scale}px` }
       ], timing),
       overlay.animate([{ "--dialkit-scene": from.scene }, { "--dialkit-scene": scene }], timing)
     ];
@@ -12250,7 +12272,10 @@ function openVersionGrid(options) {
       easing: "linear",
       fill: "forwards"
     });
-    fade.onfinish = () => overlay.remove();
+    fade.onfinish = () => {
+      releasePictures();
+      overlay.remove();
+    };
     options.onClose?.();
   };
   const choose = (key) => {
@@ -12284,7 +12309,7 @@ function openVersionGrid(options) {
       choose(activeKey);
       return;
     }
-    const columns = columnsFor(versions.length);
+    const columns = getComputedStyle(grid).gridTemplateColumns.split(" ").length;
     const arrows = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -columns, ArrowDown: columns };
     if (e.key in arrows) {
       e.preventDefault();
@@ -12303,7 +12328,9 @@ function openVersionGrid(options) {
   window.addEventListener("resize", onResize);
   overlay.style.setProperty("--dialkit-scene", "0");
   overlay.style.visibility = "hidden";
-  document.body.append(overlay);
+  (host ?? document.body).append(overlay);
+  const cardRadius = host && parseFloat(getComputedStyle(overlay).getPropertyValue("--dial-pictures-radius")) || CARD_RADIUS;
+  if (host) overlay.style.setProperty("--dialkit-card-radius", `${cardRadius}px`);
   render();
   const anchor = cards.get(activeKey);
   if (anchor) scroller.scrollTop = Math.max(0, anchor.offsetTop - (scroller.clientHeight - anchor.offsetHeight) / 2);
@@ -12332,8 +12359,13 @@ function openVersionGrid(options) {
       finish();
     },
     update: (next, nextActive) => {
+      const changed = next.length !== versions.length || next.some((version, index) => version.key !== versions[index]?.key || version.name !== versions[index]?.name);
       versions = next;
       activeKey = nextActive;
+      if (options.picture) {
+        if (changed && !closing) render();
+        return;
+      }
       for (const version of versions) {
         const img = cards.get(version.key)?.querySelector("img");
         if (img && version.thumbnail && img.src !== version.thumbnail.src) img.src = version.thumbnail.src;
@@ -12361,8 +12393,7 @@ function registerSceneProperties() {
     }
   }
 }
-function columnsFor(count) {
-  const width = window.innerWidth;
+function columnsFor(count, width) {
   const max = width >= 1100 ? 3 : width >= 680 ? 2 : 1;
   return Math.max(1, Math.min(max, Math.max(count, 2)));
 }
@@ -16315,11 +16346,451 @@ function paintBackgroundPreview(canvas, value) {
   context.fillRect(0, 0, width, height);
 }
 
-// src/components/ShortcutsMenu.tsx
+// src/components/VersionPictures.tsx
 var import_react41 = require("react");
-var import_react_dom5 = require("react-dom");
-var import_react42 = require("motion/react");
+
+// src/versions/reorder.ts
+var ITEM = '.dialkit-version-thumb[data-draggable="true"]';
+var DRAG_THRESHOLD_PX3 = 3;
+var GLIDE_MS2 = 200;
+var LONG_PRESS_MS2 = 400;
+var EDGE_PX = 28;
+var SCROLL_STEP_PX = 6;
+function observeVersionReorder(list, reorder) {
+  const items = () => Array.from(list.querySelectorAll(ITEM));
+  const keyOf = (node) => node.dataset.version;
+  let drag;
+  let frame = 0;
+  const scale = () => list.offsetWidth ? list.getBoundingClientRect().width / list.offsetWidth || 1 : 1;
+  const toList = (clientX, clientY) => {
+    const rect = list.getBoundingClientRect();
+    const zoom = scale();
+    return { x: (clientX - rect.left) / zoom + list.scrollLeft, y: (clientY - rect.top) / zoom + list.scrollTop };
+  };
+  const reset = () => {
+    delete list.dataset.dragging;
+    for (const node of items()) {
+      node.style.transform = "";
+      delete node.dataset.dragging;
+    }
+  };
+  const layout = ({ from, to, offset, slots }) => items().forEach((node, index) => {
+    if (index === from) {
+      node.style.transform = `translate(${offset.x}px, ${offset.y}px)`;
+      return;
+    }
+    const target = from < to && index > from && index <= to ? index - 1 : to < from && index >= to && index < from ? index + 1 : index;
+    const shift = { x: slots[target].x - slots[index].x, y: slots[target].y - slots[index].y };
+    node.style.transform = target === index ? "" : `translate(${shift.x}px, ${shift.y}px)`;
+  });
+  const follow = (current2) => {
+    const at = toList(current2.clientX, current2.clientY);
+    current2.offset = { x: at.x - current2.start.x, y: at.y - current2.start.y };
+    const center = { x: current2.slots[current2.from].x + current2.offset.x, y: current2.slots[current2.from].y + current2.offset.y };
+    let nearest = Infinity;
+    current2.slots.forEach((slot, index) => {
+      const distance = Math.hypot(slot.x - center.x, slot.y - center.y);
+      if (distance < nearest) {
+        nearest = distance;
+        current2.to = index;
+      }
+    });
+    layout(current2);
+  };
+  const autoScroll = () => {
+    frame = 0;
+    if (!drag?.lifted) return;
+    const rect = list.getBoundingClientRect();
+    const step = drag.clientY < rect.top + EDGE_PX ? -SCROLL_STEP_PX : drag.clientY > rect.bottom - EDGE_PX ? SCROLL_STEP_PX : 0;
+    const before = list.scrollTop;
+    if (step) list.scrollTop += step;
+    if (list.scrollTop !== before) follow(drag);
+    frame = requestAnimationFrame(autoScroll);
+  };
+  const stopDrag = () => {
+    if (drag) clearTimeout(drag.hold);
+    drag = void 0;
+    cancelAnimationFrame(frame);
+    frame = 0;
+    document.removeEventListener("pointermove", pointermove);
+    document.removeEventListener("pointerup", pointerup);
+    document.removeEventListener("pointercancel", pointercancel);
+    document.removeEventListener("keydown", escape, true);
+  };
+  const swallow = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+  const lift = (current2) => {
+    const nodes = items();
+    if (nodes.length < 2) {
+      stopDrag();
+      return;
+    }
+    current2.lifted = true;
+    current2.slots = nodes.map((node) => ({ x: node.offsetLeft, y: node.offsetTop }));
+    list.dataset.dragging = "true";
+    current2.node.dataset.dragging = "true";
+    frame = requestAnimationFrame(autoScroll);
+  };
+  const pointermove = (event) => {
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    drag.clientX = event.clientX;
+    drag.clientY = event.clientY;
+    if (!drag.lifted) {
+      const at = toList(event.clientX, event.clientY);
+      const moved = Math.hypot(at.x - drag.start.x, at.y - drag.start.y);
+      if (moved <= DRAG_THRESHOLD_PX3) return;
+      if (event.pointerType === "touch") {
+        stopDrag();
+        return;
+      }
+      lift(drag);
+      if (!drag?.lifted) return;
+    }
+    follow(drag);
+  };
+  const commit = (node, to) => {
+    const others = items().filter((other) => other !== node).map(keyOf);
+    others.splice(to, 0, keyOf(node));
+    reorder(others);
+  };
+  const pointerup = (event) => {
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    const done = drag;
+    stopDrag();
+    if (!done.lifted) return;
+    window.addEventListener("click", swallow, { capture: true, once: true });
+    setTimeout(() => window.removeEventListener("click", swallow, true));
+    const end = { x: done.slots[done.to].x - done.slots[done.from].x, y: done.slots[done.to].y - done.slots[done.from].y };
+    const glide = done.node.animate(
+      [{ transform: `translate(${done.offset.x}px, ${done.offset.y}px)` }, { transform: `translate(${end.x}px, ${end.y}px)` }],
+      { duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : GLIDE_MS2, easing: "cubic-bezier(0.23, 1, 0.32, 1)", fill: "forwards" }
+    );
+    glide.onfinish = () => {
+      glide.cancel();
+      reset();
+      if (done.to !== done.from) commit(done.node, done.to);
+    };
+  };
+  const cancel = () => {
+    const done = drag;
+    stopDrag();
+    if (done?.lifted) reset();
+  };
+  const pointercancel = (event) => {
+    if (event.pointerId === drag?.pointerId) cancel();
+  };
+  const escape = (event) => {
+    if (event.key !== "Escape" || !drag?.lifted) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    cancel();
+  };
+  const touchmove = (event) => {
+    if (drag?.lifted) event.preventDefault();
+  };
+  const contextmenu = (event) => {
+    if (drag) event.preventDefault();
+  };
+  const pointerdown = (event) => {
+    const target = event.target;
+    const node = target.closest(ITEM);
+    if (drag || list.dataset.dragging || event.button !== 0 || !node || target.closest("input, .dialkit-version-thumb-delete")) return;
+    const current2 = {
+      node,
+      pointerId: event.pointerId,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      start: toList(event.clientX, event.clientY),
+      offset: { x: 0, y: 0 },
+      from: items().indexOf(node),
+      to: items().indexOf(node),
+      slots: [],
+      lifted: false
+    };
+    if (event.pointerType === "touch") current2.hold = window.setTimeout(() => {
+      if (drag === current2) lift(current2);
+    }, LONG_PRESS_MS2);
+    drag = current2;
+    document.addEventListener("pointermove", pointermove);
+    document.addEventListener("pointerup", pointerup);
+    document.addEventListener("pointercancel", pointercancel);
+    document.addEventListener("keydown", escape, true);
+  };
+  const keydown = (event) => {
+    const target = event.target;
+    const node = target.closest(ITEM);
+    const step = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 }[event.key];
+    if (!event.altKey || event.metaKey || event.ctrlKey || !step || !node || target.closest("input")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const nodes = items();
+    const to = Math.min(Math.max(nodes.indexOf(node) + step, 0), nodes.length - 1);
+    if (nodes[to] === node) return;
+    commit(node, to);
+    node.querySelector("button")?.focus({ preventScroll: true });
+  };
+  list.addEventListener("pointerdown", pointerdown);
+  list.addEventListener("touchmove", touchmove, { passive: false });
+  list.addEventListener("contextmenu", contextmenu);
+  list.addEventListener("keydown", keydown);
+  return () => {
+    if (drag?.lifted) reset();
+    stopDrag();
+    list.removeEventListener("pointerdown", pointerdown);
+    list.removeEventListener("touchmove", touchmove);
+    list.removeEventListener("contextmenu", contextmenu);
+    list.removeEventListener("keydown", keydown);
+  };
+}
+
+// src/versions/pictures.ts
+var PICTURE_PREFIX = "version:";
+function versionPictureId(key) {
+  return `${PICTURE_PREFIX}${key}`;
+}
+function versionOfPicture(itemId) {
+  return itemId.startsWith(PICTURE_PREFIX) ? itemId.slice(PICTURE_PREFIX.length) : null;
+}
+function holdPicture(itemId, parts) {
+  let cleanup;
+  const attach = () => {
+    cleanup?.();
+    cleanup = getPictureHost().attach?.(itemId, parts);
+  };
+  attach();
+  const stop2 = subscribePictureHost(attach);
+  return () => {
+    stop2();
+    cleanup?.();
+  };
+}
+function subscribeVersions(panelId, listener) {
+  const stopPanel = DialStore.subscribe(panelId, listener);
+  const stopGlobal = DialStore.subscribeGlobal(listener);
+  return () => {
+    stopPanel();
+    stopGlobal();
+  };
+}
+function mountVersionPictures(host, initial) {
+  let props = initial;
+  let editing = null;
+  let shownActive = null;
+  const root = element9("div", "dialkit-versions");
+  const actions = element9("div", "dialkit-versions-actions");
+  const save = element9("button", "dialkit-versions-button");
+  save.dataset.primary = "true";
+  save.append(icon2(ICON_PLUS, "", "0 0 24 24"), "Save version");
+  setHint(save, HINTS.saveVersion);
+  save.addEventListener("click", () => DialStore.saveNewPreset(props.panelId));
+  const toggle = element9("button", "dialkit-versions-button");
+  toggle.dataset.icon = "true";
+  const grid = svg("svg", { viewBox: "0 0 24 24", fill: "currentColor", "aria-hidden": "true" });
+  for (const d of ICON_GRID) grid.append(svg("path", { d }));
+  toggle.append(grid);
+  setHint(toggle, HINTS.allVersions);
+  toggle.addEventListener("click", () => props.onToggleGrid?.());
+  actions.append(save, toggle);
+  const strip = element9("div", "dialkit-versions-strip");
+  strip.setAttribute("role", "listbox");
+  strip.setAttribute("aria-label", "Versions");
+  root.append(actions, strip);
+  host.append(root);
+  const thumbs = /* @__PURE__ */ new Map();
+  const createThumb = (key) => {
+    const node = element9("div", "dialkit-version-thumb");
+    node.dataset.version = key;
+    setHint(node, HINTS.version);
+    const frame = element9("button", "dialkit-version-thumb-frame");
+    frame.setAttribute("role", "option");
+    frame.addEventListener("click", () => {
+      if (key !== versionKey(DialStore.getActivePresetId(props.panelId))) selectVersion(props.panelId, key);
+    });
+    const picture = element9("div", "dialkit-version-thumb-picture");
+    frame.append(picture);
+    const label = element9("span", "dialkit-version-thumb-label");
+    node.append(frame, label);
+    const thumb = { node, frame, label, release: holdPicture(versionPictureId(key), { picture, tile: frame }) };
+    if (key !== BASE_VERSION) {
+      const startRename = () => {
+        if (DialStore.isPresetsEditable(props.panelId)) rename(key, label);
+      };
+      label.addEventListener("dblclick", startRename);
+      frame.addEventListener("keydown", (event) => {
+        if (event.key === "F2") startRename();
+      });
+      thumb.lock = element9("button", "dialkit-version-thumb-delete dialkit-version-thumb-lock");
+      thumb.lock.addEventListener("click", () => {
+        const locked = !!DialStore.getPresets(props.panelId).find((preset) => preset.id === key)?.locked;
+        DialStore.setPresetLocked(props.panelId, key, !locked);
+      });
+      thumb.remove = element9("button", "dialkit-version-thumb-delete");
+      thumb.remove.append(icon2(ICON_CLOSE));
+      setHint(thumb.remove, HINTS.deleteVersion);
+      thumb.remove.addEventListener("click", () => deleteVersion(props.panelId, key));
+      node.append(thumb.lock, thumb.remove);
+    }
+    thumbs.set(key, thumb);
+    return thumb;
+  };
+  const removeThumb = (thumb) => {
+    thumb.release();
+    setHint(thumb.node, void 0);
+    if (thumb.remove) setHint(thumb.remove, void 0);
+    thumb.node.remove();
+  };
+  const rename = (key, label) => {
+    if (editing) return;
+    const current2 = listVersions(props.panelId).find((version) => version.key === key)?.name ?? "";
+    const input = element9("input", "dialkit-version-thumb-label dialkit-version-thumb-input");
+    input.value = current2;
+    input.setAttribute("aria-label", "Version name");
+    editing = key;
+    let done = false;
+    const end = (commit) => {
+      if (done) return;
+      done = true;
+      editing = null;
+      input.replaceWith(label);
+      if (commit) renameVersion(props.panelId, key, input.value);
+      render();
+    };
+    input.addEventListener("keydown", (event) => {
+      event.stopPropagation();
+      if (event.key === "Enter") end(true);
+      else if (event.key === "Escape") end(false);
+    });
+    input.addEventListener("blur", () => end(true));
+    label.replaceWith(input);
+    input.focus();
+    input.select();
+  };
+  const showActive = (node) => {
+    const top = node.offsetTop;
+    const bottom = top + node.offsetHeight;
+    if (top < strip.scrollTop) strip.scrollTop = top;
+    else if (bottom > strip.scrollTop + strip.clientHeight) strip.scrollTop = bottom - strip.clientHeight;
+  };
+  function render() {
+    const { panelId, gridOpen = false, onToggleGrid } = props;
+    const versions = listVersions(panelId);
+    const activeKey = versionKey(DialStore.getActivePresetId(panelId));
+    const editable = DialStore.isPresetsEditable(panelId);
+    const lockable = DialStore.isPresetsLockable(panelId);
+    const many = versions.length > 1;
+    save.hidden = !editable;
+    save.disabled = gridOpen;
+    toggle.hidden = !(many && onToggleGrid);
+    toggle.setAttribute("aria-pressed", String(gridOpen));
+    toggle.setAttribute("aria-label", `All versions (${versions.length})`);
+    root.toggleAttribute("data-overview", gridOpen);
+    actions.hidden = save.hidden && toggle.hidden;
+    strip.hidden = !many;
+    const keys = new Set(versions.map((version) => version.key));
+    for (const [key, thumb] of thumbs) {
+      if (!keys.has(key)) {
+        removeThumb(thumb);
+        thumbs.delete(key);
+      }
+    }
+    versions.forEach((version, index) => {
+      const thumb = thumbs.get(version.key) ?? createThumb(version.key);
+      const active = version.key === activeKey;
+      const locked = !!version.locked;
+      thumb.node.dataset.active = String(active);
+      thumb.node.dataset.locked = String(locked);
+      thumb.node.dataset.draggable = String(editable && version.key !== BASE_VERSION);
+      thumb.frame.setAttribute("aria-selected", String(active));
+      thumb.frame.setAttribute("aria-label", version.name);
+      if (editing !== version.key) thumb.label.textContent = version.name;
+      if (thumb.lock) {
+        thumb.lock.hidden = !lockable;
+        thumb.lock.setAttribute("aria-label", `${locked ? "Unlock" : "Lock"} ${version.name}`);
+        thumb.lock.replaceChildren(icon2(locked ? ICON_LOCK : ICON_LOCK_OPEN));
+      }
+      if (thumb.remove) {
+        thumb.remove.hidden = !editable;
+        thumb.remove.setAttribute("aria-label", `Delete ${version.name}`);
+      }
+      if (strip.children[index] !== thumb.node) strip.insertBefore(thumb.node, strip.children[index] ?? null);
+    });
+    if (activeKey !== shownActive) {
+      shownActive = activeKey;
+      const thumb = thumbs.get(activeKey);
+      if (thumb) showActive(thumb.node);
+    }
+  }
+  const stopReorder = observeVersionReorder(strip, (keys) => DialStore.reorderPresets(props.panelId, keys));
+  let stopStore = subscribeVersions(props.panelId, render);
+  render();
+  return {
+    update(next) {
+      if (next.panelId !== props.panelId) {
+        stopStore();
+        thumbs.forEach(removeThumb);
+        thumbs.clear();
+        stopStore = subscribeVersions(next.panelId, render);
+      }
+      props = next;
+      render();
+    },
+    destroy() {
+      stopStore();
+      stopReorder();
+      thumbs.forEach(removeThumb);
+      thumbs.clear();
+      setHint(save, void 0);
+      setHint(toggle, void 0);
+      root.remove();
+    }
+  };
+}
+function openVersionPicturesGrid(panelId, options) {
+  const activeKey = () => versionKey(DialStore.getActivePresetId(panelId));
+  const handle = openVersionGrid({
+    versions: listVersions(panelId),
+    activeKey: activeKey(),
+    theme: options.theme,
+    host: options.host,
+    picture: (key, picture, tile) => holdPicture(versionPictureId(key), { picture, tile }),
+    onSelect: (key) => selectVersion(panelId, key),
+    onRename: (key, name) => renameVersion(panelId, key, name),
+    canRename: (key) => key !== BASE_VERSION && DialStore.isPresetsEditable(panelId),
+    onClose: () => {
+      stop2();
+      options.onClose?.();
+    }
+  });
+  const stop2 = subscribeVersions(panelId, () => handle.update(listVersions(panelId), activeKey()));
+  return handle;
+}
+
+// src/components/VersionPictures.tsx
 var import_jsx_runtime32 = require("react/jsx-runtime");
+function VersionPictures(props) {
+  const hostRef = (0, import_react41.useRef)(null);
+  const listRef = (0, import_react41.useRef)(null);
+  (0, import_react41.useLayoutEffect)(() => {
+    const list = mountVersionPictures(hostRef.current, props);
+    listRef.current = list;
+    return () => {
+      list.destroy();
+      listRef.current = null;
+    };
+  }, []);
+  (0, import_react41.useLayoutEffect)(() => {
+    listRef.current?.update(props);
+  }, [props.panelId, props.gridOpen, props.onToggleGrid]);
+  return /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("div", { ref: hostRef, className: "dialkit-versions-host" });
+}
+
+// src/components/ShortcutsMenu.tsx
+var import_react42 = require("react");
+var import_react_dom5 = require("react-dom");
+var import_react43 = require("motion/react");
+var import_jsx_runtime33 = require("react/jsx-runtime");
 function formatShortcutKey(sc) {
   if (!sc.key) return "\u2014";
   const mod = sc.modifier === "alt" ? "\u2325" : sc.modifier === "shift" ? "\u21E7" : sc.modifier === "meta" ? "\u2318" : "";
@@ -16339,31 +16810,31 @@ function formatInteraction(sc) {
   }
 }
 function ShortcutsMenu({ panelId }) {
-  const [isOpen, setIsOpen] = (0, import_react41.useState)(false);
+  const [isOpen, setIsOpen] = (0, import_react42.useState)(false);
   const resyncPresence = usePresenceResync();
-  const [panel, setPanel] = (0, import_react41.useState)(() => DialStore.getPanel(panelId));
-  (0, import_react41.useEffect)(() => {
+  const [panel, setPanel] = (0, import_react42.useState)(() => DialStore.getPanel(panelId));
+  (0, import_react42.useEffect)(() => {
     const update = () => setPanel(DialStore.getPanel(panelId));
     const stop2 = DialStore.subscribeGlobal(update);
     update();
     return stop2;
   }, [panelId]);
-  const triggerRef = (0, import_react41.useRef)(null);
-  const dropdownRef = (0, import_react41.useRef)(null);
-  const [pos, setPos] = (0, import_react41.useState)({ top: 0, right: 0 });
-  const open = (0, import_react41.useCallback)(() => {
+  const triggerRef = (0, import_react42.useRef)(null);
+  const dropdownRef = (0, import_react42.useRef)(null);
+  const [pos, setPos] = (0, import_react42.useState)({ top: 0, right: 0 });
+  const open = (0, import_react42.useCallback)(() => {
     const rect = triggerRef.current?.getBoundingClientRect();
     if (rect) {
       setPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
     }
     setIsOpen(true);
   }, []);
-  const close2 = (0, import_react41.useCallback)(() => setIsOpen(false), []);
-  const toggle = (0, import_react41.useCallback)(() => {
+  const close2 = (0, import_react42.useCallback)(() => setIsOpen(false), []);
+  const toggle = (0, import_react42.useCallback)(() => {
     if (isOpen) close2();
     else open();
   }, [isOpen, open, close2]);
-  (0, import_react41.useEffect)(() => {
+  (0, import_react42.useEffect)(() => {
     if (!isOpen) return;
     const handler = (e) => {
       const target = e.target;
@@ -16385,9 +16856,9 @@ function ShortcutsMenu({ panelId }) {
     shortcut,
     label: DialStore.getControl(panel.id, path)?.label ?? path
   }));
-  return /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)(import_jsx_runtime32.Fragment, { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(
-      import_react42.motion.button,
+  return /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(import_jsx_runtime33.Fragment, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
+      import_react43.motion.button,
       {
         ref: triggerRef,
         className: "dialkit-shortcuts-trigger",
@@ -16398,19 +16869,19 @@ function ShortcutsMenu({ panelId }) {
         "aria-expanded": isOpen,
         whileTap: { scale: 0.9 },
         transition: { type: "spring", visualDuration: 0.15, bounce: 0.3 },
-        children: /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("rect", { x: "2", y: "6", width: "20", height: "12", rx: "2" }),
-          /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("path", { d: "M6 10H6.01" }),
-          /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("path", { d: "M10 10H10.01" }),
-          /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("path", { d: "M14 10H14.01" }),
-          /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("path", { d: "M18 10H18.01" }),
-          /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("path", { d: "M8 14H16" })
+        children: /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("rect", { x: "2", y: "6", width: "20", height: "12", rx: "2" }),
+          /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("path", { d: "M6 10H6.01" }),
+          /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("path", { d: "M10 10H10.01" }),
+          /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("path", { d: "M14 10H14.01" }),
+          /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("path", { d: "M18 10H18.01" }),
+          /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("path", { d: "M8 14H16" })
         ] })
       }
     ),
     (0, import_react_dom5.createPortal)(
-      /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(import_react42.AnimatePresence, { onExitComplete: resyncPresence, children: isOpen && /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)(
-        import_react42.motion.div,
+      /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(import_react43.AnimatePresence, { onExitComplete: resyncPresence, children: isOpen && /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(
+        import_react43.motion.div,
         {
           ref: dropdownRef,
           className: "dialkit-root dialkit-shortcuts-dropdown",
@@ -16420,13 +16891,13 @@ function ShortcutsMenu({ panelId }) {
           exit: { opacity: 0, y: 4, scale: 0.97, pointerEvents: "none" },
           transition: { type: "spring", visualDuration: 0.15, bounce: 0 },
           children: [
-            /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("div", { className: "dialkit-shortcuts-title", children: "Keyboard Shortcuts" }),
-            /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("div", { className: "dialkit-shortcuts-list", children: rows2.map((row) => /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("div", { className: "dialkit-shortcuts-row", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("span", { className: "dialkit-shortcuts-row-key", children: formatShortcutKey(row.shortcut) }),
-              /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("span", { className: "dialkit-shortcuts-row-label", children: row.label }),
-              /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("span", { className: "dialkit-shortcuts-row-mode", children: formatInteraction(row.shortcut) })
+            /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { className: "dialkit-shortcuts-title", children: "Keyboard Shortcuts" }),
+            /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { className: "dialkit-shortcuts-list", children: rows2.map((row) => /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", { className: "dialkit-shortcuts-row", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("span", { className: "dialkit-shortcuts-row-key", children: formatShortcutKey(row.shortcut) }),
+              /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("span", { className: "dialkit-shortcuts-row-label", children: row.label }),
+              /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("span", { className: "dialkit-shortcuts-row-mode", children: formatInteraction(row.shortcut) })
             ] }, row.path)) }),
-            /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("div", { className: "dialkit-shortcuts-hint", children: "See pill badges on controls for keys" })
+            /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { className: "dialkit-shortcuts-hint", children: "See pill badges on controls for keys" })
           ]
         }
       ) }),
@@ -16437,6 +16908,7 @@ function ShortcutsMenu({ panelId }) {
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   AnchorControl,
+  BASE_VERSION,
   BackgroundControl,
   ButtonGroup,
   ColorControl,
@@ -16467,6 +16939,7 @@ function ShortcutsMenu({ panelId }) {
   TransitionControl,
   TransitionCopyMenu,
   VersionGallery,
+  VersionPictures,
   backgroundGradientCss,
   backgroundMediaCss,
   defaultBackgroundValue,
@@ -16493,6 +16966,7 @@ function ShortcutsMenu({ panelId }) {
   normalizeLayersValue,
   normalizePictureFamilies,
   normalizePicturesValue,
+  openVersionPicturesGrid,
   paintBackgroundPreview,
   paintGradient,
   parseLayerAction,
@@ -16512,6 +16986,8 @@ function ShortcutsMenu({ panelId }) {
   useDialKit,
   useDialKitController,
   useDialTimeline,
+  versionOfPicture,
+  versionPictureId,
   withVisibility
 });
 //# sourceMappingURL=index.cjs.map
