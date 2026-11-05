@@ -11,6 +11,7 @@
 // interrupted transition continues from wherever the camera currently is.
 
 import { ICON_CLOSE } from '../icons';
+import { observeScrollEdges } from '../scroll-edges';
 import { element, icon } from '../vanilla/dom';
 import { GALLERY_SPRING } from './spring';
 import type { Thumbnail } from './thumbnails';
@@ -82,7 +83,7 @@ export function openVersionGrid(options: VersionGridOptions): VersionGridHandle 
   overlay.setAttribute('aria-label', 'Versions');
   if (host) overlay.dataset.hosted = 'true';
 
-  const scroller = element('div', 'dialkit-version-overlay-scroll');
+  const scroller = element('div', 'dialkit-version-overlay-scroll dialkit-edge-fade');
   const grid = element('div', 'dialkit-version-overlay-grid');
   const close = element('button', 'dialkit-version-overlay-close');
   close.setAttribute('aria-label', 'Close versions');
@@ -245,6 +246,7 @@ export function openVersionGrid(options: VersionGridOptions): VersionGridHandle 
       fill: 'forwards',
     });
     fade.onfinish = () => {
+      stopEdges();
       releasePictures();
       overlay.remove();
     };
@@ -311,6 +313,8 @@ export function openVersionGrid(options: VersionGridOptions): VersionGridHandle 
   render();
   const anchor = cards.get(activeKey);
   if (anchor) scroller.scrollTop = Math.max(0, anchor.offsetTop - (scroller.clientHeight - anchor.offsetHeight) / 2);
+  // The marks read the resting grid, before the zoom transform goes on.
+  const stopEdges = observeScrollEdges(scroller, () => overlay.dataset.animating === 'true');
   const start = zoomedInto(activeKey);
   if (start) {
     grid.style.transform = start;
@@ -325,6 +329,7 @@ export function openVersionGrid(options: VersionGridOptions): VersionGridHandle 
     grid.style.removeProperty('--dialkit-card-radius');
     animations.forEach((a) => a.cancel());
     animations = [];
+    scroller.dispatchEvent(new Event('scroll'));
     releaseScroll = options.scroll?.(scroller, grid);
   });
   focusCard(activeKey, { preventScroll: true });

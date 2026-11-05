@@ -4576,6 +4576,46 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   border-bottom: none;
 }
 
+/* A scrolling list fades out at an edge while content sits beyond it. The
+   content itself fades, along an eased curve down to nothing at the edge, so
+   no line shows where the fade starts or ends. Each list sets its own length
+   in --dial-edge-fade. Near the end of the scroll the fade is only as long as
+   the distance left, so it shrinks to nothing as the list reaches its end.
+   observeScrollEdges sets the two distances. */
+.dialkit-edge-fade {
+  --dial-edge-fade-top: min(var(--dial-edge-fade), var(--dial-edge-above, 0px));
+  --dial-edge-fade-bottom: min(var(--dial-edge-fade), var(--dial-edge-below, 0px));
+  mask-image: linear-gradient(
+    transparent,
+    rgba(0, 0, 0, 0.043) calc(var(--dial-edge-fade-top) * 0.125),
+    rgba(0, 0, 0, 0.156) calc(var(--dial-edge-fade-top) * 0.25),
+    rgba(0, 0, 0, 0.316) calc(var(--dial-edge-fade-top) * 0.375),
+    rgba(0, 0, 0, 0.5) calc(var(--dial-edge-fade-top) * 0.5),
+    rgba(0, 0, 0, 0.684) calc(var(--dial-edge-fade-top) * 0.625),
+    rgba(0, 0, 0, 0.844) calc(var(--dial-edge-fade-top) * 0.75),
+    rgba(0, 0, 0, 0.957) calc(var(--dial-edge-fade-top) * 0.875),
+    #000 var(--dial-edge-fade-top),
+    #000 calc(100% - var(--dial-edge-fade-bottom)),
+    rgba(0, 0, 0, 0.957) calc(100% - var(--dial-edge-fade-bottom) * 0.875),
+    rgba(0, 0, 0, 0.844) calc(100% - var(--dial-edge-fade-bottom) * 0.75),
+    rgba(0, 0, 0, 0.684) calc(100% - var(--dial-edge-fade-bottom) * 0.625),
+    rgba(0, 0, 0, 0.5) calc(100% - var(--dial-edge-fade-bottom) * 0.5),
+    rgba(0, 0, 0, 0.316) calc(100% - var(--dial-edge-fade-bottom) * 0.375),
+    rgba(0, 0, 0, 0.156) calc(100% - var(--dial-edge-fade-bottom) * 0.25),
+    rgba(0, 0, 0, 0.043) calc(100% - var(--dial-edge-fade-bottom) * 0.125),
+    transparent
+  );
+}
+
+.dialkit-versions-strip {
+  --dial-edge-fade: 32px;
+}
+
+/* The grid's fade grows and shrinks with the zoom, on the same scene value. */
+.dialkit-version-overlay-scroll {
+  --dial-edge-fade: calc(96px * var(--dialkit-scene, 1));
+}
+
 .dialkit-folder[data-version-overview] .dialkit-toolbar-add[data-wide="true"] {
   opacity: 0.35;
   pointer-events: none;

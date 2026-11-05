@@ -82,6 +82,7 @@ __export(index_exports, {
   normalizeLayersValue: () => normalizeLayersValue,
   normalizePictureFamilies: () => normalizePictureFamilies,
   normalizePicturesValue: () => normalizePicturesValue,
+  observeScrollEdges: () => observeScrollEdges,
   openVersionPicturesGrid: () => openVersionPicturesGrid,
   paintBackgroundPreview: () => paintBackgroundPreview,
   paintGradient: () => paintGradient,
@@ -12127,6 +12128,42 @@ function layer(className) {
   return node;
 }
 
+// src/scroll-edges.ts
+function observeScrollEdges(scroller, paused = () => false) {
+  let frame = 0;
+  const update = () => {
+    frame = 0;
+    if (paused()) return;
+    const { scrollTop, clientHeight, scrollHeight } = scroller;
+    scroller.style.setProperty("--dial-edge-above", `${Math.max(0, scrollTop)}px`);
+    scroller.style.setProperty("--dial-edge-below", `${Math.max(0, scrollHeight - clientHeight - scrollTop)}px`);
+  };
+  const schedule = () => {
+    if (!frame) frame = requestAnimationFrame(update);
+  };
+  const resize = new ResizeObserver(schedule);
+  const watchChildren = () => {
+    for (const child of scroller.children) resize.observe(child);
+  };
+  const children = new MutationObserver(() => {
+    watchChildren();
+    schedule();
+  });
+  resize.observe(scroller);
+  children.observe(scroller, { childList: true });
+  scroller.addEventListener("scroll", schedule, { passive: true });
+  watchChildren();
+  update();
+  return () => {
+    resize.disconnect();
+    children.disconnect();
+    scroller.removeEventListener("scroll", schedule);
+    cancelAnimationFrame(frame);
+    scroller.style.removeProperty("--dial-edge-above");
+    scroller.style.removeProperty("--dial-edge-below");
+  };
+}
+
 // src/versions/grid.ts
 var CARD_RADIUS = 14;
 var SETTLE_FADE_MS = 140;
@@ -12148,7 +12185,7 @@ function openVersionGrid(options) {
   overlay.setAttribute("role", "dialog");
   overlay.setAttribute("aria-label", "Versions");
   if (host) overlay.dataset.hosted = "true";
-  const scroller = element9("div", "dialkit-version-overlay-scroll");
+  const scroller = element9("div", "dialkit-version-overlay-scroll dialkit-edge-fade");
   const grid = element9("div", "dialkit-version-overlay-grid");
   const close2 = element9("button", "dialkit-version-overlay-close");
   close2.setAttribute("aria-label", "Close versions");
@@ -12306,6 +12343,7 @@ function openVersionGrid(options) {
       fill: "forwards"
     });
     fade.onfinish = () => {
+      stopEdges();
       releasePictures();
       overlay.remove();
     };
@@ -12368,6 +12406,7 @@ function openVersionGrid(options) {
   render();
   const anchor = cards.get(activeKey);
   if (anchor) scroller.scrollTop = Math.max(0, anchor.offsetTop - (scroller.clientHeight - anchor.offsetHeight) / 2);
+  const stopEdges = observeScrollEdges(scroller, () => overlay.dataset.animating === "true");
   const start = zoomedInto(activeKey);
   if (start) {
     grid.style.transform = start;
@@ -12381,6 +12420,7 @@ function openVersionGrid(options) {
     grid.style.removeProperty("--dialkit-card-radius");
     animations.forEach((a) => a.cancel());
     animations = [];
+    scroller.dispatchEvent(new Event("scroll"));
     releaseScroll = options.scroll?.(scroller, grid);
   });
   focusCard(activeKey, { preventScroll: true });
@@ -16661,7 +16701,7 @@ function mountVersionPictures(host, initial) {
   let shownActive = null;
   const root = element9("div", "dialkit-versions");
   root.dataset.list = "true";
-  const strip = element9("div", "dialkit-versions-strip");
+  const strip = element9("div", "dialkit-versions-strip dialkit-edge-fade");
   strip.setAttribute("role", "listbox");
   strip.setAttribute("aria-label", "Versions");
   root.append(strip);
@@ -16734,8 +16774,9 @@ function mountVersionPictures(host, initial) {
     input.select();
   };
   const showActive = (node) => {
-    const top = node.offsetTop;
-    const bottom = top + node.offsetHeight;
+    const room = parseFloat(getComputedStyle(strip).paddingTop);
+    const top = node.offsetTop - room;
+    const bottom = node.offsetTop + node.offsetHeight + room;
     if (top < strip.scrollTop) strip.scrollTop = top;
     else if (bottom > strip.scrollTop + strip.clientHeight) strip.scrollTop = bottom - strip.clientHeight;
   };
@@ -16782,6 +16823,7 @@ function mountVersionPictures(host, initial) {
     }
   }
   const stopReorder = observeVersionReorder(strip, (keys) => DialStore.reorderPresets(props.panelId, keys));
+  const stopEdges = observeScrollEdges(strip);
   let stopStore = subscribeVersions(props.panelId, render);
   render();
   return {
@@ -16798,6 +16840,7 @@ function mountVersionPictures(host, initial) {
     destroy() {
       stopStore();
       stopReorder();
+      stopEdges();
       thumbs.forEach(removeThumb);
       thumbs.clear();
       root.remove();
@@ -17046,6 +17089,7 @@ function ShortcutsMenu({ panelId }) {
   normalizeLayersValue,
   normalizePictureFamilies,
   normalizePicturesValue,
+  observeScrollEdges,
   openVersionPicturesGrid,
   paintBackgroundPreview,
   paintGradient,

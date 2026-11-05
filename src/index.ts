@@ -65,6 +65,7 @@ export { layerAction, normalizeLayersValue, parseLayerAction } from './layers';
 export { PictureListControl } from './components/PictureListControl';
 export type { PictureListControlProps } from './picture-list-control';
 export * from './picture-api';
+export { observeScrollEdges } from './scroll-edges';
 export { backgroundGradientCss, backgroundMediaCss, paintGradient } from './background';
 export * from './background-api';
 export { PresetManager } from './components/PresetManager';

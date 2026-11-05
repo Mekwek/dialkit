@@ -10,6 +10,7 @@
 import { DialStore } from '../store/DialStore';
 import { HINTS, setHint } from '../hints';
 import { ICON_CLOSE, ICON_GRID, ICON_LOCK, ICON_LOCK_OPEN, ICON_PLUS } from '../icons';
+import { observeScrollEdges } from '../scroll-edges';
 import { getPictureHost, subscribePictureHost, type PictureParts } from '../store/PictureHost';
 import { element, icon, svg, type Mounted } from '../vanilla/dom';
 import { deleteVersion, listVersions, renameVersion, selectVersion } from './controller';
@@ -128,7 +129,7 @@ export function mountVersionPictures(host: HTMLElement, initial: VersionPictures
 
   const root = element('div', 'dialkit-versions');
   root.dataset.list = 'true';
-  const strip = element('div', 'dialkit-versions-strip');
+  const strip = element('div', 'dialkit-versions-strip dialkit-edge-fade');
   strip.setAttribute('role', 'listbox');
   strip.setAttribute('aria-label', 'Versions');
   root.append(strip);
@@ -206,8 +207,10 @@ export function mountVersionPictures(host: HTMLElement, initial: VersionPictures
 
   // Keeps the picked version in view, in the strip's own scroll only.
   const showActive = (node: HTMLElement) => {
-    const top = node.offsetTop;
-    const bottom = top + node.offsetHeight;
+    // The strip's padding is the room for the active ring: it scrolls too.
+    const room = parseFloat(getComputedStyle(strip).paddingTop);
+    const top = node.offsetTop - room;
+    const bottom = node.offsetTop + node.offsetHeight + room;
     if (top < strip.scrollTop) strip.scrollTop = top;
     else if (bottom > strip.scrollTop + strip.clientHeight) strip.scrollTop = bottom - strip.clientHeight;
   };
@@ -256,6 +259,7 @@ export function mountVersionPictures(host: HTMLElement, initial: VersionPictures
   }
 
   const stopReorder = observeVersionReorder(strip, (keys) => DialStore.reorderPresets(props.panelId, keys));
+  const stopEdges = observeScrollEdges(strip);
   let stopStore = subscribeVersions(props.panelId, render);
   render();
 
@@ -273,6 +277,7 @@ export function mountVersionPictures(host: HTMLElement, initial: VersionPictures
     destroy() {
       stopStore();
       stopReorder();
+      stopEdges();
       thumbs.forEach(removeThumb);
       thumbs.clear();
       root.remove();
