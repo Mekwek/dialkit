@@ -42,13 +42,6 @@ declare function parsePictureAction(path: string, action: string): {
 /** The id of the family holding the tile `id`, or null. */
 declare function findPictureFamily(families: readonly PictureFamily[], id: string | null): string | null;
 /**
- * The family to show after the selection changes: the new selection's, so the
- * selected tile is always in view, also when the selection comes from the host
- * (a version switch, a timeline clip). With no new selection the family stays,
- * so a family the user opened stays open.
- */
-declare function familyAfterSelection(families: readonly PictureFamily[], open: string | null, before: string | null, after: string | null): string | null;
-/**
  * Valid families: a family or tile without a string id and label is dropped,
  * a repeated family id keeps its first family, and a tile id already used
  * (in any family) keeps its first tile.
@@ -57,4 +50,4 @@ declare function normalizePictureFamilies(value: unknown): PictureFamily[];
 /** A valid value: a non-empty string id, else null. */
 declare function normalizePicturesValue(value: unknown): PicturesValue;
 
-export { type PictureFamily, type PictureItem, type PicturesConfig, type PicturesValue, familyAfterSelection, findPictureFamily, normalizePictureFamilies, normalizePicturesValue, parsePictureAction, pictureAction };
+export { type PictureFamily, type PictureItem, type PicturesConfig, type PicturesValue, findPictureFamily, normalizePictureFamilies, normalizePicturesValue, parsePictureAction, pictureAction };

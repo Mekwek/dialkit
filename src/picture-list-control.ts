@@ -1,7 +1,7 @@
 import { animateSpring } from './animation';
 import { ICON_CHEVRON } from './icons';
 import {
-  familyAfterSelection, findPictureFamily, normalizePictureFamilies, normalizePicturesValue,
+  findPictureFamily, normalizePictureFamilies, normalizePicturesValue,
   type PictureFamily, type PictureItem, type PicturesValue,
 } from './pictures';
 import {
@@ -73,8 +73,9 @@ function place(parent: HTMLElement, node: HTMLElement, previous: HTMLElement | n
  *
  * The family holding the first selection opens, on mount or when that
  * selection arrives later, unless the user opened or closed a family
- * first. After that the open family is the user's: a new value never
- * opens or closes one.
+ * first. With no selection, the active family opens. After that the open
+ * family is the user's and the host's (`showPictureFamily`): a new value or
+ * a new active family never opens or closes one.
  *
  * The control is controlled. A tile click calls `onPick`; only `value` moves
  * the selected mark. The picture box of every shown tile goes to the picture
@@ -86,7 +87,12 @@ export function mountPictureListControl(host: HTMLElement, initial: PictureListC
   let families = normalizePictureFamilies(props.families);
   let value = normalizePicturesValue(props.value);
   const knownFamily = (id: string | null) => (families.some(family => family.id === id) ? id : null);
-  let open = findPictureFamily(families, value) ?? knownFamily(getShownPictureFamily());
+  let open = findPictureFamily(families, value) ?? knownFamily(getActivePictureFamily()) ?? knownFamily(getShownPictureFamily());
+  /** The user opened or closed a family: nothing opens one by itself now. */
+  let chosen = false;
+  const openFirst = () => {
+    if (open === null && !chosen) open = findPictureFamily(families, value) ?? knownFamily(getActivePictureFamily());
+  };
   let destroyed = false;
   const uid = `dialkit-pictures-${++instances}`;
   let bodies = 0;
@@ -178,6 +184,7 @@ export function mountPictureListControl(host: HTMLElement, initial: PictureListC
     row.setAttribute('aria-controls', body.id);
     familyRoot.append(row, body);
     row.addEventListener('click', () => {
+      chosen = true;
       open = open === id ? null : id;
       render();
     });
@@ -292,15 +299,17 @@ export function mountPictureListControl(host: HTMLElement, initial: PictureListC
     open = knownFamily(getShownPictureFamily()) ?? open;
     render();
   });
-  const unsubscribeActiveFamily = subscribeActivePictureFamily(render);
+  const unsubscribeActiveFamily = subscribeActivePictureFamily(() => {
+    openFirst();
+    render();
+  });
 
   return {
     update(next: PictureListControlProps) {
       props = next;
       families = normalizePictureFamilies(next.families);
-      const before = value;
       value = normalizePicturesValue(next.value);
-      open = familyAfterSelection(families, open, before, value);
+      openFirst();
       render();
     },
     destroy() {

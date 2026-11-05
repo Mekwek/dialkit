@@ -59,22 +59,6 @@ export function findPictureFamily(families: readonly PictureFamily[], id: string
   return families.find(family => family.items.some(item => item.id === id))?.id ?? null;
 }
 
-/**
- * The family to show after the selection changes: the new selection's, so the
- * selected tile is always in view, also when the selection comes from the host
- * (a version switch, a timeline clip). With no new selection the family stays,
- * so a family the user opened stays open.
- */
-export function familyAfterSelection(
-  families: readonly PictureFamily[],
-  open: string | null,
-  before: string | null,
-  after: string | null,
-): string | null {
-  if (after === before) return open;
-  return findPictureFamily(families, after) ?? open;
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

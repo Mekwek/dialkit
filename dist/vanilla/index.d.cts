@@ -1492,8 +1492,9 @@ type PictureListControlProps = {
  *
  * The family holding the first selection opens, on mount or when that
  * selection arrives later, unless the user opened or closed a family
- * first. After that the open family is the user's: a new value never
- * opens or closes one.
+ * first. With no selection, the active family opens. After that the open
+ * family is the user's and the host's (`showPictureFamily`): a new value or
+ * a new active family never opens or closes one.
  *
  * The control is controlled. A tile click calls `onPick`; only `value` moves
  * the selected mark. The picture box of every shown tile goes to the picture

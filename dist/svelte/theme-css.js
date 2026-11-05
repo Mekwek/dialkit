@@ -100,7 +100,7 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   --dial-versions-columns: 3;
   --dial-versions-row-gap: 10px;
   --dial-versions-column-gap: 6px;
-  --dial-versions-max-height: 195px;
+  --dial-versions-rows: 3;
   --dial-versions-radius: 6px;
   --dial-versions-label-size: 11px;
   --dial-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
@@ -4556,9 +4556,14 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 }
 
 .dialkit-versions {
+  /* The strip sizes its rows from this width. */
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  /* The folder clips its content here: the strip's room for the active ring
+     must sit inside that clip. */
+  padding-top: 2px;
   padding-bottom: 12px;
   margin-bottom: 4px;
   border-bottom: 1px solid var(--dial-border);
@@ -4591,8 +4596,19 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   display: grid;
   grid-template-columns: repeat(var(--dial-versions-columns), minmax(0, 1fr));
   gap: var(--dial-versions-row-gap) var(--dial-versions-column-gap);
-  /* About two and a half rows; the rest scrolls. */
-  max-height: var(--dial-versions-max-height);
+  /* A row is a picture, the gap above its label and the label. The picture
+     takes its height from the column width and the canvas shape, so a fixed
+     height would show part of a row. The rest scrolls. */
+  --dial-versions-row: calc(
+    (100cqw - (var(--dial-versions-columns) - 1) * var(--dial-versions-column-gap))
+    / var(--dial-versions-columns) / var(--dialkit-version-aspect, 1.6)
+    + 5px + var(--dial-versions-label-size)
+  );
+  max-height: calc(
+    var(--dial-versions-rows) * var(--dial-versions-row)
+    + (var(--dial-versions-rows) - 1) * var(--dial-versions-row-gap)
+    + 4px
+  );
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: none;
@@ -4794,7 +4810,7 @@ span.dialkit-version-thumb-label {
 
 /* Under the folder header, with the bottom space of a folder's content. */
 .dialkit-folder-header-row {
-  padding-bottom: 10px;
+  padding-bottom: 8px;
 }
 
 .dialkit-versions-button {

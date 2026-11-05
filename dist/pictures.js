@@ -13,10 +13,6 @@ function findPictureFamily(families, id) {
   if (id === null) return null;
   return families.find((family) => family.items.some((item) => item.id === id))?.id ?? null;
 }
-function familyAfterSelection(families, open, before, after) {
-  if (after === before) return open;
-  return findPictureFamily(families, after) ?? open;
-}
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -47,7 +43,6 @@ function normalizePicturesValue(value) {
   return nonEmpty(value) ? value : null;
 }
 export {
-  familyAfterSelection,
   findPictureFamily,
   normalizePictureFamilies,
   normalizePicturesValue,

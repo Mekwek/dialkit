@@ -548,10 +548,6 @@ var DialKit = (() => {
     if (id === null) return null;
     return families.find((family) => family.items.some((item) => item.id === id))?.id ?? null;
   }
-  function familyAfterSelection(families, open, before, after) {
-    if (after === before) return open;
-    return findPictureFamily(families, after) ?? open;
-  }
   function isRecord2(value) {
     return typeof value === "object" && value !== null && !Array.isArray(value);
   }
@@ -8413,7 +8409,11 @@ Apply these values as the new defaults in the ${hookName} call.`;
     let families = normalizePictureFamilies(props.families);
     let value = normalizePicturesValue(props.value);
     const knownFamily = (id) => families.some((family) => family.id === id) ? id : null;
-    let open = findPictureFamily(families, value) ?? knownFamily(getShownPictureFamily());
+    let open = findPictureFamily(families, value) ?? knownFamily(getActivePictureFamily()) ?? knownFamily(getShownPictureFamily());
+    let chosen = false;
+    const openFirst = () => {
+      if (open === null && !chosen) open = findPictureFamily(families, value) ?? knownFamily(getActivePictureFamily());
+    };
     let destroyed = false;
     const uid = `dialkit-pictures-${++instances}`;
     let bodies = 0;
@@ -8498,6 +8498,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
       row.setAttribute("aria-controls", body.id);
       familyRoot.append(row, body);
       row.addEventListener("click", () => {
+        chosen = true;
         open = open === id ? null : id;
         render();
       });
@@ -8595,14 +8596,16 @@ Apply these values as the new defaults in the ${hookName} call.`;
       open = knownFamily(getShownPictureFamily()) ?? open;
       render();
     });
-    const unsubscribeActiveFamily = subscribeActivePictureFamily(render);
+    const unsubscribeActiveFamily = subscribeActivePictureFamily(() => {
+      openFirst();
+      render();
+    });
     return {
       update(next) {
         props = next;
         families = normalizePictureFamilies(next.families);
-        const before = value;
         value = normalizePicturesValue(next.value);
-        open = familyAfterSelection(families, open, before, value);
+        openFirst();
         render();
       },
       destroy() {
