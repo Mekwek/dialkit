@@ -1,5 +1,11 @@
-/** The elements of one shown tile: the box the picture goes in, and the tile button around it. */
-export type PictureParts = { picture: HTMLElement; tile: HTMLElement };
+/**
+ * The elements of one shown tile: the box the picture goes in, and the tile
+ * button around it. `live` is set on every picture in the grid: while it
+ * returns true, the picture's version is the active version, and the picture
+ * must show exactly what the page shows, because the grid hands off from this
+ * picture to the page.
+ */
+export type PictureParts = { picture: HTMLElement; tile: HTMLElement; live?: () => boolean };
 
 /**
  * What a host gives every pictures control: the pictures themselves.

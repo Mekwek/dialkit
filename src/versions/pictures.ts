@@ -251,6 +251,8 @@ export type VersionPicturesGridOptions = {
   /** The element the grid fills. See `VersionGridOptions.host`. */
   host: HTMLElement;
   onClose?: () => void;
+  /** Runs the load of a picked version, so a host can load it its own way. */
+  selectWith?: (select: () => void) => void;
 };
 
 /** Opens the grid of every version, with the same live pictures as the list. */
@@ -261,8 +263,12 @@ export function openVersionPicturesGrid(panelId: string, options: VersionPicture
     activeKey: activeKey(),
     theme: options.theme,
     host: options.host,
-    picture: (key, picture, tile) => holdPicture(versionPictureId(key), { picture, tile }),
-    onSelect: (key) => selectVersion(panelId, key),
+    picture: (key, picture, tile) => holdPicture(versionPictureId(key), { picture, tile, live: () => activeKey() === key }),
+    onSelect: (key) => {
+      const select = () => selectVersion(panelId, key);
+      if (options.selectWith) options.selectWith(select);
+      else select();
+    },
     onRename: (key, name) => renameVersion(panelId, key, name),
     canRename: (key) => key !== BASE_VERSION && DialStore.isPresetsEditable(panelId),
     onClose: () => { stop(); options.onClose?.(); },

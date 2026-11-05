@@ -12879,11 +12879,11 @@ function openVersionGrid(options) {
     else scroller.style.paddingLeft = `${rect.right + gutter}px`;
   };
   const zoomedInto = (key) => {
-    const frame = cards.get(key)?.querySelector(".dialkit-version-card-frame");
-    if (!frame) return null;
+    const card = cards.get(key);
+    if (!card) return null;
     const prev = grid.style.transform;
     grid.style.transform = "none";
-    const home = frame.getBoundingClientRect();
+    const home = card.getBoundingClientRect();
     const origin = grid.getBoundingClientRect();
     grid.style.transform = prev;
     const area = overlay.getBoundingClientRect();

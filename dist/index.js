@@ -12112,11 +12112,11 @@ function openVersionGrid(options) {
     else scroller.style.paddingLeft = `${rect.right + gutter}px`;
   };
   const zoomedInto = (key) => {
-    const frame = cards.get(key)?.querySelector(".dialkit-version-card-frame");
-    if (!frame) return null;
+    const card = cards.get(key);
+    if (!card) return null;
     const prev = grid.style.transform;
     grid.style.transform = "none";
-    const home = frame.getBoundingClientRect();
+    const home = card.getBoundingClientRect();
     const origin = grid.getBoundingClientRect();
     grid.style.transform = prev;
     const area = overlay.getBoundingClientRect();
@@ -16647,8 +16647,12 @@ function openVersionPicturesGrid(panelId, options) {
     activeKey: activeKey(),
     theme: options.theme,
     host: options.host,
-    picture: (key, picture, tile) => holdPicture(versionPictureId(key), { picture, tile }),
-    onSelect: (key) => selectVersion(panelId, key),
+    picture: (key, picture, tile) => holdPicture(versionPictureId(key), { picture, tile, live: () => activeKey() === key }),
+    onSelect: (key) => {
+      const select = () => selectVersion(panelId, key);
+      if (options.selectWith) options.selectWith(select);
+      else select();
+    },
     onRename: (key, name) => renameVersion(panelId, key, name),
     canRename: (key) => key !== BASE_VERSION && DialStore.isPresetsEditable(panelId),
     onClose: () => {

@@ -1659,10 +1659,17 @@ type PictureListControlProps = {
 /** Families of presets as accordion rows, each opening to a grid of picture tiles. */
 declare function PictureListControl(props: PictureListControlProps): react_jsx_runtime.JSX.Element;
 
-/** The elements of one shown tile: the box the picture goes in, and the tile button around it. */
+/**
+ * The elements of one shown tile: the box the picture goes in, and the tile
+ * button around it. `live` is set on every picture in the grid: while it
+ * returns true, the picture's version is the active version, and the picture
+ * must show exactly what the page shows, because the grid hands off from this
+ * picture to the page.
+ */
 type PictureParts = {
     picture: HTMLElement;
     tile: HTMLElement;
+    live?: () => boolean;
 };
 /**
  * What a host gives every pictures control: the pictures themselves.
@@ -1904,6 +1911,8 @@ type VersionPicturesGridOptions = {
     /** The element the grid fills. See `VersionGridOptions.host`. */
     host: HTMLElement;
     onClose?: () => void;
+    /** Runs the load of a picked version, so a host can load it its own way. */
+    selectWith?: (select: () => void) => void;
 };
 /** Opens the grid of every version, with the same live pictures as the list. */
 declare function openVersionPicturesGrid(panelId: string, options: VersionPicturesGridOptions): VersionGridHandle;

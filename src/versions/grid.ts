@@ -178,11 +178,12 @@ export function openVersionGrid(options: VersionGridOptions): VersionGridHandle 
 
   // Camera transform that makes `key`'s card exactly cover the overlay.
   const zoomedInto = (key: string): string | null => {
-    const frame = cards.get(key)?.querySelector<HTMLElement>('.dialkit-version-card-frame');
-    if (!frame) return null;
+    // The card, because its frame is larger while the pointer lifts it.
+    const card = cards.get(key);
+    if (!card) return null;
     const prev = grid.style.transform;
     grid.style.transform = 'none';
-    const home = frame.getBoundingClientRect();
+    const home = card.getBoundingClientRect();
     const origin = grid.getBoundingClientRect();
     grid.style.transform = prev;
     const area = overlay.getBoundingClientRect();
