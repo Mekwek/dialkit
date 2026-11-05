@@ -69,6 +69,7 @@ export function mountVersionPictures(host: HTMLElement, initial: VersionPictures
   let shownActive: string | null = null;
 
   const root = element('div', 'dialkit-versions');
+  root.dataset.list = 'true';
   const actions = element('div', 'dialkit-versions-actions');
   const save = element('button', 'dialkit-versions-button');
   save.dataset.primary = 'true';

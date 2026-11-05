@@ -4563,6 +4563,13 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   border-bottom: 1px solid var(--dial-border);
 }
 
+/* The list of pictures is the only content of its folder: nothing follows it. */
+.dialkit-versions[data-list] {
+  padding-bottom: 0;
+  margin-bottom: 0;
+  border-bottom: none;
+}
+
 .dialkit-folder[data-version-overview] .dialkit-toolbar-add[data-wide="true"] {
   opacity: 0.35;
   pointer-events: none;

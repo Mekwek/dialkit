@@ -16579,6 +16579,7 @@ function mountVersionPictures(host, initial) {
   let editing = null;
   let shownActive = null;
   const root = element9("div", "dialkit-versions");
+  root.dataset.list = "true";
   const actions = element9("div", "dialkit-versions-actions");
   const save = element9("button", "dialkit-versions-button");
   save.dataset.primary = "true";
