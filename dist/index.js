@@ -3469,7 +3469,7 @@ function usePresenceResync() {
 
 // src/components/Folder.tsx
 import { Fragment, jsx, jsxs } from "react/jsx-runtime";
-function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, meta, actions, panelHeightOffset = 0, onReset, changed = false, hint: hint2, onClose }) {
+function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, meta, actions, headerRow, panelHeightOffset = 0, onReset, changed = false, hint: hint2, onClose }) {
   const headerHint = hint2 ?? (isRoot && !inline ? onClose ? HINTS.panelClose : HINTS.panel : void 0);
   useHints(!!headerHint || !isRoot && !!onReset);
   const [localOpen, setIsOpen] = useState(defaultOpen);
@@ -3590,6 +3590,7 @@ function Folder({ title, children, open, defaultOpen = true, isRoot = false, inl
           actions && !isRoot && /* @__PURE__ */ jsx("div", { className: "dialkit-folder-actions", children: actions }),
           isSection ? /* @__PURE__ */ jsx("div", { className: "dialkit-panel-section-toolbar-clip", children: /* @__PURE__ */ jsx("div", { className: "dialkit-panel-section-toolbar", onClick: (e) => e.stopPropagation(), children: toolbar }) }) : toolbar && isOpen ? /* @__PURE__ */ jsx("div", { className: "dialkit-panel-toolbar", onClick: (e) => e.stopPropagation(), children: toolbar }) : null
         ] }),
+        headerRow && !isRoot && /* @__PURE__ */ jsx("div", { className: "dialkit-folder-header-row", children: headerRow }),
         isSection ? /* @__PURE__ */ jsx("div", { className: "dialkit-folder-content", children: /* @__PURE__ */ jsx("div", { className: "dialkit-folder-inner", children }) }) : /* @__PURE__ */ jsx(AnimatePresence, { initial: false, onExitComplete: resyncPresence, children: isOpen && /* @__PURE__ */ jsx(
           motion.div,
           {
@@ -10529,7 +10530,7 @@ function state2() {
   const scope = globalThis;
   let current2 = scope[STATE_KEY2];
   if (!current2) {
-    current2 = { host: {}, listeners: /* @__PURE__ */ new Set(), family: null, familyListeners: /* @__PURE__ */ new Set() };
+    current2 = { host: {}, listeners: /* @__PURE__ */ new Set(), family: null, familyListeners: /* @__PURE__ */ new Set(), activeFamily: null, activeFamilyListeners: /* @__PURE__ */ new Set() };
     scope[STATE_KEY2] = current2;
   }
   return current2;
@@ -10559,6 +10560,22 @@ function getShownPictureFamily() {
 }
 function subscribePictureFamily(listener) {
   const listeners = state2().familyListeners;
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+function setActivePictureFamily(id) {
+  const current2 = state2();
+  if (current2.activeFamily === id) return;
+  current2.activeFamily = id;
+  current2.activeFamilyListeners.forEach((listener) => listener());
+}
+function getActivePictureFamily() {
+  return state2().activeFamily;
+}
+function subscribeActivePictureFamily(listener) {
+  const listeners = state2().activeFamilyListeners;
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
@@ -10744,6 +10761,7 @@ function mountPictureListControl(host, initial) {
       entry.row.setAttribute("aria-label", `${family.label}, ${count} ${count === 1 ? "preset" : "presets"}`);
       entry.row.setAttribute("aria-expanded", String(isOpen));
       entry.root.toggleAttribute("data-open", isOpen);
+      entry.row.toggleAttribute("data-active", getActivePictureFamily() === family.id);
       setHint(entry.row, family.hint);
       place(root, entry.root, previous);
       previous = entry.root;
@@ -10760,6 +10778,7 @@ function mountPictureListControl(host, initial) {
     open = knownFamily(getShownPictureFamily()) ?? open;
     render();
   });
+  const unsubscribeActiveFamily = subscribeActivePictureFamily(render);
   return {
     update(next) {
       props = next;
@@ -10773,6 +10792,7 @@ function mountPictureListControl(host, initial) {
       destroyed = true;
       unsubscribeHost();
       unsubscribeFamily();
+      unsubscribeActiveFamily();
       familyById.forEach((entry) => {
         entry.animation?.cancel();
         entry.chevronAnimation?.cancel();
@@ -12007,6 +12027,7 @@ function openVersionGrid(options) {
   let closing = false;
   let animations = [];
   let releases = [];
+  let releaseScroll;
   const { host } = options;
   const overlay = element9("div", "dialkit-version-overlay");
   overlay.dataset.theme = options.theme ?? "system";
@@ -12156,7 +12177,12 @@ function openVersionGrid(options) {
       // superseded by a newer transition
     );
   };
+  const stopScroll = () => {
+    releaseScroll?.();
+    releaseScroll = void 0;
+  };
   const finish = () => {
+    stopScroll();
     window.removeEventListener("keydown", onKey, true);
     window.removeEventListener("resize", onResize);
     if (current === handle) current = null;
@@ -12174,6 +12200,7 @@ function openVersionGrid(options) {
   const choose = (key, clicked = false) => {
     if (closing) return;
     closing = true;
+    stopScroll();
     overlay.dataset.closing = "true";
     if (clicked || key !== activeKey) {
       options.onSelect(key);
@@ -12240,6 +12267,7 @@ function openVersionGrid(options) {
     grid.style.removeProperty("--dialkit-card-radius");
     animations.forEach((a) => a.cancel());
     animations = [];
+    releaseScroll = options.scroll?.(scroller, grid);
   });
   focusCard(activeKey, { preventScroll: true });
   const handle = {
@@ -16467,12 +16495,8 @@ function subscribeVersions(panelId, listener) {
     stopGlobal();
   };
 }
-function mountVersionPictures(host, initial) {
+function mountVersionActions(host, initial) {
   let props = initial;
-  let editing = null;
-  let shownActive = null;
-  const root = element9("div", "dialkit-versions");
-  root.dataset.list = "true";
   const actions = element9("div", "dialkit-versions-actions");
   const save = element9("button", "dialkit-versions-button");
   save.dataset.primary = "true";
@@ -16487,10 +16511,46 @@ function mountVersionPictures(host, initial) {
   setHint(toggle, HINTS.allVersions);
   toggle.addEventListener("click", () => props.onToggleGrid?.());
   actions.append(save, toggle);
+  host.append(actions);
+  function render() {
+    const { panelId, gridOpen = false, onToggleGrid } = props;
+    const versions = listVersions(panelId);
+    save.hidden = !DialStore.isPresetsEditable(panelId);
+    save.disabled = gridOpen;
+    toggle.hidden = !(versions.length > 1 && onToggleGrid);
+    toggle.setAttribute("aria-pressed", String(gridOpen));
+    toggle.setAttribute("aria-label", `All versions (${versions.length})`);
+    actions.hidden = save.hidden && toggle.hidden;
+  }
+  let stopStore = subscribeVersions(props.panelId, render);
+  render();
+  return {
+    update(next) {
+      if (next.panelId !== props.panelId) {
+        stopStore();
+        stopStore = subscribeVersions(next.panelId, render);
+      }
+      props = next;
+      render();
+    },
+    destroy() {
+      stopStore();
+      setHint(save, void 0);
+      setHint(toggle, void 0);
+      actions.remove();
+    }
+  };
+}
+function mountVersionPictures(host, initial) {
+  let props = initial;
+  let editing = null;
+  let shownActive = null;
+  const root = element9("div", "dialkit-versions");
+  root.dataset.list = "true";
   const strip = element9("div", "dialkit-versions-strip");
   strip.setAttribute("role", "listbox");
   strip.setAttribute("aria-label", "Versions");
-  root.append(actions, strip);
+  root.append(strip);
   host.append(root);
   const thumbs = /* @__PURE__ */ new Map();
   const createThumb = (key) => {
@@ -16566,20 +16626,13 @@ function mountVersionPictures(host, initial) {
     else if (bottom > strip.scrollTop + strip.clientHeight) strip.scrollTop = bottom - strip.clientHeight;
   };
   function render() {
-    const { panelId, gridOpen = false, onToggleGrid } = props;
+    const { panelId, gridOpen = false } = props;
     const versions = listVersions(panelId);
     const activeKey = versionKey(DialStore.getActivePresetId(panelId));
     const editable = DialStore.isPresetsEditable(panelId);
     const lockable = DialStore.isPresetsLockable(panelId);
-    const many = versions.length > 1;
-    save.hidden = !editable;
-    save.disabled = gridOpen;
-    toggle.hidden = !(many && onToggleGrid);
-    toggle.setAttribute("aria-pressed", String(gridOpen));
-    toggle.setAttribute("aria-label", `All versions (${versions.length})`);
     root.toggleAttribute("data-overview", gridOpen);
-    actions.hidden = save.hidden && toggle.hidden;
-    strip.hidden = !many;
+    strip.hidden = versions.length < 2;
     const keys = new Set(versions.map((version) => version.key));
     for (const [key, thumb] of thumbs) {
       if (!keys.has(key)) {
@@ -16633,8 +16686,6 @@ function mountVersionPictures(host, initial) {
       stopReorder();
       thumbs.forEach(removeThumb);
       thumbs.clear();
-      setHint(save, void 0);
-      setHint(toggle, void 0);
       root.remove();
     }
   };
@@ -16652,6 +16703,7 @@ function openVersionPicturesGrid(panelId, options) {
       if (options.selectWith) options.selectWith(select);
       else select();
     },
+    scroll: options.scroll,
     onRename: (key, name) => renameVersion(panelId, key, name),
     canRename: (key) => key !== BASE_VERSION && DialStore.isPresetsEditable(panelId),
     onClose: () => {
@@ -16678,6 +16730,22 @@ function VersionPictures(props) {
   }, []);
   useLayoutEffect8(() => {
     listRef.current?.update(props);
+  }, [props.panelId, props.gridOpen]);
+  return /* @__PURE__ */ jsx32("div", { ref: hostRef, className: "dialkit-versions-host" });
+}
+function VersionActions(props) {
+  const hostRef = useRef28(null);
+  const rowRef = useRef28(null);
+  useLayoutEffect8(() => {
+    const row = mountVersionActions(hostRef.current, props);
+    rowRef.current = row;
+    return () => {
+      row.destroy();
+      rowRef.current = null;
+    };
+  }, []);
+  useLayoutEffect8(() => {
+    rowRef.current?.update(props);
   }, [props.panelId, props.gridOpen, props.onToggleGrid]);
   return /* @__PURE__ */ jsx32("div", { ref: hostRef, className: "dialkit-versions-host" });
 }
@@ -16833,6 +16901,7 @@ export {
   Toggle,
   TransitionControl,
   TransitionCopyMenu,
+  VersionActions,
   VersionGallery,
   VersionPictures,
   backgroundGradientCss,
@@ -16845,6 +16914,7 @@ export {
   findPictureFamily,
   formatClock,
   formatGizmoAngle,
+  getActivePictureFamily,
   getBackgroundHost,
   getPictureHost,
   getSavedGradients,
@@ -16868,12 +16938,14 @@ export {
   parsePictureAction,
   pictureAction,
   rotateGradientHandles,
+  setActivePictureFamily,
   setBackgroundHost,
   setPictureHost,
   setSavedGradients,
   showPictureFamily,
   stopPlacement,
   stopPositionAt,
+  subscribeActivePictureFamily,
   subscribeBackgroundHost,
   subscribePictureFamily,
   subscribePictureHost,

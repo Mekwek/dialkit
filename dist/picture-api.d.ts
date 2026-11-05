@@ -44,5 +44,14 @@ declare function showPictureFamily(id: string): void;
 declare function getShownPictureFamily(): string | null;
 /** Calls `listener` on every `showPictureFamily`. Returns the unsubscribe. */
 declare function subscribePictureFamily(listener: Listener): () => void;
+/**
+ * Marks the family of what the host shows now, in every pictures control, also
+ * one mounted later. The mark stays apart from the open family: a user can
+ * open any family without moving it.
+ */
+declare function setActivePictureFamily(id: string | null): void;
+declare function getActivePictureFamily(): string | null;
+/** Calls `listener` when the marked family changes. Returns the unsubscribe. */
+declare function subscribeActivePictureFamily(listener: Listener): () => void;
 
-export { type PictureHost, type PictureParts, getPictureHost, getShownPictureFamily, setPictureHost, showPictureFamily, subscribePictureFamily, subscribePictureHost };
+export { type PictureHost, type PictureParts, getActivePictureFamily, getPictureHost, getShownPictureFamily, setActivePictureFamily, setPictureHost, showPictureFamily, subscribeActivePictureFamily, subscribePictureFamily, subscribePictureHost };

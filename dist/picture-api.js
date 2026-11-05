@@ -49,7 +49,7 @@ function state() {
   const scope = globalThis;
   let current = scope[STATE_KEY];
   if (!current) {
-    current = { host: {}, listeners: /* @__PURE__ */ new Set(), family: null, familyListeners: /* @__PURE__ */ new Set() };
+    current = { host: {}, listeners: /* @__PURE__ */ new Set(), family: null, familyListeners: /* @__PURE__ */ new Set(), activeFamily: null, activeFamilyListeners: /* @__PURE__ */ new Set() };
     scope[STATE_KEY] = current;
   }
   return current;
@@ -84,16 +84,35 @@ function subscribePictureFamily(listener) {
     listeners.delete(listener);
   };
 }
+function setActivePictureFamily(id) {
+  const current = state();
+  if (current.activeFamily === id) return;
+  current.activeFamily = id;
+  current.activeFamilyListeners.forEach((listener) => listener());
+}
+function getActivePictureFamily() {
+  return state().activeFamily;
+}
+function subscribeActivePictureFamily(listener) {
+  const listeners = state().activeFamilyListeners;
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
 export {
   findPictureFamily,
+  getActivePictureFamily,
   getPictureHost,
   getShownPictureFamily,
   normalizePictureFamilies,
   normalizePicturesValue,
   parsePictureAction,
   pictureAction,
+  setActivePictureFamily,
   setPictureHost,
   showPictureFamily,
+  subscribeActivePictureFamily,
   subscribePictureFamily,
   subscribePictureHost
 };

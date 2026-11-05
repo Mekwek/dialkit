@@ -62,6 +62,7 @@ var DialKit = (() => {
     findPictureFamily: () => findPictureFamily,
     formatClock: () => formatClock,
     formatGizmoAngle: () => formatGizmoAngle,
+    getActivePictureFamily: () => getActivePictureFamily,
     getBackgroundHost: () => getBackgroundHost,
     getPictureHost: () => getPictureHost,
     getSavedGradients: () => getSavedGradients,
@@ -103,12 +104,14 @@ var DialKit = (() => {
     parsePictureAction: () => parsePictureAction,
     pictureAction: () => pictureAction,
     rotateGradientHandles: () => rotateGradientHandles,
+    setActivePictureFamily: () => setActivePictureFamily,
     setBackgroundHost: () => setBackgroundHost,
     setPictureHost: () => setPictureHost,
     setSavedGradients: () => setSavedGradients,
     showPictureFamily: () => showPictureFamily,
     stopPlacement: () => stopPlacement,
     stopPositionAt: () => stopPositionAt,
+    subscribeActivePictureFamily: () => subscribeActivePictureFamily,
     subscribeBackgroundHost: () => subscribeBackgroundHost,
     subscribePictureFamily: () => subscribePictureFamily,
     subscribePictureHost: () => subscribePictureHost,
@@ -8344,7 +8347,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
     const scope = globalThis;
     let current2 = scope[STATE_KEY2];
     if (!current2) {
-      current2 = { host: {}, listeners: /* @__PURE__ */ new Set(), family: null, familyListeners: /* @__PURE__ */ new Set() };
+      current2 = { host: {}, listeners: /* @__PURE__ */ new Set(), family: null, familyListeners: /* @__PURE__ */ new Set(), activeFamily: null, activeFamilyListeners: /* @__PURE__ */ new Set() };
       scope[STATE_KEY2] = current2;
     }
     return current2;
@@ -8374,6 +8377,22 @@ Apply these values as the new defaults in the ${hookName} call.`;
   }
   function subscribePictureFamily(listener) {
     const listeners2 = state2().familyListeners;
+    listeners2.add(listener);
+    return () => {
+      listeners2.delete(listener);
+    };
+  }
+  function setActivePictureFamily(id) {
+    const current2 = state2();
+    if (current2.activeFamily === id) return;
+    current2.activeFamily = id;
+    current2.activeFamilyListeners.forEach((listener) => listener());
+  }
+  function getActivePictureFamily() {
+    return state2().activeFamily;
+  }
+  function subscribeActivePictureFamily(listener) {
+    const listeners2 = state2().activeFamilyListeners;
     listeners2.add(listener);
     return () => {
       listeners2.delete(listener);
@@ -8559,6 +8578,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
         entry.row.setAttribute("aria-label", `${family.label}, ${count} ${count === 1 ? "preset" : "presets"}`);
         entry.row.setAttribute("aria-expanded", String(isOpen));
         entry.root.toggleAttribute("data-open", isOpen);
+        entry.row.toggleAttribute("data-active", getActivePictureFamily() === family.id);
         setHint(entry.row, family.hint);
         place(root, entry.root, previous);
         previous = entry.root;
@@ -8575,6 +8595,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
       open = knownFamily(getShownPictureFamily()) ?? open;
       render();
     });
+    const unsubscribeActiveFamily = subscribeActivePictureFamily(render);
     return {
       update(next) {
         props = next;
@@ -8588,6 +8609,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
         destroyed = true;
         unsubscribeHost();
         unsubscribeFamily();
+        unsubscribeActiveFamily();
         familyById.forEach((entry) => {
           entry.animation?.cancel();
           entry.chevronAnimation?.cancel();
@@ -10896,6 +10918,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
     let closing = false;
     let animations = [];
     let releases = [];
+    let releaseScroll;
     const { host } = options;
     const overlay = element6("div", "dialkit-version-overlay");
     overlay.dataset.theme = options.theme ?? "system";
@@ -11045,7 +11068,12 @@ Apply these values as the new defaults in the ${hookName} call.`;
         // superseded by a newer transition
       );
     };
+    const stopScroll = () => {
+      releaseScroll?.();
+      releaseScroll = void 0;
+    };
     const finish = () => {
+      stopScroll();
       window.removeEventListener("keydown", onKey, true);
       window.removeEventListener("resize", onResize);
       if (current === handle) current = null;
@@ -11063,6 +11091,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
     const choose = (key, clicked = false) => {
       if (closing) return;
       closing = true;
+      stopScroll();
       overlay.dataset.closing = "true";
       if (clicked || key !== activeKey) {
         options.onSelect(key);
@@ -11129,6 +11158,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
       grid.style.removeProperty("--dialkit-card-radius");
       animations.forEach((a) => a.cancel());
       animations = [];
+      releaseScroll = options.scroll?.(scroller, grid);
     });
     focusCard(activeKey, { preventScroll: true });
     const handle = {

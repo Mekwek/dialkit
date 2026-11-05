@@ -20,6 +20,8 @@ interface FolderProps {
   meta?: string;
   /** Buttons beside the title of a nested folder, such as a transition's copy and paste. */
   actions?: ReactNode;
+  /** A row under the header of a nested folder. It stays shown while the folder is closed. */
+  headerRow?: ReactNode;
   panelHeightOffset?: number;
   /** Shows a reset button after the title, visible while `changed` is true. */
   onReset?: () => void;
@@ -29,7 +31,7 @@ interface FolderProps {
   onClose?: () => void;
 }
 
-export function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, meta, actions, panelHeightOffset = 0, onReset, changed = false, hint, onClose }: FolderProps) {
+export function Folder({ title, children, open, defaultOpen = true, isRoot = false, inline = false, onOpenChange, toolbar, meta, actions, headerRow, panelHeightOffset = 0, onReset, changed = false, hint, onClose }: FolderProps) {
   // A panel's own header, which closes the panel, has a hint by default.
   const headerHint = hint ?? (isRoot && !inline ? (onClose ? HINTS.panelClose : HINTS.panel) : undefined);
   useHints(!!headerHint || (!isRoot && !!onReset));
@@ -176,6 +178,8 @@ export function Folder({ title, children, open, defaultOpen = true, isRoot = fal
           <div className="dialkit-panel-toolbar" onClick={(e) => e.stopPropagation()}>{toolbar}</div>
         ) : null}
       </div>
+
+      {headerRow && !isRoot && <div className="dialkit-folder-header-row">{headerRow}</div>}
 
       {isSection ? (
         <div className="dialkit-folder-content">

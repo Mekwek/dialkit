@@ -61,6 +61,7 @@ __export(vanilla_exports, {
   findPictureFamily: () => findPictureFamily,
   formatClock: () => formatClock,
   formatGizmoAngle: () => formatGizmoAngle,
+  getActivePictureFamily: () => getActivePictureFamily,
   getBackgroundHost: () => getBackgroundHost,
   getPictureHost: () => getPictureHost,
   getSavedGradients: () => getSavedGradients,
@@ -102,12 +103,14 @@ __export(vanilla_exports, {
   parsePictureAction: () => parsePictureAction,
   pictureAction: () => pictureAction,
   rotateGradientHandles: () => rotateGradientHandles,
+  setActivePictureFamily: () => setActivePictureFamily,
   setBackgroundHost: () => setBackgroundHost,
   setPictureHost: () => setPictureHost,
   setSavedGradients: () => setSavedGradients,
   showPictureFamily: () => showPictureFamily,
   stopPlacement: () => stopPlacement,
   stopPositionAt: () => stopPositionAt,
+  subscribeActivePictureFamily: () => subscribeActivePictureFamily,
   subscribeBackgroundHost: () => subscribeBackgroundHost,
   subscribePictureFamily: () => subscribePictureFamily,
   subscribePictureHost: () => subscribePictureHost,
@@ -8344,7 +8347,7 @@ function state2() {
   const scope = globalThis;
   let current2 = scope[STATE_KEY2];
   if (!current2) {
-    current2 = { host: {}, listeners: /* @__PURE__ */ new Set(), family: null, familyListeners: /* @__PURE__ */ new Set() };
+    current2 = { host: {}, listeners: /* @__PURE__ */ new Set(), family: null, familyListeners: /* @__PURE__ */ new Set(), activeFamily: null, activeFamilyListeners: /* @__PURE__ */ new Set() };
     scope[STATE_KEY2] = current2;
   }
   return current2;
@@ -8374,6 +8377,22 @@ function getShownPictureFamily() {
 }
 function subscribePictureFamily(listener) {
   const listeners2 = state2().familyListeners;
+  listeners2.add(listener);
+  return () => {
+    listeners2.delete(listener);
+  };
+}
+function setActivePictureFamily(id) {
+  const current2 = state2();
+  if (current2.activeFamily === id) return;
+  current2.activeFamily = id;
+  current2.activeFamilyListeners.forEach((listener) => listener());
+}
+function getActivePictureFamily() {
+  return state2().activeFamily;
+}
+function subscribeActivePictureFamily(listener) {
+  const listeners2 = state2().activeFamilyListeners;
   listeners2.add(listener);
   return () => {
     listeners2.delete(listener);
@@ -8559,6 +8578,7 @@ function mountPictureListControl(host, initial) {
       entry.row.setAttribute("aria-label", `${family.label}, ${count} ${count === 1 ? "preset" : "presets"}`);
       entry.row.setAttribute("aria-expanded", String(isOpen));
       entry.root.toggleAttribute("data-open", isOpen);
+      entry.row.toggleAttribute("data-active", getActivePictureFamily() === family.id);
       setHint(entry.row, family.hint);
       place(root, entry.root, previous);
       previous = entry.root;
@@ -8575,6 +8595,7 @@ function mountPictureListControl(host, initial) {
     open = knownFamily(getShownPictureFamily()) ?? open;
     render();
   });
+  const unsubscribeActiveFamily = subscribeActivePictureFamily(render);
   return {
     update(next) {
       props = next;
@@ -8588,6 +8609,7 @@ function mountPictureListControl(host, initial) {
       destroyed = true;
       unsubscribeHost();
       unsubscribeFamily();
+      unsubscribeActiveFamily();
       familyById.forEach((entry) => {
         entry.animation?.cancel();
         entry.chevronAnimation?.cancel();
@@ -10896,6 +10918,7 @@ function openVersionGrid(options) {
   let closing = false;
   let animations = [];
   let releases = [];
+  let releaseScroll;
   const { host } = options;
   const overlay = element6("div", "dialkit-version-overlay");
   overlay.dataset.theme = options.theme ?? "system";
@@ -11045,7 +11068,12 @@ function openVersionGrid(options) {
       // superseded by a newer transition
     );
   };
+  const stopScroll = () => {
+    releaseScroll?.();
+    releaseScroll = void 0;
+  };
   const finish = () => {
+    stopScroll();
     window.removeEventListener("keydown", onKey, true);
     window.removeEventListener("resize", onResize);
     if (current === handle) current = null;
@@ -11063,6 +11091,7 @@ function openVersionGrid(options) {
   const choose = (key, clicked = false) => {
     if (closing) return;
     closing = true;
+    stopScroll();
     overlay.dataset.closing = "true";
     if (clicked || key !== activeKey) {
       options.onSelect(key);
@@ -11129,6 +11158,7 @@ function openVersionGrid(options) {
     grid.style.removeProperty("--dialkit-card-radius");
     animations.forEach((a) => a.cancel());
     animations = [];
+    releaseScroll = options.scroll?.(scroller, grid);
   });
   focusCard(activeKey, { preventScroll: true });
   const handle = {
@@ -13532,6 +13562,7 @@ function mountSection(host, initial, options) {
   findPictureFamily,
   formatClock,
   formatGizmoAngle,
+  getActivePictureFamily,
   getBackgroundHost,
   getPictureHost,
   getSavedGradients,
@@ -13573,12 +13604,14 @@ function mountSection(host, initial, options) {
   parsePictureAction,
   pictureAction,
   rotateGradientHandles,
+  setActivePictureFamily,
   setBackgroundHost,
   setPictureHost,
   setSavedGradients,
   showPictureFamily,
   stopPlacement,
   stopPositionAt,
+  subscribeActivePictureFamily,
   subscribeBackgroundHost,
   subscribePictureFamily,
   subscribePictureHost,

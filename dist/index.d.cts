@@ -1415,6 +1415,8 @@ interface FolderProps {
     meta?: string;
     /** Buttons beside the title of a nested folder, such as a transition's copy and paste. */
     actions?: ReactNode;
+    /** A row under the header of a nested folder. It stays shown while the folder is closed. */
+    headerRow?: ReactNode;
     panelHeightOffset?: number;
     /** Shows a reset button after the title, visible while `changed` is true. */
     onReset?: () => void;
@@ -1423,7 +1425,7 @@ interface FolderProps {
     /** On a panel's own header: the X calls this instead of closing the panel to a small button. */
     onClose?: () => void;
 }
-declare function Folder({ title, children, open, defaultOpen, isRoot, inline, onOpenChange, toolbar, meta, actions, panelHeightOffset, onReset, changed, hint, onClose }: FolderProps): react_jsx_runtime.JSX.Element;
+declare function Folder({ title, children, open, defaultOpen, isRoot, inline, onOpenChange, toolbar, meta, actions, headerRow, panelHeightOffset, onReset, changed, hint, onClose }: FolderProps): react_jsx_runtime.JSX.Element;
 
 interface ButtonGroupProps {
     buttons: Array<{
@@ -1703,6 +1705,15 @@ declare function showPictureFamily(id: string): void;
 declare function getShownPictureFamily(): string | null;
 /** Calls `listener` on every `showPictureFamily`. Returns the unsubscribe. */
 declare function subscribePictureFamily(listener: Listener$2): () => void;
+/**
+ * Marks the family of what the host shows now, in every pictures control, also
+ * one mounted later. The mark stays apart from the open family: a user can
+ * open any family without moving it.
+ */
+declare function setActivePictureFamily(id: string | null): void;
+declare function getActivePictureFamily(): string | null;
+/** Calls `listener` when the marked family changes. Returns the unsubscribe. */
+declare function subscribeActivePictureFamily(listener: Listener$2): () => void;
 
 /**
  * Draws a background value into a canvas at the canvas's own size: the solid
@@ -1885,6 +1896,31 @@ type GridVersion = {
     name: string;
     thumbnail?: Thumbnail;
 };
+type VersionGridOptions = {
+    versions: GridVersion[];
+    activeKey: string;
+    theme?: 'light' | 'dark' | 'system';
+    /**
+     * The element the grid fills, instead of the window. The chosen card grows
+     * to fill this element, so the live view under the grid must sit in the
+     * same box.
+     */
+    host?: HTMLElement;
+    /** Fills a card's picture box, instead of its thumbnail. Returns the release. */
+    picture?: (key: string, picture: HTMLElement, tile: HTMLElement) => () => void;
+    /** Load a version into the live page. Called before the zoom-in starts. */
+    onSelect: (key: string) => void;
+    /** Rename a version (double-click its name). */
+    onRename?: (key: string, name: string) => void;
+    /** Whether a version's name can change. Every version's can without it. */
+    canRename?: (key: string) => boolean;
+    /**
+     * Takes over the grid's scroll, for example to smooth it. It runs while the
+     * grid rests, so no scroll moves a card during a zoom. Returns the release.
+     */
+    scroll?: (scroller: HTMLElement, content: HTMLElement) => () => void;
+    onClose?: () => void;
+};
 type VersionGridHandle = {
     /** Zoom into a version's card, load it, then hand off to the live page. */
     select: (key: string) => void;
@@ -1903,6 +1939,8 @@ interface VersionPicturesProps {
     panelId: string;
     /** True while the grid of every version is open. */
     gridOpen?: boolean;
+}
+interface VersionActionsProps extends VersionPicturesProps {
     /** Opens or closes the grid. Without it, the grid button does not show. */
     onToggleGrid?: () => void;
 }
@@ -1913,12 +1951,16 @@ type VersionPicturesGridOptions = {
     onClose?: () => void;
     /** Runs the load of a picked version, so a host can load it its own way. */
     selectWith?: (select: () => void) => void;
+    /** Takes over the grid's scroll. See `VersionGridOptions.scroll`. */
+    scroll?: VersionGridOptions['scroll'];
 };
 /** Opens the grid of every version, with the same live pictures as the list. */
 declare function openVersionPicturesGrid(panelId: string, options: VersionPicturesGridOptions): VersionGridHandle;
 
 /** Mounts the shared version list (see versions/pictures.ts). */
 declare function VersionPictures(props: VersionPicturesProps): react_jsx_runtime.JSX.Element;
+/** Mounts Save version and the grid button (see versions/pictures.ts). */
+declare function VersionActions(props: VersionActionsProps): react_jsx_runtime.JSX.Element;
 
 interface ShortcutsMenuProps {
     panelId: string;
@@ -1985,4 +2027,4 @@ declare function HintTip({ always }: {
  */
 declare function HintTooltip(): null;
 
-export { type ActionConfig, type AnchorConfig, AnchorControl, type AnchorControlProps, type AnchorValue, BASE_VERSION, type BackgroundConfig, BackgroundControl, type BackgroundControlProps, type BackgroundGradient, type BackgroundHost, type BackgroundMedia, type BackgroundMediaDisplay, type BackgroundMediaFit, type BackgroundMediaRatio, type BackgroundMode, type BackgroundValue, type BackgroundValueUpdate, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type CopiedTransition, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, type DialVersions, type EasingConfig, EasingVisualization, type FieldsConfig, Folder, type FolderMode, GRADIENT_SHAPES, type GizmoBox, type GradientFrame, type GradientGizmoCallbacks, type GradientGizmoProps, type GradientHandles, type GradientPoint, type GradientShape, type GradientStop, HintStore, HintTip, HintTooltip, type ImageConfig, ImageControl, type ImageOption, type InlineLabelsConfig, type LayerActionKind, type LayerItem, LayerListControl, type LayerListControlProps, type LayersConfig, type LayersValue, type PadGroupConfig, type PanelConfig, type PictureFamily, type PictureHost, type PictureItem, PictureListControl, type PictureListControlProps, type PictureParts, type PicturesConfig, type PicturesValue, type Preset, PresetManager, type RangeConfig, type ResolvedValues, type RowConfig, type SavedGradient, Section, type SectionProps, type SectionRow, type SelectAddConfig, type SelectConfig, SelectControl, type SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipMeta, type TimelineClipTrackMeta, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelineMeta, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, TimelineStore, type TimelineTransport, Toggle, type TransitionConfig, TransitionControl, TransitionCopyMenu, type TransitionCopyMenuProps, type TransitionMode, type TransitionPreset, type UseDialOptions, type UseDialTimelineOptions, VersionGallery, type VersionGridHandle, VersionPictures, type VersionPicturesGridOptions, type VersionPicturesProps, type VisibleWhen, type VisibleWhenValue, backgroundGradientCss, backgroundMediaCss, defaultBackgroundValue, defaultGradientHandles, dragGradientCentre, dragGradientEnd, dragGradientWidth, findPictureFamily, formatClock, formatGizmoAngle, getBackgroundHost, getPictureHost, getSavedGradients, getShownPictureFamily, gizmoAngle, gizmoPoints, gradientFrame, gradientParamAt, hasBackgroundHost, layerAction, legacyGradientHandles, mountGradientGizmo, normalizeBackgroundValue, normalizeLayersValue, normalizePictureFamilies, normalizePicturesValue, openVersionPicturesGrid, paintBackgroundPreview, paintGradient, parseLayerAction, parsePictureAction, pictureAction, rotateGradientHandles, setBackgroundHost, setPictureHost, setSavedGradients, showPictureFamily, stopPlacement, stopPositionAt, subscribeBackgroundHost, subscribePictureFamily, subscribePictureHost, switchGradientShape, useDialKit, useDialKitController, useDialTimeline, versionOfPicture, versionPictureId, withVisibility };
+export { type ActionConfig, type AnchorConfig, AnchorControl, type AnchorControlProps, type AnchorValue, BASE_VERSION, type BackgroundConfig, BackgroundControl, type BackgroundControlProps, type BackgroundGradient, type BackgroundHost, type BackgroundMedia, type BackgroundMediaDisplay, type BackgroundMediaFit, type BackgroundMediaRatio, type BackgroundMode, type BackgroundValue, type BackgroundValueUpdate, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type CopiedTransition, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, type DialVersions, type EasingConfig, EasingVisualization, type FieldsConfig, Folder, type FolderMode, GRADIENT_SHAPES, type GizmoBox, type GradientFrame, type GradientGizmoCallbacks, type GradientGizmoProps, type GradientHandles, type GradientPoint, type GradientShape, type GradientStop, HintStore, HintTip, HintTooltip, type ImageConfig, ImageControl, type ImageOption, type InlineLabelsConfig, type LayerActionKind, type LayerItem, LayerListControl, type LayerListControlProps, type LayersConfig, type LayersValue, type PadGroupConfig, type PanelConfig, type PictureFamily, type PictureHost, type PictureItem, PictureListControl, type PictureListControlProps, type PictureParts, type PicturesConfig, type PicturesValue, type Preset, PresetManager, type RangeConfig, type ResolvedValues, type RowConfig, type SavedGradient, Section, type SectionProps, type SectionRow, type SelectAddConfig, type SelectConfig, SelectControl, type SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipMeta, type TimelineClipTrackMeta, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelineMeta, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, TimelineStore, type TimelineTransport, Toggle, type TransitionConfig, TransitionControl, TransitionCopyMenu, type TransitionCopyMenuProps, type TransitionMode, type TransitionPreset, type UseDialOptions, type UseDialTimelineOptions, VersionActions, type VersionActionsProps, VersionGallery, type VersionGridHandle, VersionPictures, type VersionPicturesGridOptions, type VersionPicturesProps, type VisibleWhen, type VisibleWhenValue, backgroundGradientCss, backgroundMediaCss, defaultBackgroundValue, defaultGradientHandles, dragGradientCentre, dragGradientEnd, dragGradientWidth, findPictureFamily, formatClock, formatGizmoAngle, getActivePictureFamily, getBackgroundHost, getPictureHost, getSavedGradients, getShownPictureFamily, gizmoAngle, gizmoPoints, gradientFrame, gradientParamAt, hasBackgroundHost, layerAction, legacyGradientHandles, mountGradientGizmo, normalizeBackgroundValue, normalizeLayersValue, normalizePictureFamilies, normalizePicturesValue, openVersionPicturesGrid, paintBackgroundPreview, paintGradient, parseLayerAction, parsePictureAction, pictureAction, rotateGradientHandles, setActivePictureFamily, setBackgroundHost, setPictureHost, setSavedGradients, showPictureFamily, stopPlacement, stopPositionAt, subscribeActivePictureFamily, subscribeBackgroundHost, subscribePictureFamily, subscribePictureHost, switchGradientShape, useDialKit, useDialKitController, useDialTimeline, versionOfPicture, versionPictureId, withVisibility };

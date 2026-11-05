@@ -2231,9 +2231,10 @@
 .dialkit-pictures { display: flex; flex-direction: column; gap: var(--dial-row-gap); }
 .dialkit-pictures-family { display: flex; flex-direction: column; }
 /* A family row: its name, the badge with its number of presets, and a chevron that points down while it is open. */
-.dialkit-pictures-row { display: flex; align-items: center; gap: 8px; width: 100%; min-height: var(--dial-pictures-row-height); padding: 0 10px 0 12px; box-sizing: border-box; border: 0; border-radius: var(--dial-radius); background: var(--dial-pictures-row-fill); color: var(--dial-text-label); font: inherit; font-size: 13px; font-weight: 500; text-align: left; cursor: pointer; transition: background 0.15s, color 0.15s; }
+.dialkit-pictures-row { display: flex; align-items: center; gap: 8px; width: 100%; min-height: var(--dial-pictures-row-height); padding: 0 10px 0 12px; box-sizing: border-box; border: 0; border-radius: var(--dial-radius); background: var(--dial-pictures-row-fill); color: var(--dial-text-label); font: inherit; font-size: 13px; font-weight: 500; text-align: left; cursor: pointer; transition: background 0.15s, color 0.15s, box-shadow 0.15s; }
 .dialkit-pictures-row:hover { background: var(--dial-pictures-row-hover-fill); color: var(--dial-text-focus); }
 .dialkit-pictures-row[aria-expanded="true"] { background: var(--dial-pictures-row-open-fill); color: var(--dial-text-primary); }
+.dialkit-pictures-row[data-active] { background: var(--dial-layer-selected-fill); box-shadow: inset 0 0 0 1px var(--dial-layer-selected-border); color: var(--dial-text-primary); }
 .dialkit-pictures-row:focus-visible { outline: 2px solid var(--dial-focus-ring); outline-offset: -2px; }
 .dialkit-pictures-name { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .dialkit-pictures-count { flex-shrink: 0; min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 10px; background: var(--dial-pictures-count-fill); color: var(--dial-pictures-count-color); font-size: 11px; font-weight: 500; line-height: 20px; text-align: center; font-variant-numeric: tabular-nums; }
@@ -4788,6 +4789,11 @@ span.dialkit-version-thumb-label {
 .dialkit-versions-actions {
   display: flex;
   gap: 6px;
+}
+
+/* Under the folder header, with the bottom space of a folder's content. */
+.dialkit-folder-header-row {
+  padding-bottom: 10px;
 }
 
 .dialkit-versions-button {

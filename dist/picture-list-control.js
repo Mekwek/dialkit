@@ -120,7 +120,7 @@ function state() {
   const scope = globalThis;
   let current = scope[STATE_KEY];
   if (!current) {
-    current = { host: {}, listeners: /* @__PURE__ */ new Set(), family: null, familyListeners: /* @__PURE__ */ new Set() };
+    current = { host: {}, listeners: /* @__PURE__ */ new Set(), family: null, familyListeners: /* @__PURE__ */ new Set(), activeFamily: null, activeFamilyListeners: /* @__PURE__ */ new Set() };
     scope[STATE_KEY] = current;
   }
   return current;
@@ -140,6 +140,16 @@ function getShownPictureFamily() {
 }
 function subscribePictureFamily(listener) {
   const listeners = state().familyListeners;
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+function getActivePictureFamily() {
+  return state().activeFamily;
+}
+function subscribeActivePictureFamily(listener) {
+  const listeners = state().activeFamilyListeners;
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
@@ -351,6 +361,7 @@ function mountPictureListControl(host, initial) {
       entry.row.setAttribute("aria-label", `${family.label}, ${count} ${count === 1 ? "preset" : "presets"}`);
       entry.row.setAttribute("aria-expanded", String(isOpen));
       entry.root.toggleAttribute("data-open", isOpen);
+      entry.row.toggleAttribute("data-active", getActivePictureFamily() === family.id);
       setHint(entry.row, family.hint);
       place(root, entry.root, previous);
       previous = entry.root;
@@ -367,6 +378,7 @@ function mountPictureListControl(host, initial) {
     open = knownFamily(getShownPictureFamily()) ?? open;
     render();
   });
+  const unsubscribeActiveFamily = subscribeActivePictureFamily(render);
   return {
     update(next) {
       props = next;
@@ -380,6 +392,7 @@ function mountPictureListControl(host, initial) {
       destroyed = true;
       unsubscribeHost();
       unsubscribeFamily();
+      unsubscribeActiveFamily();
       familyById.forEach((entry) => {
         entry.animation?.cancel();
         entry.chevronAnimation?.cancel();

@@ -39,6 +39,11 @@ export type VersionGridOptions = {
   onRename?: (key: string, name: string) => void;
   /** Whether a version's name can change. Every version's can without it. */
   canRename?: (key: string) => boolean;
+  /**
+   * Takes over the grid's scroll, for example to smooth it. It runs while the
+   * grid rests, so no scroll moves a card during a zoom. Returns the release.
+   */
+  scroll?: (scroller: HTMLElement, content: HTMLElement) => () => void;
   onClose?: () => void;
 };
 
@@ -68,6 +73,7 @@ export function openVersionGrid(options: VersionGridOptions): VersionGridHandle 
   let closing = false;
   let animations: Animation[] = [];
   let releases: (() => void)[] = [];
+  let releaseScroll: (() => void) | undefined;
   const { host } = options;
 
   const overlay = element('div', 'dialkit-version-overlay');
@@ -223,7 +229,13 @@ export function openVersionGrid(options: VersionGridOptions): VersionGridHandle 
     );
   };
 
+  const stopScroll = () => {
+    releaseScroll?.();
+    releaseScroll = undefined;
+  };
+
   const finish = () => {
+    stopScroll();
     window.removeEventListener('keydown', onKey, true);
     window.removeEventListener('resize', onResize);
     if (current === handle) current = null;
@@ -244,6 +256,7 @@ export function openVersionGrid(options: VersionGridOptions): VersionGridHandle 
   const choose = (key: string, clicked = false) => {
     if (closing) return;
     closing = true;
+    stopScroll();
     overlay.dataset.closing = 'true';
     if (clicked || key !== activeKey) {
       options.onSelect(key);
@@ -312,6 +325,7 @@ export function openVersionGrid(options: VersionGridOptions): VersionGridHandle 
     grid.style.removeProperty('--dialkit-card-radius');
     animations.forEach((a) => a.cancel());
     animations = [];
+    releaseScroll = options.scroll?.(scroller, grid);
   });
   focusCard(activeKey, { preventScroll: true });
 

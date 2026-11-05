@@ -69,9 +69,9 @@ export { backgroundGradientCss, backgroundMediaCss, paintGradient } from './back
 export * from './background-api';
 export { PresetManager } from './components/PresetManager';
 export { VersionGallery } from './components/VersionGallery';
-export { VersionPictures } from './components/VersionPictures';
+export { VersionActions, VersionPictures } from './components/VersionPictures';
 export { openVersionPicturesGrid, versionOfPicture, versionPictureId } from './versions/pictures';
-export type { VersionPicturesGridOptions, VersionPicturesProps } from './versions/pictures';
+export type { VersionActionsProps, VersionPicturesGridOptions, VersionPicturesProps } from './versions/pictures';
 export type { VersionGridHandle } from './versions/grid';
 export { BASE_VERSION } from './versions/thumbnails';
 export { ShortcutsMenu } from './components/ShortcutsMenu';

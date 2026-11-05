@@ -3,7 +3,9 @@
 // host draws it through the picture host (store/PictureHost.ts), under the id
 // `versionPictureId` gives, so nothing is captured or stored. It does everything
 // the version menu does: pick, rename, lock, delete and reorder. Plain DOM, so
-// every framework mounts the same thing.
+// every framework mounts the same thing. Save version and the grid button are
+// their own row (`mountVersionActions`), so a folder can keep them shown while
+// the pictures close.
 
 import { DialStore } from '../store/DialStore';
 import { HINTS, setHint } from '../hints';
@@ -11,7 +13,7 @@ import { ICON_CLOSE, ICON_GRID, ICON_LOCK, ICON_LOCK_OPEN, ICON_PLUS } from '../
 import { getPictureHost, subscribePictureHost, type PictureParts } from '../store/PictureHost';
 import { element, icon, svg, type Mounted } from '../vanilla/dom';
 import { deleteVersion, listVersions, renameVersion, selectVersion } from './controller';
-import { openVersionGrid, type VersionGridHandle } from './grid';
+import { openVersionGrid, type VersionGridHandle, type VersionGridOptions } from './grid';
 import { observeVersionReorder } from './reorder';
 import { BASE_VERSION, versionKey } from './thumbnails';
 
@@ -50,8 +52,64 @@ export interface VersionPicturesProps {
   panelId: string;
   /** True while the grid of every version is open. */
   gridOpen?: boolean;
+}
+
+export interface VersionActionsProps extends VersionPicturesProps {
   /** Opens or closes the grid. Without it, the grid button does not show. */
   onToggleGrid?: () => void;
+}
+
+/** The row with Save version and the grid button. */
+export function mountVersionActions(host: HTMLElement, initial: VersionActionsProps): Mounted<VersionActionsProps> {
+  let props = initial;
+
+  const actions = element('div', 'dialkit-versions-actions');
+  const save = element('button', 'dialkit-versions-button');
+  save.dataset.primary = 'true';
+  save.append(icon(ICON_PLUS, '', '0 0 24 24'), 'Save version');
+  setHint(save, HINTS.saveVersion);
+  save.addEventListener('click', () => DialStore.saveNewPreset(props.panelId));
+  const toggle = element('button', 'dialkit-versions-button');
+  toggle.dataset.icon = 'true';
+  const grid = svg('svg', { viewBox: '0 0 24 24', fill: 'currentColor', 'aria-hidden': 'true' });
+  for (const d of ICON_GRID) grid.append(svg('path', { d }));
+  toggle.append(grid);
+  setHint(toggle, HINTS.allVersions);
+  toggle.addEventListener('click', () => props.onToggleGrid?.());
+  actions.append(save, toggle);
+  host.append(actions);
+
+  function render() {
+    const { panelId, gridOpen = false, onToggleGrid } = props;
+    const versions = listVersions(panelId);
+    save.hidden = !DialStore.isPresetsEditable(panelId);
+    // The grid shows the versions it opened with, so saving waits for it to close.
+    save.disabled = gridOpen;
+    toggle.hidden = !(versions.length > 1 && onToggleGrid);
+    toggle.setAttribute('aria-pressed', String(gridOpen));
+    toggle.setAttribute('aria-label', `All versions (${versions.length})`);
+    actions.hidden = save.hidden && toggle.hidden;
+  }
+
+  let stopStore = subscribeVersions(props.panelId, render);
+  render();
+
+  return {
+    update(next) {
+      if (next.panelId !== props.panelId) {
+        stopStore();
+        stopStore = subscribeVersions(next.panelId, render);
+      }
+      props = next;
+      render();
+    },
+    destroy() {
+      stopStore();
+      setHint(save, undefined);
+      setHint(toggle, undefined);
+      actions.remove();
+    },
+  };
 }
 
 type Thumb = {
@@ -70,24 +128,10 @@ export function mountVersionPictures(host: HTMLElement, initial: VersionPictures
 
   const root = element('div', 'dialkit-versions');
   root.dataset.list = 'true';
-  const actions = element('div', 'dialkit-versions-actions');
-  const save = element('button', 'dialkit-versions-button');
-  save.dataset.primary = 'true';
-  save.append(icon(ICON_PLUS, '', '0 0 24 24'), 'Save version');
-  setHint(save, HINTS.saveVersion);
-  save.addEventListener('click', () => DialStore.saveNewPreset(props.panelId));
-  const toggle = element('button', 'dialkit-versions-button');
-  toggle.dataset.icon = 'true';
-  const grid = svg('svg', { viewBox: '0 0 24 24', fill: 'currentColor', 'aria-hidden': 'true' });
-  for (const d of ICON_GRID) grid.append(svg('path', { d }));
-  toggle.append(grid);
-  setHint(toggle, HINTS.allVersions);
-  toggle.addEventListener('click', () => props.onToggleGrid?.());
-  actions.append(save, toggle);
   const strip = element('div', 'dialkit-versions-strip');
   strip.setAttribute('role', 'listbox');
   strip.setAttribute('aria-label', 'Versions');
-  root.append(actions, strip);
+  root.append(strip);
   host.append(root);
   const thumbs = new Map<string, Thumb>();
 
@@ -169,23 +213,15 @@ export function mountVersionPictures(host: HTMLElement, initial: VersionPictures
   };
 
   function render() {
-    const { panelId, gridOpen = false, onToggleGrid } = props;
+    const { panelId, gridOpen = false } = props;
     const versions = listVersions(panelId);
     const activeKey = versionKey(DialStore.getActivePresetId(panelId));
     const editable = DialStore.isPresetsEditable(panelId);
     const lockable = DialStore.isPresetsLockable(panelId);
-    const many = versions.length > 1;
 
-    save.hidden = !editable;
-    // The grid shows the versions it opened with, so saving waits for it to close.
-    save.disabled = gridOpen;
-    toggle.hidden = !(many && onToggleGrid);
-    toggle.setAttribute('aria-pressed', String(gridOpen));
-    toggle.setAttribute('aria-label', `All versions (${versions.length})`);
     root.toggleAttribute('data-overview', gridOpen);
-    actions.hidden = save.hidden && toggle.hidden;
     // Pictures appear once there's something to compare.
-    strip.hidden = !many;
+    strip.hidden = versions.length < 2;
 
     const keys = new Set(versions.map((version) => version.key));
     for (const [key, thumb] of thumbs) {
@@ -239,8 +275,6 @@ export function mountVersionPictures(host: HTMLElement, initial: VersionPictures
       stopReorder();
       thumbs.forEach(removeThumb);
       thumbs.clear();
-      setHint(save, undefined);
-      setHint(toggle, undefined);
       root.remove();
     },
   };
@@ -253,6 +287,8 @@ export type VersionPicturesGridOptions = {
   onClose?: () => void;
   /** Runs the load of a picked version, so a host can load it its own way. */
   selectWith?: (select: () => void) => void;
+  /** Takes over the grid's scroll. See `VersionGridOptions.scroll`. */
+  scroll?: VersionGridOptions['scroll'];
 };
 
 /** Opens the grid of every version, with the same live pictures as the list. */
@@ -269,6 +305,7 @@ export function openVersionPicturesGrid(panelId: string, options: VersionPicture
       if (options.selectWith) options.selectWith(select);
       else select();
     },
+    scroll: options.scroll,
     onRename: (key, name) => renameVersion(panelId, key, name),
     canRename: (key) => key !== BASE_VERSION && DialStore.isPresetsEditable(panelId),
     onClose: () => { stop(); options.onClose?.(); },

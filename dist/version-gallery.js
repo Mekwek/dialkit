@@ -603,6 +603,7 @@ function openVersionGrid(options) {
   let closing = false;
   let animations = [];
   let releases = [];
+  let releaseScroll;
   const { host } = options;
   const overlay = element("div", "dialkit-version-overlay");
   overlay.dataset.theme = options.theme ?? "system";
@@ -752,7 +753,12 @@ function openVersionGrid(options) {
       // superseded by a newer transition
     );
   };
+  const stopScroll = () => {
+    releaseScroll?.();
+    releaseScroll = void 0;
+  };
   const finish = () => {
+    stopScroll();
     window.removeEventListener("keydown", onKey, true);
     window.removeEventListener("resize", onResize);
     if (current === handle) current = null;
@@ -770,6 +776,7 @@ function openVersionGrid(options) {
   const choose = (key, clicked = false) => {
     if (closing) return;
     closing = true;
+    stopScroll();
     overlay.dataset.closing = "true";
     if (clicked || key !== activeKey) {
       options.onSelect(key);
@@ -836,6 +843,7 @@ function openVersionGrid(options) {
     grid.style.removeProperty("--dialkit-card-radius");
     animations.forEach((a) => a.cancel());
     animations = [];
+    releaseScroll = options.scroll?.(scroller, grid);
   });
   focusCard(activeKey, { preventScroll: true });
   const handle = {

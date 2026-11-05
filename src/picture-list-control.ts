@@ -5,7 +5,8 @@ import {
   type PictureFamily, type PictureItem, type PicturesValue,
 } from './pictures';
 import {
-  getPictureHost, getShownPictureFamily, subscribePictureFamily, subscribePictureHost,
+  getActivePictureFamily, getPictureHost, getShownPictureFamily, subscribeActivePictureFamily,
+  subscribePictureFamily, subscribePictureHost,
 } from './store/PictureHost';
 import { setHint } from './hints';
 import { element, icon } from './vanilla/dom';
@@ -270,6 +271,7 @@ export function mountPictureListControl(host: HTMLElement, initial: PictureListC
       entry.row.setAttribute('aria-label', `${family.label}, ${count} ${count === 1 ? 'preset' : 'presets'}`);
       entry.row.setAttribute('aria-expanded', String(isOpen));
       entry.root.toggleAttribute('data-open', isOpen);
+      entry.row.toggleAttribute('data-active', getActivePictureFamily() === family.id);
       setHint(entry.row, family.hint);
       place(root, entry.root, previous);
       previous = entry.root;
@@ -290,6 +292,7 @@ export function mountPictureListControl(host: HTMLElement, initial: PictureListC
     open = knownFamily(getShownPictureFamily()) ?? open;
     render();
   });
+  const unsubscribeActiveFamily = subscribeActivePictureFamily(render);
 
   return {
     update(next: PictureListControlProps) {
@@ -304,6 +307,7 @@ export function mountPictureListControl(host: HTMLElement, initial: PictureListC
       destroyed = true;
       unsubscribeHost();
       unsubscribeFamily();
+      unsubscribeActiveFamily();
       familyById.forEach(entry => {
         entry.animation?.cancel();
         entry.chevronAnimation?.cancel();
