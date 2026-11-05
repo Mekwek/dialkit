@@ -1119,6 +1119,9 @@ var DialStoreClass = class {
   constructor() {
     this.panelOpenListeners = /* @__PURE__ */ new Set();
     this.panelOpenStates = /* @__PURE__ */ new Map();
+    /** The nested folders opened or closed by hand, by panel and path. A folder
+     *  unmounts when its parent closes, so its state lives here. */
+    this.folderOpenStates = /* @__PURE__ */ new Map();
     this.panels = /* @__PURE__ */ new Map();
     this.controlsByPanel = /* @__PURE__ */ new WeakMap();
     this.resetKeysByPanel = /* @__PURE__ */ new WeakMap();
@@ -1288,6 +1291,7 @@ var DialStoreClass = class {
     if (this.resetListeners.get(id)?.size === 0) this.resetListeners.delete(id);
     if (!this.retainedPanels.has(id)) {
       this.panelOpenStates.delete(id);
+      this.folderOpenStates.delete(id);
       this.snapshots.delete(id);
       this.baseValues.delete(id);
       this.baseNames.delete(id);
@@ -1311,6 +1315,19 @@ var DialStoreClass = class {
   }
   togglePanelOpen(panelId) {
     this.setPanelOpen(panelId, !this.isPanelOpen(panelId));
+  }
+  /** Whether a nested folder starts open: as it was left, or `fallback`. */
+  isFolderOpen(panelId, path, fallback) {
+    return this.folderOpenStates.get(panelId)?.get(path) ?? fallback;
+  }
+  /** Keeps a nested folder's state for when the folder shows again. */
+  rememberFolder(panelId, path, open) {
+    let folders = this.folderOpenStates.get(panelId);
+    if (!folders) {
+      folders = /* @__PURE__ */ new Map();
+      this.folderOpenStates.set(panelId, folders);
+    }
+    folders.set(path, open);
   }
   /** Applies a host component's own default; no-op once the panel has state. */
   initPanelOpen(panelId, open) {
@@ -6357,7 +6374,7 @@ function state() {
   const scope = globalThis;
   let current2 = scope[STATE_KEY];
   if (!current2) {
-    current2 = { host: {}, listeners: /* @__PURE__ */ new Set(), family: null, familyListeners: /* @__PURE__ */ new Set(), activeFamily: null, activeFamilyListeners: /* @__PURE__ */ new Set() };
+    current2 = { host: {}, listeners: /* @__PURE__ */ new Set(), family: void 0, familyListeners: /* @__PURE__ */ new Set(), activeFamily: null, activeFamilyListeners: /* @__PURE__ */ new Set() };
     scope[STATE_KEY] = current2;
   }
   return current2;
@@ -6384,6 +6401,12 @@ function showPictureFamily(id) {
 }
 function getShownPictureFamily() {
   return state().family;
+}
+function rememberPictureFamily(id) {
+  state().family = id;
+}
+function forgetPictureFamily() {
+  state().family = void 0;
 }
 function subscribePictureFamily(listener) {
   const listeners = state().familyListeners;
@@ -6446,8 +6469,9 @@ function mountPictureListControl(host, initial) {
   let families = normalizePictureFamilies(props.families);
   let value = normalizePicturesValue(props.value);
   const knownFamily = (id) => families.some((family) => family.id === id) ? id : null;
-  let open = findPictureFamily(families, value) ?? knownFamily(getActivePictureFamily()) ?? knownFamily(getShownPictureFamily());
-  let chosen = false;
+  const left = getShownPictureFamily();
+  let chosen = left === null || knownFamily(left ?? null) !== null;
+  let open = chosen ? left ?? null : findPictureFamily(families, value) ?? knownFamily(getActivePictureFamily());
   const openFirst = () => {
     if (open === null && !chosen) open = findPictureFamily(families, value) ?? knownFamily(getActivePictureFamily());
   };
@@ -6593,6 +6617,7 @@ function mountPictureListControl(host, initial) {
     root.setAttribute("aria-label", props.label);
     setHint(root, props.hint);
     if (open !== null && !families.some((family) => family.id === open)) open = null;
+    if (open !== null || chosen) rememberPictureFamily(open);
     const live = new Set(families.map((family) => family.id));
     for (const [id, entry] of familyById) {
       if (live.has(id)) continue;
@@ -6630,7 +6655,7 @@ function mountPictureListControl(host, initial) {
   }
   render();
   const unsubscribeFamily = subscribePictureFamily(() => {
-    open = knownFamily(getShownPictureFamily()) ?? open;
+    open = knownFamily(getShownPictureFamily() ?? null) ?? open;
     render();
   });
   const unsubscribeActiveFamily = subscribeActivePictureFamily(() => {
@@ -11801,11 +11826,11 @@ var ControlRenderer = defineComponent19({
           return h19(Folder, {
             key: control.path,
             title: control.label,
-            defaultOpen: control.defaultOpen ?? true,
+            defaultOpen: DialStore.isFolderOpen(props.panelId, control.path, control.defaultOpen ?? true),
             hint: control.hint,
             ...resetProps(control),
             open: accordion ? props.openFolder === control.path : void 0,
-            onOpenChange: accordion ? (open) => emit("openFolderChange", open ? control.path : null) : void 0
+            onOpenChange: accordion ? (open) => emit("openFolderChange", open ? control.path : null) : (open) => DialStore.rememberFolder(props.panelId, control.path, open)
           }, { default: () => renderControls(control.children ?? []) });
         }
         case "text":
@@ -11862,7 +11887,8 @@ var ControlRenderer = defineComponent19({
           return h19(Folder, {
             key: control.path,
             title: control.label,
-            defaultOpen: true,
+            defaultOpen: DialStore.isFolderOpen(props.panelId, control.path, true),
+            onOpenChange: (open) => DialStore.rememberFolder(props.panelId, control.path, open),
             hint: control.hint,
             ...resetProps(control)
           }, {
@@ -15598,6 +15624,7 @@ export {
   dragGradientEnd,
   dragGradientWidth,
   findPictureFamily,
+  forgetPictureFamily,
   formatGizmoAngle,
   getActivePictureFamily,
   getBackgroundHost,

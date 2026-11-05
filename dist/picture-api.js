@@ -49,7 +49,7 @@ function state() {
   const scope = globalThis;
   let current = scope[STATE_KEY];
   if (!current) {
-    current = { host: {}, listeners: /* @__PURE__ */ new Set(), family: null, familyListeners: /* @__PURE__ */ new Set(), activeFamily: null, activeFamilyListeners: /* @__PURE__ */ new Set() };
+    current = { host: {}, listeners: /* @__PURE__ */ new Set(), family: void 0, familyListeners: /* @__PURE__ */ new Set(), activeFamily: null, activeFamilyListeners: /* @__PURE__ */ new Set() };
     scope[STATE_KEY] = current;
   }
   return current;
@@ -77,6 +77,9 @@ function showPictureFamily(id) {
 function getShownPictureFamily() {
   return state().family;
 }
+function forgetPictureFamily() {
+  state().family = void 0;
+}
 function subscribePictureFamily(listener) {
   const listeners = state().familyListeners;
   listeners.add(listener);
@@ -102,6 +105,7 @@ function subscribeActivePictureFamily(listener) {
 }
 export {
   findPictureFamily,
+  forgetPictureFamily,
   getActivePictureFamily,
   getPictureHost,
   getShownPictureFamily,

@@ -121,12 +121,12 @@
 {:else if control.type === 'folder'}
   <Folder
     title={control.label}
-    defaultOpen={control.defaultOpen ?? true}
+    defaultOpen={DialStore.isFolderOpen(panelId, control.path, control.defaultOpen ?? true)}
     hint={control.hint}
     {onReset}
     {changed}
     open={accordion ? openFolder === control.path : undefined}
-    onOpenChange={accordion ? (open) => onOpenFolderChange?.(open ? control.path : null) : undefined}
+    onOpenChange={accordion ? (open) => onOpenFolderChange?.(open ? control.path : null) : (open) => DialStore.rememberFolder(panelId, control.path, open)}
   >
     {#if animateControls}
       {#each control.children ?? [] as child (child.path)}
@@ -201,7 +201,7 @@
     onPick={(id) => DialStore.triggerAction(panelId, pictureAction(control.path, id))}
   />
 {:else if control.type === 'background'}
-  <Folder title={control.label} defaultOpen={true} hint={control.hint} {onReset} {changed}>
+  <Folder title={control.label} defaultOpen={DialStore.isFolderOpen(panelId, control.path, true)} onOpenChange={(open) => DialStore.rememberFolder(panelId, control.path, open)} hint={control.hint} {onReset} {changed}>
     <BackgroundControl
       {panelId}
       label={control.label}

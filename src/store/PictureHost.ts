@@ -29,8 +29,8 @@ type Listener = () => void;
 type PictureHostState = {
   host: PictureHost;
   listeners: Set<Listener>;
-  /** The last family `showPictureFamily` named. */
-  family: string | null;
+  /** The family left open, null with all closed, undefined until one opens. */
+  family: string | null | undefined;
   familyListeners: Set<Listener>;
   /** The family `setActivePictureFamily` named. */
   activeFamily: string | null;
@@ -48,7 +48,7 @@ function state(): PictureHostState {
   const scope = globalThis as unknown as Record<symbol, PictureHostState | undefined>;
   let current = scope[STATE_KEY];
   if (!current) {
-    current = { host: {}, listeners: new Set(), family: null, familyListeners: new Set(), activeFamily: null, activeFamilyListeners: new Set() };
+    current = { host: {}, listeners: new Set(), family: undefined, familyListeners: new Set(), activeFamily: null, activeFamilyListeners: new Set() };
     scope[STATE_KEY] = current;
   }
   return current;
@@ -84,8 +84,23 @@ export function showPictureFamily(id: string): void {
   current.familyListeners.forEach(listener => listener());
 }
 
-export function getShownPictureFamily(): string | null {
+/** The family left open, null with all closed, undefined until one opens. */
+export function getShownPictureFamily(): string | null | undefined {
   return state().family;
+}
+
+/**
+ * Keeps the family a control has open, or null with all closed. A control
+ * mounted later starts from it, so a control that unmounts comes back as it
+ * was. It tells no control to open anything.
+ */
+export function rememberPictureFamily(id: string | null): void {
+  state().family = id;
+}
+
+/** Forgets the open family, for a host that shows something new, such as another board. */
+export function forgetPictureFamily(): void {
+  state().family = undefined;
 }
 
 /** Calls `listener` on every `showPictureFamily`. Returns the unsubscribe. */

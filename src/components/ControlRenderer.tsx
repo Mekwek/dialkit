@@ -226,12 +226,12 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration,
           <Folder
             key={control.path}
             title={control.label}
-            defaultOpen={control.defaultOpen ?? true}
+            defaultOpen={DialStore.isFolderOpen(panelId, control.path, control.defaultOpen ?? true)}
             hint={control.hint ?? only?.hint}
             {...resetProps(control.reset || !only ? control : only)}
             actions={only ? <TransitionCopyMenu panelId={panelId} path={only.path} value={values[only.path] as TransitionConfig} /> : undefined}
             open={accordion ? openFolder === control.path : undefined}
-            onOpenChange={accordion ? (open) => onOpenFolderChange?.(open ? control.path : null) : undefined}
+            onOpenChange={accordion ? (open) => onOpenFolderChange?.(open ? control.path : null) : (open) => DialStore.rememberFolder(panelId, control.path, open)}
           >
             {renderControls(rows, false, only)}
           </Folder>
@@ -345,7 +345,7 @@ export function ControlRenderer({ panelId, controls, values, transitionDuration,
 
       case 'background':
         return (
-          <Folder key={control.path} title={control.label} defaultOpen={true} hint={control.hint} {...resetProps(control)}>
+          <Folder key={control.path} title={control.label} defaultOpen={DialStore.isFolderOpen(panelId, control.path, true)} onOpenChange={(open) => DialStore.rememberFolder(panelId, control.path, open)} hint={control.hint} {...resetProps(control)}>
             <BackgroundControl
               panelId={panelId}
               label={control.label}

@@ -4,7 +4,7 @@ import {
   findPictureFamily, normalizePictureFamilies, normalizePicturesValue, parsePictureAction, pictureAction,
 } from './pictures';
 import {
-  getPictureHost, getShownPictureFamily, setPictureHost, showPictureFamily, subscribePictureFamily, subscribePictureHost,
+  forgetPictureFamily, getPictureHost, getShownPictureFamily, rememberPictureFamily, setPictureHost, showPictureFamily, subscribePictureFamily, subscribePictureHost,
 } from './store/PictureHost';
 import { DialStore, resolveDialValues, type DialConfig } from './store/DialStore';
 
@@ -19,6 +19,21 @@ describe('showPictureFamily', () => {
     stop();
     showPictureFamily('grid');
     assert.equal(calls, 2);
+  });
+});
+
+describe('rememberPictureFamily', () => {
+  it('keeps the family or null with no call to the listeners, and forgets it', () => {
+    let calls = 0;
+    const stop = subscribePictureFamily(() => { calls += 1; });
+    rememberPictureFamily('path');
+    assert.equal(getShownPictureFamily(), 'path');
+    rememberPictureFamily(null);
+    assert.equal(getShownPictureFamily(), null);
+    forgetPictureFamily();
+    assert.equal(getShownPictureFamily(), undefined);
+    assert.equal(calls, 0);
+    stop();
   });
 });
 

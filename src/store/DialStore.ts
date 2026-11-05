@@ -774,6 +774,9 @@ function parsedConfigKey(config: DialConfig, shortcuts?: Record<string, Shortcut
 class DialStoreClass {
   private panelOpenListeners = new Set<(panelId: string, open: boolean) => void>();
   private panelOpenStates = new Map<string, boolean>();
+  /** The nested folders opened or closed by hand, by panel and path. A folder
+   *  unmounts when its parent closes, so its state lives here. */
+  private folderOpenStates = new Map<string, Map<string, boolean>>();
   private panels: Map<string, PanelConfig> = new Map();
   private controlsByPanel = new WeakMap<PanelConfig, Map<string, ControlMeta>>();
   private resetKeysByPanel = new WeakMap<PanelConfig, Map<string, string[]>>();
@@ -962,6 +965,7 @@ class DialStoreClass {
 
     if (!this.retainedPanels.has(id)) {
       this.panelOpenStates.delete(id);
+      this.folderOpenStates.delete(id);
       this.snapshots.delete(id);
       this.baseValues.delete(id);
       this.baseNames.delete(id);
@@ -989,6 +993,21 @@ class DialStoreClass {
 
   togglePanelOpen(panelId: string): void {
     this.setPanelOpen(panelId, !this.isPanelOpen(panelId));
+  }
+
+  /** Whether a nested folder starts open: as it was left, or `fallback`. */
+  isFolderOpen(panelId: string, path: string, fallback: boolean): boolean {
+    return this.folderOpenStates.get(panelId)?.get(path) ?? fallback;
+  }
+
+  /** Keeps a nested folder's state for when the folder shows again. */
+  rememberFolder(panelId: string, path: string, open: boolean): void {
+    let folders = this.folderOpenStates.get(panelId);
+    if (!folders) {
+      folders = new Map();
+      this.folderOpenStates.set(panelId, folders);
+    }
+    folders.set(path, open);
   }
 
   /** Applies a host component's own default; no-op once the panel has state. */

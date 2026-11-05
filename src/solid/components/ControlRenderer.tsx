@@ -201,11 +201,11 @@ export function ControlRenderer(props: ControlRendererProps) {
         return (
           <Folder
             title={control.label}
-            defaultOpen={control.defaultOpen ?? true}
+            defaultOpen={DialStore.isFolderOpen(props.panelId, control.path, control.defaultOpen ?? true)}
             hint={control.hint}
             {...reset}
             open={accordion() ? props.openFolder === control.path : undefined}
-            onOpenChange={accordion() ? (open) => props.onOpenFolderChange?.(open ? control.path : null) : undefined}
+            onOpenChange={accordion() ? (open) => props.onOpenFolderChange?.(open ? control.path : null) : (open) => DialStore.rememberFolder(props.panelId, control.path, open)}
           >
             {renderControls(children)}
           </Folder>
@@ -287,7 +287,7 @@ export function ControlRenderer(props: ControlRendererProps) {
         );
       case 'background':
         return (
-          <Folder title={control.label} defaultOpen={true} hint={control.hint} {...reset}>
+          <Folder title={control.label} defaultOpen={DialStore.isFolderOpen(props.panelId, control.path, true)} onOpenChange={(open) => DialStore.rememberFolder(props.panelId, control.path, open)} hint={control.hint} {...reset}>
             <BackgroundControl
               panelId={props.panelId}
               label={control.label}

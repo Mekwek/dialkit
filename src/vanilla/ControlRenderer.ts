@@ -80,8 +80,10 @@ export function mountControlRenderer(host: HTMLElement, initial: ControlRenderer
         // Accordion mode controls top-level folders; nested folders keep their own state.
         const open = () => topLevel && props.openFolder !== undefined ? props.openFolder === control.path : undefined;
         const folderProps = () => ({
-          title: control.label, defaultOpen: control.defaultOpen, hint: control.hint, open: open(),
-          onOpenChange: open() === undefined ? undefined : (next: boolean) => props.onOpenFolderChange?.(next ? control.path : null),
+          title: control.label, defaultOpen: DialStore.isFolderOpen(props.panelId, control.path, control.defaultOpen ?? true), hint: control.hint, open: open(),
+          onOpenChange: open() === undefined
+            ? (next: boolean) => DialStore.rememberFolder(props.panelId, control.path, next)
+            : (next: boolean) => props.onOpenFolderChange?.(next ? control.path : null),
           ...resetProps(control),
         });
         const folder = mountFolder(target, folderProps());

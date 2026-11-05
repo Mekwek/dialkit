@@ -568,6 +568,9 @@ declare function inferStep(min: number, max: number): number;
 declare class DialStoreClass {
     private panelOpenListeners;
     private panelOpenStates;
+    /** The nested folders opened or closed by hand, by panel and path. A folder
+     *  unmounts when its parent closes, so its state lives here. */
+    private folderOpenStates;
     private panels;
     private controlsByPanel;
     private resetKeysByPanel;
@@ -616,6 +619,10 @@ declare class DialStoreClass {
     getPanelOpen(panelId: string): boolean | undefined;
     isPanelOpen(panelId: string): boolean;
     togglePanelOpen(panelId: string): void;
+    /** Whether a nested folder starts open: as it was left, or `fallback`. */
+    isFolderOpen(panelId: string, path: string, fallback: boolean): boolean;
+    /** Keeps a nested folder's state for when the folder shows again. */
+    rememberFolder(panelId: string, path: string, open: boolean): void;
     /** Applies a host component's own default; no-op once the panel has state. */
     initPanelOpen(panelId: string, open: boolean): void;
     /** Observe open requests so a containing toolkit can reveal its requested panel. */

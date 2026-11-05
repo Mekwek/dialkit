@@ -116,7 +116,7 @@ function state() {
   const scope = globalThis;
   let current = scope[STATE_KEY];
   if (!current) {
-    current = { host: {}, listeners: /* @__PURE__ */ new Set(), family: null, familyListeners: /* @__PURE__ */ new Set(), activeFamily: null, activeFamilyListeners: /* @__PURE__ */ new Set() };
+    current = { host: {}, listeners: /* @__PURE__ */ new Set(), family: void 0, familyListeners: /* @__PURE__ */ new Set(), activeFamily: null, activeFamilyListeners: /* @__PURE__ */ new Set() };
     scope[STATE_KEY] = current;
   }
   return current;
@@ -133,6 +133,9 @@ function subscribePictureHost(listener) {
 }
 function getShownPictureFamily() {
   return state().family;
+}
+function rememberPictureFamily(id) {
+  state().family = id;
 }
 function subscribePictureFamily(listener) {
   const listeners = state().familyListeners;
@@ -192,8 +195,9 @@ function mountPictureListControl(host, initial) {
   let families = normalizePictureFamilies(props.families);
   let value = normalizePicturesValue(props.value);
   const knownFamily = (id) => families.some((family) => family.id === id) ? id : null;
-  let open = findPictureFamily(families, value) ?? knownFamily(getActivePictureFamily()) ?? knownFamily(getShownPictureFamily());
-  let chosen = false;
+  const left = getShownPictureFamily();
+  let chosen = left === null || knownFamily(left ?? null) !== null;
+  let open = chosen ? left ?? null : findPictureFamily(families, value) ?? knownFamily(getActivePictureFamily());
   const openFirst = () => {
     if (open === null && !chosen) open = findPictureFamily(families, value) ?? knownFamily(getActivePictureFamily());
   };
@@ -339,6 +343,7 @@ function mountPictureListControl(host, initial) {
     root.setAttribute("aria-label", props.label);
     setHint(root, props.hint);
     if (open !== null && !families.some((family) => family.id === open)) open = null;
+    if (open !== null || chosen) rememberPictureFamily(open);
     const live = new Set(families.map((family) => family.id));
     for (const [id, entry] of familyById) {
       if (live.has(id)) continue;
@@ -376,7 +381,7 @@ function mountPictureListControl(host, initial) {
   }
   render();
   const unsubscribeFamily = subscribePictureFamily(() => {
-    open = knownFamily(getShownPictureFamily()) ?? open;
+    open = knownFamily(getShownPictureFamily() ?? null) ?? open;
     render();
   });
   const unsubscribeActiveFamily = subscribeActivePictureFamily(() => {

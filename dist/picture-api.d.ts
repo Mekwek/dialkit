@@ -41,7 +41,10 @@ declare function subscribePictureHost(listener: Listener): () => void;
  * also closes a family the user opened since.
  */
 declare function showPictureFamily(id: string): void;
-declare function getShownPictureFamily(): string | null;
+/** The family left open, null with all closed, undefined until one opens. */
+declare function getShownPictureFamily(): string | null | undefined;
+/** Forgets the open family, for a host that shows something new, such as another board. */
+declare function forgetPictureFamily(): void;
 /** Calls `listener` on every `showPictureFamily`. Returns the unsubscribe. */
 declare function subscribePictureFamily(listener: Listener): () => void;
 /**
@@ -54,4 +57,4 @@ declare function getActivePictureFamily(): string | null;
 /** Calls `listener` when the marked family changes. Returns the unsubscribe. */
 declare function subscribeActivePictureFamily(listener: Listener): () => void;
 
-export { type PictureHost, type PictureParts, getActivePictureFamily, getPictureHost, getShownPictureFamily, setActivePictureFamily, setPictureHost, showPictureFamily, subscribeActivePictureFamily, subscribePictureFamily, subscribePictureHost };
+export { type PictureHost, type PictureParts, forgetPictureFamily, getActivePictureFamily, getPictureHost, getShownPictureFamily, setActivePictureFamily, setPictureHost, showPictureFamily, subscribeActivePictureFamily, subscribePictureFamily, subscribePictureHost };

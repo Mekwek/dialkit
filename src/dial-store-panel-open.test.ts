@@ -2,6 +2,23 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { DialStore } from './store/DialStore';
 
+describe('DialStore nested folder state', () => {
+  it('keeps a folder as it was left, and forgets it with the panel', () => {
+    const id = 'folder-memory';
+    DialStore.registerPanel(id, id, { size: 1 });
+    assert.equal(DialStore.isFolderOpen(id, 'a.b', false), false);
+    assert.equal(DialStore.isFolderOpen(id, 'a.b', true), true);
+
+    DialStore.rememberFolder(id, 'a.b', true);
+    assert.equal(DialStore.isFolderOpen(id, 'a.b', false), true);
+    DialStore.rememberFolder(id, 'a.b', false);
+    assert.equal(DialStore.isFolderOpen(id, 'a.b', true), false);
+
+    DialStore.unregisterPanel(id);
+    assert.equal(DialStore.isFolderOpen(id, 'a.b', true), true);
+  });
+});
+
 describe('DialStore panel open state', () => {
   it('starts collapsed when the panel registers with defaultCollapsed: true', () => {
     const id = 'open-collapsed';

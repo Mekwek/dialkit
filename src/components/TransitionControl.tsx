@@ -202,7 +202,7 @@ export function TransitionControl({
         )}
         {durationSlider}
 
-        <Folder title="Presets" defaultOpen={false} hint={TRANSITION_HINTS.presets} meta={transitionPresetName(isEasing ? easing : spring, mode, savedPresets)}>
+        <Folder title="Presets" defaultOpen={DialStore.isFolderOpen(panelId, `${path}.presets`, false)} onOpenChange={(open) => DialStore.rememberFolder(panelId, `${path}.presets`, open)} hint={TRANSITION_HINTS.presets} meta={transitionPresetName(isEasing ? easing : spring, mode, savedPresets)}>
           <TransitionPresets mode={mode} value={isEasing ? easing : spring} onChange={onChange} />
         </Folder>
       </div>
@@ -210,7 +210,7 @@ export function TransitionControl({
 
   if (bare) return body;
   return (
-    <Folder title={label} defaultOpen={true} hint={hint} onReset={onReset} changed={changed} actions={<TransitionCopy mode={mode} value={isEasing ? easing : spring} onPaste={handlePaste} />}>
+    <Folder title={label} defaultOpen={DialStore.isFolderOpen(panelId, path, true)} onOpenChange={(open) => DialStore.rememberFolder(panelId, path, open)} hint={hint} onReset={onReset} changed={changed} actions={<TransitionCopy mode={mode} value={isEasing ? easing : spring} onPaste={handlePaste} />}>
       {body}
     </Folder>
   );

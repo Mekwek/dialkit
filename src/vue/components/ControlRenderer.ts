@@ -137,11 +137,13 @@ export const ControlRenderer = defineComponent({
           return h(Folder, {
             key: control.path,
             title: control.label,
-            defaultOpen: control.defaultOpen ?? true,
+            defaultOpen: DialStore.isFolderOpen(props.panelId, control.path, control.defaultOpen ?? true),
             hint: control.hint,
             ...resetProps(control),
             open: accordion ? props.openFolder === control.path : undefined,
-            onOpenChange: accordion ? (open: boolean) => emit('openFolderChange', open ? control.path : null) : undefined,
+            onOpenChange: accordion
+              ? (open: boolean) => emit('openFolderChange', open ? control.path : null)
+              : (open: boolean) => DialStore.rememberFolder(props.panelId, control.path, open),
           }, { default: () => renderControls(control.children ?? []) });
         }
         case 'text':
@@ -198,7 +200,8 @@ export const ControlRenderer = defineComponent({
           return h(Folder, {
             key: control.path,
             title: control.label,
-            defaultOpen: true,
+            defaultOpen: DialStore.isFolderOpen(props.panelId, control.path, true),
+            onOpenChange: (open: boolean) => DialStore.rememberFolder(props.panelId, control.path, open),
             hint: control.hint,
             ...resetProps(control),
           }, {

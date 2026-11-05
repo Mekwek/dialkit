@@ -617,6 +617,9 @@ var DialStoreClass = class {
   constructor() {
     this.panelOpenListeners = /* @__PURE__ */ new Set();
     this.panelOpenStates = /* @__PURE__ */ new Map();
+    /** The nested folders opened or closed by hand, by panel and path. A folder
+     *  unmounts when its parent closes, so its state lives here. */
+    this.folderOpenStates = /* @__PURE__ */ new Map();
     this.panels = /* @__PURE__ */ new Map();
     this.controlsByPanel = /* @__PURE__ */ new WeakMap();
     this.resetKeysByPanel = /* @__PURE__ */ new WeakMap();
@@ -786,6 +789,7 @@ var DialStoreClass = class {
     if (this.resetListeners.get(id)?.size === 0) this.resetListeners.delete(id);
     if (!this.retainedPanels.has(id)) {
       this.panelOpenStates.delete(id);
+      this.folderOpenStates.delete(id);
       this.snapshots.delete(id);
       this.baseValues.delete(id);
       this.baseNames.delete(id);
@@ -809,6 +813,19 @@ var DialStoreClass = class {
   }
   togglePanelOpen(panelId) {
     this.setPanelOpen(panelId, !this.isPanelOpen(panelId));
+  }
+  /** Whether a nested folder starts open: as it was left, or `fallback`. */
+  isFolderOpen(panelId, path, fallback) {
+    return this.folderOpenStates.get(panelId)?.get(path) ?? fallback;
+  }
+  /** Keeps a nested folder's state for when the folder shows again. */
+  rememberFolder(panelId, path, open) {
+    let folders = this.folderOpenStates.get(panelId);
+    if (!folders) {
+      folders = /* @__PURE__ */ new Map();
+      this.folderOpenStates.set(panelId, folders);
+    }
+    folders.set(path, open);
   }
   /** Applies a host component's own default; no-op once the panel has state. */
   initPanelOpen(panelId, open) {

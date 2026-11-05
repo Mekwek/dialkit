@@ -5,8 +5,8 @@ import {
   type PictureFamily, type PictureItem, type PicturesValue,
 } from './pictures';
 import {
-  getActivePictureFamily, getPictureHost, getShownPictureFamily, subscribeActivePictureFamily,
-  subscribePictureFamily, subscribePictureHost,
+  getActivePictureFamily, getPictureHost, getShownPictureFamily, rememberPictureFamily,
+  subscribeActivePictureFamily, subscribePictureFamily, subscribePictureHost,
 } from './store/PictureHost';
 import { setHint } from './hints';
 import { element, icon } from './vanilla/dom';
@@ -75,7 +75,8 @@ function place(parent: HTMLElement, node: HTMLElement, previous: HTMLElement | n
  * selection arrives later, unless the user opened or closed a family
  * first. With no selection, the active family opens. After that the open
  * family is the user's and the host's (`showPictureFamily`): a new value or
- * a new active family never opens or closes one.
+ * a new active family never opens or closes one. A control that unmounts
+ * comes back with the family it had open (`rememberPictureFamily`).
  *
  * The control is controlled. A tile click calls `onPick`; only `value` moves
  * the selected mark. The picture box of every shown tile goes to the picture
@@ -87,9 +88,10 @@ export function mountPictureListControl(host: HTMLElement, initial: PictureListC
   let families = normalizePictureFamilies(props.families);
   let value = normalizePicturesValue(props.value);
   const knownFamily = (id: string | null) => (families.some(family => family.id === id) ? id : null);
-  let open = findPictureFamily(families, value) ?? knownFamily(getActivePictureFamily()) ?? knownFamily(getShownPictureFamily());
-  /** The user opened or closed a family: nothing opens one by itself now. */
-  let chosen = false;
+  const left = getShownPictureFamily();
+  /** A family was opened or closed: nothing opens one by itself now. */
+  let chosen = left === null || knownFamily(left ?? null) !== null;
+  let open = chosen ? left ?? null : findPictureFamily(families, value) ?? knownFamily(getActivePictureFamily());
   const openFirst = () => {
     if (open === null && !chosen) open = findPictureFamily(families, value) ?? knownFamily(getActivePictureFamily());
   };
@@ -253,6 +255,7 @@ export function mountPictureListControl(host: HTMLElement, initial: PictureListC
     root.setAttribute('aria-label', props.label);
     setHint(root, props.hint);
     if (open !== null && !families.some(family => family.id === open)) open = null;
+    if (open !== null || chosen) rememberPictureFamily(open);
 
     const live = new Set(families.map(family => family.id));
     for (const [id, entry] of familyById) {
@@ -296,7 +299,7 @@ export function mountPictureListControl(host: HTMLElement, initial: PictureListC
   render();
 
   const unsubscribeFamily = subscribePictureFamily(() => {
-    open = knownFamily(getShownPictureFamily()) ?? open;
+    open = knownFamily(getShownPictureFamily() ?? null) ?? open;
     render();
   });
   const unsubscribeActiveFamily = subscribeActivePictureFamily(() => {
