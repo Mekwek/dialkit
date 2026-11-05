@@ -97,9 +97,8 @@ export function mountVersionPictures(host: HTMLElement, initial: VersionPictures
     setHint(node, HINTS.version);
     const frame = element('button', 'dialkit-version-thumb-frame');
     frame.setAttribute('role', 'option');
-    frame.addEventListener('click', () => {
-      if (key !== versionKey(DialStore.getActivePresetId(props.panelId))) selectVersion(props.panelId, key);
-    });
+    // A click on the active version selects it again, so a host can act on it.
+    frame.addEventListener('click', () => selectVersion(props.panelId, key));
     const picture = element('div', 'dialkit-version-thumb-picture');
     frame.append(picture);
     const label = element('span', 'dialkit-version-thumb-label');

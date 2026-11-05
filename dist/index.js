@@ -12057,7 +12057,7 @@ function openVersionGrid(options) {
         label.addEventListener("dblclick", () => editLabel(version.key, label, frame));
       }
       card.append(frame, label);
-      frame.addEventListener("click", () => choose(version.key));
+      frame.addEventListener("click", () => choose(version.key, true));
       frame.addEventListener("focus", () => {
         focusKey = version.key;
       });
@@ -12171,11 +12171,11 @@ function openVersionGrid(options) {
     };
     options.onClose?.();
   };
-  const choose = (key) => {
+  const choose = (key, clicked = false) => {
     if (closing) return;
     closing = true;
     overlay.dataset.closing = "true";
-    if (key !== activeKey) {
+    if (clicked || key !== activeKey) {
       options.onSelect(key);
       activeKey = key;
     }
@@ -16499,9 +16499,7 @@ function mountVersionPictures(host, initial) {
     setHint(node, HINTS.version);
     const frame = element9("button", "dialkit-version-thumb-frame");
     frame.setAttribute("role", "option");
-    frame.addEventListener("click", () => {
-      if (key !== versionKey(DialStore.getActivePresetId(props.panelId))) selectVersion(props.panelId, key);
-    });
+    frame.addEventListener("click", () => selectVersion(props.panelId, key));
     const picture = element9("div", "dialkit-version-thumb-picture");
     frame.append(picture);
     const label = element9("span", "dialkit-version-thumb-label");

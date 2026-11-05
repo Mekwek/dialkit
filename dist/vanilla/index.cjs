@@ -10946,7 +10946,7 @@ function openVersionGrid(options) {
         label.addEventListener("dblclick", () => editLabel(version.key, label, frame));
       }
       card.append(frame, label);
-      frame.addEventListener("click", () => choose(version.key));
+      frame.addEventListener("click", () => choose(version.key, true));
       frame.addEventListener("focus", () => {
         focusKey = version.key;
       });
@@ -11060,11 +11060,11 @@ function openVersionGrid(options) {
     };
     options.onClose?.();
   };
-  const choose = (key) => {
+  const choose = (key, clicked = false) => {
     if (closing) return;
     closing = true;
     overlay.dataset.closing = "true";
-    if (key !== activeKey) {
+    if (clicked || key !== activeKey) {
       options.onSelect(key);
       activeKey = key;
     }

@@ -124,7 +124,7 @@ export function openVersionGrid(options: VersionGridOptions): VersionGridHandle 
         label.addEventListener('dblclick', () => editLabel(version.key, label, frame));
       }
       card.append(frame, label);
-      frame.addEventListener('click', () => choose(version.key));
+      frame.addEventListener('click', () => choose(version.key, true));
       frame.addEventListener('focus', () => { focusKey = version.key; });
       cards.set(version.key, card);
       grid.append(card);
@@ -239,11 +239,13 @@ export function openVersionGrid(options: VersionGridOptions): VersionGridHandle 
     options.onClose?.();
   };
 
-  const choose = (key: string) => {
+  // A click on a card always selects, also on the active card. Closing the
+  // grid selects only when the version changes.
+  const choose = (key: string, clicked = false) => {
     if (closing) return;
     closing = true;
     overlay.dataset.closing = 'true';
-    if (key !== activeKey) {
+    if (clicked || key !== activeKey) {
       options.onSelect(key);
       activeKey = key;
     }
