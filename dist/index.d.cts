@@ -1716,11 +1716,12 @@ declare function getActivePictureFamily(): string | null;
 declare function subscribeActivePictureFamily(listener: Listener$2): () => void;
 
 /**
- * Marks `scroller` with `data-above` while content sits above its view, and
- * with `data-below` while content sits below it, for the `.dialkit-edge-fade`
- * class. Follows the scroll, and the scroller and its children as they resize
- * or change. While `paused` answers true the marks stay as they are: a zoom
- * inflates the scroll height. Returns the stop.
+ * Keeps two distances on `scroller` for the `.dialkit-edge-fade` class:
+ * `--dial-edge-above` is how far the content reaches above the view, and
+ * `--dial-edge-below` how far it reaches below. Follows the scroll, and the
+ * scroller and its children as they resize or change. While `paused` answers
+ * true the distances stay as they are: a zoom inflates the scroll height.
+ * Returns the stop.
  */
 declare function observeScrollEdges(scroller: HTMLElement, paused?: () => boolean): () => void;
 

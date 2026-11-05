@@ -4613,7 +4613,7 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 
 /* The grid's fade grows and shrinks with the zoom, on the same scene value. */
 .dialkit-version-overlay-scroll {
-  --dial-edge-fade: calc(96px * var(--dialkit-scene, 1));
+  --dial-edge-fade: calc(48px * var(--dialkit-scene, 1));
 }
 
 .dialkit-folder[data-version-overview] .dialkit-toolbar-add[data-wide="true"] {
