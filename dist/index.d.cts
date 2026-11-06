@@ -1364,7 +1364,12 @@ declare const DialTimeline: react.NamedExoticComponent<DialTimelineProps>;
 interface ControlRendererProps {
     panelId: string;
     controls: ControlMeta[];
-    values: Record<string, DialValue>;
+    /**
+     * Values to draw in place of the store's, such as a timeline clip's. Without
+     * them each row reads its own value from the store, so a write redraws only
+     * the rows it changes.
+     */
+    values?: Record<string, DialValue>;
     /** Optional timeline-owned duration rendered inside the transition editor. */
     transitionDuration?: {
         value: number;

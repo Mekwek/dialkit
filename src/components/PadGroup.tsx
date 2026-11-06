@@ -1,12 +1,14 @@
 import { DialStore } from '../store/DialStore';
 import type { ControlMeta, DialValue } from '../store/DialStore';
 import type { DialPadAxis } from '../dial-pad';
+import { usePanelValues } from '../hooks/usePanelValues';
 import { DialPad } from './DialPad';
 
 interface PadGroupProps {
   panelId: string;
   control: ControlMeta;
-  values: Record<string, DialValue>;
+  /** Values to draw in place of the store's. */
+  values?: Record<string, DialValue>;
 }
 
 /**
@@ -15,6 +17,7 @@ interface PadGroupProps {
  * restores them as two plain values.
  */
 export function PadGroup({ panelId, control, values }: PadGroupProps) {
+  const stored = usePanelValues(values ? undefined : panelId);
   const [x, y] = (control.children ?? []).filter((child) => child.type === 'slider');
   if (!x || !y) return null;
   const options = control.padGroup ?? {};
@@ -27,7 +30,7 @@ export function PadGroup({ panelId, control, values }: PadGroupProps) {
     return [typeof reset === 'number' ? reset : min, min, max, child.step];
   };
   const current = (child: ControlMeta) => {
-    const value = values[child.path];
+    const value = (values ?? stored)[child.path];
     return typeof value === 'number' ? value : (child.min ?? 0);
   };
 

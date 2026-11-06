@@ -1,5 +1,6 @@
-import { useCallback, useSyncExternalStore, type ReactNode } from 'react';
-import { DialStore, type ControlMeta, type DialValue, type TransitionConfig } from '../store/DialStore';
+import type { ReactNode } from 'react';
+import { DialStore, type ControlMeta, type TransitionConfig } from '../store/DialStore';
+import { useControlValue, useFolderChanged } from '../hooks/usePanelValues';
 import { ControlRenderer, loneTransition } from './ControlRenderer';
 import { Folder } from './Folder';
 import { TransitionControl } from './TransitionControl';
@@ -35,29 +36,6 @@ export interface SectionProps {
   children?: ReactNode;
 }
 
-const EMPTY: Record<string, DialValue> = Object.freeze({}) as Record<string, DialValue>;
-const noSubscription = () => () => {};
-const noValues = () => EMPTY;
-
-function usePanelValues(panelId: string | undefined): Record<string, DialValue> {
-  const subscribe = useCallback(
-    (callback: () => void) => DialStore.subscribe(panelId!, callback),
-    [panelId]
-  );
-  const getValues = useCallback(() => DialStore.getValues(panelId!), [panelId]);
-  return useSyncExternalStore(
-    panelId === undefined ? noSubscription : subscribe,
-    panelId === undefined ? noValues : getValues,
-    panelId === undefined ? noValues : getValues
-  );
-}
-
-/** Rows of one panel next to each other, drawn as that panel draws its rows. */
-function SectionRun({ panelId, controls, animateControls }: { panelId: string; controls: ControlMeta[]; animateControls: boolean }) {
-  const values = usePanelValues(panelId);
-  return <ControlRenderer panelId={panelId} controls={controls} values={values} animateControls={animateControls} />;
-}
-
 /**
  * A folder of rows the host picks, possibly from several panels, drawn with
  * the rules of a panel's own folders: a section whose only row is a
@@ -81,9 +59,9 @@ export function Section({
 }: SectionProps) {
   const only = loneTransition(rows.map((row) => row.control));
   const lone = only ? rows[0] : undefined;
-  // Only a lone transition reads values here: its copy menu and its reset.
-  const loneValues = usePanelValues(lone?.panelId);
-  const loneValue = lone ? loneValues[lone.control.path] as TransitionConfig | undefined : undefined;
+  // Only a lone transition reads the store here: its copy menu and its reset.
+  const loneValue = useControlValue(lone?.panelId, lone?.control.path) as TransitionConfig | undefined;
+  const loneChanged = useFolderChanged(lone?.panelId, onReset ? undefined : lone?.control.path);
 
   // Each run of rows from one panel keeps its key while its rows come and go.
   const runs: { key: string; panelId: string; controls: ControlMeta[] }[] = [];
@@ -104,7 +82,7 @@ export function Section({
     : lone
       ? {
           onReset: () => DialStore.resetFolder(lone.panelId, lone.control.path),
-          changed: DialStore.isFolderChanged(lone.panelId, lone.control.path),
+          changed: loneChanged,
         }
       : {};
   const copyMenu = lone && loneValue
@@ -136,7 +114,7 @@ export function Section({
     >
       {loneControl && (animateControls ? <div className="dialkit-control-wrapper">{loneControl}</div> : loneControl)}
       {runs.map((run) => (
-        <SectionRun key={run.key} panelId={run.panelId} controls={run.controls} animateControls={animateControls} />
+        <ControlRenderer key={run.key} panelId={run.panelId} controls={run.controls} animateControls={animateControls} />
       ))}
       {children}
     </Folder>

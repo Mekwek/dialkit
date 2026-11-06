@@ -2441,7 +2441,7 @@ function useDialKitController(name, config, options) {
 }
 
 // src/components/DialRoot.tsx
-import { useEffect as useEffect22, useState as useState10, useRef as useRef25, useCallback as useCallback13, useMemo as useMemo2 } from "react";
+import { useEffect as useEffect22, useState as useState10, useRef as useRef25, useCallback as useCallback14, useMemo as useMemo2 } from "react";
 import { createPortal as createPortal3 } from "react-dom";
 
 // src/store/TimelineStore.ts
@@ -3641,7 +3641,7 @@ function Folder({ title, children, open, defaultOpen = true, isRoot = false, inl
 }
 
 // src/components/Panel.tsx
-import { useCallback as useCallback11, useEffect as useEffect21, useRef as useRef24, useState as useState9, useSyncExternalStore as useSyncExternalStore6 } from "react";
+import { useCallback as useCallback12, useEffect as useEffect21, useRef as useRef24, useState as useState9, useSyncExternalStore as useSyncExternalStore7 } from "react";
 import { motion as motion6, AnimatePresence as AnimatePresence5 } from "motion/react";
 
 // src/copy-instruction.ts
@@ -7546,9 +7546,32 @@ function DialPad(props) {
   return /* @__PURE__ */ jsx15("div", { ref: host, className: "dialkit-pad-host" });
 }
 
+// src/hooks/usePanelValues.ts
+import { useCallback as useCallback10, useSyncExternalStore as useSyncExternalStore5 } from "react";
+var EMPTY = Object.freeze({});
+var noStop = () => {
+};
+function usePanelRead(panelId, read) {
+  const subscribe2 = useCallback10(
+    (callback) => panelId === void 0 ? noStop : DialStore.subscribe(panelId, callback),
+    [panelId]
+  );
+  return useSyncExternalStore5(subscribe2, read, read);
+}
+function usePanelValues(panelId) {
+  return usePanelRead(panelId, () => panelId === void 0 ? EMPTY : DialStore.getValues(panelId));
+}
+function useControlValue(panelId, path) {
+  return usePanelRead(panelId, () => panelId === void 0 || path === void 0 ? void 0 : DialStore.getValues(panelId)[path]);
+}
+function useFolderChanged(panelId, path) {
+  return usePanelRead(path === void 0 ? void 0 : panelId, () => panelId !== void 0 && path !== void 0 && DialStore.isFolderChanged(panelId, path));
+}
+
 // src/components/PadGroup.tsx
 import { jsx as jsx16 } from "react/jsx-runtime";
 function PadGroup({ panelId, control, values }) {
+  const stored = usePanelValues(values ? void 0 : panelId);
   const [x, y] = (control.children ?? []).filter((child) => child.type === "slider");
   if (!x || !y) return null;
   const options = control.padGroup ?? {};
@@ -7559,7 +7582,7 @@ function PadGroup({ panelId, control, values }) {
     return [typeof reset === "number" ? reset : min, min, max, child.step];
   };
   const current2 = (child) => {
-    const value = values[child.path];
+    const value = (values ?? stored)[child.path];
     return typeof value === "number" ? value : child.min ?? 0;
   };
   return /* @__PURE__ */ jsx16(
@@ -10882,270 +10905,304 @@ function AnimatedControls({ controls, children }) {
 function loneTransition(rows2) {
   return rows2.length === 1 && rows2[0].type === "transition" ? rows2[0] : void 0;
 }
-function ControlRenderer({ panelId, controls, values, transitionDuration, physicsSettleCap, openFolder, onOpenFolderChange, animateControls = false }) {
+function ControlRow({ panelId, control, values, transitionDuration, physicsSettleCap, bare }) {
   const shortcutCtx = useContext(ShortcutContext);
-  const resetProps = (control) => control.reset ? {
-    changed: DialStore.isFolderChanged(panelId, control.path),
-    onReset: () => DialStore.resetFolder(panelId, control.path)
-  } : {};
+  const stored = useControlValue(values ? void 0 : panelId, control.path);
+  const value = values ? values[control.path] : stored;
+  const changed = useFolderChanged(panelId, control.reset ? control.path : void 0);
+  const reset = control.reset ? { changed, onReset: () => DialStore.resetFolder(panelId, control.path) } : {};
+  switch (control.type) {
+    case "slider":
+      return /* @__PURE__ */ jsx22(
+        Slider,
+        {
+          label: control.label,
+          hint: control.hint,
+          value,
+          onChange: (v) => DialStore.updateValue(panelId, control.path, v),
+          min: control.min,
+          max: control.max,
+          step: control.step,
+          unit: control.unit,
+          shortcut: control.shortcut,
+          shortcutActive: shortcutCtx.activePanelId === panelId && shortcutCtx.activePath === control.path
+        },
+        control.path
+      );
+    case "toggle":
+      return /* @__PURE__ */ jsx22(
+        Toggle,
+        {
+          label: control.label,
+          hint: control.hint,
+          checked: value,
+          onChange: (v) => DialStore.updateValue(panelId, control.path, v),
+          shortcut: control.shortcut,
+          shortcutActive: shortcutCtx.activePanelId === panelId && shortcutCtx.activePath === control.path
+        },
+        control.path
+      );
+    case "spring":
+      return /* @__PURE__ */ jsx22(
+        SpringControl,
+        {
+          panelId,
+          path: control.path,
+          label: control.label,
+          hint: control.hint,
+          spring: value,
+          onChange: (v) => DialStore.updateValue(panelId, control.path, v),
+          ...reset
+        },
+        control.path
+      );
+    case "transition":
+      return /* @__PURE__ */ jsx22(
+        TransitionControl,
+        {
+          panelId,
+          path: control.path,
+          label: control.label,
+          hint: control.hint,
+          value,
+          onChange: (v) => DialStore.updateValue(panelId, control.path, v),
+          durationControl: transitionDuration,
+          physicsSettleCap,
+          bare,
+          ...reset
+        },
+        control.path
+      );
+    case "text":
+      return /* @__PURE__ */ jsx22(
+        TextControl,
+        {
+          label: control.label,
+          hint: control.hint,
+          value,
+          onChange: (v) => DialStore.updateValue(panelId, control.path, v),
+          placeholder: control.placeholder
+        },
+        control.path
+      );
+    case "select":
+      return /* @__PURE__ */ jsx22(
+        SelectControl,
+        {
+          label: control.label,
+          hint: control.hint,
+          value,
+          options: control.options ?? [],
+          onChange: (v) => DialStore.updateValue(panelId, control.path, v),
+          display: control.display,
+          hideLabel: control.hideLabel,
+          add: control.add ? { ...control.add, onClick: () => DialStore.triggerAction(panelId, `${control.path}.add`) } : void 0
+        },
+        control.path
+      );
+    case "color":
+      return /* @__PURE__ */ jsx22(
+        ColorControl,
+        {
+          label: control.label,
+          hint: control.hint,
+          value,
+          onChange: (v) => DialStore.updateValue(panelId, control.path, v)
+        },
+        control.path
+      );
+    case "image":
+      return /* @__PURE__ */ jsx22(
+        ImageControl,
+        {
+          options: control.options,
+          label: control.label,
+          hint: control.hint,
+          value,
+          onChange: (v) => DialStore.updateValue(panelId, control.path, v)
+        },
+        control.path
+      );
+    case "pad":
+      return /* @__PURE__ */ jsx22(
+        DialPad,
+        {
+          label: control.label,
+          hint: control.hint,
+          value,
+          x: control.pad?.x,
+          y: control.pad?.y,
+          labels: control.pad?.labels,
+          mapping: control.pad?.mapping,
+          hideLabel: control.pad?.hideLabel,
+          dragLabels: control.pad?.dragLabels,
+          onChange: (v) => DialStore.updateValue(panelId, control.path, v)
+        },
+        control.path
+      );
+    case "anchor":
+      return /* @__PURE__ */ jsx22(
+        AnchorControl,
+        {
+          label: control.label,
+          hint: control.hint,
+          value,
+          onChange: (v) => DialStore.updateValue(panelId, control.path, v)
+        },
+        control.path
+      );
+    case "layers":
+      return /* @__PURE__ */ jsx22(
+        LayerListControl,
+        {
+          label: control.label,
+          hint: control.hint,
+          value,
+          addLabel: control.layers?.addLabel,
+          addDisabled: control.layers?.addDisabled,
+          empty: control.layers?.empty,
+          onChange: (v) => DialStore.updateValue(panelId, control.path, v),
+          onAction: (kind, id) => DialStore.triggerAction(panelId, layerAction(control.path, kind, id))
+        },
+        control.path
+      );
+    case "pictures":
+      return /* @__PURE__ */ jsx22(
+        PictureListControl,
+        {
+          label: control.label,
+          hint: control.hint,
+          families: control.pictures?.families ?? [],
+          value,
+          onPick: (id) => DialStore.triggerAction(panelId, pictureAction(control.path, id))
+        },
+        control.path
+      );
+    case "background":
+      return /* @__PURE__ */ jsx22(Folder, { title: control.label, defaultOpen: DialStore.isFolderOpen(panelId, control.path, true), onOpenChange: (open) => DialStore.rememberFolder(panelId, control.path, open), hint: control.hint, ...reset, children: /* @__PURE__ */ jsx22(
+        BackgroundControl,
+        {
+          panelId,
+          label: control.label,
+          value,
+          upload: control.background?.upload,
+          onChange: (v) => DialStore.updateValue(panelId, control.path, v)
+        }
+      ) }, control.path);
+    case "action":
+      return /* @__PURE__ */ jsx22(
+        "button",
+        {
+          className: "dialkit-button",
+          "data-hint": control.hint,
+          onClick: () => DialStore.triggerAction(panelId, control.path),
+          children: control.label
+        },
+        control.path
+      );
+    default:
+      return null;
+  }
+}
+function FieldsRow({ panelId, control, values }) {
+  const stored = usePanelValues(values ? void 0 : panelId);
+  return /* @__PURE__ */ jsx22(
+    Fields,
+    {
+      label: control.label,
+      controls: control.children ?? [],
+      values: values ?? stored,
+      defaults: DialStore.getResetValues(panelId),
+      hint: control.hint,
+      decimals: control.decimals,
+      trim: control.trim,
+      onChange: (v) => DialStore.updateValues(panelId, v)
+    }
+  );
+}
+function ControlFolder({ panelId, control, values, only, open, onOpenChange, children }) {
+  const owner = control.reset || !only ? control : only;
+  const changed = useFolderChanged(panelId, owner.reset ? owner.path : void 0);
+  const stored = useControlValue(values ? void 0 : panelId, only?.path);
+  const onlyValue = only && values ? values[only.path] : stored;
+  return /* @__PURE__ */ jsx22(
+    Folder,
+    {
+      title: control.label,
+      defaultOpen: DialStore.isFolderOpen(panelId, control.path, control.defaultOpen ?? true),
+      hint: control.hint ?? only?.hint,
+      ...owner.reset ? { changed, onReset: () => DialStore.resetFolder(panelId, owner.path) } : {},
+      actions: only ? /* @__PURE__ */ jsx22(TransitionCopyMenu, { panelId, path: only.path, value: onlyValue }) : void 0,
+      open,
+      onOpenChange,
+      children
+    }
+  );
+}
+function ControlRenderer({ panelId, controls, values, transitionDuration, physicsSettleCap, openFolder, onOpenFolderChange, animateControls = false }) {
   useHints(hasActionHints(controls));
   const renderControls = (controls2, topLevel = false, bare) => animateControls ? /* @__PURE__ */ jsx22(AnimatedControls, { controls: controls2, children: (control) => renderControl(control, topLevel, control === bare) }) : controls2.map((control) => renderControl(control, topLevel, control === bare));
   const renderControl = (control, topLevel = false, bare = false) => {
-    const value = values[control.path];
-    switch (control.type) {
-      case "slider":
-        return /* @__PURE__ */ jsx22(
-          Slider,
-          {
-            label: control.label,
-            hint: control.hint,
-            value,
-            onChange: (v) => DialStore.updateValue(panelId, control.path, v),
-            min: control.min,
-            max: control.max,
-            step: control.step,
-            unit: control.unit,
-            shortcut: control.shortcut,
-            shortcutActive: shortcutCtx.activePanelId === panelId && shortcutCtx.activePath === control.path
-          },
-          control.path
-        );
-      case "toggle":
-        return /* @__PURE__ */ jsx22(
-          Toggle,
-          {
-            label: control.label,
-            hint: control.hint,
-            checked: value,
-            onChange: (v) => DialStore.updateValue(panelId, control.path, v),
-            shortcut: control.shortcut,
-            shortcutActive: shortcutCtx.activePanelId === panelId && shortcutCtx.activePath === control.path
-          },
-          control.path
-        );
-      case "spring":
-        return /* @__PURE__ */ jsx22(
-          SpringControl,
-          {
-            panelId,
-            path: control.path,
-            label: control.label,
-            hint: control.hint,
-            spring: value,
-            onChange: (v) => DialStore.updateValue(panelId, control.path, v),
-            ...resetProps(control)
-          },
-          control.path
-        );
-      case "transition":
-        return /* @__PURE__ */ jsx22(
-          TransitionControl,
-          {
-            panelId,
-            path: control.path,
-            label: control.label,
-            hint: control.hint,
-            value,
-            onChange: (v) => DialStore.updateValue(panelId, control.path, v),
-            durationControl: transitionDuration,
-            physicsSettleCap,
-            bare,
-            ...resetProps(control)
-          },
-          control.path
-        );
-      case "folder": {
-        if (control.fields) {
-          return /* @__PURE__ */ jsx22(
-            Fields,
-            {
-              label: control.label,
-              controls: control.children ?? [],
-              values,
-              defaults: DialStore.getResetValues(panelId),
-              hint: control.hint,
-              decimals: control.decimals,
-              trim: control.trim,
-              onChange: (v) => DialStore.updateValues(panelId, v)
-            },
-            control.path
-          );
-        }
-        if (control.padGroup) {
-          return /* @__PURE__ */ jsx22(PadGroup, { panelId, control, values }, control.path);
-        }
-        if (control.row) {
-          return /* @__PURE__ */ jsx22("div", { className: "dialkit-row-group", children: (control.children ?? []).slice(0, 2).map((child) => {
-            const inline = control.inlineLabels?.[child.path.slice(control.path.length + 1)];
-            const shown = child.type === "select" && child.display === "segmented" ? { ...child, hideLabel: true } : child;
-            return /* @__PURE__ */ jsxs10("div", { className: "dialkit-row-cell", "data-inline-label": inline === "" ? "none" : void 0, children: [
-              /* @__PURE__ */ jsx22("span", { className: "dialkit-row-label", children: child.label }),
-              renderControl(inline ? { ...shown, label: inline } : shown)
-            ] }, child.path);
-          }) }, control.path);
-        }
-        const accordion = topLevel && openFolder !== void 0;
-        const rows2 = control.children ?? [];
-        const only = loneTransition(rows2);
-        return /* @__PURE__ */ jsx22(
-          Folder,
-          {
-            title: control.label,
-            defaultOpen: DialStore.isFolderOpen(panelId, control.path, control.defaultOpen ?? true),
-            hint: control.hint ?? only?.hint,
-            ...resetProps(control.reset || !only ? control : only),
-            actions: only ? /* @__PURE__ */ jsx22(TransitionCopyMenu, { panelId, path: only.path, value: values[only.path] }) : void 0,
-            open: accordion ? openFolder === control.path : void 0,
-            onOpenChange: accordion ? (open) => onOpenFolderChange?.(open ? control.path : null) : (open) => DialStore.rememberFolder(panelId, control.path, open),
-            children: renderControls(rows2, false, only)
-          },
-          control.path
-        );
-      }
-      case "text":
-        return /* @__PURE__ */ jsx22(
-          TextControl,
-          {
-            label: control.label,
-            hint: control.hint,
-            value,
-            onChange: (v) => DialStore.updateValue(panelId, control.path, v),
-            placeholder: control.placeholder
-          },
-          control.path
-        );
-      case "select":
-        return /* @__PURE__ */ jsx22(
-          SelectControl,
-          {
-            label: control.label,
-            hint: control.hint,
-            value,
-            options: control.options ?? [],
-            onChange: (v) => DialStore.updateValue(panelId, control.path, v),
-            display: control.display,
-            hideLabel: control.hideLabel,
-            add: control.add ? { ...control.add, onClick: () => DialStore.triggerAction(panelId, `${control.path}.add`) } : void 0
-          },
-          control.path
-        );
-      case "color":
-        return /* @__PURE__ */ jsx22(
-          ColorControl,
-          {
-            label: control.label,
-            hint: control.hint,
-            value,
-            onChange: (v) => DialStore.updateValue(panelId, control.path, v)
-          },
-          control.path
-        );
-      case "image":
-        return /* @__PURE__ */ jsx22(
-          ImageControl,
-          {
-            options: control.options,
-            label: control.label,
-            hint: control.hint,
-            value,
-            onChange: (v) => DialStore.updateValue(panelId, control.path, v)
-          },
-          control.path
-        );
-      case "pad":
-        return /* @__PURE__ */ jsx22(
-          DialPad,
-          {
-            label: control.label,
-            hint: control.hint,
-            value,
-            x: control.pad?.x,
-            y: control.pad?.y,
-            labels: control.pad?.labels,
-            mapping: control.pad?.mapping,
-            hideLabel: control.pad?.hideLabel,
-            dragLabels: control.pad?.dragLabels,
-            onChange: (v) => DialStore.updateValue(panelId, control.path, v)
-          },
-          control.path
-        );
-      case "anchor":
-        return /* @__PURE__ */ jsx22(
-          AnchorControl,
-          {
-            label: control.label,
-            hint: control.hint,
-            value,
-            onChange: (v) => DialStore.updateValue(panelId, control.path, v)
-          },
-          control.path
-        );
-      case "layers":
-        return /* @__PURE__ */ jsx22(
-          LayerListControl,
-          {
-            label: control.label,
-            hint: control.hint,
-            value,
-            addLabel: control.layers?.addLabel,
-            addDisabled: control.layers?.addDisabled,
-            empty: control.layers?.empty,
-            onChange: (v) => DialStore.updateValue(panelId, control.path, v),
-            onAction: (kind, id) => DialStore.triggerAction(panelId, layerAction(control.path, kind, id))
-          },
-          control.path
-        );
-      case "pictures":
-        return /* @__PURE__ */ jsx22(
-          PictureListControl,
-          {
-            label: control.label,
-            hint: control.hint,
-            families: control.pictures?.families ?? [],
-            value,
-            onPick: (id) => DialStore.triggerAction(panelId, pictureAction(control.path, id))
-          },
-          control.path
-        );
-      case "background":
-        return /* @__PURE__ */ jsx22(Folder, { title: control.label, defaultOpen: DialStore.isFolderOpen(panelId, control.path, true), onOpenChange: (open) => DialStore.rememberFolder(panelId, control.path, open), hint: control.hint, ...resetProps(control), children: /* @__PURE__ */ jsx22(
-          BackgroundControl,
-          {
-            panelId,
-            label: control.label,
-            value,
-            upload: control.background?.upload,
-            onChange: (v) => DialStore.updateValue(panelId, control.path, v)
-          }
-        ) }, control.path);
-      case "action":
-        return /* @__PURE__ */ jsx22(
-          "button",
-          {
-            className: "dialkit-button",
-            "data-hint": control.hint,
-            onClick: () => DialStore.triggerAction(panelId, control.path),
-            children: control.label
-          },
-          control.path
-        );
-      default:
-        return null;
+    if (control.type !== "folder") {
+      return /* @__PURE__ */ jsx22(
+        ControlRow,
+        {
+          panelId,
+          control,
+          values,
+          transitionDuration,
+          physicsSettleCap,
+          bare
+        },
+        control.path
+      );
     }
+    if (control.fields) {
+      return /* @__PURE__ */ jsx22(FieldsRow, { panelId, control, values }, control.path);
+    }
+    if (control.padGroup) {
+      return /* @__PURE__ */ jsx22(PadGroup, { panelId, control, values }, control.path);
+    }
+    if (control.row) {
+      return /* @__PURE__ */ jsx22("div", { className: "dialkit-row-group", children: (control.children ?? []).slice(0, 2).map((child) => {
+        const inline = control.inlineLabels?.[child.path.slice(control.path.length + 1)];
+        const shown = child.type === "select" && child.display === "segmented" ? { ...child, hideLabel: true } : child;
+        return /* @__PURE__ */ jsxs10("div", { className: "dialkit-row-cell", "data-inline-label": inline === "" ? "none" : void 0, children: [
+          /* @__PURE__ */ jsx22("span", { className: "dialkit-row-label", children: child.label }),
+          renderControl(inline ? { ...shown, label: inline } : shown)
+        ] }, child.path);
+      }) }, control.path);
+    }
+    const accordion = topLevel && openFolder !== void 0;
+    const rows2 = control.children ?? [];
+    const only = loneTransition(rows2);
+    return /* @__PURE__ */ jsx22(
+      ControlFolder,
+      {
+        panelId,
+        control,
+        values,
+        only,
+        open: accordion ? openFolder === control.path : void 0,
+        onOpenChange: accordion ? (open) => onOpenFolderChange?.(open ? control.path : null) : (open) => DialStore.rememberFolder(panelId, control.path, open),
+        children: renderControls(rows2, false, only)
+      },
+      control.path
+    );
   };
   return /* @__PURE__ */ jsx22(Fragment4, { children: renderControls(controls, true) });
 }
 
 // src/components/Hint.tsx
-import { useSyncExternalStore as useSyncExternalStore5 } from "react";
+import { useSyncExternalStore as useSyncExternalStore6 } from "react";
 import { jsx as jsx23, jsxs as jsxs11 } from "react/jsx-runtime";
 var subscribe = (listener) => HintStore.subscribe(listener);
 var getTipSeen = () => HintStore.isTipSeen();
 var getServerTipSeen = () => true;
 var getKey = () => HintStore.getKey();
 function HintTip({ always = false }) {
-  const seen = useSyncExternalStore5(subscribe, getTipSeen, getServerTipSeen);
-  const key = useSyncExternalStore5(subscribe, getKey, getKey);
+  const seen = useSyncExternalStore6(subscribe, getTipSeen, getServerTipSeen);
+  const key = useSyncExternalStore6(subscribe, getKey, getKey);
   if (seen && !always) return null;
   return /* @__PURE__ */ jsxs11("p", { className: "dialkit-hint-tip", children: [
     "Hold ",
@@ -11318,7 +11375,7 @@ function observePresetMenu(getPopup, reorder) {
 }
 
 // src/components/PresetManager.tsx
-import { useState as useState8, useRef as useRef22, useEffect as useEffect20, useCallback as useCallback10 } from "react";
+import { useState as useState8, useRef as useRef22, useEffect as useEffect20, useCallback as useCallback11 } from "react";
 import { createPortal as createPortal2 } from "react-dom";
 import { motion as motion5, AnimatePresence as AnimatePresence4 } from "motion/react";
 import { Fragment as Fragment5, jsx as jsx24, jsxs as jsxs12 } from "react/jsx-runtime";
@@ -11334,7 +11391,7 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, noun = "versio
   const [editingId, setEditingId] = useState8(null);
   const resyncPresence = usePresenceResync();
   const activePreset = presets.find((p) => p.id === activePresetId);
-  const open = useCallback10(() => {
+  const open = useCallback11(() => {
     const rect = triggerRef.current?.getBoundingClientRect();
     if (rect) {
       const above = opensAbove(rect, 8 + (presets.length + 1) * 36, window.innerHeight);
@@ -11343,8 +11400,8 @@ function PresetManager({ panelId, presets, activePresetId, onAdd, noun = "versio
     setEditingId(null);
     setIsOpen(true);
   }, [presets.length]);
-  const close2 = useCallback10(() => setIsOpen(false), []);
-  const toggle = useCallback10(() => {
+  const close2 = useCallback11(() => setIsOpen(false), []);
+  const toggle = useCallback11(() => {
     if (isOpen) close2();
     else open();
   }, [isOpen, open, close2]);
@@ -12731,20 +12788,20 @@ function Panel({ panel, defaultOpen = true, inline = false, accordion = false, o
   useHints(true);
   const copyTimeout = useRef24();
   useEffect21(() => () => clearTimeout(copyTimeout.current), []);
-  const subscribe2 = useCallback11(
+  const subscribe2 = useCallback12(
     (callback) => DialStore.subscribe(panel.id, callback),
     [panel.id]
   );
-  const getSnapshot = useCallback11(
+  const getSnapshot = useCallback12(
     () => DialStore.getValues(panel.id),
     [panel.id]
   );
-  const getOpenSnapshot = useCallback11(
+  const getOpenSnapshot = useCallback12(
     () => DialStore.getPanelOpen(panel.id),
     [panel.id]
   );
-  const values = useSyncExternalStore6(subscribe2, getSnapshot, getSnapshot);
-  const storeOpen = useSyncExternalStore6(subscribe2, getOpenSnapshot, getOpenSnapshot);
+  const values = useSyncExternalStore7(subscribe2, getSnapshot, getSnapshot);
+  const storeOpen = useSyncExternalStore7(subscribe2, getOpenSnapshot, getOpenSnapshot);
   const isOpen = storeOpen ?? defaultOpen;
   useEffect21(() => {
     DialStore.initPanelOpen(panel.id, defaultOpen);
@@ -12761,7 +12818,7 @@ function Panel({ panel, defaultOpen = true, inline = false, accordion = false, o
     clearTimeout(copyTimeout.current);
     copyTimeout.current = setTimeout(() => setCopied(false), 1500);
   };
-  const handleOpenChange = useCallback11((open) => {
+  const handleOpenChange = useCallback12((open) => {
     DialStore.setPanelOpen(panel.id, open);
     onOpenChange?.(open);
   }, [onOpenChange, panel.id]);
@@ -12849,7 +12906,7 @@ function Panel({ panel, defaultOpen = true, inline = false, accordion = false, o
 }
 
 // src/components/Timeline/TimelineToggleButton.tsx
-import { useCallback as useCallback12, useSyncExternalStore as useSyncExternalStore7 } from "react";
+import { useCallback as useCallback13, useSyncExternalStore as useSyncExternalStore8 } from "react";
 import { motion as motion7 } from "motion/react";
 
 // src/store/TimelineUiStore.ts
@@ -12917,12 +12974,12 @@ var TimelineUiStore = /* @__PURE__ */ new TimelineUiStoreClass();
 // src/components/Timeline/TimelineToggleButton.tsx
 import { jsx as jsx27 } from "react/jsx-runtime";
 function TimelineToggleButton() {
-  const subscribe2 = useCallback12(
+  const subscribe2 = useCallback13(
     (listener) => TimelineUiStore.subscribe(listener),
     []
   );
-  const getVisible = useCallback12(() => TimelineUiStore.getVisible(), []);
-  const visible = useSyncExternalStore7(subscribe2, getVisible, getVisible);
+  const getVisible = useCallback13(() => TimelineUiStore.getVisible(), []);
+  const visible = useSyncExternalStore8(subscribe2, getVisible, getVisible);
   const label = visible ? "Hide timeline" : "Show timeline";
   return /* @__PURE__ */ jsx27(
     motion7.button,
@@ -13150,7 +13207,7 @@ function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover"
     panelOpenStatesRef.current = nextStates;
     rootOpenRef.current = Array.from(nextStates.values()).some(Boolean);
   }, [defaultOpen, inline, ungroupedIds, otherKeys]);
-  const anyShellOpen = useCallback13((ungroupedOpen) => {
+  const anyShellOpen = useCallback14((ungroupedOpen) => {
     const fallbackOpen = inline || defaultOpen;
     const stateOf = (key) => panelOpenStatesRef.current.get(key) ?? fallbackOpen;
     const ungrouped = ungroupedOpen ?? (mergedUngrouped ? shellOpenRef.current : ungroupedIds.some(stateOf));
@@ -13182,7 +13239,7 @@ function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover"
     observer.observe(panelRef.current, { subtree: true, attributes: true, attributeFilter: ["data-collapsed"] });
     return () => observer.disconnect();
   }, [inline, dragOffset, position]);
-  const handlePointerDown = useCallback13((e) => {
+  const handlePointerDown = useCallback14((e) => {
     const panel = panelRef.current;
     const handle = getPanelDragHandle(e.target, panel);
     if (!panel || !handle) return;
@@ -13192,13 +13249,13 @@ function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover"
     draggingRef.current = true;
     capturePanelPointer(handle, e.pointerId);
   }, []);
-  const handlePointerMove = useCallback13((e) => {
+  const handlePointerMove = useCallback14((e) => {
     if (!draggingRef.current || !dragStartRef.current) return;
     if (!didDragRef.current && !hasPanelDragMoved(dragStartRef.current, e.clientX, e.clientY)) return;
     didDragRef.current = true;
     setDragOffset(getPanelDragOffset(dragStartRef.current, e.clientX, e.clientY));
   }, []);
-  const handlePointerUp = useCallback13((e) => {
+  const handlePointerUp = useCallback14((e) => {
     if (!draggingRef.current) return;
     draggingRef.current = false;
     dragStartRef.current = null;
@@ -13214,14 +13271,14 @@ function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover"
     }
     dragTargetRef.current = null;
   }, []);
-  const handlePanelOpenChange = useCallback13((key, open) => {
+  const handlePanelOpenChange = useCallback14((key, open) => {
     panelOpenStatesRef.current.set(key, open);
     const nextRootOpen = anyShellOpen();
     if (rootOpenRef.current === nextRootOpen) return;
     rootOpenRef.current = nextRootOpen;
     onOpenChange?.(nextRootOpen);
   }, [anyShellOpen, onOpenChange]);
-  const handleRootOpenChange = useCallback13((open) => {
+  const handleRootOpenChange = useCallback14((open) => {
     setShellOpen(open);
     shellOpenRef.current = open;
     const nextRootOpen = anyShellOpen(open);
@@ -13229,7 +13286,7 @@ function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover"
     rootOpenRef.current = nextRootOpen;
     onOpenChange?.(nextRootOpen);
   }, [anyShellOpen, onOpenChange]);
-  const handleGroupOpenChange = useCallback13((group, open) => {
+  const handleGroupOpenChange = useCallback14((group, open) => {
     setGroupOpen((prev) => prev[group] === open ? prev : { ...prev, [group]: open });
     handlePanelOpenChange(groupRootKey(group), open);
   }, [handlePanelOpenChange]);
@@ -13356,7 +13413,7 @@ function DialRoot({ position = "top-right", defaultOpen = true, mode = "popover"
 }
 
 // src/hooks/useDialTimeline.ts
-import { useCallback as useCallback14, useEffect as useEffect23, useMemo as useMemo3, useRef as useRef26, useSyncExternalStore as useSyncExternalStore8 } from "react";
+import { useCallback as useCallback15, useEffect as useEffect23, useMemo as useMemo3, useRef as useRef26, useSyncExternalStore as useSyncExternalStore9 } from "react";
 
 // src/timeline-core.ts
 var CLIP_VALUE_STEP = 0.01;
@@ -14399,8 +14456,8 @@ function useDialTimeline(name, config, options) {
   optionsRef.current = options;
   const { enabled: loopEnabled, start: loopStart } = resolveTimelineLoop(options?.loop);
   const hasClipClick = typeof options?.onClipClick === "function";
-  const handleClipClick = useCallback14((key) => optionsRef.current?.onClipClick?.(key), []);
-  const buildMeta = useCallback14(
+  const handleClipClick = useCallback15((key) => optionsRef.current?.onClipClick?.(key), []);
+  const buildMeta = useCallback15(
     () => buildTimelineMeta(
       panelId,
       name,
@@ -14426,16 +14483,16 @@ function useDialTimeline(name, config, options) {
     }
     TimelineStore.update(buildMeta());
   }, [buildMeta, parsed]);
-  const subscribeTransport = useCallback14(
+  const subscribeTransport = useCallback15(
     (callback) => TimelineStore.subscribe(panelId, callback),
     [panelId]
   );
-  const getTransport = useCallback14(() => TimelineStore.getTransport(panelId), [panelId]);
-  const transport = useSyncExternalStore8(subscribeTransport, getTransport, getTransport);
-  const play = useCallback14(() => TimelineStore.play(panelId), [panelId]);
-  const pause = useCallback14(() => TimelineStore.pause(panelId), [panelId]);
-  const replay = useCallback14(() => TimelineStore.replay(panelId), [panelId]);
-  const seek = useCallback14((time) => TimelineStore.seek(panelId, time), [panelId]);
+  const getTransport = useCallback15(() => TimelineStore.getTransport(panelId), [panelId]);
+  const transport = useSyncExternalStore9(subscribeTransport, getTransport, getTransport);
+  const play = useCallback15(() => TimelineStore.play(panelId), [panelId]);
+  const pause = useCallback15(() => TimelineStore.pause(panelId), [panelId]);
+  const replay = useCallback15(() => TimelineStore.replay(panelId), [panelId]);
+  const seek = useCallback15((time) => TimelineStore.seek(panelId, time), [panelId]);
   return useMemo3(
     () => buildTimelineValues(staticClips, transport, timelineDuration, loopStart, {
       play,
@@ -14448,7 +14505,7 @@ function useDialTimeline(name, config, options) {
 }
 
 // src/components/Timeline/DialTimeline.tsx
-import { memo, useCallback as useCallback15, useEffect as useEffect24, useLayoutEffect as useLayoutEffect7, useRef as useRef27, useState as useState11, useSyncExternalStore as useSyncExternalStore9 } from "react";
+import { memo, useCallback as useCallback16, useEffect as useEffect24, useLayoutEffect as useLayoutEffect7, useRef as useRef27, useState as useState11, useSyncExternalStore as useSyncExternalStore10 } from "react";
 import { createPortal as createPortal4 } from "react-dom";
 import { AnimatePresence as AnimatePresence6, motion as motion8 } from "motion/react";
 import { Fragment as Fragment7, jsx as jsx29, jsxs as jsxs14 } from "react/jsx-runtime";
@@ -14545,7 +14602,7 @@ function DialTimelineDock({
   }, []);
   useEffect24(() => observePointerFocus(), []);
   useEffect24(() => () => resizeCleanupRef.current?.(), []);
-  const handleResizePointerDown = useCallback15((e) => {
+  const handleResizePointerDown = useCallback16((e) => {
     const dock = dockRef.current;
     if (!dock) return;
     e.preventDefault();
@@ -14569,8 +14626,8 @@ function DialTimelineDock({
     window.addEventListener("pointercancel", finishResize);
     resizeCleanupRef.current = finishResize;
   }, []);
-  const timelines = useSyncExternalStore9(subscribeGlobalTimelines, getTimelines, getTimelines);
-  const dockVisible = useSyncExternalStore9(
+  const timelines = useSyncExternalStore10(subscribeGlobalTimelines, getTimelines, getTimelines);
+  const dockVisible = useSyncExternalStore10(
     subscribeTimelineVisibility,
     getTimelineVisibility,
     getTimelineVisibility
@@ -14633,12 +14690,12 @@ function DialTimelineDock({
   );
 }
 function useTransportSubscribe(id) {
-  return useCallback15((callback) => TimelineStore.subscribe(id, callback), [id]);
+  return useCallback16((callback) => TimelineStore.subscribe(id, callback), [id]);
 }
 function PlayPauseButton({ id }) {
   const subscribe2 = useTransportSubscribe(id);
-  const getPlaying = useCallback15(() => TimelineStore.getTransport(id).playing, [id]);
-  const playing = useSyncExternalStore9(subscribe2, getPlaying, getPlaying);
+  const getPlaying = useCallback16(() => TimelineStore.getTransport(id).playing, [id]);
+  const playing = useSyncExternalStore10(subscribe2, getPlaying, getPlaying);
   return /* @__PURE__ */ jsx29(
     motion8.button,
     {
@@ -14712,17 +14769,17 @@ function LoopButton({ id, loop }) {
 }
 function ClipFill({ id, at, duration }) {
   const subscribe2 = useTransportSubscribe(id);
-  const getProgress = useCallback15(
+  const getProgress = useCallback16(
     () => timelineClipProgress(TimelineStore.getTransport(id).time, at, duration),
     [at, duration, id]
   );
-  const progress = useSyncExternalStore9(subscribe2, getProgress, getProgress);
+  const progress = useSyncExternalStore10(subscribe2, getProgress, getProgress);
   return /* @__PURE__ */ jsx29("span", { className: "dialkit-timeline-clip-fill", style: { width: `${progress * 100}%` }, "aria-hidden": "true" });
 }
 function ClipTail({ id, at, left, width, lit }) {
   const subscribe2 = useTransportSubscribe(id);
-  const getPlayed = useCallback15(() => TimelineStore.getTransport(id).time >= at, [at, id]);
-  const played = useSyncExternalStore9(subscribe2, getPlayed, getPlayed);
+  const getPlayed = useCallback16(() => TimelineStore.getTransport(id).time >= at, [at, id]);
+  const played = useSyncExternalStore10(subscribe2, getPlayed, getPlayed);
   return /* @__PURE__ */ jsx29("span", { className: "dialkit-timeline-clip-tail", "data-lit": lit || played || void 0, style: { left, width }, "aria-hidden": "true" });
 }
 function TimelinePlayheadFlag({
@@ -14736,11 +14793,11 @@ function TimelinePlayheadFlag({
   onResetView
 }) {
   const subscribe2 = useTransportSubscribe(id);
-  const getTime = useCallback15(() => TimelineStore.getTransport(id).time, [id]);
-  const time = useSyncExternalStore9(subscribe2, getTime, getTime);
+  const getTime = useCallback16(() => TimelineStore.getTransport(id).time, [id]);
+  const time = useSyncExternalStore10(subscribe2, getTime, getTime);
   const scrubRef = useRef27(null);
   const cleanupScrubRef = useRef27(null);
-  const seekFromClientX = useCallback15((clientX) => {
+  const seekFromClientX = useCallback16((clientX) => {
     const rect = scrubRef.current?.rect;
     const scrub = scrubRef.current;
     const contentWidth = rect?.width ?? 0;
@@ -14752,7 +14809,7 @@ function TimelinePlayheadFlag({
     );
     TimelineStore.seek(id, nextTime);
   }, [id]);
-  const handlePointerDown = useCallback15((e) => {
+  const handlePointerDown = useCallback16((e) => {
     const rect = rulerRef.current?.getBoundingClientRect();
     if (!rect) return;
     e.preventDefault();
@@ -14830,17 +14887,17 @@ function TimelineOverview({
   onNavigate
 }) {
   const subscribe2 = useTransportSubscribe(id);
-  const getTime = useCallback15(() => TimelineStore.getTransport(id).time, [id]);
-  const time = useSyncExternalStore9(subscribe2, getTime, getTime);
+  const getTime = useCallback16(() => TimelineStore.getTransport(id).time, [id]);
+  const time = useSyncExternalStore10(subscribe2, getTime, getTime);
   const scrubRef = useRef27(null);
-  const seekFromClientX = useCallback15((clientX) => {
+  const seekFromClientX = useCallback16((clientX) => {
     const rect = scrubRef.current?.rect;
     if (!rect || rect.width <= 0 || duration <= 0) return;
     const nextTime = clamp2((clientX - rect.left) / rect.width * duration, 0, duration);
     TimelineStore.seek(id, nextTime);
     onNavigate(nextTime);
   }, [duration, id, onNavigate]);
-  const handlePointerDown = useCallback15((e) => {
+  const handlePointerDown = useCallback16((e) => {
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
     scrubRef.current = {
@@ -14850,10 +14907,10 @@ function TimelineOverview({
     TimelineStore.pause(id);
     seekFromClientX(e.clientX);
   }, [id, seekFromClientX]);
-  const handlePointerMove = useCallback15((e) => {
+  const handlePointerMove = useCallback16((e) => {
     if (scrubRef.current) seekFromClientX(e.clientX);
   }, [seekFromClientX]);
-  const finishScrub = useCallback15(() => {
+  const finishScrub = useCallback16(() => {
     if (scrubRef.current?.wasPlaying) TimelineStore.play(id);
     scrubRef.current = null;
   }, [id]);
@@ -14912,12 +14969,12 @@ var TimelineSection = memo(function TimelineSection2({
   const [viewStart, setViewStart] = useState11(0);
   const [foldSettled, setFoldSettled] = useState11(false);
   if (!open && foldSettled) setFoldSettled(false);
-  const subscribeValues = useCallback15(
+  const subscribeValues = useCallback16(
     (callback) => DialStore.subscribe(meta.id, callback),
     [meta.id]
   );
-  const getValues = useCallback15(() => DialStore.getValues(meta.id), [meta.id]);
-  const values = useSyncExternalStore9(subscribeValues, getValues, getValues);
+  const getValues = useCallback16(() => DialStore.getValues(meta.id), [meta.id]);
+  const values = useSyncExternalStore10(subscribeValues, getValues, getValues);
   const presets = DialStore.getPresets(meta.id);
   const activePresetId = DialStore.getActivePresetId(meta.id);
   const laneAreaRef = useRef27(null);
@@ -14958,20 +15015,20 @@ var TimelineSection = memo(function TimelineSection2({
   useEffect24(() => {
     if (!dockVisible) setPopover(null);
   }, [dockVisible]);
-  const centerViewAt = useCallback15((time) => {
+  const centerViewAt = useCallback16((time) => {
     if (zoom <= 1 || meta.duration <= 0) return;
     const windowDuration = meta.duration / zoom;
     setViewStart(clampViewStart(time - windowDuration / 2, meta.duration, windowDuration));
   }, [meta.duration, zoom]);
-  const resetView = useCallback15(() => {
+  const resetView = useCallback16(() => {
     setZoom(1);
     setViewStart(0);
   }, []);
-  const handleReplay = useCallback15(() => {
+  const handleReplay = useCallback16(() => {
     setViewStart(0);
     TimelineStore.replay(meta.id);
   }, [meta.id]);
-  const handleHorizontalScroll = useCallback15((e) => {
+  const handleHorizontalScroll = useCallback16((e) => {
     if (pxPerSecond <= 0) return;
     setViewStart(clampViewStart(
       e.currentTarget.scrollLeft / pxPerSecond,
@@ -14979,7 +15036,7 @@ var TimelineSection = memo(function TimelineSection2({
       visibleDuration
     ));
   }, [meta.duration, pxPerSecond, visibleDuration]);
-  const applyAnchoredZoom = useCallback15((nextZoom, anchorRatio, anchorTime) => {
+  const applyAnchoredZoom = useCallback16((nextZoom, anchorRatio, anchorTime) => {
     const nextVisibleDuration = meta.duration / nextZoom;
     setZoom(nextZoom);
     setViewStart(clampViewStart(anchorTime - anchorRatio * nextVisibleDuration, meta.duration, nextVisibleDuration));
@@ -15020,7 +15077,7 @@ var TimelineSection = memo(function TimelineSection2({
   }, [open]);
   const zoomDragRef = useRef27(null);
   const rulerScrubRef = useRef27(null);
-  const seekRulerFromClientX = useCallback15((clientX) => {
+  const seekRulerFromClientX = useCallback16((clientX) => {
     const scrub = rulerScrubRef.current;
     const contentWidth = scrub?.rect.width ?? 0;
     if (!scrub || contentWidth <= 0) return;
@@ -15033,7 +15090,7 @@ var TimelineSection = memo(function TimelineSection2({
       )
     );
   }, [meta.id]);
-  const handleRulerPointerDown = useCallback15((e) => {
+  const handleRulerPointerDown = useCallback16((e) => {
     e.preventDefault();
     e.stopPropagation();
     const rect = e.currentTarget.getBoundingClientRect();
@@ -15067,7 +15124,7 @@ var TimelineSection = memo(function TimelineSection2({
       moved: false
     };
   }, [meta.duration, meta.id, safeViewStart, seekRulerFromClientX, visibleDuration, zoom]);
-  const handleRulerPointerMove = useCallback15((e) => {
+  const handleRulerPointerMove = useCallback16((e) => {
     if (rulerScrubRef.current) {
       seekRulerFromClientX(e.clientX);
       return;
@@ -15083,18 +15140,18 @@ var TimelineSection = memo(function TimelineSection2({
       drag.anchorTime
     );
   }, [applyAnchoredZoom, maxZoom, meta.duration, seekRulerFromClientX]);
-  const handleRulerPointerUp = useCallback15(() => {
+  const handleRulerPointerUp = useCallback16(() => {
     if (rulerScrubRef.current?.wasPlaying) TimelineStore.play(meta.id);
     rulerScrubRef.current = null;
     zoomDragRef.current = null;
   }, [meta.id]);
-  const handleRulerPointerCancel = useCallback15(() => {
+  const handleRulerPointerCancel = useCallback16(() => {
     if (rulerScrubRef.current?.wasPlaying) TimelineStore.play(meta.id);
     rulerScrubRef.current = null;
     zoomDragRef.current = null;
   }, [meta.id]);
   const trackScrubRef = useRef27(null);
-  const seekTrackFromClientX = useCallback15((clientX) => {
+  const seekTrackFromClientX = useCallback16((clientX) => {
     const scrub = trackScrubRef.current;
     const contentWidth = scrub?.rect.width ?? 0;
     if (!scrub || contentWidth <= 0) return;
@@ -15105,7 +15162,7 @@ var TimelineSection = memo(function TimelineSection2({
     );
     TimelineStore.seek(meta.id, nextTime);
   }, [meta.id]);
-  const handleTrackPointerDown = useCallback15((e) => {
+  const handleTrackPointerDown = useCallback16((e) => {
     const target = e.target;
     if (target.closest(".dialkit-timeline-label, button")) return;
     if (target.closest(".dialkit-timeline-scroll-row")) return;
@@ -15130,20 +15187,20 @@ var TimelineSection = memo(function TimelineSection2({
     TimelineStore.pause(meta.id);
     seekTrackFromClientX(e.clientX);
   }, [meta.duration, meta.id, safeViewStart, seekTrackFromClientX, visibleDuration]);
-  const handleTrackPointerMove = useCallback15((e) => {
+  const handleTrackPointerMove = useCallback16((e) => {
     if (trackScrubRef.current) seekTrackFromClientX(e.clientX);
   }, [seekTrackFromClientX]);
-  const finishTrackScrub = useCallback15(() => {
+  const finishTrackScrub = useCallback16(() => {
     if (trackScrubRef.current?.wasPlaying) TimelineStore.play(meta.id);
     trackScrubRef.current = null;
   }, [meta.id]);
-  const handleCopy = useCallback15(() => {
+  const handleCopy = useCallback16(() => {
     const normalized = normalizeTimelineValuesForCopy(DialStore.getValues(meta.id), meta.clips);
     navigator.clipboard.writeText(buildCopyInstruction("useDialTimeline", meta.name, normalized));
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }, [meta.clips, meta.id, meta.name]);
-  const closePopover = useCallback15(() => setPopover(null), []);
+  const closePopover = useCallback16(() => setPopover(null), []);
   const popoverPanel = popover?.clip.panel;
   useEffect24(() => {
     if (!popoverPanel) return;
@@ -15158,7 +15215,7 @@ var TimelineSection = memo(function TimelineSection2({
     const shown = DialStore.getPanels("panel").find((panel) => panel.name === previous);
     if (shown && "onClose" in shown && typeof shown.onClose === "function") shown.onClose();
   }, [popoverPanel]);
-  const openClipPopover = useCallback15(
+  const openClipPopover = useCallback16(
     (clip, rect, stepKey) => {
       const targetPath = stepKey ? `${clip.key}.${stepKey}` : clip.key;
       const exclude = stepKey ? void 0 : clipPopoverExclusions(clip);
@@ -15180,7 +15237,7 @@ var TimelineSection = memo(function TimelineSection2({
     },
     [meta.id]
   );
-  const toggleTracks = useCallback15((clipKey) => {
+  const toggleTracks = useCallback16((clipKey) => {
     setExpandedTracks((prev) => {
       const next = new Set(prev);
       if (next.has(clipKey)) next.delete(clipKey);
@@ -15189,7 +15246,7 @@ var TimelineSection = memo(function TimelineSection2({
     });
   }, []);
   const onClipClick = meta.onClipClick;
-  const handleBarClick = useCallback15(
+  const handleBarClick = useCallback16(
     (clip, rect, stepKey) => {
       onClipClick?.(clip.key);
       if (!stepKey && clip.tracks?.length) {
@@ -15201,7 +15258,7 @@ var TimelineSection = memo(function TimelineSection2({
     [onClipClick, openClipPopover, toggleTracks]
   );
   const singleTrack = meta.track === "single";
-  const getDragBounds = useCallback15((clipKey) => {
+  const getDragBounds = useCallback16((clipKey) => {
     const transport = TimelineStore.getTransport(meta.id);
     return timelineClipDragBounds(
       timelineClipSpans(DialStore.getValues(meta.id), meta.clips, meta.duration),
@@ -15291,7 +15348,7 @@ var TimelineSection = memo(function TimelineSection2({
     }
     DialStore.updateValues(meta.id, writes);
   };
-  const toggleGroup = useCallback15((group) => {
+  const toggleGroup = useCallback16((group) => {
     setCollapsedGroups((prev) => {
       const next = new Set(prev);
       if (next.has(group)) next.delete(group);
@@ -15713,7 +15770,7 @@ function ClipPopover({
     offsetLeft: window.visualViewport?.offsetLeft ?? 0,
     offsetTop: window.visualViewport?.offsetTop ?? 0
   }));
-  const hostPanels = useSyncExternalStore9(subscribePanels, readPanels, readPanels);
+  const hostPanels = useSyncExternalStore10(subscribePanels, readPanels, readPanels);
   const hostPanel = popover.clip.panel ? hostPanels.find((panel) => panel.name === popover.clip.panel) : void 0;
   useLayoutEffect7(() => {
     const element11 = ref.current;
@@ -15860,11 +15917,11 @@ function ClipPopover({
 var subscribePanels = (listener) => DialStore.subscribeGlobal(listener);
 var readPanels = () => DialStore.getPanels("panel");
 function PopoverPanelControls({ panelId }) {
-  const subscribe2 = useCallback15((listener) => DialStore.subscribe(panelId, listener), [panelId]);
-  const readPanel = useCallback15(() => DialStore.getPanel(panelId), [panelId]);
-  const readValues = useCallback15(() => DialStore.getValues(panelId), [panelId]);
-  const panel = useSyncExternalStore9(subscribe2, readPanel, readPanel);
-  const values = useSyncExternalStore9(subscribe2, readValues, readValues);
+  const subscribe2 = useCallback16((listener) => DialStore.subscribe(panelId, listener), [panelId]);
+  const readPanel = useCallback16(() => DialStore.getPanel(panelId), [panelId]);
+  const readValues = useCallback16(() => DialStore.getValues(panelId), [panelId]);
+  const panel = useSyncExternalStore10(subscribe2, readPanel, readPanel);
+  const values = useSyncExternalStore10(subscribe2, readValues, readValues);
   const [openFolder, setOpenFolder] = useState11(void 0);
   if (!panel) return null;
   const accordion = isAccordionPanel(panel, false);
@@ -15940,7 +15997,7 @@ function TimelineClip({
   const [hovered, setHovered] = useState11(false);
   const isSteps = Boolean(steps?.length);
   const tail = single ? clip.tail ?? 0 : 0;
-  const handlePointerDown = useCallback15(
+  const handlePointerDown = useCallback16(
     (e) => {
       if (e.shiftKey && !onPress) return;
       e.stopPropagation();
@@ -15977,7 +16034,7 @@ function TimelineClip({
     },
     [at, clip.key, duration, fixedDuration, getDragBounds, onPress, pinned, steps]
   );
-  const handlePointerMove = useCallback15(
+  const handlePointerMove = useCallback16(
     (e) => {
       const drag = dragRef.current;
       if (!drag || pxPerSecond <= 0 || drag.locked) return;
@@ -16053,7 +16110,7 @@ function TimelineClip({
     },
     [baseAt, clip, delayMode, onBlockMove, onDrag, onLift, onReorderHover, pxPerSecond, steps, tail, timelineId, timelineDuration]
   );
-  const handlePointerUp = useCallback15(
+  const handlePointerUp = useCallback16(
     (e) => {
       const drag = dragRef.current;
       dragRef.current = null;
@@ -16070,7 +16127,7 @@ function TimelineClip({
     },
     [clip, onClick, onReorderDrop]
   );
-  const handlePointerCancel = useCallback15(() => {
+  const handlePointerCancel = useCallback16(() => {
     const drag = dragRef.current;
     dragRef.current = null;
     setDragging(false);
@@ -16226,28 +16283,7 @@ function ButtonGroup({ buttons }) {
 }
 
 // src/components/Section.tsx
-import { useCallback as useCallback16, useSyncExternalStore as useSyncExternalStore10 } from "react";
 import { Fragment as Fragment8, jsx as jsx31, jsxs as jsxs15 } from "react/jsx-runtime";
-var EMPTY = Object.freeze({});
-var noSubscription = () => () => {
-};
-var noValues = () => EMPTY;
-function usePanelValues(panelId) {
-  const subscribe2 = useCallback16(
-    (callback) => DialStore.subscribe(panelId, callback),
-    [panelId]
-  );
-  const getValues = useCallback16(() => DialStore.getValues(panelId), [panelId]);
-  return useSyncExternalStore10(
-    panelId === void 0 ? noSubscription : subscribe2,
-    panelId === void 0 ? noValues : getValues,
-    panelId === void 0 ? noValues : getValues
-  );
-}
-function SectionRun({ panelId, controls, animateControls }) {
-  const values = usePanelValues(panelId);
-  return /* @__PURE__ */ jsx31(ControlRenderer, { panelId, controls, values, animateControls });
-}
 function Section({
   rows: rows2,
   title,
@@ -16263,8 +16299,8 @@ function Section({
 }) {
   const only = loneTransition(rows2.map((row) => row.control));
   const lone = only ? rows2[0] : void 0;
-  const loneValues = usePanelValues(lone?.panelId);
-  const loneValue = lone ? loneValues[lone.control.path] : void 0;
+  const loneValue = useControlValue(lone?.panelId, lone?.control.path);
+  const loneChanged = useFolderChanged(lone?.panelId, onReset ? void 0 : lone?.control.path);
   const runs = [];
   if (!lone) {
     for (const row of rows2) {
@@ -16279,7 +16315,7 @@ function Section({
   }
   const reset = onReset ? { onReset, changed } : lone ? {
     onReset: () => DialStore.resetFolder(lone.panelId, lone.control.path),
-    changed: DialStore.isFolderChanged(lone.panelId, lone.control.path)
+    changed: loneChanged
   } : {};
   const copyMenu = lone && loneValue ? /* @__PURE__ */ jsx31(TransitionCopyMenu, { panelId: lone.panelId, path: lone.control.path, value: loneValue }) : null;
   const loneControl = lone && loneValue ? /* @__PURE__ */ jsx31(
@@ -16310,7 +16346,7 @@ function Section({
       ] }) : void 0,
       children: [
         loneControl && (animateControls ? /* @__PURE__ */ jsx31("div", { className: "dialkit-control-wrapper", children: loneControl }) : loneControl),
-        runs.map((run) => /* @__PURE__ */ jsx31(SectionRun, { panelId: run.panelId, controls: run.controls, animateControls }, run.key)),
+        runs.map((run) => /* @__PURE__ */ jsx31(ControlRenderer, { panelId: run.panelId, controls: run.controls, animateControls }, run.key)),
         children
       ]
     }

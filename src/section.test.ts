@@ -6,6 +6,7 @@ import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'rea
 import { ControlRenderer } from './components/ControlRenderer';
 import { Folder } from './components/Folder';
 import { Section } from './components/Section';
+import { Slider } from './components/Slider';
 import { TransitionCopyMenu } from './components/TransitionCopy';
 import { TransitionControl } from './components/TransitionControl';
 import { DialStore, type DialConfig } from './store/DialStore';
@@ -16,6 +17,14 @@ const { createRenderer: createShallowRenderer } = createRequire(import.meta.url)
 /** A drawn element, read one level deep. */
 type Drawn = ReactElement<{ [prop: string]: unknown; children?: ReactNode; actions?: ReactNode }>;
 const rowsOf = (element: ReactNode) => Children.toArray((element as Drawn).props.children) as Drawn[];
+/** What a row or a folder of the renderer draws, one level further down. */
+const drawnBy = (element: Drawn) => {
+  const shallow = createShallowRenderer();
+  shallow.render(element);
+  const drawn = shallow.getRenderOutput() as Drawn;
+  shallow.unmount();
+  return drawn;
+};
 
 const byClass = (root: ReactTestInstance, className: string) =>
   root.findAll(node => typeof node.type === 'string' && typeof node.props.className === 'string' && node.props.className.split(' ').includes(className));
@@ -60,11 +69,31 @@ describe('Section', () => {
       assert.deepEqual(resets, ['canvas']);
       // A row follows its own panel's value.
       act(() => DialStore.updateValue(b, 'gap', 20));
-      assert.equal(root.findAllByType(ControlRenderer)[1].props.values.gap, 20);
+      assert.equal(root.findByProps({ label: 'Gap' }).props.value, 20);
     } finally {
       act(() => renderer?.unmount());
       DialStore.unregisterPanel(a);
       DialStore.unregisterPanel(b);
+    }
+  });
+
+  it('redraws only the row whose value changed', () => {
+    const id = 'section-rows';
+    let renderer: ReactTestRenderer | undefined;
+    try {
+      DialStore.registerPanel(id, 'Rows', { zoom: [1, 0, 4, 0.1], gap: [8, 0, 32, 1] });
+      const rows = [{ panelId: id, control: control(id, 'zoom') }, { panelId: id, control: control(id, 'gap') }];
+      act(() => { renderer = create(createElement(Section, { rows, title: 'Canvas' })); });
+      const slider = (label: string) => renderer!.root.findAllByType(Slider).find(row => row.props.label === label)!;
+      const zoom = slider('Zoom').props;
+      const gap = slider('Gap').props;
+      act(() => DialStore.updateValue(id, 'gap', 20));
+      assert.equal(slider('Zoom').props, zoom);
+      assert.notEqual(slider('Gap').props, gap);
+      assert.equal(slider('Gap').props.value, 20);
+    } finally {
+      act(() => renderer?.unmount());
+      DialStore.unregisterPanel(id);
     }
   });
 
@@ -102,11 +131,11 @@ describe('Section', () => {
       // A panel folder whose only row is a transition draws the same way.
       const folderOf = (path: string) => {
         shallow.render(createElement(ControlRenderer, { panelId: id, controls: DialStore.getPanel(id)!.controls.filter(c => c.path === path), values: DialStore.getValues(id) }));
-        return rowsOf(shallow.getRenderOutput())[0];
+        return drawnBy(rowsOf(shallow.getRenderOutput())[0]);
       };
       folder = folderOf('motion');
       assert.equal(folder.type, Folder);
-      const [row] = rowsOf(folder);
+      const row = drawnBy(rowsOf(folder)[0]);
       assert.equal(row.type, TransitionControl);
       assert.equal(row.props.bare, true);
       const actions = folder.props.actions as Drawn;
@@ -117,9 +146,9 @@ describe('Section', () => {
       folder = folderOf('grouped');
       assert.equal(folder.props.actions, undefined);
       assert.equal(folder.props.onReset, undefined);
-      const rows = rowsOf(folder);
-      assert.equal(rows[0].type, TransitionControl);
-      assert.equal(rows[0].props.bare, false);
+      const first = drawnBy(rowsOf(folder)[0]);
+      assert.equal(first.type, TransitionControl);
+      assert.equal(first.props.bare, false);
     } finally {
       shallow.unmount();
       DialStore.unregisterPanel(id);

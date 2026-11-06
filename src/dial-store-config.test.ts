@@ -11,6 +11,15 @@ import { DialStore, flattenDialValueUpdates, resolveDialValues, type DialConfig,
 // A CommonJS module whose named export Node cannot see from ESM.
 const { createRenderer: createShallowRenderer } = createRequire(import.meta.url)('react-test-renderer/shallow') as typeof import('react-test-renderer/shallow');
 
+/** What a row or a folder of the renderer draws, one level further down. */
+function drawnBy<P>(element: ReactElement): ReactElement<P> {
+  const shallow = createShallowRenderer();
+  shallow.render(element);
+  const drawn = shallow.getRenderOutput() as ReactElement<P>;
+  shallow.unmount();
+  return drawn;
+}
+
 describe('DialStore config lifecycle', () => {
   it('uses the same defaults before registration, after registration, and after reset', () => {
     const config = {
@@ -417,7 +426,8 @@ describe('DialStore config lifecycle', () => {
       const unsubscribe = DialStore.subscribeActions(id, (action) => actions.push(action));
       const shallow = createShallowRenderer();
       shallow.render(createElement(ControlRenderer, { panelId: id, controls: DialStore.getControl(id, 'text')!.children!, values: DialStore.getValues(id) }));
-      const [select] = Children.toArray((shallow.getRenderOutput() as ReactElement<{ children: ReactNode }>).props.children) as ReactElement<{ add?: { label: string; hint?: string; onClick: () => void } }>[];
+      const [row] = Children.toArray((shallow.getRenderOutput() as ReactElement<{ children: ReactNode }>).props.children) as ReactElement[];
+      const select = drawnBy<{ add?: { label: string; hint?: string; onClick: () => void } }>(row);
       assert.equal(select.type, SelectControl);
       assert.equal(select.props.add?.label, 'Upload font');
       assert.equal(select.props.add?.hint, 'Adds a font from your computer.');
@@ -470,12 +480,14 @@ describe('DialStore config lifecycle', () => {
       assert.equal(row.props.className, 'dialkit-row-group');
       const cells = Children.toArray(row.props.children) as ReactElement<{ className: string; 'data-inline-label'?: string; children: ReactNode }>[];
       assert.deepEqual(cells.map((cell) => cell.props['data-inline-label']), ['none', undefined]);
-      const [weightTitle, weight] = Children.toArray(cells[0].props.children) as ReactElement<{ children?: ReactNode; label?: string }>[];
-      const [sizeTitle, size] = Children.toArray(cells[1].props.children) as ReactElement<{ children?: ReactNode; label?: string }>[];
+      const [weightTitle, weightRow] = Children.toArray(cells[0].props.children) as ReactElement<{ children?: ReactNode }>[];
+      const [sizeTitle, sizeRow] = Children.toArray(cells[1].props.children) as ReactElement<{ children?: ReactNode }>[];
+      const weight = drawnBy<{ label?: string }>(weightRow);
+      const size = drawnBy<{ label?: string }>(sizeRow);
       // The title above keeps the full name; the control shows the inline one.
       assert.deepEqual([weightTitle.props.children, sizeTitle.props.children], ['Weight', 'Size']);
       assert.deepEqual([weight.props.label, size.props.label], ['Weight', 'Px']);
-      assert.equal(folder.type, Folder);
+      assert.equal(drawnBy(folder).type, Folder);
       shallow.unmount();
     } finally { DialStore.unregisterPanel(id); }
   });
