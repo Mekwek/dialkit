@@ -201,24 +201,30 @@ function DialTimelineDock({
   );
 
   // Publishes the room the dock takes at the bottom of the viewport (its
-  // height and the gap below it) as --dialkit-timeline-clearance on <html>,
-  // so a host can float its own UI above the dock in CSS. 0 while hidden.
+  // height and the gap below it) as --dialkit-timeline-clearance, so a host
+  // can float its own UI above the dock in CSS. 0 while hidden. The value
+  // goes on the panels and on elements marked data-timeline-clearance alone:
+  // on <html> it reaches every element, and the browser works out the style
+  // of the whole page again on each frame that the dock opens.
   const hasTimelines = timelines.length > 0;
   useEffect(() => {
     const dock = dockRef.current;
     if (!dock || typeof ResizeObserver === 'undefined') return;
-    const root = document.documentElement;
+    const sheet = new CSSStyleSheet();
+    sheet.insertRule('.dialkit-panel-wrapper, [data-timeline-clearance] {}');
+    document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+    const { style } = sheet.cssRules[0] as CSSStyleRule;
     const publish = () => {
       const rect = dock.getBoundingClientRect();
       const clearance = rect.height > 0 ? Math.round(window.innerHeight - rect.top) : 0;
-      root.style.setProperty('--dialkit-timeline-clearance', `${Math.max(0, clearance)}px`);
+      style.setProperty('--dialkit-timeline-clearance', `${Math.max(0, clearance)}px`);
     };
     publish();
     const observer = new ResizeObserver(publish);
     observer.observe(dock);
     return () => {
       observer.disconnect();
-      root.style.removeProperty('--dialkit-timeline-clearance');
+      document.adoptedStyleSheets = document.adoptedStyleSheets.filter((other) => other !== sheet);
     };
   }, [dockVisible, hasTimelines, mounted]);
 

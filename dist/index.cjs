@@ -14749,18 +14749,21 @@ function DialTimelineDock({
   (0, import_react39.useEffect)(() => {
     const dock = dockRef.current;
     if (!dock || typeof ResizeObserver === "undefined") return;
-    const root = document.documentElement;
+    const sheet = new CSSStyleSheet();
+    sheet.insertRule(".dialkit-panel-wrapper, [data-timeline-clearance] {}");
+    document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+    const { style } = sheet.cssRules[0];
     const publish = () => {
       const rect = dock.getBoundingClientRect();
       const clearance = rect.height > 0 ? Math.round(window.innerHeight - rect.top) : 0;
-      root.style.setProperty("--dialkit-timeline-clearance", `${Math.max(0, clearance)}px`);
+      style.setProperty("--dialkit-timeline-clearance", `${Math.max(0, clearance)}px`);
     };
     publish();
     const observer = new ResizeObserver(publish);
     observer.observe(dock);
     return () => {
       observer.disconnect();
-      root.style.removeProperty("--dialkit-timeline-clearance");
+      document.adoptedStyleSheets = document.adoptedStyleSheets.filter((other) => other !== sheet);
     };
   }, [dockVisible, hasTimelines, mounted]);
   if (!mounted || typeof window === "undefined" || timelines.length === 0) {
