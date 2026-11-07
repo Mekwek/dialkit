@@ -32,6 +32,9 @@ export interface SectionProps {
   actions?: ReactNode;
   /** Slide rows in and out as they come and go. */
   animateControls?: boolean;
+  /** Accordion mode for the rows' folders, as on a panel: the one open folder's path, or null when all are closed. */
+  openFolder?: string | null;
+  onOpenFolderChange?: (path: string | null) => void;
   /** Drawn after the rows, such as a note for a section with none. */
   children?: ReactNode;
 }
@@ -55,6 +58,8 @@ export function Section({
   changed,
   actions,
   animateControls = false,
+  openFolder,
+  onOpenFolderChange,
   children,
 }: SectionProps) {
   const only = loneTransition(rows.map((row) => row.control));
@@ -114,7 +119,7 @@ export function Section({
     >
       {loneControl && (animateControls ? <div className="dialkit-control-wrapper">{loneControl}</div> : loneControl)}
       {runs.map((run) => (
-        <ControlRenderer key={run.key} panelId={run.panelId} controls={run.controls} animateControls={animateControls} />
+        <ControlRenderer key={run.key} panelId={run.panelId} controls={run.controls} animateControls={animateControls} openFolder={openFolder} onOpenFolderChange={onOpenFolderChange} />
       ))}
       {children}
     </Folder>

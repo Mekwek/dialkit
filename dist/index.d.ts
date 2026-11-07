@@ -1541,6 +1541,9 @@ interface SectionProps {
     actions?: ReactNode;
     /** Slide rows in and out as they come and go. */
     animateControls?: boolean;
+    /** Accordion mode for the rows' folders, as on a panel: the one open folder's path, or null when all are closed. */
+    openFolder?: string | null;
+    onOpenFolderChange?: (path: string | null) => void;
     /** Drawn after the rows, such as a note for a section with none. */
     children?: ReactNode;
 }
@@ -1552,7 +1555,7 @@ interface SectionProps {
  * shows. The markup is a folder's: `.dialkit-folder > .dialkit-folder-content
  * > .dialkit-folder-inner`, with the rows inside.
  */
-declare function Section({ rows, title, hint, defaultOpen, open, onOpenChange, onReset, changed, actions, animateControls, children, }: SectionProps): react_jsx_runtime.JSX.Element;
+declare function Section({ rows, title, hint, defaultOpen, open, onOpenChange, onReset, changed, actions, animateControls, openFolder, onOpenFolderChange, children, }: SectionProps): react_jsx_runtime.JSX.Element;
 
 interface EasingVisualizationProps {
     easing: EasingConfig;

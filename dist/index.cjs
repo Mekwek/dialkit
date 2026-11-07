@@ -16411,6 +16411,8 @@ function Section({
   changed,
   actions,
   animateControls = false,
+  openFolder,
+  onOpenFolderChange,
   children
 }) {
   const only = loneTransition(rows2.map((row) => row.control));
@@ -16462,7 +16464,7 @@ function Section({
       ] }) : void 0,
       children: [
         loneControl && (animateControls ? /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("div", { className: "dialkit-control-wrapper", children: loneControl }) : loneControl),
-        runs.map((run) => /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(ControlRenderer, { panelId: run.panelId, controls: run.controls, animateControls }, run.key)),
+        runs.map((run) => /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(ControlRenderer, { panelId: run.panelId, controls: run.controls, animateControls, openFolder, onOpenFolderChange }, run.key)),
         children
       ]
     }
