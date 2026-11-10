@@ -72,6 +72,14 @@ export interface UseDialOptions {
    * versions are "V1", "V2"…
    */
   versionPrefix?: string;
+  /**
+   * `false`: a value change does not render the component again. `values`
+   * then holds the values of the component's last render; read the current
+   * ones with the controller's `getValues`, and hear each change with its
+   * `subscribe`. For a host that sends values on to something outside React
+   * (a canvas, an engine) on every frame of a drag. Default `true`.
+   */
+  renderOnChange?: boolean;
 }
 
 export interface DialKitController<T extends DialConfig> {
@@ -82,6 +90,11 @@ export interface DialKitController<T extends DialConfig> {
   setOpen: (open: boolean) => void;
   getOpen: () => boolean | undefined;
   getValues: () => ResolvedValues<T>;
+  /**
+   * Calls `listener` after each change of the panel's values or structure,
+   * outside React. Returns the call that stops it.
+   */
+  subscribe: (listener: () => void) => () => void;
 }
 
 export function useDialKit<T extends DialConfig>(
@@ -112,6 +125,7 @@ export function useDialKitController<T extends DialConfig>(
     groupHeader: options?.groupHeader,
     beside: options?.beside,
     versionPrefix: options?.versionPrefix,
+    renderOnChange: options?.renderOnChange,
   });
 
   const configRef = useRef(config);
@@ -166,6 +180,10 @@ export function useDialKitController<T extends DialConfig>(
 
   const setOpen = useCallback((open: boolean) => DialStore.setPanelOpen(panelId, open), [panelId]);
   const getOpen = useCallback(() => DialStore.getPanelOpen(panelId), [panelId]);
+  const subscribe = useCallback(
+    (listener: () => void) => DialStore.subscribe(panelId, listener),
+    [panelId]
+  );
 
   return useMemo(
     () => ({
@@ -176,7 +194,8 @@ export function useDialKitController<T extends DialConfig>(
       getValues,
       setOpen,
       getOpen,
+      subscribe,
     }),
-    [getValues, getOpen, setOpen, resetValues, setValue, setValues, values]
+    [getValues, getOpen, setOpen, resetValues, setValue, setValues, subscribe, values]
   );
 }

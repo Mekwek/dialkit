@@ -18,7 +18,16 @@ export interface UseDialStorePanelOptions {
   groupHeader?: boolean;
   beside?: string;
   versionPrefix?: string;
+  /**
+   * `false`: a value change does not render the component again, and
+   * `flatValues` holds the values of the component's last render. Default
+   * `true`.
+   */
+  renderOnChange?: boolean;
 }
+
+const noStop = () => {};
+const noSubscribe = () => noStop;
 
 // Serialize with a referential short-circuit: consumers can re-render at 60Hz
 // during timeline playback, and re-stringifying an unchanged config every
@@ -106,14 +115,21 @@ export function useDialStorePanel(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasStableId, panelId, name, serializedConfig, serializedShortcuts, serializedPersist, options.presetsEditable, options.presetsLockable, options.hint, options.folderMode, hasOnClose, options.toolbar, options.group, options.groupHeader, options.beside, options.versionPrefix]);
 
-  const subscribe = useCallback(
+  const renderOnChange = options.renderOnChange !== false;
+  const subscribeValues = useCallback(
     (callback: () => void) => DialStore.subscribe(panelId, callback),
     [panelId]
   );
   const getSnapshot = useCallback(() => DialStore.getValues(panelId), [panelId]);
 
   // DialStore.getValues returns a stable empty object when panel is not registered.
-  const flatValues = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  // Without a subscription, the snapshot is read only when something else
+  // renders the component.
+  const flatValues = useSyncExternalStore(
+    renderOnChange ? subscribeValues : noSubscribe,
+    getSnapshot,
+    getSnapshot
+  );
 
   return { panelId, flatValues, serializedConfig };
 }

@@ -228,6 +228,22 @@ dial.setOpen(false);
 
 Read `dial.values` in React, Svelte, and vanilla; `dial.values()` in Solid; or `dial.values.value` in Vue. `getValues()` reads the latest snapshot, and `getOpen()` reads panel state. `resetValues()` restores the config defaults and clears the active preset.
 
+### Send values outside React on every frame
+
+By default, each value change renders the component again. When the values go to something outside React, such as a canvas or a WebGL scene, a drag then costs one React render per frame. Set `renderOnChange: false` and listen to the store instead:
+
+```tsx
+const dial = useDialKitController("Scene", {
+  spread: [1, 0, 4],
+}, { renderOnChange: false });
+
+useEffect(() => dial.subscribe(() => {
+  scene.setSpread(dial.getValues().spread);
+}), [dial]);
+```
+
+`subscribe` calls the listener after each value or structure change and returns the call that stops it. With `renderOnChange: false`, `dial.values` holds the values of the component's last render, so read `getValues()` in the listener. This option is React only.
+
 ### Versions and persistence
 
 **Save version** captures your page, flies the capture into the panel as a thumbnail, and selects the new version. Edits update the selected version automatically; **V1** holds the editable base values. Click a thumbnail to switch versions, double-click its name to rename it, or hover it to delete. The grid button zooms the page out to every version; pick one to zoom back into it. **Copy** puts the current values and an instruction for applying them to your config on the clipboard.

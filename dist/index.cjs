@@ -2404,6 +2404,9 @@ var DialStore = /* @__PURE__ */ new DialStoreClass();
 
 // src/hooks/useDialStorePanel.ts
 var import_react = require("react");
+var noStop = () => {
+};
+var noSubscribe = () => noStop;
 function useSerialized(value) {
   const ref = (0, import_react.useRef)();
   if (!ref.current || !Object.is(ref.current.value, value)) {
@@ -2466,12 +2469,17 @@ function useDialStorePanel(name, config, options = {}) {
       versionPrefix: optionsRef.current.versionPrefix
     });
   }, [hasStableId, panelId, name, serializedConfig, serializedShortcuts, serializedPersist, options.presetsEditable, options.presetsLockable, options.hint, options.folderMode, hasOnClose, options.toolbar, options.group, options.groupHeader, options.beside, options.versionPrefix]);
-  const subscribe2 = (0, import_react.useCallback)(
+  const renderOnChange = options.renderOnChange !== false;
+  const subscribeValues = (0, import_react.useCallback)(
     (callback) => DialStore.subscribe(panelId, callback),
     [panelId]
   );
   const getSnapshot = (0, import_react.useCallback)(() => DialStore.getValues(panelId), [panelId]);
-  const flatValues = (0, import_react.useSyncExternalStore)(subscribe2, getSnapshot, getSnapshot);
+  const flatValues = (0, import_react.useSyncExternalStore)(
+    renderOnChange ? subscribeValues : noSubscribe,
+    getSnapshot,
+    getSnapshot
+  );
   return { panelId, flatValues, serializedConfig };
 }
 
@@ -2494,7 +2502,8 @@ function useDialKitController(name, config, options) {
     group: options?.group,
     groupHeader: options?.groupHeader,
     beside: options?.beside,
-    versionPrefix: options?.versionPrefix
+    versionPrefix: options?.versionPrefix,
+    renderOnChange: options?.renderOnChange
   });
   const configRef = (0, import_react2.useRef)(config);
   configRef.current = config;
@@ -2538,6 +2547,10 @@ function useDialKitController(name, config, options) {
   );
   const setOpen = (0, import_react2.useCallback)((open) => DialStore.setPanelOpen(panelId, open), [panelId]);
   const getOpen = (0, import_react2.useCallback)(() => DialStore.getPanelOpen(panelId), [panelId]);
+  const subscribe2 = (0, import_react2.useCallback)(
+    (listener) => DialStore.subscribe(panelId, listener),
+    [panelId]
+  );
   return (0, import_react2.useMemo)(
     () => ({
       values,
@@ -2546,9 +2559,10 @@ function useDialKitController(name, config, options) {
       resetValues,
       getValues,
       setOpen,
-      getOpen
+      getOpen,
+      subscribe: subscribe2
     }),
-    [getValues, getOpen, setOpen, resetValues, setValue, setValues, values]
+    [getValues, getOpen, setOpen, resetValues, setValue, setValues, subscribe2, values]
   );
 }
 
@@ -7662,11 +7676,11 @@ function DialPad(props) {
 // src/hooks/usePanelValues.ts
 var import_react21 = require("react");
 var EMPTY = Object.freeze({});
-var noStop = () => {
+var noStop2 = () => {
 };
 function usePanelRead(panelId, read) {
   const subscribe2 = (0, import_react21.useCallback)(
-    (callback) => panelId === void 0 ? noStop : DialStore.subscribe(panelId, callback),
+    (callback) => panelId === void 0 ? noStop2 : DialStore.subscribe(panelId, callback),
     [panelId]
   );
   return (0, import_react21.useSyncExternalStore)(subscribe2, read, read);
