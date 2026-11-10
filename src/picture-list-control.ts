@@ -53,8 +53,8 @@ type FamilyRow = {
 
 let instances = 0;
 
-/** The chevron's turn: it points right while closed and down while open. */
-const chevronAngle = (open: boolean) => open ? 0 : -90;
+/** The chevron's turn: it points down while closed and up while open. */
+const chevronAngle = (open: boolean) => open ? 180 : 0;
 
 /** Puts `node` right after `previous` (or first in `parent`), moving it only when it is out of place. */
 function place(parent: HTMLElement, node: HTMLElement, previous: HTMLElement | null) {

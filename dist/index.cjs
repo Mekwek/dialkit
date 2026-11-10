@@ -10753,7 +10753,7 @@ function subscribeActivePictureFamily(listener) {
 
 // src/picture-list-control.ts
 var instances = 0;
-var chevronAngle = (open) => open ? 0 : -90;
+var chevronAngle = (open) => open ? 180 : 0;
 function place(parent, node, previous) {
   const next = previous ? previous.nextElementSibling : parent.firstElementChild;
   if (next === node) return;
