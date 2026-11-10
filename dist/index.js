@@ -12797,6 +12797,7 @@ function VersionGallery(props) {
 
 // src/components/Panel.tsx
 import { Fragment as Fragment6, jsx as jsx26, jsxs as jsxs13 } from "react/jsx-runtime";
+var NO_PRESETS = [];
 function Panel({ panel, defaultOpen = true, inline = false, accordion = false, openFolder, onOpenFolderChange, onOpenChange, variant = "root", toolbarExtra, versions = "thumbnails", theme, beside }) {
   const [copied, setCopied] = useState9(false);
   useHints(true);
@@ -12806,25 +12807,28 @@ function Panel({ panel, defaultOpen = true, inline = false, accordion = false, o
     (callback) => DialStore.subscribe(panel.id, callback),
     [panel.id]
   );
-  const getSnapshot = useCallback12(
-    () => DialStore.getValues(panel.id),
-    [panel.id]
-  );
   const getOpenSnapshot = useCallback12(
     () => DialStore.getPanelOpen(panel.id),
     [panel.id]
   );
-  const values = useSyncExternalStore7(subscribe2, getSnapshot, getSnapshot);
+  const getPresetsSnapshot = useCallback12(() => {
+    const list = DialStore.getPresets(panel.id);
+    return list.length === 0 ? NO_PRESETS : list;
+  }, [panel.id]);
+  const getActivePresetSnapshot = useCallback12(
+    () => DialStore.getActivePresetId(panel.id),
+    [panel.id]
+  );
   const storeOpen = useSyncExternalStore7(subscribe2, getOpenSnapshot, getOpenSnapshot);
   const isOpen = storeOpen ?? defaultOpen;
   useEffect21(() => {
     DialStore.initPanelOpen(panel.id, defaultOpen);
   }, [panel.id, defaultOpen]);
-  const presets = DialStore.getPresets(panel.id);
-  const activePresetId = DialStore.getActivePresetId(panel.id);
+  const presets = useSyncExternalStore7(subscribe2, getPresetsSnapshot, getPresetsSnapshot);
+  const activePresetId = useSyncExternalStore7(subscribe2, getActivePresetSnapshot, getActivePresetSnapshot);
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(buildCopyInstruction("useDialKit", panel.name, values));
+      await navigator.clipboard.writeText(buildCopyInstruction("useDialKit", panel.name, DialStore.getValues(panel.id)));
     } catch {
       return;
     }
@@ -12843,7 +12847,6 @@ function Panel({ panel, defaultOpen = true, inline = false, accordion = false, o
       {
         panelId: panel.id,
         controls: panel.controls,
-        values,
         openFolder: accordion ? resolveOpenFolder(panel.controls, openFolder) : void 0,
         onOpenFolderChange,
         animateControls: true

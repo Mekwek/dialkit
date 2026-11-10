@@ -13,6 +13,10 @@ import { HintTip } from './Hint';
 import { PresetManager } from './PresetManager';
 import { VersionGallery } from './VersionGallery';
 import type { DialVersions } from '../versions/gallery';
+import type { Preset } from '../store/DialStore';
+
+// A stable empty list: the store returns a new one for a panel without versions.
+const NO_PRESETS: Preset[] = [];
 
 interface PanelProps {
   panel: PanelConfig;
@@ -40,17 +44,22 @@ export function Panel({ panel, defaultOpen = true, inline = false, accordion = f
     (callback: () => void) => DialStore.subscribe(panel.id, callback),
     [panel.id]
   );
-  const getSnapshot = useCallback(
-    () => DialStore.getValues(panel.id),
-    [panel.id]
-  );
   const getOpenSnapshot = useCallback(
     () => DialStore.getPanelOpen(panel.id),
     [panel.id]
   );
+  const getPresetsSnapshot = useCallback(() => {
+    const list = DialStore.getPresets(panel.id);
+    return list.length === 0 ? NO_PRESETS : list;
+  }, [panel.id]);
+  const getActivePresetSnapshot = useCallback(
+    () => DialStore.getActivePresetId(panel.id),
+    [panel.id]
+  );
 
-  // Subscribe to panel value changes
-  const values = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  // The panel reads no values: each row reads its own, so a write redraws
+  // only the rows it changes. Rows that a visibility rule shows or hides
+  // arrive through `panel`, which the root draws again.
 
   // The store owns open/collapsed state so it can be driven programmatically.
   const storeOpen = useSyncExternalStore(subscribe, getOpenSnapshot, getOpenSnapshot);
@@ -60,12 +69,11 @@ export function Panel({ panel, defaultOpen = true, inline = false, accordion = f
     DialStore.initPanelOpen(panel.id, defaultOpen);
   }, [panel.id, defaultOpen]);
 
-  const presets = DialStore.getPresets(panel.id);
-  const activePresetId = DialStore.getActivePresetId(panel.id);
-
+  const presets = useSyncExternalStore(subscribe, getPresetsSnapshot, getPresetsSnapshot);
+  const activePresetId = useSyncExternalStore(subscribe, getActivePresetSnapshot, getActivePresetSnapshot);
 
   const handleCopy = async () => {
-    try { await navigator.clipboard.writeText(buildCopyInstruction('useDialKit', panel.name, values)); }
+    try { await navigator.clipboard.writeText(buildCopyInstruction('useDialKit', panel.name, DialStore.getValues(panel.id))); }
     catch { return; }
     setCopied(true);
     clearTimeout(copyTimeout.current);
@@ -85,7 +93,6 @@ export function Panel({ panel, defaultOpen = true, inline = false, accordion = f
       <ControlRenderer
         panelId={panel.id}
         controls={panel.controls}
-        values={values}
         openFolder={accordion ? resolveOpenFolder(panel.controls, openFolder) : undefined}
         onOpenFolderChange={onOpenFolderChange}
         animateControls
