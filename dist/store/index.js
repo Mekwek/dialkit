@@ -425,6 +425,7 @@ function isVisibilityWrapper(value) {
 function unwrapVisibility(value) {
   return isVisibilityWrapper(value) ? value.value : value;
 }
+var DEFAULT_PRESET_WORD = { singular: "Version", plural: "Versions" };
 var EMPTY_VALUES = Object.freeze({});
 var TRANSITION_PRESETS_KEY = "dialkit:transition-presets";
 function copyTransitionValue(value) {
@@ -451,6 +452,9 @@ function isStoredTransitionPreset(preset) {
     default:
       return false;
   }
+}
+function samePresetWord(a, b) {
+  return a === b || !!a && !!b && a.singular === b.singular && a.plural === b.plural;
 }
 function resolveDialValues(config, flatValues) {
   return resolveConfigValues(config, flatValues, "");
@@ -698,7 +702,13 @@ var DialStoreClass = class {
       group: options.group,
       groupHeader: options.groupHeader,
       beside: options.beside,
-      versionPrefix: options.versionPrefix
+      versionPrefix: options.versionPrefix,
+      presetWord: options.presetWord,
+      saveLabel: options.saveLabel,
+      showBasePreset: options.showBasePreset,
+      presetLabel: options.presetLabel,
+      presetBadge: options.presetBadge,
+      onBeforePresetSwitch: options.onBeforePresetSwitch
     };
     this.panels.set(id, panel);
     this.controlsByPanel.set(panel, controlsByPath);
@@ -731,7 +741,7 @@ var DialStoreClass = class {
       return;
     }
     const { key, parsed: { controls, controlsByPath, defaultValues, resetKeys, conditional } } = this.parseCached(id, config, shortcuts ?? existing.shortcuts);
-    const unchanged = key !== void 0 && this.panelConfigKeys.get(id) === key && name === existing.name && (options.kind ?? existing.kind) === existing.kind && (options.presetsEditable ?? existing.presetsEditable) === existing.presetsEditable && (options.presetsLockable ?? existing.presetsLockable) === existing.presetsLockable && (options.hint ?? existing.hint) === existing.hint && (options.folderMode ?? existing.folderMode) === existing.folderMode && (options.onClose ?? existing.onClose) === existing.onClose && (options.toolbar ?? existing.toolbar) === existing.toolbar && (options.group ?? existing.group) === existing.group && (options.groupHeader ?? existing.groupHeader) === existing.groupHeader && (options.beside ?? existing.beside) === existing.beside && (options.versionPrefix ?? existing.versionPrefix) === existing.versionPrefix;
+    const unchanged = key !== void 0 && this.panelConfigKeys.get(id) === key && name === existing.name && (options.kind ?? existing.kind) === existing.kind && (options.presetsEditable ?? existing.presetsEditable) === existing.presetsEditable && (options.presetsLockable ?? existing.presetsLockable) === existing.presetsLockable && (options.hint ?? existing.hint) === existing.hint && (options.folderMode ?? existing.folderMode) === existing.folderMode && (options.onClose ?? existing.onClose) === existing.onClose && (options.toolbar ?? existing.toolbar) === existing.toolbar && (options.group ?? existing.group) === existing.group && (options.groupHeader ?? existing.groupHeader) === existing.groupHeader && (options.beside ?? existing.beside) === existing.beside && (options.versionPrefix ?? existing.versionPrefix) === existing.versionPrefix && samePresetWord(options.presetWord ?? existing.presetWord, existing.presetWord) && (options.saveLabel ?? existing.saveLabel) === existing.saveLabel && (options.showBasePreset ?? existing.showBasePreset) === existing.showBasePreset && (options.presetLabel ?? existing.presetLabel) === existing.presetLabel && (options.presetBadge ?? existing.presetBadge) === existing.presetBadge && (options.onBeforePresetSwitch ?? existing.onBeforePresetSwitch) === existing.onBeforePresetSwitch;
     this.configurePanelRetention(id, options);
     if (unchanged) {
       this.persistPanel(id);
@@ -755,7 +765,13 @@ var DialStoreClass = class {
       group: options.group ?? existing.group,
       groupHeader: options.groupHeader ?? existing.groupHeader,
       beside: options.beside ?? existing.beside,
-      versionPrefix: options.versionPrefix ?? existing.versionPrefix
+      versionPrefix: options.versionPrefix ?? existing.versionPrefix,
+      presetWord: options.presetWord ?? existing.presetWord,
+      saveLabel: options.saveLabel ?? existing.saveLabel,
+      showBasePreset: options.showBasePreset ?? existing.showBasePreset,
+      presetLabel: options.presetLabel ?? existing.presetLabel,
+      presetBadge: options.presetBadge ?? existing.presetBadge,
+      onBeforePresetSwitch: options.onBeforePresetSwitch ?? existing.onBeforePresetSwitch
     };
     this.panels.set(id, nextPanel);
     this.controlsByPanel.set(nextPanel, controlsByPath);
@@ -1234,6 +1250,83 @@ var DialStoreClass = class {
   }
   getActivePresetId(panelId) {
     return this.activePreset.get(panelId) ?? null;
+  }
+  /** What the panel's version UI calls a version (`presetWord`), else `fallback`. */
+  getPresetWord(panelId, fallback = DEFAULT_PRESET_WORD) {
+    return this.panels.get(panelId)?.presetWord ?? fallback;
+  }
+  /** The save button's text the panel sets (`saveLabel`), if it sets one. */
+  getSaveLabel(panelId) {
+    return this.panels.get(panelId)?.saveLabel;
+  }
+  /** Whether DialKit lists the base version with the saved ones. See `showBasePreset`. */
+  showsBasePreset(panelId) {
+    return this.panels.get(panelId)?.showBasePreset ?? true;
+  }
+  /** Whether the panel draws its versions under labels of its own (`presetLabel`). */
+  hasPresetLabel(panelId) {
+    return !!this.panels.get(panelId)?.presetLabel;
+  }
+  /** The label drawn for a saved version at `index` among the saved ones: its name, unless `presetLabel` gives another. */
+  getPresetLabel(panelId, preset, index) {
+    const label = this.panels.get(panelId)?.presetLabel;
+    return label ? label({ id: preset.id, name: preset.name }, index) : preset.name;
+  }
+  /** The mark on a version's picture (`presetBadge`), or null. */
+  getPresetBadge(panelId, presetId) {
+    return this.panels.get(panelId)?.presetBadge?.(presetId) || null;
+  }
+  /**
+   * Draws the panel's versions again, for a host whose `presetLabel` or
+   * `presetBadge` now returns something else. The versions do not change.
+   */
+  refreshPresetDisplay(panelId) {
+    if (!this.panels.has(panelId)) return;
+    this.presets.set(panelId, [...this.getPresets(panelId)]);
+    this.notify(panelId);
+  }
+  /**
+   * Whether a click may switch to a version (a saved one's id, or null for
+   * the base version): the answer of `onBeforePresetSwitch`. Without one,
+   * or for the version already shown, it is true at once, so the switch
+   * happens in the same click.
+   */
+  confirmPresetSwitch(panelId, presetId) {
+    const ask = this.panels.get(panelId)?.onBeforePresetSwitch;
+    if (!ask || presetId === this.getActivePresetId(panelId)) return true;
+    return ask(presetId ?? "base");
+  }
+  /**
+   * Switches to a version (null for the base version) once
+   * `confirmPresetSwitch` allows it. Resolves with whether it switched; with
+   * no question to ask, it switches before returning.
+   */
+  switchPresetFromClick(panelId, presetId, load = () => this.selectPreset(panelId, presetId)) {
+    const allowed = this.confirmPresetSwitch(panelId, presetId);
+    if (allowed === true) {
+      load();
+      return true;
+    }
+    if (allowed === false) return false;
+    return allowed.then((ok) => {
+      if (ok) load();
+      return ok;
+    }, () => false);
+  }
+  /** Loads a saved version, or the base version for null. */
+  selectPreset(panelId, presetId) {
+    if (presetId) this.loadPreset(panelId, presetId);
+    else this.clearActivePreset(panelId);
+  }
+  /**
+   * Renames a saved version from a field that showed its label: with a
+   * `presetLabel`, a label left as it showed keeps the stored name.
+   */
+  renamePresetFromLabel(panelId, presetId, name) {
+    const presets = this.getPresets(panelId);
+    const index = presets.findIndex((preset) => preset.id === presetId);
+    if (index >= 0 && this.hasPresetLabel(panelId) && name.trim() === this.getPresetLabel(panelId, presets[index], index)) return;
+    this.renamePreset(panelId, presetId, name);
   }
   clearActivePreset(panelId) {
     const panel = this.panels.get(panelId);
@@ -1764,6 +1857,7 @@ function sameControlPaths(a, b) {
 }
 var DialStore = /* @__PURE__ */ new DialStoreClass();
 export {
+  DEFAULT_PRESET_WORD,
   DialStore,
   flattenDialValueUpdates,
   formatLabel,

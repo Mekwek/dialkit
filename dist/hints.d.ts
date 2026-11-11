@@ -1,4 +1,4 @@
-import { C as ControlMeta } from './DialStore-BHYnOV-c.js';
+import { C as ControlMeta, e as PresetWord } from './DialStore-BbL0jUCM.js';
 import './dial-pad.js';
 import './anchor.js';
 import './pictures.js';
@@ -16,6 +16,8 @@ type HintPosition = {
     y: number;
     above: boolean;
 };
+/** The side of its element a hint sits on, set with `data-hint-side` on the element. */
+type HintSide = 'left' | 'right' | 'above' | 'below';
 type Box = {
     left: number;
     top: number;
@@ -49,8 +51,18 @@ declare const HINTS: {
     readonly imageUpload: "Adds an image from your computer.";
     readonly imageClear: "Removes the image.";
 };
-/** The version menu's hints, in the word its rows go by: versions, or a timeline's sequences. */
-declare function versionHints(noun?: 'version' | 'sequence', { editable, lockable }?: {
+/**
+ * The hints of the version pictures' parts (HINTS' version hints), in the
+ * word a panel calls its versions (`presetWord`).
+ */
+declare function presetHints(word?: PresetWord): {
+    saveVersion: string;
+    version: string;
+    deleteVersion: string;
+    allVersions: string;
+};
+/** The version menu's hints, in the word its rows go by: versions, a timeline's sequences, or a panel's `presetWord`. */
+declare function versionHints(noun?: string, { editable, lockable }?: {
     editable?: boolean | undefined;
     lockable?: boolean | undefined;
 }): {
@@ -127,6 +139,23 @@ declare function getHintPosition(row: Box, root: Pick<Box, 'left' | 'top'>, size
     width: number;
     height: number;
 }): HintPosition;
+/** The side an element's hint sits on (`data-hint-side`), or none for the usual place. */
+declare function hintSideOf(element: HTMLElement): HintSide | undefined;
+/**
+ * Where a hint sits on one side of its element (`data-hint-side`), relative
+ * to its root: 8px off that side, centred on the other axis, and inside the
+ * viewport. Returns the hint's top left corner.
+ */
+declare function getHintSidePosition(row: Required<Box>, root: Pick<Box, 'left' | 'top'>, size: {
+    width: number;
+    height: number;
+}, viewport: {
+    width: number;
+    height: number;
+}, side: HintSide): {
+    left: number;
+    top: number;
+};
 /**
  * Hold H over a control with a hint to read it. The rest of its panel dims,
  * and the control is described by the hint while it shows. Every control
@@ -144,4 +173,4 @@ declare function mountHints(): {
  */
 declare function setHint(row: HTMLElement, hint: string | undefined): void;
 
-export { HINTS, type HintPosition, HintStore, TIMELINE_HINTS, getHintPosition, hasActionHints, isHintKey, mountHints, setHint, versionHints };
+export { HINTS, type HintPosition, type HintSide, HintStore, TIMELINE_HINTS, getHintPosition, getHintSidePosition, hasActionHints, hintSideOf, isHintKey, mountHints, presetHints, setHint, versionHints };

@@ -309,6 +309,48 @@ export type ControlMeta = {
 /** How a panel's top-level folders open. See `PanelConfig.folderMode`. */
 export type FolderMode = 'independent' | 'accordion';
 
+/** What a panel's version UI calls a saved version. */
+export type PresetWord = { singular: string; plural: string };
+
+/** The word DialKit's version UI uses without `presetWord`. */
+export const DEFAULT_PRESET_WORD: PresetWord = { singular: 'Version', plural: 'Versions' };
+
+/** How DialKit draws a panel's versions, and what a click on one asks first. */
+export type PresetOptions = {
+  /**
+   * The word every version string DialKit draws uses: the save button, the
+   * menu and list labels, and the hints. Default "Version" / "Versions".
+   */
+  presetWord?: PresetWord;
+  /**
+   * The save button's text where DialKit draws one: "Save version" over the
+   * pictures, "New version" in the version menu.
+   */
+  saveLabel?: string;
+  /**
+   * `false` leaves the base version (the values before any saved one) out of
+   * every list DialKit draws: the pictures, the grid, the version menu.
+   * Default `true`.
+   */
+  showBasePreset?: boolean;
+  /**
+   * The label drawn for each saved version, by its place among the saved
+   * ones. The stored name does not change.
+   */
+  presetLabel?: (preset: { id: string; name: string }, index: number) => string;
+  /**
+   * A short mark on a version's picture ("Draft"), or null for none. When
+   * what it returns changes, call `DialStore.refreshPresetDisplay`.
+   */
+  presetBadge?: (presetId: string) => string | null;
+  /**
+   * Asked before a click switches to another version, with that version's id
+   * ("base" for the base version). It switches only on true. A click on the
+   * version already shown does not ask.
+   */
+  onBeforePresetSwitch?: (presetId: string) => boolean | Promise<boolean>;
+};
+
 export type PanelConfig = {
   id: string;
   name: string;
@@ -366,7 +408,7 @@ export type PanelConfig = {
    * versions are "V1", "V2"…
    */
   versionPrefix?: string;
-};
+} & PresetOptions;
 
 type Listener = () => void;
 type ActionListener = (action: string) => void;
@@ -456,7 +498,7 @@ export type DialStorePanelOptions = {
    * versions are "V1", "V2"…
    */
   versionPrefix?: string;
-};
+} & PresetOptions;
 
 type PersistConfig = {
   key: string;
@@ -508,6 +550,10 @@ function isStoredTransitionPreset(preset: unknown): preset is TransitionPreset {
     default:
       return false;
   }
+}
+
+function samePresetWord(a: PresetWord | undefined, b: PresetWord | undefined): boolean {
+  return a === b || (!!a && !!b && a.singular === b.singular && a.plural === b.plural);
 }
 
 export function resolveDialValues<T extends DialConfig>(
@@ -849,6 +895,8 @@ class DialStoreClass {
       folderMode: options.folderMode, onClose: options.onClose, toolbar: options.toolbar,
       group: options.group, groupHeader: options.groupHeader, beside: options.beside,
       versionPrefix: options.versionPrefix,
+      presetWord: options.presetWord, saveLabel: options.saveLabel, showBasePreset: options.showBasePreset,
+      presetLabel: options.presetLabel, presetBadge: options.presetBadge, onBeforePresetSwitch: options.onBeforePresetSwitch,
     };
     this.panels.set(id, panel);
     this.controlsByPanel.set(panel, controlsByPath);
@@ -898,7 +946,13 @@ class DialStoreClass {
       (options.group ?? existing.group) === existing.group &&
       (options.groupHeader ?? existing.groupHeader) === existing.groupHeader &&
       (options.beside ?? existing.beside) === existing.beside &&
-      (options.versionPrefix ?? existing.versionPrefix) === existing.versionPrefix;
+      (options.versionPrefix ?? existing.versionPrefix) === existing.versionPrefix &&
+      samePresetWord(options.presetWord ?? existing.presetWord, existing.presetWord) &&
+      (options.saveLabel ?? existing.saveLabel) === existing.saveLabel &&
+      (options.showBasePreset ?? existing.showBasePreset) === existing.showBasePreset &&
+      (options.presetLabel ?? existing.presetLabel) === existing.presetLabel &&
+      (options.presetBadge ?? existing.presetBadge) === existing.presetBadge &&
+      (options.onBeforePresetSwitch ?? existing.onBeforePresetSwitch) === existing.onBeforePresetSwitch;
     this.configurePanelRetention(id, options);
     if (unchanged) {
       // Same config, same options: nothing the panel draws can differ, so
@@ -922,6 +976,12 @@ class DialStoreClass {
       groupHeader: options.groupHeader ?? existing.groupHeader,
       beside: options.beside ?? existing.beside,
       versionPrefix: options.versionPrefix ?? existing.versionPrefix,
+      presetWord: options.presetWord ?? existing.presetWord,
+      saveLabel: options.saveLabel ?? existing.saveLabel,
+      showBasePreset: options.showBasePreset ?? existing.showBasePreset,
+      presetLabel: options.presetLabel ?? existing.presetLabel,
+      presetBadge: options.presetBadge ?? existing.presetBadge,
+      onBeforePresetSwitch: options.onBeforePresetSwitch ?? existing.onBeforePresetSwitch,
     };
     this.panels.set(id, nextPanel);
     this.controlsByPanel.set(nextPanel, controlsByPath);
@@ -1515,6 +1575,89 @@ class DialStoreClass {
 
   getActivePresetId(panelId: string): string | null {
     return this.activePreset.get(panelId) ?? null;
+  }
+
+  /** What the panel's version UI calls a version (`presetWord`), else `fallback`. */
+  getPresetWord(panelId: string, fallback: PresetWord = DEFAULT_PRESET_WORD): PresetWord {
+    return this.panels.get(panelId)?.presetWord ?? fallback;
+  }
+
+  /** The save button's text the panel sets (`saveLabel`), if it sets one. */
+  getSaveLabel(panelId: string): string | undefined {
+    return this.panels.get(panelId)?.saveLabel;
+  }
+
+  /** Whether DialKit lists the base version with the saved ones. See `showBasePreset`. */
+  showsBasePreset(panelId: string): boolean {
+    return this.panels.get(panelId)?.showBasePreset ?? true;
+  }
+
+  /** Whether the panel draws its versions under labels of its own (`presetLabel`). */
+  hasPresetLabel(panelId: string): boolean {
+    return !!this.panels.get(panelId)?.presetLabel;
+  }
+
+  /** The label drawn for a saved version at `index` among the saved ones: its name, unless `presetLabel` gives another. */
+  getPresetLabel(panelId: string, preset: Pick<Preset, 'id' | 'name'>, index: number): string {
+    const label = this.panels.get(panelId)?.presetLabel;
+    return label ? label({ id: preset.id, name: preset.name }, index) : preset.name;
+  }
+
+  /** The mark on a version's picture (`presetBadge`), or null. */
+  getPresetBadge(panelId: string, presetId: string): string | null {
+    return this.panels.get(panelId)?.presetBadge?.(presetId) || null;
+  }
+
+  /**
+   * Draws the panel's versions again, for a host whose `presetLabel` or
+   * `presetBadge` now returns something else. The versions do not change.
+   */
+  refreshPresetDisplay(panelId: string): void {
+    if (!this.panels.has(panelId)) return;
+    this.presets.set(panelId, [...this.getPresets(panelId)]);
+    this.notify(panelId);
+  }
+
+  /**
+   * Whether a click may switch to a version (a saved one's id, or null for
+   * the base version): the answer of `onBeforePresetSwitch`. Without one,
+   * or for the version already shown, it is true at once, so the switch
+   * happens in the same click.
+   */
+  confirmPresetSwitch(panelId: string, presetId: string | null): boolean | Promise<boolean> {
+    const ask = this.panels.get(panelId)?.onBeforePresetSwitch;
+    if (!ask || presetId === this.getActivePresetId(panelId)) return true;
+    // "base" is the base version's key (BASE_VERSION in versions/thumbnails).
+    return ask(presetId ?? 'base');
+  }
+
+  /**
+   * Switches to a version (null for the base version) once
+   * `confirmPresetSwitch` allows it. Resolves with whether it switched; with
+   * no question to ask, it switches before returning.
+   */
+  switchPresetFromClick(panelId: string, presetId: string | null, load = () => this.selectPreset(panelId, presetId)): boolean | Promise<boolean> {
+    const allowed = this.confirmPresetSwitch(panelId, presetId);
+    if (allowed === true) { load(); return true; }
+    if (allowed === false) return false;
+    return allowed.then((ok) => { if (ok) load(); return ok; }, () => false);
+  }
+
+  /** Loads a saved version, or the base version for null. */
+  selectPreset(panelId: string, presetId: string | null): void {
+    if (presetId) this.loadPreset(panelId, presetId);
+    else this.clearActivePreset(panelId);
+  }
+
+  /**
+   * Renames a saved version from a field that showed its label: with a
+   * `presetLabel`, a label left as it showed keeps the stored name.
+   */
+  renamePresetFromLabel(panelId: string, presetId: string, name: string): void {
+    const presets = this.getPresets(panelId);
+    const index = presets.findIndex((preset) => preset.id === presetId);
+    if (index >= 0 && this.hasPresetLabel(panelId) && name.trim() === this.getPresetLabel(panelId, presets[index], index)) return;
+    this.renamePreset(panelId, presetId, name);
   }
 
   clearActivePreset(panelId: string): void {

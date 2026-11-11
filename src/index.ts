@@ -118,6 +118,8 @@ export type {
   ShortcutMode,
   ShortcutInteraction,
   Preset,
+  PresetWord,
+  PresetOptions,
   TransitionMode,
   TransitionPreset,
   CopiedTransition,

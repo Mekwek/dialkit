@@ -521,6 +521,49 @@ type ControlMeta = {
 };
 /** How a panel's top-level folders open. See `PanelConfig.folderMode`. */
 type FolderMode = 'independent' | 'accordion';
+/** What a panel's version UI calls a saved version. */
+type PresetWord = {
+    singular: string;
+    plural: string;
+};
+/** How DialKit draws a panel's versions, and what a click on one asks first. */
+type PresetOptions = {
+    /**
+     * The word every version string DialKit draws uses: the save button, the
+     * menu and list labels, and the hints. Default "Version" / "Versions".
+     */
+    presetWord?: PresetWord;
+    /**
+     * The save button's text where DialKit draws one: "Save version" over the
+     * pictures, "New version" in the version menu.
+     */
+    saveLabel?: string;
+    /**
+     * `false` leaves the base version (the values before any saved one) out of
+     * every list DialKit draws: the pictures, the grid, the version menu.
+     * Default `true`.
+     */
+    showBasePreset?: boolean;
+    /**
+     * The label drawn for each saved version, by its place among the saved
+     * ones. The stored name does not change.
+     */
+    presetLabel?: (preset: {
+        id: string;
+        name: string;
+    }, index: number) => string;
+    /**
+     * A short mark on a version's picture ("Draft"), or null for none. When
+     * what it returns changes, call `DialStore.refreshPresetDisplay`.
+     */
+    presetBadge?: (presetId: string) => string | null;
+    /**
+     * Asked before a click switches to another version, with that version's id
+     * ("base" for the base version). It switches only on true. A click on the
+     * version already shown does not ask.
+     */
+    onBeforePresetSwitch?: (presetId: string) => boolean | Promise<boolean>;
+};
 type PanelConfig = {
     id: string;
     name: string;
@@ -578,7 +621,7 @@ type PanelConfig = {
      * versions are "V1", "V2"…
      */
     versionPrefix?: string;
-};
+} & PresetOptions;
 type Listener$4 = () => void;
 type ActionListener = (action: string) => void;
 type ResetListener = (folderPath: string) => void;
@@ -661,7 +704,7 @@ type DialStorePanelOptions = {
      * versions are "V1", "V2"…
      */
     versionPrefix?: string;
-};
+} & PresetOptions;
 declare class DialStoreClass {
     private panelOpenListeners;
     private panelOpenStates;
@@ -833,6 +876,43 @@ declare class DialStoreClass {
     /** Whether the version menu shows lock buttons: only on an editable menu. See `presetsLockable`. */
     isPresetsLockable(panelId: string): boolean;
     getActivePresetId(panelId: string): string | null;
+    /** What the panel's version UI calls a version (`presetWord`), else `fallback`. */
+    getPresetWord(panelId: string, fallback?: PresetWord): PresetWord;
+    /** The save button's text the panel sets (`saveLabel`), if it sets one. */
+    getSaveLabel(panelId: string): string | undefined;
+    /** Whether DialKit lists the base version with the saved ones. See `showBasePreset`. */
+    showsBasePreset(panelId: string): boolean;
+    /** Whether the panel draws its versions under labels of its own (`presetLabel`). */
+    hasPresetLabel(panelId: string): boolean;
+    /** The label drawn for a saved version at `index` among the saved ones: its name, unless `presetLabel` gives another. */
+    getPresetLabel(panelId: string, preset: Pick<Preset, 'id' | 'name'>, index: number): string;
+    /** The mark on a version's picture (`presetBadge`), or null. */
+    getPresetBadge(panelId: string, presetId: string): string | null;
+    /**
+     * Draws the panel's versions again, for a host whose `presetLabel` or
+     * `presetBadge` now returns something else. The versions do not change.
+     */
+    refreshPresetDisplay(panelId: string): void;
+    /**
+     * Whether a click may switch to a version (a saved one's id, or null for
+     * the base version): the answer of `onBeforePresetSwitch`. Without one,
+     * or for the version already shown, it is true at once, so the switch
+     * happens in the same click.
+     */
+    confirmPresetSwitch(panelId: string, presetId: string | null): boolean | Promise<boolean>;
+    /**
+     * Switches to a version (null for the base version) once
+     * `confirmPresetSwitch` allows it. Resolves with whether it switched; with
+     * no question to ask, it switches before returning.
+     */
+    switchPresetFromClick(panelId: string, presetId: string | null, load?: () => void): boolean | Promise<boolean>;
+    /** Loads a saved version, or the base version for null. */
+    selectPreset(panelId: string, presetId: string | null): void;
+    /**
+     * Renames a saved version from a field that showed its label: with a
+     * `presetLabel`, a label left as it showed keeps the stored name.
+     */
+    renamePresetFromLabel(panelId: string, presetId: string, name: string): void;
     clearActivePreset(panelId: string): void;
     /** Saved curves and springs, shared by every transition control. */
     getTransitionPresets(): TransitionPreset[];
@@ -894,7 +974,7 @@ declare class DialStoreClass {
 }
 declare const DialStore: DialStoreClass;
 
-interface UseDialOptions {
+interface UseDialOptions extends PresetOptions {
     id?: string;
     defaultCollapsed?: boolean;
     persist?: DialKitPersistOptions;
@@ -1371,6 +1451,26 @@ interface DialTimelineProps {
     /** Draws an Export button in the timeline bar; the host decides what
      * exporting means. */
     onExport?: () => void;
+    /**
+     * `false`: a click on a clip never opens the clip editor. It only tells
+     * the host, through the timeline's `onClipClick`. Default `true`.
+     */
+    clipPopover?: boolean;
+    /** A clip the host has picked: its bar shows selected, as a pressed bar does. */
+    selectedClipKey?: string | null;
+    /**
+     * Draws the host's own element on each join between two bars that follow
+     * each other on a single track, above the bars where the next one starts.
+     * Pass a stable function: the dock does not draw again for the host.
+     */
+    renderJoin?: (join: {
+        fromKey: string;
+        toKey: string;
+    }) => ReactNode;
+    /** Called on a press in the timeline's tracks or ruler that is on no clip and no join. */
+    onTrackPress?: () => void;
+    /** Drawn first in the timeline bar's actions, before the version menu. */
+    actionsStart?: ReactNode;
 }
 declare const DialTimeline: react.NamedExoticComponent<DialTimelineProps>;
 
@@ -1916,7 +2016,7 @@ interface PresetManagerProps {
     presets: Preset[];
     activePresetId: string | null;
     onAdd?: () => void;
-    /** What a version is called in the menu: a version (default) or, in a timeline, a sequence. */
+    /** What a version is called in the menu: a version (default) or, in a timeline, a sequence. A panel's `presetWord` wins. */
     noun?: 'version' | 'sequence';
 }
 declare function PresetManager({ panelId, presets, activePresetId, onAdd, noun }: PresetManagerProps): react_jsx_runtime.JSX.Element;
@@ -1936,6 +2036,8 @@ type GridVersion = {
     key: string;
     name: string;
     thumbnail?: Thumbnail;
+    /** A short mark on the version's picture (`presetBadge`). */
+    badge?: string | null;
 };
 type VersionGridOptions = {
     versions: GridVersion[];
@@ -1951,6 +2053,13 @@ type VersionGridOptions = {
     picture?: (key: string, picture: HTMLElement, tile: HTMLElement) => () => void;
     /** Load a version into the live page. Called before the zoom-in starts. */
     onSelect: (key: string) => void;
+    /**
+     * Asked before a click on a card selects it (`onBeforePresetSwitch`): the
+     * grid stays open until it allows, and stays open on false.
+     */
+    beforeSelect?: (key: string) => boolean | Promise<boolean>;
+    /** What the grid calls a version. Default "Version" / "Versions". */
+    word?: PresetWord;
     /** Rename a version (double-click its name). */
     onRename?: (key: string, name: string) => void;
     /** Whether a version's name can change. Every version's can without it. */
@@ -2068,4 +2177,4 @@ declare function HintTip({ always }: {
  */
 declare function HintTooltip(): null;
 
-export { type ActionConfig, type AnchorConfig, AnchorControl, type AnchorControlProps, type AnchorValue, BASE_VERSION, type BackgroundConfig, BackgroundControl, type BackgroundControlProps, type BackgroundGradient, type BackgroundHost, type BackgroundMedia, type BackgroundMediaDisplay, type BackgroundMediaFit, type BackgroundMediaRatio, type BackgroundMode, type BackgroundValue, type BackgroundValueUpdate, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type CopiedTransition, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, type DialVersions, type EasingConfig, EasingVisualization, type FieldsConfig, Folder, type FolderMode, GRADIENT_SHAPES, type GizmoBox, type GradientFrame, type GradientGizmoCallbacks, type GradientGizmoProps, type GradientHandles, type GradientPoint, type GradientShape, type GradientStop, HintStore, HintTip, HintTooltip, type ImageConfig, ImageControl, type ImageOption, type InlineLabelsConfig, type LayerActionKind, type LayerItem, LayerListControl, type LayerListControlProps, type LayersConfig, type LayersValue, type PadGroupConfig, type PanelConfig, type PictureFamily, type PictureHost, type PictureItem, PictureListControl, type PictureListControlProps, type PictureParts, type PicturesConfig, type PicturesValue, type Preset, PresetManager, type RangeConfig, type ResolvedValues, type RowConfig, type SavedGradient, Section, type SectionProps, type SectionRow, type SelectAddConfig, type SelectConfig, SelectControl, type SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipMeta, type TimelineClipTrackMeta, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelineMeta, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, TimelineStore, type TimelineTransport, Toggle, type TransitionConfig, TransitionControl, TransitionCopyMenu, type TransitionCopyMenuProps, type TransitionMode, type TransitionPreset, type UseDialOptions, type UseDialTimelineOptions, VersionActions, type VersionActionsProps, VersionGallery, type VersionGridHandle, VersionPictures, type VersionPicturesGridOptions, type VersionPicturesProps, type VisibleWhen, type VisibleWhenValue, backgroundGradientCss, backgroundMediaCss, defaultBackgroundValue, defaultGradientHandles, dragGradientCentre, dragGradientEnd, dragGradientWidth, findPictureFamily, forgetPictureFamily, formatClock, formatGizmoAngle, getActivePictureFamily, getBackgroundHost, getPictureHost, getSavedGradients, getShownPictureFamily, gizmoAngle, gizmoPoints, gradientFrame, gradientParamAt, hasBackgroundHost, layerAction, legacyGradientHandles, mountGradientGizmo, normalizeBackgroundValue, normalizeLayersValue, normalizePictureFamilies, normalizePicturesValue, observeScrollEdges, openVersionPicturesGrid, paintBackgroundPreview, paintGradient, parseLayerAction, parsePictureAction, pictureAction, rotateGradientHandles, setActivePictureFamily, setBackgroundHost, setPictureHost, setSavedGradients, showPictureFamily, stopPlacement, stopPositionAt, subscribeActivePictureFamily, subscribeBackgroundHost, subscribePictureFamily, subscribePictureHost, switchGradientShape, useDialKit, useDialKitController, useDialTimeline, versionOfPicture, versionPictureId, withVisibility };
+export { type ActionConfig, type AnchorConfig, AnchorControl, type AnchorControlProps, type AnchorValue, BASE_VERSION, type BackgroundConfig, BackgroundControl, type BackgroundControlProps, type BackgroundGradient, type BackgroundHost, type BackgroundMedia, type BackgroundMediaDisplay, type BackgroundMediaFit, type BackgroundMediaRatio, type BackgroundMode, type BackgroundValue, type BackgroundValueUpdate, ButtonGroup, type ColorConfig, ColorControl, type ControlMeta, ControlRenderer, type ControlWithVisibility, type CopiedTransition, type DialConfig, type DialKitController, type DialKitPersistOptions, type DialKitValueUpdates, type DialMode, DialPad, type DialPadAxis, type DialPadConfig, type DialPadProps, type DialPadValue, type DialPosition, DialRoot, DialStore, type DialTheme, DialTimeline, type DialTimelineProps, type DialTimelineValues, type DialValue, type DialVersions, type EasingConfig, EasingVisualization, type FieldsConfig, Folder, type FolderMode, GRADIENT_SHAPES, type GizmoBox, type GradientFrame, type GradientGizmoCallbacks, type GradientGizmoProps, type GradientHandles, type GradientPoint, type GradientShape, type GradientStop, HintStore, HintTip, HintTooltip, type ImageConfig, ImageControl, type ImageOption, type InlineLabelsConfig, type LayerActionKind, type LayerItem, LayerListControl, type LayerListControlProps, type LayersConfig, type LayersValue, type PadGroupConfig, type PanelConfig, type PictureFamily, type PictureHost, type PictureItem, PictureListControl, type PictureListControlProps, type PictureParts, type PicturesConfig, type PicturesValue, type Preset, PresetManager, type PresetOptions, type PresetWord, type RangeConfig, type ResolvedValues, type RowConfig, type SavedGradient, Section, type SectionProps, type SectionRow, type SelectAddConfig, type SelectConfig, SelectControl, type SelectOption, type ShortcutConfig, type ShortcutInteraction, type ShortcutMode, ShortcutsMenu, Slider, type SpringConfig, SpringControl, SpringVisualization, type TextConfig, TextControl, type TimelineClipConfig, type TimelineClipCss, type TimelineClipLoop, type TimelineClipMeta, type TimelineClipTrackMeta, type TimelineClipValues, type TimelineConfig, type TimelineGroupConfig, type TimelineGroupValues, type TimelineMeta, type TimelinePropConfig, type TimelinePropStepConfig, type TimelineStepConfig, type TimelineStepValues, TimelineStore, type TimelineTransport, Toggle, type TransitionConfig, TransitionControl, TransitionCopyMenu, type TransitionCopyMenuProps, type TransitionMode, type TransitionPreset, type UseDialOptions, type UseDialTimelineOptions, VersionActions, type VersionActionsProps, VersionGallery, type VersionGridHandle, VersionPictures, type VersionPicturesGridOptions, type VersionPicturesProps, type VisibleWhen, type VisibleWhenValue, backgroundGradientCss, backgroundMediaCss, defaultBackgroundValue, defaultGradientHandles, dragGradientCentre, dragGradientEnd, dragGradientWidth, findPictureFamily, forgetPictureFamily, formatClock, formatGizmoAngle, getActivePictureFamily, getBackgroundHost, getPictureHost, getSavedGradients, getShownPictureFamily, gizmoAngle, gizmoPoints, gradientFrame, gradientParamAt, hasBackgroundHost, layerAction, legacyGradientHandles, mountGradientGizmo, normalizeBackgroundValue, normalizeLayersValue, normalizePictureFamilies, normalizePicturesValue, observeScrollEdges, openVersionPicturesGrid, paintBackgroundPreview, paintGradient, parseLayerAction, parsePictureAction, pictureAction, rotateGradientHandles, setActivePictureFamily, setBackgroundHost, setPictureHost, setSavedGradients, showPictureFamily, stopPlacement, stopPositionAt, subscribeActivePictureFamily, subscribeBackgroundHost, subscribePictureFamily, subscribePictureHost, switchGradientShape, useDialKit, useDialKitController, useDialTimeline, versionOfPicture, versionPictureId, withVisibility };

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useId, useRef, useSyncExternalStore } from 'react';
 import { DialStore } from '../store/DialStore';
-import type { DialConfig, DialKitPersistOptions, DialValue, FolderMode, ShortcutConfig } from '../store/DialStore';
+import type { DialConfig, DialKitPersistOptions, DialValue, FolderMode, PresetOptions, ShortcutConfig } from '../store/DialStore';
 
-export interface UseDialStorePanelOptions {
+export interface UseDialStorePanelOptions extends PresetOptions {
   id?: string;
   defaultCollapsed?: boolean;
   persist?: DialKitPersistOptions;
@@ -67,6 +67,29 @@ export function useDialStorePanel(
   // function on each render neither rebuilds the panel nor calls a stale one.
   const hasOnClose = options.onClose !== undefined;
   const handleClose = useCallback(() => optionsRef.current.onClose?.(), []);
+  // The same for the version callbacks: the store keeps these, which call
+  // the host's latest.
+  const serializedPresetWord = useSerialized(options.presetWord);
+  const hasPresetLabel = options.presetLabel !== undefined;
+  const hasPresetBadge = options.presetBadge !== undefined;
+  const hasBeforePresetSwitch = options.onBeforePresetSwitch !== undefined;
+  const presetLabel = useCallback<NonNullable<PresetOptions['presetLabel']>>(
+    (preset, index) => optionsRef.current.presetLabel?.(preset, index) ?? preset.name, []);
+  const presetBadge = useCallback<NonNullable<PresetOptions['presetBadge']>>(
+    (presetId) => optionsRef.current.presetBadge?.(presetId) ?? null, []);
+  const beforePresetSwitch = useCallback<NonNullable<PresetOptions['onBeforePresetSwitch']>>(
+    (presetId) => optionsRef.current.onBeforePresetSwitch?.(presetId) ?? true, []);
+  const presetOptions = (): PresetOptions => {
+    const current = optionsRef.current;
+    return {
+      presetWord: current.presetWord,
+      saveLabel: current.saveLabel,
+      showBasePreset: current.showBasePreset,
+      presetLabel: current.presetLabel ? presetLabel : undefined,
+      presetBadge: current.presetBadge ? presetBadge : undefined,
+      onBeforePresetSwitch: current.onBeforePresetSwitch ? beforePresetSwitch : undefined,
+    };
+  };
 
   // Register on mount
   useEffect(() => {
@@ -85,6 +108,7 @@ export function useDialStorePanel(
       groupHeader: optionsRef.current.groupHeader,
       beside: optionsRef.current.beside,
       versionPrefix: optionsRef.current.versionPrefix,
+      ...presetOptions(),
     });
     return () => DialStore.unregisterPanel(panelId);
   }, [hasStableId, panelId, name, handleClose]);
@@ -111,9 +135,10 @@ export function useDialStorePanel(
       groupHeader: optionsRef.current.groupHeader,
       beside: optionsRef.current.beside,
       versionPrefix: optionsRef.current.versionPrefix,
+      ...presetOptions(),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasStableId, panelId, name, serializedConfig, serializedShortcuts, serializedPersist, options.presetsEditable, options.presetsLockable, options.hint, options.folderMode, hasOnClose, options.toolbar, options.group, options.groupHeader, options.beside, options.versionPrefix]);
+  }, [hasStableId, panelId, name, serializedConfig, serializedShortcuts, serializedPersist, options.presetsEditable, options.presetsLockable, options.hint, options.folderMode, hasOnClose, options.toolbar, options.group, options.groupHeader, options.beside, options.versionPrefix, serializedPresetWord, options.saveLabel, options.showBasePreset, hasPresetLabel, hasPresetBadge, hasBeforePresetSwitch]);
 
   const renderOnChange = options.renderOnChange !== false;
   const subscribeValues = useCallback(

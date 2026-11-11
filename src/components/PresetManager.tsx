@@ -4,7 +4,7 @@ import { openDropdownOnKey } from '../control-keyboard';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { DialStore, Preset } from '../store/DialStore';
+import { DEFAULT_PRESET_WORD, DialStore, Preset } from '../store/DialStore';
 import { versionHints } from '../hints';
 import { useHints } from '../hooks/useHints';
 import { ICON_CHEVRON, ICON_TRASH, ICON_PLUS, ICON_CHECK, ICON_MORE, ICON_PENCIL, ICON_LOCK, ICON_LOCK_OPEN } from '../icons';
@@ -16,16 +16,23 @@ interface PresetManagerProps {
   presets: Preset[];
   activePresetId: string | null;
   onAdd?: () => void;
-  /** What a version is called in the menu: a version (default) or, in a timeline, a sequence. */
+  /** What a version is called in the menu: a version (default) or, in a timeline, a sequence. A panel's `presetWord` wins. */
   noun?: 'version' | 'sequence';
 }
+
+const SEQUENCE_WORD = { singular: 'Sequence', plural: 'Sequences' };
 
 export function PresetManager({ panelId, presets, activePresetId, onAdd, noun = 'version' }: PresetManagerProps) {
   const [isOpen, setIsOpen] = useState(false);
   // A read-only menu only switches versions; a menu without locks drops the lock buttons.
   const editable = DialStore.isPresetsEditable(panelId);
   const lockable = DialStore.isPresetsLockable(panelId);
-  const hints = versionHints(noun, { editable, lockable });
+  // The panel's own word for a version (presetWord), else the noun's.
+  const word = DialStore.getPresetWord(panelId, noun === 'sequence' ? SEQUENCE_WORD : DEFAULT_PRESET_WORD);
+  const hints = versionHints(word.singular.toLowerCase(), { editable, lockable });
+  // `showBasePreset: false` leaves the base version out of the menu.
+  const showBase = DialStore.showsBasePreset(panelId);
+  const labelOf = (preset: Preset) => DialStore.getPresetLabel(panelId, preset, presets.indexOf(preset));
   useHints(true);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -40,12 +47,12 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, noun = 
     if (rect) {
       // Opens above the trigger when there is no room below, as a select's
       // dropdown does: 8px of padding, and 36px a row with the base version's.
-      const above = opensAbove(rect, 8 + (presets.length + 1) * 36, window.innerHeight);
+      const above = opensAbove(rect, 8 + (presets.length + (showBase ? 1 : 0)) * 36, window.innerHeight);
       setPos({ top: above ? rect.top - 4 : rect.bottom + 4, left: rect.left, width: rect.width, above });
     }
     setEditingId(null);
     setIsOpen(true);
-  }, [presets.length]);
+  }, [presets.length, showBase]);
 
   const close = useCallback(() => setIsOpen(false), []);
 
@@ -73,22 +80,19 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, noun = 
     return () => { stopKeyboard(); stopMenu(); document.removeEventListener('mousedown', handler); };
   }, [isOpen, close, panelId, editable]);
 
+  // Switches once the panel's onBeforePresetSwitch allows; without one, at once.
   const handleSelect = (presetId: string | null) => {
-    if (presetId) {
-      DialStore.loadPreset(panelId, presetId);
-    } else {
-      DialStore.clearActivePreset(panelId);
-    }
+    void DialStore.switchPresetFromClick(panelId, presetId);
     close();
   };
 
   const handleRename = (input: HTMLInputElement, presetId: string) => {
-    DialStore.renamePreset(panelId, presetId, input.value);
+    DialStore.renamePresetFromLabel(panelId, presetId, input.value);
     setEditingId(null);
   };
 
   const lockButton = (preset: Preset) => (
-    <button type="button" className="dialkit-preset-lock" aria-label={`${preset.locked ? 'Unlock' : 'Lock'} ${preset.name}`} onClick={() => DialStore.setPresetLocked(panelId, preset.id, !preset.locked)}>
+    <button type="button" className="dialkit-preset-lock" aria-label={`${preset.locked ? 'Unlock' : 'Lock'} ${labelOf(preset)}`} onClick={() => DialStore.setPresetLocked(panelId, preset.id, !preset.locked)}>
       <Icon paths={preset.locked ? ICON_LOCK : ICON_LOCK_OPEN} />
     </button>
   );
@@ -102,10 +106,10 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, noun = 
         data-open={String(isOpen)}
         data-has-preset={String(!!activePreset)}
         type="button" aria-haspopup="menu" aria-expanded={isOpen}
-        aria-label="Versions" data-hint={hints.versions} onKeyDown={(e) => openDropdownOnKey(e, open)}
+        aria-label={word.plural} data-hint={hints.versions} onKeyDown={(e) => openDropdownOnKey(e, open)}
       >
         <span className="dialkit-preset-label">
-          {activePreset ? activePreset.name : DialStore.getBaseName(panelId)}
+          {activePreset ? labelOf(activePreset) : DialStore.getBaseName(panelId)}
         </span>
         <motion.svg
           className="dialkit-select-chevron"
@@ -140,14 +144,16 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, noun = 
               exit={{ opacity: 0, y: pos.above ? -4 : 4, scale: 0.97, pointerEvents: 'none' as any }}
               transition={{ type: 'spring', visualDuration: 0.15, bounce: 0 }}
             >
-              <div
-                className="dialkit-preset-item"
-                data-active={String(!activePresetId)}
-                onClick={() => handleSelect(null)}
-              >
-                <svg className="dialkit-preset-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">{!activePresetId && <path d={ICON_CHECK} />}</svg>
-                <button type="button" className="dialkit-preset-name">{DialStore.getBaseName(panelId)}</button>
-              </div>
+              {showBase && (
+                <div
+                  className="dialkit-preset-item"
+                  data-active={String(!activePresetId)}
+                  onClick={() => handleSelect(null)}
+                >
+                  <svg className="dialkit-preset-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">{!activePresetId && <path d={ICON_CHECK} />}</svg>
+                  <button type="button" className="dialkit-preset-name">{DialStore.getBaseName(panelId)}</button>
+                </div>
+              )}
 
               {presets.map((preset) => (
                 <div
@@ -162,13 +168,13 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, noun = 
                   {editingId === preset.id ? (
                     <input
                       className="dialkit-preset-input"
-                      defaultValue={preset.name}
-                      aria-label="Version name"
+                      defaultValue={labelOf(preset)}
+                      aria-label={`${word.singular} name`}
                       autoFocus
                       onFocus={(e) => e.currentTarget.select()}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') handleRename(e.currentTarget, preset.id);
-                        else if (e.key === 'Escape') { e.currentTarget.value = preset.name; setEditingId(null); }
+                        else if (e.key === 'Escape') { e.currentTarget.value = labelOf(preset); setEditingId(null); }
                         else return;
                         e.preventDefault();
                       }}
@@ -176,21 +182,21 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, noun = 
                     />
                   ) : (
                     <>
-                      <button type="button" className="dialkit-preset-name">{preset.name}</button>
+                      <button type="button" className="dialkit-preset-name">{labelOf(preset)}</button>
                       {/* Keyboard order: the icon shown at rest (the menu icon, or a locked row's lock), then the actions it reveals. */}
                       {editable && <div className="dialkit-preset-actions">
                         {preset.locked && lockable ? lockButton(preset) : (
-                          <button type="button" className="dialkit-preset-more" aria-label={`More actions for ${preset.name}`} data-hint={hints.versionActions}>
+                          <button type="button" className="dialkit-preset-more" aria-label={`More actions for ${labelOf(preset)}`} data-hint={hints.versionActions}>
                             <Icon paths={ICON_MORE} />
                           </button>
                         )}
-                        <button type="button" className="dialkit-preset-rename" aria-label={`Rename ${preset.name}`} onClick={() => setEditingId(preset.id)}>
+                        <button type="button" className="dialkit-preset-rename" aria-label={`Rename ${labelOf(preset)}`} onClick={() => setEditingId(preset.id)}>
                           <Icon paths={ICON_PENCIL} />
                         </button>
                         {!preset.locked && (
                           <>
                             {lockable && lockButton(preset)}
-                            <button type="button" className="dialkit-preset-delete" aria-label={`Delete ${preset.name}`} onClick={() => DialStore.deletePreset(panelId, preset.id)}>
+                            <button type="button" className="dialkit-preset-delete" aria-label={`Delete ${labelOf(preset)}`} onClick={() => DialStore.deletePreset(panelId, preset.id)}>
                               <Icon paths={ICON_TRASH} />
                             </button>
                           </>
@@ -203,7 +209,7 @@ export function PresetManager({ panelId, presets, activePresetId, onAdd, noun = 
               <div className="dialkit-preset-divider" role="separator" />
               <button type="button" className="dialkit-preset-create" onClick={() => { if (onAdd) onAdd(); else DialStore.saveNewPreset(panelId, versionNamePrefix(noun)); close(); triggerRef.current?.focus(); }}>
                 <svg className="dialkit-preset-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true"><path d={ICON_PLUS[0]} /></svg>
-                New {noun}
+                {DialStore.getSaveLabel(panelId) ?? `New ${word.singular.toLowerCase()}`}
               </button>
             </motion.div>
           )}

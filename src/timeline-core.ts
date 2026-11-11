@@ -1448,6 +1448,27 @@ export function singleTrackLanes(clips: { lane?: string }[]): string[] {
   return lanes;
 }
 
+/** A join between two back-to-back bars of a single track's main lane. */
+export type TimelineJoin = {
+  fromKey: string;
+  toKey: string;
+  /** Where the join sits, in seconds: between the two bars, or at the next one's start when the first runs over it. */
+  time: number;
+};
+
+/** The joins between bars that follow each other in time, earliest first. */
+export function timelineJoins(spans: Pick<TimelineClipSpan, 'key' | 'at' | 'duration'>[]): TimelineJoin[] {
+  const ordered = [...spans].sort((a, b) => a.at - b.at);
+  const joins: TimelineJoin[] = [];
+  for (let index = 1; index < ordered.length; index++) {
+    const from = ordered[index - 1];
+    const to = ordered[index];
+    const end = from.at + from.duration;
+    joins.push({ fromKey: from.key, toKey: to.key, time: end > to.at ? to.at : (end + to.at) / 2 });
+  }
+  return joins;
+}
+
 /** Every clip's place on the timeline, from flat stored values. */
 export function timelineClipSpans(
   values: Record<string, DialValue>,

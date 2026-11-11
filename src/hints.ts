@@ -1,4 +1,4 @@
-import { DialStore, type ControlMeta } from './store/DialStore';
+import { DEFAULT_PRESET_WORD, DialStore, type ControlMeta, type PresetWord } from './store/DialStore';
 
 type Listener = () => void;
 
@@ -8,10 +8,15 @@ type HintDisplay = { show(element: HTMLElement, text: string): void; hide(elemen
 /** `y` is the hint's edge that faces its row: its bottom when above, its top when below. */
 export type HintPosition = { left: number; y: number; above: boolean };
 
+/** The side of its element a hint sits on, set with `data-hint-side` on the element. */
+export type HintSide = 'left' | 'right' | 'above' | 'below';
+
 type Box = { left: number; top: number; right?: number; bottom: number };
 
 const TIP_KEY = 'dialkit-hint-tip-seen';
 const GAP = 6;
+/** The gap between a hint and its element when it sits on a side (`data-hint-side`). */
+const SIDE_GAP = 8;
 const MARGIN = 8;
 /** How long the dim takes to fade back. Matches theme.css. */
 const FADE_MS = 120;
@@ -47,8 +52,22 @@ export const HINTS = {
   imageClear: 'Removes the image.',
 } as const;
 
-/** The version menu's hints, in the word its rows go by: versions, or a timeline's sequences. */
-export function versionHints(noun: 'version' | 'sequence' = 'version', { editable = true, lockable = true } = {}) {
+/**
+ * The hints of the version pictures' parts (HINTS' version hints), in the
+ * word a panel calls its versions (`presetWord`).
+ */
+export function presetHints(word: PresetWord = DEFAULT_PRESET_WORD) {
+  const noun = word.singular.toLowerCase();
+  return {
+    saveVersion: `Saves the current values as a new ${noun}, with a picture of the page.`,
+    version: `Switches to this ${noun}. Double-click its name to rename it.`,
+    deleteVersion: `Deletes this ${noun}.`,
+    allVersions: `Shows every ${noun} side by side. Click one to switch to it.`,
+  };
+}
+
+/** The version menu's hints, in the word its rows go by: versions, a timeline's sequences, or a panel's `presetWord`. */
+export function versionHints(noun: string = 'version', { editable = true, lockable = true } = {}) {
   if (!editable) return { versions: `Switches to another ${noun}.`, versionActions: '' };
   return lockable ? {
     versions: `Switches to another ${noun}. Rename, lock or delete a ${noun} from the list.`,
@@ -200,6 +219,36 @@ export function getHintPosition(
   const left = Math.max(MARGIN, Math.min(row.left, viewport.width - size.width - MARGIN));
   const y = above ? row.top - GAP : row.bottom + GAP;
   return { left: left - root.left, y: y - root.top, above };
+}
+
+/** The side an element's hint sits on (`data-hint-side`), or none for the usual place. */
+export function hintSideOf(element: HTMLElement): HintSide | undefined {
+  const side = element.dataset.hintSide;
+  return side === 'left' || side === 'right' || side === 'above' || side === 'below' ? side : undefined;
+}
+
+/**
+ * Where a hint sits on one side of its element (`data-hint-side`), relative
+ * to its root: 8px off that side, centred on the other axis, and inside the
+ * viewport. Returns the hint's top left corner.
+ */
+export function getHintSidePosition(
+  row: Required<Box>,
+  root: Pick<Box, 'left' | 'top'>,
+  size: { width: number; height: number },
+  viewport: { width: number; height: number },
+  side: HintSide
+): { left: number; top: number } {
+  const left = side === 'right' ? row.right + SIDE_GAP
+    : side === 'left' ? row.left - SIDE_GAP - size.width
+      : (row.left + row.right - size.width) / 2;
+  const top = side === 'below' ? row.bottom + SIDE_GAP
+    : side === 'above' ? row.top - SIDE_GAP - size.height
+      : (row.top + row.bottom - size.height) / 2;
+  return {
+    left: Math.max(MARGIN, Math.min(left, viewport.width - size.width - MARGIN)) - root.left,
+    top: Math.max(MARGIN, Math.min(top, viewport.height - size.height - MARGIN)) - root.top,
+  };
 }
 
 /**
@@ -394,18 +443,28 @@ function listen(): () => void {
     // moves it; places count from it.
     const origin = layer.getBoundingClientRect();
     const box = shown.getBoundingClientRect();
-    const { left, y, above } = getHintPosition(
-      { left: shown.closest(ALIGN)?.getBoundingClientRect().left ?? box.left, top: box.top, bottom: box.bottom },
-      origin,
-      { width: tooltip.offsetWidth * scale.x, height: tooltip.offsetHeight * scale.y },
-      { width: window.innerWidth, height: window.innerHeight }
-    );
-    // translate, not transform: the hint's scale (theme.css) then applies
-    // around its own corner rather than the layer's.
-    const x = left / scale.x;
-    const top = y / scale.y;
-    tooltip.style.translate = above ? `${x}px calc(${top}px - 100%)` : `${x}px ${top}px`;
-    tooltip.toggleAttribute('data-below', !above);
+    const size = { width: tooltip.offsetWidth * scale.x, height: tooltip.offsetHeight * scale.y };
+    const viewport = { width: window.innerWidth, height: window.innerHeight };
+    const side = hintSideOf(shown);
+    if (side) {
+      // Beside its element, on the side the element names.
+      const { left, top } = getHintSidePosition(box, origin, size, viewport, side);
+      tooltip.style.translate = `${left / scale.x}px ${top / scale.y}px`;
+      tooltip.removeAttribute('data-below');
+    } else {
+      const { left, y, above } = getHintPosition(
+        { left: shown.closest(ALIGN)?.getBoundingClientRect().left ?? box.left, top: box.top, bottom: box.bottom },
+        origin,
+        size,
+        viewport
+      );
+      // translate, not transform: the hint's scale (theme.css) then applies
+      // around its own corner rather than the layer's.
+      const x = left / scale.x;
+      const top = y / scale.y;
+      tooltip.style.translate = above ? `${x}px calc(${top}px - 100%)` : `${x}px ${top}px`;
+      tooltip.toggleAttribute('data-below', !above);
+    }
     if (!area) return;
     const outer = area.getBoundingClientRect();
     Object.assign(dim.style, {
@@ -455,6 +514,12 @@ function listen(): () => void {
       area = next;
       shown = row;
       row.setAttribute('data-hint-shown', '');
+      // A hint on a side fades in place: its mark is set before it is
+      // placed, so the move to it does not glide (theme.css). It stays
+      // after the hint hides, so the hint fades out where it was.
+      const side = hintSideOf(row);
+      if (side) tooltip.dataset.side = side;
+      else delete tooltip.dataset.side;
       describe(row);
       observer.disconnect();
       mutations.disconnect();

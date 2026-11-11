@@ -6,12 +6,13 @@ import type {
   DialKitValueUpdates,
   DialValue,
   FolderMode,
+  PresetOptions,
   ResolvedValues,
   ShortcutConfig,
 } from '../store/DialStore';
 import { useDialStorePanel } from './useDialStorePanel';
 
-export interface UseDialOptions {
+export interface UseDialOptions extends PresetOptions {
   id?: string;
   defaultCollapsed?: boolean;
   persist?: DialKitPersistOptions;
@@ -126,6 +127,12 @@ export function useDialKitController<T extends DialConfig>(
     beside: options?.beside,
     versionPrefix: options?.versionPrefix,
     renderOnChange: options?.renderOnChange,
+    presetWord: options?.presetWord,
+    saveLabel: options?.saveLabel,
+    showBasePreset: options?.showBasePreset,
+    presetLabel: options?.presetLabel,
+    presetBadge: options?.presetBadge,
+    onBeforePresetSwitch: options?.onBeforePresetSwitch,
   });
 
   const configRef = useRef(config);

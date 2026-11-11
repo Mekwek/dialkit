@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import { createElement } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { HintTip, HintTooltip } from './components/Hint';
-import { getHintPosition, HintStore, isHintKey, mountHints, setHint } from './hints';
+import { getHintPosition, getHintSidePosition, hintSideOf, HintStore, isHintKey, mountHints, setHint } from './hints';
 import { DialStore, flattenDialValueUpdates, resolveDialValues, type DialConfig } from './store/DialStore';
 import { parseTimelineConfig } from './timeline-core';
 
@@ -220,6 +220,24 @@ describe('hints', () => {
       assert.equal(isHintKey(press('h')), false);
     } finally { DialStore.unregisterPanel(id); }
     assert.equal(isHintKey(press('h')), true);
+  });
+
+  it('places a hint on the side its element names: 8px off, centred, inside the viewport', () => {
+    const viewport = { width: 1000, height: 600 };
+    const size = { width: 120, height: 30 };
+    const button = { left: 100, top: 200, right: 140, bottom: 240 };
+    const origin = { left: 0, top: 0 };
+    assert.deepEqual(getHintSidePosition(button, origin, size, viewport, 'right'), { left: 148, top: 205 });
+    assert.deepEqual(getHintSidePosition({ left: 800, top: 200, right: 840, bottom: 240 }, origin, size, viewport, 'left'), { left: 672, top: 205 });
+    assert.deepEqual(getHintSidePosition(button, origin, size, viewport, 'above'), { left: 60, top: 162 });
+    assert.deepEqual(getHintSidePosition(button, origin, size, viewport, 'below'), { left: 60, top: 248 });
+    // Kept in the window: a left hint with no room left of the button stays 8px in.
+    assert.equal(getHintSidePosition({ left: 20, top: 200, right: 60, bottom: 240 }, origin, size, viewport, 'left').left, 8);
+    // Relative to its root.
+    assert.deepEqual(getHintSidePosition(button, { left: 10, top: 20 }, size, viewport, 'right'), { left: 138, top: 185 });
+    assert.equal(hintSideOf({ dataset: { hintSide: 'left' } } as unknown as HTMLElement), 'left');
+    assert.equal(hintSideOf({ dataset: { hintSide: 'middle' } } as unknown as HTMLElement), undefined);
+    assert.equal(hintSideOf({ dataset: {} } as unknown as HTMLElement), undefined);
   });
 
   it('places a hint above its row, below it near the top, and inside the viewport', () => {

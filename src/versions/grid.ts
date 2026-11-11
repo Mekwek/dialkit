@@ -12,6 +12,7 @@
 
 import { ICON_CLOSE } from '../icons';
 import { observeScrollEdges } from '../scroll-edges';
+import { DEFAULT_PRESET_WORD, type PresetWord } from '../store/DialStore';
 import { element, icon } from '../vanilla/dom';
 import { GALLERY_SPRING } from './spring';
 import type { Thumbnail } from './thumbnails';
@@ -20,7 +21,25 @@ export type GridVersion = {
   key: string;
   name: string;
   thumbnail?: Thumbnail;
+  /** A short mark on the version's picture (`presetBadge`). */
+  badge?: string | null;
 };
+
+/**
+ * Names a version's picture frame, and shows its badge (`presetBadge`) in
+ * the frame's top left corner, or takes it away.
+ */
+export function syncVersionBadge(frame: HTMLElement, name: string, badge?: string | null): void {
+  frame.setAttribute('aria-label', badge ? `${name} (${badge})` : name);
+  let mark = frame.querySelector<HTMLElement>(':scope > .dialkit-version-badge');
+  if (!badge) { mark?.remove(); return; }
+  if (!mark) {
+    mark = element('span', 'dialkit-version-badge');
+    mark.setAttribute('aria-hidden', 'true');
+    frame.append(mark);
+  }
+  if (mark.textContent !== badge) mark.textContent = badge;
+}
 
 export type VersionGridOptions = {
   versions: GridVersion[];
@@ -36,6 +55,13 @@ export type VersionGridOptions = {
   picture?: (key: string, picture: HTMLElement, tile: HTMLElement) => () => void;
   /** Load a version into the live page. Called before the zoom-in starts. */
   onSelect: (key: string) => void;
+  /**
+   * Asked before a click on a card selects it (`onBeforePresetSwitch`): the
+   * grid stays open until it allows, and stays open on false.
+   */
+  beforeSelect?: (key: string) => boolean | Promise<boolean>;
+  /** What the grid calls a version. Default "Version" / "Versions". */
+  word?: PresetWord;
   /** Rename a version (double-click its name). */
   onRename?: (key: string, name: string) => void;
   /** Whether a version's name can change. Every version's can without it. */
@@ -80,13 +106,14 @@ export function openVersionGrid(options: VersionGridOptions): VersionGridHandle 
   const overlay = element('div', 'dialkit-version-overlay');
   overlay.dataset.theme = options.theme ?? 'system';
   overlay.setAttribute('role', 'dialog');
-  overlay.setAttribute('aria-label', 'Versions');
+  const word = options.word ?? DEFAULT_PRESET_WORD;
+  overlay.setAttribute('aria-label', word.plural);
   if (host) overlay.dataset.hosted = 'true';
 
   const scroller = element('div', 'dialkit-version-overlay-scroll dialkit-edge-fade');
   const grid = element('div', 'dialkit-version-overlay-grid');
   const close = element('button', 'dialkit-version-overlay-close');
-  close.setAttribute('aria-label', 'Close versions');
+  close.setAttribute('aria-label', `Close ${word.plural.toLowerCase()}`);
   close.append(icon(ICON_CLOSE));
   scroller.append(grid);
   overlay.append(scroller, close);
@@ -111,7 +138,6 @@ export function openVersionGrid(options: VersionGridOptions): VersionGridHandle 
       const card = element('div', 'dialkit-version-card');
       card.dataset.key = version.key;
       const frame = element('button', 'dialkit-version-card-frame');
-      frame.setAttribute('aria-label', version.name);
       if (options.picture) {
         const picture = element('div', 'dialkit-version-card-picture');
         frame.append(picture);
@@ -130,8 +156,9 @@ export function openVersionGrid(options: VersionGridOptions): VersionGridHandle 
         label.title = 'Double-click to rename';
         label.addEventListener('dblclick', () => editLabel(version.key, label, frame));
       }
+      syncVersionBadge(frame, version.name, version.badge);
       card.append(frame, label);
-      frame.addEventListener('click', () => choose(version.key, true));
+      frame.addEventListener('click', () => pick(version.key));
       frame.addEventListener('focus', () => { focusKey = version.key; });
       cards.set(version.key, card);
       grid.append(card);
@@ -145,7 +172,7 @@ export function openVersionGrid(options: VersionGridOptions): VersionGridHandle 
     const previous = versions.find((v) => v.key === key)?.name ?? label.textContent ?? '';
     const input = element('input', 'dialkit-version-card-input');
     input.value = previous;
-    input.setAttribute('aria-label', 'Version name');
+    input.setAttribute('aria-label', `${word.singular} name`);
     let done = false;
     const end = (save: boolean) => {
       if (done) return;
@@ -273,6 +300,17 @@ export function openVersionGrid(options: VersionGridOptions): VersionGridHandle 
     setTimeout(settle, GALLERY_SPRING.duration * 750);
   };
 
+  // A click on a card asks the host first, when it asks (beforeSelect).
+  let asking = false;
+  const pick = (key: string) => {
+    if (closing || asking) return;
+    const allowed = options.beforeSelect?.(key) ?? true;
+    if (allowed === true) { choose(key, true); return; }
+    if (allowed === false) return;
+    asking = true;
+    allowed.then((ok) => { asking = false; if (ok) choose(key, true); }, () => { asking = false; });
+  };
+
   const onKey = (e: KeyboardEvent) => {
     // Typing a name owns the keyboard.
     if (e.target instanceof HTMLInputElement && overlay.contains(e.target)) return;
@@ -348,6 +386,10 @@ export function openVersionGrid(options: VersionGridOptions): VersionGridHandle 
         || next.some((version, index) => version.key !== versions[index]?.key || version.name !== versions[index]?.name);
       versions = next;
       activeKey = nextActive;
+      for (const version of versions) {
+        const frame = cards.get(version.key)?.querySelector<HTMLElement>('.dialkit-version-card-frame');
+        if (frame) syncVersionBadge(frame, version.name, version.badge);
+      }
       // A live picture needs no refresh, so only a changed list renders again.
       if (options.picture) {
         if (changed && !closing) render();

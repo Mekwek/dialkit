@@ -1,4 +1,4 @@
-import { a as TransitionMode, T as TransitionConfig, c as CopiedTransition } from './DialStore-BHYnOV-c.js';
+import { a as TransitionMode, T as TransitionConfig, c as CopiedTransition } from './DialStore-BbL0jUCM.js';
 import './dial-pad.js';
 import './anchor.js';
 import './pictures.js';

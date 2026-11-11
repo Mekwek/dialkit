@@ -929,6 +929,7 @@ function isVisibilityWrapper(value) {
 function unwrapVisibility(value) {
   return isVisibilityWrapper(value) ? value.value : value;
 }
+var DEFAULT_PRESET_WORD = { singular: "Version", plural: "Versions" };
 var EMPTY_VALUES = Object.freeze({});
 var TRANSITION_PRESETS_KEY = "dialkit:transition-presets";
 function copyTransitionValue(value) {
@@ -955,6 +956,9 @@ function isStoredTransitionPreset(preset) {
     default:
       return false;
   }
+}
+function samePresetWord(a, b) {
+  return a === b || !!a && !!b && a.singular === b.singular && a.plural === b.plural;
 }
 function resolveDialValues(config, flatValues) {
   return resolveConfigValues(config, flatValues, "");
@@ -1202,7 +1206,13 @@ var DialStoreClass = class {
       group: options.group,
       groupHeader: options.groupHeader,
       beside: options.beside,
-      versionPrefix: options.versionPrefix
+      versionPrefix: options.versionPrefix,
+      presetWord: options.presetWord,
+      saveLabel: options.saveLabel,
+      showBasePreset: options.showBasePreset,
+      presetLabel: options.presetLabel,
+      presetBadge: options.presetBadge,
+      onBeforePresetSwitch: options.onBeforePresetSwitch
     };
     this.panels.set(id, panel);
     this.controlsByPanel.set(panel, controlsByPath);
@@ -1235,7 +1245,7 @@ var DialStoreClass = class {
       return;
     }
     const { key, parsed: { controls, controlsByPath, defaultValues, resetKeys, conditional } } = this.parseCached(id, config, shortcuts ?? existing.shortcuts);
-    const unchanged = key !== void 0 && this.panelConfigKeys.get(id) === key && name === existing.name && (options.kind ?? existing.kind) === existing.kind && (options.presetsEditable ?? existing.presetsEditable) === existing.presetsEditable && (options.presetsLockable ?? existing.presetsLockable) === existing.presetsLockable && (options.hint ?? existing.hint) === existing.hint && (options.folderMode ?? existing.folderMode) === existing.folderMode && (options.onClose ?? existing.onClose) === existing.onClose && (options.toolbar ?? existing.toolbar) === existing.toolbar && (options.group ?? existing.group) === existing.group && (options.groupHeader ?? existing.groupHeader) === existing.groupHeader && (options.beside ?? existing.beside) === existing.beside && (options.versionPrefix ?? existing.versionPrefix) === existing.versionPrefix;
+    const unchanged = key !== void 0 && this.panelConfigKeys.get(id) === key && name === existing.name && (options.kind ?? existing.kind) === existing.kind && (options.presetsEditable ?? existing.presetsEditable) === existing.presetsEditable && (options.presetsLockable ?? existing.presetsLockable) === existing.presetsLockable && (options.hint ?? existing.hint) === existing.hint && (options.folderMode ?? existing.folderMode) === existing.folderMode && (options.onClose ?? existing.onClose) === existing.onClose && (options.toolbar ?? existing.toolbar) === existing.toolbar && (options.group ?? existing.group) === existing.group && (options.groupHeader ?? existing.groupHeader) === existing.groupHeader && (options.beside ?? existing.beside) === existing.beside && (options.versionPrefix ?? existing.versionPrefix) === existing.versionPrefix && samePresetWord(options.presetWord ?? existing.presetWord, existing.presetWord) && (options.saveLabel ?? existing.saveLabel) === existing.saveLabel && (options.showBasePreset ?? existing.showBasePreset) === existing.showBasePreset && (options.presetLabel ?? existing.presetLabel) === existing.presetLabel && (options.presetBadge ?? existing.presetBadge) === existing.presetBadge && (options.onBeforePresetSwitch ?? existing.onBeforePresetSwitch) === existing.onBeforePresetSwitch;
     this.configurePanelRetention(id, options);
     if (unchanged) {
       this.persistPanel(id);
@@ -1259,7 +1269,13 @@ var DialStoreClass = class {
       group: options.group ?? existing.group,
       groupHeader: options.groupHeader ?? existing.groupHeader,
       beside: options.beside ?? existing.beside,
-      versionPrefix: options.versionPrefix ?? existing.versionPrefix
+      versionPrefix: options.versionPrefix ?? existing.versionPrefix,
+      presetWord: options.presetWord ?? existing.presetWord,
+      saveLabel: options.saveLabel ?? existing.saveLabel,
+      showBasePreset: options.showBasePreset ?? existing.showBasePreset,
+      presetLabel: options.presetLabel ?? existing.presetLabel,
+      presetBadge: options.presetBadge ?? existing.presetBadge,
+      onBeforePresetSwitch: options.onBeforePresetSwitch ?? existing.onBeforePresetSwitch
     };
     this.panels.set(id, nextPanel);
     this.controlsByPanel.set(nextPanel, controlsByPath);
@@ -1738,6 +1754,83 @@ var DialStoreClass = class {
   }
   getActivePresetId(panelId) {
     return this.activePreset.get(panelId) ?? null;
+  }
+  /** What the panel's version UI calls a version (`presetWord`), else `fallback`. */
+  getPresetWord(panelId, fallback = DEFAULT_PRESET_WORD) {
+    return this.panels.get(panelId)?.presetWord ?? fallback;
+  }
+  /** The save button's text the panel sets (`saveLabel`), if it sets one. */
+  getSaveLabel(panelId) {
+    return this.panels.get(panelId)?.saveLabel;
+  }
+  /** Whether DialKit lists the base version with the saved ones. See `showBasePreset`. */
+  showsBasePreset(panelId) {
+    return this.panels.get(panelId)?.showBasePreset ?? true;
+  }
+  /** Whether the panel draws its versions under labels of its own (`presetLabel`). */
+  hasPresetLabel(panelId) {
+    return !!this.panels.get(panelId)?.presetLabel;
+  }
+  /** The label drawn for a saved version at `index` among the saved ones: its name, unless `presetLabel` gives another. */
+  getPresetLabel(panelId, preset, index) {
+    const label = this.panels.get(panelId)?.presetLabel;
+    return label ? label({ id: preset.id, name: preset.name }, index) : preset.name;
+  }
+  /** The mark on a version's picture (`presetBadge`), or null. */
+  getPresetBadge(panelId, presetId) {
+    return this.panels.get(panelId)?.presetBadge?.(presetId) || null;
+  }
+  /**
+   * Draws the panel's versions again, for a host whose `presetLabel` or
+   * `presetBadge` now returns something else. The versions do not change.
+   */
+  refreshPresetDisplay(panelId) {
+    if (!this.panels.has(panelId)) return;
+    this.presets.set(panelId, [...this.getPresets(panelId)]);
+    this.notify(panelId);
+  }
+  /**
+   * Whether a click may switch to a version (a saved one's id, or null for
+   * the base version): the answer of `onBeforePresetSwitch`. Without one,
+   * or for the version already shown, it is true at once, so the switch
+   * happens in the same click.
+   */
+  confirmPresetSwitch(panelId, presetId) {
+    const ask = this.panels.get(panelId)?.onBeforePresetSwitch;
+    if (!ask || presetId === this.getActivePresetId(panelId)) return true;
+    return ask(presetId ?? "base");
+  }
+  /**
+   * Switches to a version (null for the base version) once
+   * `confirmPresetSwitch` allows it. Resolves with whether it switched; with
+   * no question to ask, it switches before returning.
+   */
+  switchPresetFromClick(panelId, presetId, load = () => this.selectPreset(panelId, presetId)) {
+    const allowed = this.confirmPresetSwitch(panelId, presetId);
+    if (allowed === true) {
+      load();
+      return true;
+    }
+    if (allowed === false) return false;
+    return allowed.then((ok) => {
+      if (ok) load();
+      return ok;
+    }, () => false);
+  }
+  /** Loads a saved version, or the base version for null. */
+  selectPreset(panelId, presetId) {
+    if (presetId) this.loadPreset(panelId, presetId);
+    else this.clearActivePreset(panelId);
+  }
+  /**
+   * Renames a saved version from a field that showed its label: with a
+   * `presetLabel`, a label left as it showed keeps the stored name.
+   */
+  renamePresetFromLabel(panelId, presetId, name) {
+    const presets = this.getPresets(panelId);
+    const index = presets.findIndex((preset) => preset.id === presetId);
+    if (index >= 0 && this.hasPresetLabel(panelId) && name.trim() === this.getPresetLabel(panelId, presets[index], index)) return;
+    this.renamePreset(panelId, presetId, name);
   }
   clearActivePreset(panelId) {
     const panel = this.panels.get(panelId);
@@ -3798,6 +3891,7 @@ import { isServer as isServer3 } from "solid-js/web";
 // src/hints.ts
 var TIP_KEY = "dialkit-hint-tip-seen";
 var GAP = 6;
+var SIDE_GAP = 8;
 var MARGIN = 8;
 var FADE_MS = 120;
 var FOCUSABLE = "button, input, select, textarea, [tabindex]";
@@ -3825,6 +3919,15 @@ var HINTS = {
   imageUpload: "Adds an image from your computer.",
   imageClear: "Removes the image."
 };
+function presetHints(word = DEFAULT_PRESET_WORD) {
+  const noun = word.singular.toLowerCase();
+  return {
+    saveVersion: `Saves the current values as a new ${noun}, with a picture of the page.`,
+    version: `Switches to this ${noun}. Double-click its name to rename it.`,
+    deleteVersion: `Deletes this ${noun}.`,
+    allVersions: `Shows every ${noun} side by side. Click one to switch to it.`
+  };
+}
 function versionHints(noun = "version", { editable = true, lockable = true } = {}) {
   if (!editable) return { versions: `Switches to another ${noun}.`, versionActions: "" };
   return lockable ? {
@@ -3936,6 +4039,18 @@ function getHintPosition(row, root, size, viewport) {
   const left = Math.max(MARGIN, Math.min(row.left, viewport.width - size.width - MARGIN));
   const y = above ? row.top - GAP : row.bottom + GAP;
   return { left: left - root.left, y: y - root.top, above };
+}
+function hintSideOf(element11) {
+  const side = element11.dataset.hintSide;
+  return side === "left" || side === "right" || side === "above" || side === "below" ? side : void 0;
+}
+function getHintSidePosition(row, root, size, viewport, side) {
+  const left = side === "right" ? row.right + SIDE_GAP : side === "left" ? row.left - SIDE_GAP - size.width : (row.left + row.right - size.width) / 2;
+  const top = side === "below" ? row.bottom + SIDE_GAP : side === "above" ? row.top - SIDE_GAP - size.height : (row.top + row.bottom - size.height) / 2;
+  return {
+    left: Math.max(MARGIN, Math.min(left, viewport.width - size.width - MARGIN)) - root.left,
+    top: Math.max(MARGIN, Math.min(top, viewport.height - size.height - MARGIN)) - root.top
+  };
 }
 var DIM_AREAS = [
   ".dialkit-color-popover",
@@ -4066,16 +4181,25 @@ function listen() {
     layer2.style.transform = scale.x === 1 && scale.y === 1 ? "" : `scale(${scale.x}, ${scale.y})`;
     const origin = layer2.getBoundingClientRect();
     const box = shown.getBoundingClientRect();
-    const { left, y, above } = getHintPosition(
-      { left: shown.closest(ALIGN)?.getBoundingClientRect().left ?? box.left, top: box.top, bottom: box.bottom },
-      origin,
-      { width: tooltip.offsetWidth * scale.x, height: tooltip.offsetHeight * scale.y },
-      { width: window.innerWidth, height: window.innerHeight }
-    );
-    const x = left / scale.x;
-    const top = y / scale.y;
-    tooltip.style.translate = above ? `${x}px calc(${top}px - 100%)` : `${x}px ${top}px`;
-    tooltip.toggleAttribute("data-below", !above);
+    const size = { width: tooltip.offsetWidth * scale.x, height: tooltip.offsetHeight * scale.y };
+    const viewport = { width: window.innerWidth, height: window.innerHeight };
+    const side = hintSideOf(shown);
+    if (side) {
+      const { left, top } = getHintSidePosition(box, origin, size, viewport, side);
+      tooltip.style.translate = `${left / scale.x}px ${top / scale.y}px`;
+      tooltip.removeAttribute("data-below");
+    } else {
+      const { left, y, above } = getHintPosition(
+        { left: shown.closest(ALIGN)?.getBoundingClientRect().left ?? box.left, top: box.top, bottom: box.bottom },
+        origin,
+        size,
+        viewport
+      );
+      const x = left / scale.x;
+      const top = y / scale.y;
+      tooltip.style.translate = above ? `${x}px calc(${top}px - 100%)` : `${x}px ${top}px`;
+      tooltip.toggleAttribute("data-below", !above);
+    }
     if (!area) return;
     const outer = area.getBoundingClientRect();
     Object.assign(dim.style, {
@@ -4121,6 +4245,9 @@ function listen() {
       area = next;
       shown = row;
       row.setAttribute("data-hint-shown", "");
+      const side = hintSideOf(row);
+      if (side) tooltip.dataset.side = side;
+      else delete tooltip.dataset.side;
       describe(row);
       observer.disconnect();
       mutations.disconnect();
@@ -13895,6 +14022,20 @@ function observeScrollEdges(scroller, paused = () => false) {
 }
 
 // src/versions/grid.ts
+function syncVersionBadge(frame, name, badge) {
+  frame.setAttribute("aria-label", badge ? `${name} (${badge})` : name);
+  let mark = frame.querySelector(":scope > .dialkit-version-badge");
+  if (!badge) {
+    mark?.remove();
+    return;
+  }
+  if (!mark) {
+    mark = element6("span", "dialkit-version-badge");
+    mark.setAttribute("aria-hidden", "true");
+    frame.append(mark);
+  }
+  if (mark.textContent !== badge) mark.textContent = badge;
+}
 var CARD_RADIUS = 14;
 var SETTLE_FADE_MS = 140;
 var current = null;
@@ -13913,12 +14054,13 @@ function openVersionGrid(options) {
   const overlay = element6("div", "dialkit-version-overlay");
   overlay.dataset.theme = options.theme ?? "system";
   overlay.setAttribute("role", "dialog");
-  overlay.setAttribute("aria-label", "Versions");
+  const word = options.word ?? DEFAULT_PRESET_WORD;
+  overlay.setAttribute("aria-label", word.plural);
   if (host) overlay.dataset.hosted = "true";
   const scroller = element6("div", "dialkit-version-overlay-scroll dialkit-edge-fade");
   const grid = element6("div", "dialkit-version-overlay-grid");
   const close2 = element6("button", "dialkit-version-overlay-close");
-  close2.setAttribute("aria-label", "Close versions");
+  close2.setAttribute("aria-label", `Close ${word.plural.toLowerCase()}`);
   close2.append(icon2(ICON_CLOSE));
   scroller.append(grid);
   overlay.append(scroller, close2);
@@ -13939,7 +14081,6 @@ function openVersionGrid(options) {
       const card = element6("div", "dialkit-version-card");
       card.dataset.key = version.key;
       const frame = element6("button", "dialkit-version-card-frame");
-      frame.setAttribute("aria-label", version.name);
       if (options.picture) {
         const picture = element6("div", "dialkit-version-card-picture");
         frame.append(picture);
@@ -13958,8 +14099,9 @@ function openVersionGrid(options) {
         label.title = "Double-click to rename";
         label.addEventListener("dblclick", () => editLabel(version.key, label, frame));
       }
+      syncVersionBadge(frame, version.name, version.badge);
       card.append(frame, label);
-      frame.addEventListener("click", () => choose(version.key, true));
+      frame.addEventListener("click", () => pick(version.key));
       frame.addEventListener("focus", () => {
         focusKey = version.key;
       });
@@ -13973,7 +14115,7 @@ function openVersionGrid(options) {
     const previous = versions.find((v) => v.key === key)?.name ?? label.textContent ?? "";
     const input = element6("input", "dialkit-version-card-input");
     input.value = previous;
-    input.setAttribute("aria-label", "Version name");
+    input.setAttribute("aria-label", `${word.singular} name`);
     let done = false;
     const end = (save) => {
       if (done) return;
@@ -14103,6 +14245,23 @@ function openVersionGrid(options) {
     animateTo(target, 0).then(settle);
     setTimeout(settle, GALLERY_SPRING.duration * 750);
   };
+  let asking = false;
+  const pick = (key) => {
+    if (closing || asking) return;
+    const allowed = options.beforeSelect?.(key) ?? true;
+    if (allowed === true) {
+      choose(key, true);
+      return;
+    }
+    if (allowed === false) return;
+    asking = true;
+    allowed.then((ok) => {
+      asking = false;
+      if (ok) choose(key, true);
+    }, () => {
+      asking = false;
+    });
+  };
   const onKey = (e) => {
     if (e.target instanceof HTMLInputElement && overlay.contains(e.target)) return;
     if (e.key === "Escape") {
@@ -14167,6 +14326,10 @@ function openVersionGrid(options) {
       const changed = next.length !== versions.length || next.some((version, index) => version.key !== versions[index]?.key || version.name !== versions[index]?.name);
       versions = next;
       activeKey = nextActive;
+      for (const version of versions) {
+        const frame = cards.get(version.key)?.querySelector(".dialkit-version-card-frame");
+        if (frame) syncVersionBadge(frame, version.name, version.badge);
+      }
       if (options.picture) {
         if (changed && !closing) render();
         return;
@@ -14208,23 +14371,35 @@ var SETTLE_DELAY_MS = 900;
 function listVersions(panelId) {
   const thumbnails = ThumbnailStore.getAll(panelId);
   const presets = DialStore.getPresets(panelId);
+  const base = DialStore.showsBasePreset(panelId) ? [{ key: BASE_VERSION, presetId: null, name: DialStore.getBaseName(panelId), thumbnail: thumbnails[BASE_VERSION] }] : [];
   return [
-    { key: BASE_VERSION, presetId: null, name: DialStore.getBaseName(panelId), thumbnail: thumbnails[BASE_VERSION] },
-    ...presets.map((preset) => ({
-      key: preset.id,
-      presetId: preset.id,
-      name: preset.name,
-      locked: preset.locked,
-      thumbnail: thumbnails[preset.id]
-    }))
+    ...base,
+    ...presets.map((preset, index) => {
+      const badge = DialStore.getPresetBadge(panelId, preset.id);
+      return {
+        key: preset.id,
+        presetId: preset.id,
+        name: DialStore.getPresetLabel(panelId, preset, index),
+        locked: preset.locked,
+        thumbnail: thumbnails[preset.id],
+        ...badge ? { badge } : {}
+      };
+    })
   ];
 }
 function selectVersion(panelId, key) {
   if (key === BASE_VERSION) DialStore.clearActivePreset(panelId);
   else DialStore.loadPreset(panelId, key);
 }
+function showsVersionStrip(panelId, count) {
+  return count >= (DialStore.showsBasePreset(panelId) ? 2 : 1);
+}
+function confirmVersion(panelId, key) {
+  return DialStore.confirmPresetSwitch(panelId, key === BASE_VERSION ? null : key);
+}
 function renameVersion(panelId, key, name) {
-  DialStore.renamePreset(panelId, key === BASE_VERSION ? null : key, name);
+  if (key === BASE_VERSION) DialStore.renamePreset(panelId, null, name);
+  else DialStore.renamePresetFromLabel(panelId, key, name);
 }
 function deleteVersion(panelId, key) {
   if (key === BASE_VERSION || DialStore.getPresets(panelId).find((p) => p.id === key)?.locked) return;
@@ -14295,6 +14470,8 @@ function openVersionsOverview(panelId, theme, onClose) {
     versions: listVersions(panelId),
     activeKey: key,
     theme,
+    word: DialStore.getPresetWord(panelId),
+    beforeSelect: (next) => confirmVersion(panelId, next),
     onSelect: (next) => selectVersion(panelId, next),
     onRename: (next, name) => renameVersion(panelId, next, name),
     onClose: () => {
@@ -14321,14 +14498,13 @@ function mountVersionGallery(host, initial) {
   const actions = element6("div", "dialkit-versions-actions");
   const save = element6("button", "dialkit-versions-button");
   save.dataset.primary = "true";
-  save.append(icon2(ICON_PLUS, "", "0 0 24 24"), "Save version");
-  setHint(save, HINTS.saveVersion);
+  const saveText = document.createTextNode("Save version");
+  save.append(icon2(ICON_PLUS, "", "0 0 24 24"), saveText);
   const toggle = element6("button", "dialkit-versions-button");
   toggle.dataset.icon = "true";
   const grid = svg("svg", { viewBox: "0 0 24 24", fill: "currentColor", "aria-hidden": "true" });
   for (const d of ICON_GRID) grid.append(svg("path", { d }));
   toggle.append(grid);
-  setHint(toggle, HINTS.allVersions);
   actions.append(save, toggle);
   const strip = element6("div", "dialkit-versions-strip");
   strip.setAttribute("role", "listbox");
@@ -14348,14 +14524,21 @@ function mountVersionGallery(host, initial) {
     const activeKey = versionKey(DialStore.getActivePresetId(panelId));
     const arrival = ArrivalStore.get(panelId);
     const many = versions.length > 1;
+    const word = DialStore.getPresetWord(panelId);
+    const hints = presetHints(word);
+    const text = DialStore.getSaveLabel(panelId) ?? `Save ${word.singular.toLowerCase()}`;
+    if (saveText.data !== text) saveText.data = text;
+    setHint(save, hints.saveVersion);
+    setHint(toggle, hints.allVersions);
+    strip.setAttribute("aria-label", word.plural);
     root.dataset.panel = panelId;
     toggle.hidden = !many;
     toggle.setAttribute("aria-pressed", String(!!overview || opening));
     root.toggleAttribute("data-overview", !!overview);
     syncCopy(!!overview);
     save.disabled = !!overview || opening;
-    toggle.setAttribute("aria-label", `All versions (${versions.length})`);
-    strip.hidden = !many;
+    toggle.setAttribute("aria-label", `All ${word.plural.toLowerCase()} (${versions.length})`);
+    strip.hidden = !showsVersionStrip(panelId, versions.length);
     const keys = new Set(versions.map((v) => v.key));
     for (const [key, node] of thumbs) {
       if (!keys.has(key)) {
@@ -14369,7 +14552,8 @@ function mountVersionGallery(host, initial) {
       node.dataset.active = String(version.key === activeKey);
       node.dataset.locked = String(!!version.locked);
       frame.setAttribute("aria-selected", String(version.key === activeKey));
-      frame.setAttribute("aria-label", version.name);
+      syncVersionBadge(frame, version.name, version.badge);
+      setHint(node, hints.version);
       if (arrival?.key === version.key) node.dataset.arrival = arrival.stage;
       else delete node.dataset.arrival;
       const img = frame.querySelector("img");
@@ -14383,19 +14567,29 @@ function mountVersionGallery(host, initial) {
       const label = node.querySelector(".dialkit-version-thumb-label");
       if (label && editing !== version.key) label.textContent = version.name;
       const remove = node.querySelector(".dialkit-version-thumb-delete");
-      if (remove) remove.setAttribute("aria-label", `Delete ${version.name}`);
+      if (remove) {
+        remove.setAttribute("aria-label", `Delete ${version.name}`);
+        setHint(remove, hints.deleteVersion);
+      }
       if (strip.children[index] !== node) strip.insertBefore(node, strip.children[index] ?? null);
     });
   };
   const createThumb = (key) => {
     const node = element6("div", "dialkit-version-thumb");
     node.dataset.version = key;
-    setHint(node, HINTS.version);
     const frame = element6("button", "dialkit-version-thumb-frame");
     frame.setAttribute("role", "option");
-    frame.addEventListener("click", () => {
+    const pick = () => {
       if (overview) overview.select(key);
       else void switchTo(key);
+    };
+    frame.addEventListener("click", () => {
+      const allowed = confirmVersion(props.panelId, key);
+      if (allowed === true) pick();
+      else if (allowed !== false) void allowed.then((ok) => {
+        if (ok && !destroyed) pick();
+      }, () => {
+      });
     });
     const label = element6("span", "dialkit-version-thumb-label");
     label.addEventListener("dblclick", () => rename(key, label));
@@ -14403,7 +14597,6 @@ function mountVersionGallery(host, initial) {
     if (key !== versionKey(null)) {
       const remove = element6("button", "dialkit-version-thumb-delete");
       remove.append(icon2(ICON_CLOSE));
-      setHint(remove, HINTS.deleteVersion);
       remove.addEventListener("click", () => deleteVersion(props.panelId, key));
       node.append(remove);
     }
@@ -14420,7 +14613,7 @@ function mountVersionGallery(host, initial) {
     const current2 = listVersions(props.panelId).find((v) => v.key === key)?.name ?? "";
     const input = element6("input", "dialkit-version-thumb-label dialkit-version-thumb-input");
     input.value = current2;
-    input.setAttribute("aria-label", "Version name");
+    input.setAttribute("aria-label", `${DialStore.getPresetWord(props.panelId).singular} name`);
     editing = key;
     let done = false;
     const end = (commit) => {

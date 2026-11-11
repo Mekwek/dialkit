@@ -32,6 +32,7 @@ import {
   timelineReorderSlot,
 } from '../../timeline-core';
 import type { TimelineClipDragBounds, TimelineClipLoop, TimelineClipSpan, TimelineStepStatic } from '../../timeline-core';
+import { timelineJoins } from '../../timeline-core';
 import { clamp, round2 } from '../../transition-math';
 import { buildCopyInstruction } from '../../copy-instruction';
 import { isDevDefault } from '../../env';
@@ -92,6 +93,44 @@ export interface DialTimelineProps {
   /** Draws an Export button in the timeline bar; the host decides what
    * exporting means. */
   onExport?: () => void;
+  /**
+   * `false`: a click on a clip never opens the clip editor. It only tells
+   * the host, through the timeline's `onClipClick`. Default `true`.
+   */
+  clipPopover?: boolean;
+  /** A clip the host has picked: its bar shows selected, as a pressed bar does. */
+  selectedClipKey?: string | null;
+  /**
+   * Draws the host's own element on each join between two bars that follow
+   * each other on a single track, above the bars where the next one starts.
+   * Pass a stable function: the dock does not draw again for the host.
+   */
+  renderJoin?: (join: { fromKey: string; toKey: string }) => ReactNode;
+  /** Called on a press in the timeline's tracks or ruler that is on no clip and no join. */
+  onTrackPress?: () => void;
+  /** Drawn first in the timeline bar's actions, before the version menu. */
+  actionsStart?: ReactNode;
+}
+
+/** What a host hands every timeline in the dock. */
+type TimelineHostProps = Pick<DialTimelineProps, 'onExport' | 'clipPopover' | 'selectedClipKey' | 'renderJoin' | 'onTrackPress' | 'actionsStart'>;
+
+/**
+ * A click on a bar: tells the host (`onClipClick`), then expands a props
+ * clip's tracks, or opens the clip editor unless `clipPopover` is false.
+ */
+export function runBarClick(
+  clip: Pick<TimelineClipMeta, 'key' | 'tracks'>,
+  stepKey: string | undefined,
+  clipPopover: boolean,
+  actions: { onClipClick?: (key: string) => void; toggleTracks: (key: string) => void; openPopover: () => void }
+): void {
+  actions.onClipClick?.(clip.key);
+  if (!stepKey && clip.tracks?.length) {
+    actions.toggleTracks(clip.key);
+    return;
+  }
+  if (clipPopover) actions.openPopover();
 }
 
 const EXPORT_HINT = 'Exports the timeline.';
@@ -108,6 +147,11 @@ export const DialTimeline = memo(function DialTimeline({
   defaultOpen = true,
   productionEnabled = isDevDefault,
   onExport,
+  clipPopover,
+  selectedClipKey,
+  renderJoin,
+  onTrackPress,
+  actionsStart,
 }: DialTimelineProps) {
   if (!productionEnabled) return null;
   return (
@@ -118,6 +162,11 @@ export const DialTimeline = memo(function DialTimeline({
       onVisibilityChange={onVisibilityChange}
       defaultOpen={defaultOpen}
       onExport={onExport}
+      clipPopover={clipPopover}
+      selectedClipKey={selectedClipKey}
+      renderJoin={renderJoin}
+      onTrackPress={onTrackPress}
+      actionsStart={actionsStart}
     />
   );
 });
@@ -128,15 +177,14 @@ function DialTimelineDock({
   visible,
   onVisibilityChange,
   defaultOpen,
-  onExport,
+  ...host
 }: {
   theme: DialTheme;
   defaultVisible: boolean;
   visible?: boolean;
   onVisibilityChange?: (visible: boolean) => void;
   defaultOpen: boolean;
-  onExport?: () => void;
-}) {
+} & TimelineHostProps) {
   const [mounted, setMounted] = useState(false);
   useHints(true);
   const [dockMaxHeight, setDockMaxHeight] = useState(DEFAULT_DOCK_MAX_HEIGHT);
@@ -254,7 +302,7 @@ function DialTimelineDock({
             defaultOpen={defaultOpen}
             theme={theme}
             dockVisible={dockVisible}
-            onExport={onExport}
+            {...host}
           />
         ))}
       </div>
@@ -608,13 +656,17 @@ const TimelineSection = memo(function TimelineSection({
   theme,
   dockVisible,
   onExport,
+  clipPopover = true,
+  selectedClipKey,
+  renderJoin,
+  onTrackPress,
+  actionsStart,
 }: {
   meta: TimelineMeta;
   defaultOpen: boolean;
   theme: DialTheme;
   dockVisible: boolean;
-  onExport?: () => void;
-}) {
+} & TimelineHostProps) {
   const [open, setOpen] = useState(defaultOpen);
   const [copied, setCopied] = useState(false);
   const [popover, setPopover] = useState<PopoverState | null>(null);
@@ -883,7 +935,7 @@ const TimelineSection = memo(function TimelineSection({
 
   const handleTrackPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
-    if (target.closest('.dialkit-timeline-label, button')) return;
+    if (target.closest('.dialkit-timeline-label, button, .dialkit-timeline-join')) return;
     // The pan bar sits inside the body too; a press on it pans, never seeks.
     if (target.closest('.dialkit-timeline-scroll-row')) return;
     if (!e.shiftKey && target.closest('.dialkit-timeline-clip')) return;
@@ -989,14 +1041,13 @@ const TimelineSection = memo(function TimelineSection({
   const onClipClick = meta.onClipClick;
   const handleBarClick = useCallback(
     (clip: TimelineClipMeta, rect: DOMRect, stepKey?: string) => {
-      onClipClick?.(clip.key);
-      if (!stepKey && clip.tracks?.length) {
-        toggleTracks(clip.key);
-        return;
-      }
-      openClipPopover(clip, rect, stepKey);
+      runBarClick(clip, stepKey, clipPopover, {
+        onClipClick,
+        toggleTracks,
+        openPopover: () => openClipPopover(clip, rect, stepKey),
+      });
     },
-    [onClipClick, openClipPopover, toggleTracks]
+    [clipPopover, onClipClick, openClipPopover, toggleTracks]
   );
 
   // Where a dragged bar may go: the whole timeline, or the gap between its
@@ -1156,8 +1207,13 @@ const TimelineSection = memo(function TimelineSection({
     const pinnedKey = lane === undefined && meta.pinStart && stats.length
       ? stats.reduce((a, b) => (b.stat.at < a.stat.at ? b : a)).clip.key
       : null;
+    // The host's element on each join of the main lane (renderJoin), in view.
+    const joins = renderJoin && lane === undefined && pxPerSecond > 0
+      ? timelineJoins(stats.map(({ clip, stat }) => ({ key: clip.key, at: stat.at, duration: stat.duration })))
+        .filter((join) => join.time >= safeViewStart && join.time <= viewEnd)
+      : [];
     rows.push(
-      <div key={lane === undefined ? 'single' : `lane:${lane}`} className="dialkit-timeline-row" data-lane={lane === undefined ? undefined : ''}>
+      <div key={lane === undefined ? 'single' : `lane:${lane}`} className="dialkit-timeline-row" data-lane={lane === undefined ? undefined : ''} data-joins={renderJoin && lane === undefined ? '' : undefined}>
         <div className="dialkit-timeline-label">{label}</div>
         <div className="dialkit-timeline-lane">
           {stats.map(({ clip, stat }) => {
@@ -1180,7 +1236,7 @@ const TimelineSection = memo(function TimelineSection({
                 pxPerSecond={pxPerSecond}
                 viewStart={safeViewStart}
                 timelineDuration={meta.duration}
-                selected={selectedKeys.has(clip.key) || popover?.clip.key === clip.key}
+                selected={selectedKeys.has(clip.key) || popover?.clip.key === clip.key || clip.key === selectedClipKey}
                 getDragBounds={getDragBounds}
                 onPress={pressClip}
                 onBlockMove={moveBlock}
@@ -1193,6 +1249,15 @@ const TimelineSection = memo(function TimelineSection({
             <div className="dialkit-timeline-reorder-cue" style={{ left: (reorderCue.time - safeViewStart) * pxPerSecond }} aria-hidden="true" />
           )}
         </div>
+        {joins.map((join) => (
+          <div
+            key={`${join.fromKey}>${join.toKey}`}
+            className="dialkit-timeline-join"
+            style={{ left: `calc(var(--dial-timeline-label-w) + ${Math.round((join.time - safeViewStart) * pxPerSecond)}px)` }}
+          >
+            {renderJoin?.({ fromKey: join.fromKey, toKey: join.toKey })}
+          </div>
+        ))}
       </div>
     );
   } else for (const clip of meta.clips) {
@@ -1260,7 +1325,7 @@ const TimelineSection = memo(function TimelineSection({
             pxPerSecond={pxPerSecond}
             viewStart={safeViewStart}
             timelineDuration={meta.duration}
-            selected={popover?.clip.key === clip.key}
+            selected={popover?.clip.key === clip.key || clip.key === selectedClipKey}
             selectedStepKey={popover?.clip.key === clip.key ? popover.stepKey : undefined}
             getDragBounds={getDragBounds}
             onClick={handleBarClick}
@@ -1344,6 +1409,7 @@ const TimelineSection = memo(function TimelineSection({
           />
         )}
         <div className="dialkit-timeline-actions">
+          {actionsStart}
           <PresetManager
             panelId={meta.id}
             presets={presets}
@@ -1448,6 +1514,10 @@ const TimelineSection = memo(function TimelineSection({
             <div
               ref={bodyRef}
               className="dialkit-timeline-body"
+              onPointerDownCapture={onTrackPress && ((e) => {
+                // Capture: the ruler keeps its own press from bubbling.
+                if (!(e.target as HTMLElement).closest?.('.dialkit-timeline-clip, .dialkit-timeline-join')) onTrackPress();
+              })}
               onPointerDown={handleTrackPointerDown}
               onPointerMove={handleTrackPointerMove}
               onPointerUp={finishTrackScrub}

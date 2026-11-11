@@ -5,6 +5,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  timelineJoins,
   parseTimelineConfig,
   computeStaticClips,
   computeStaticTimeline,
@@ -981,5 +982,27 @@ describe('formatting', () => {
     assert.equal(formatClock(63.25, true), '01:03.3');
     assert.equal(formatClock(5), '00:05');
     assert.equal(formatStepLabel('step2'), 'Step 2');
+  });
+});
+
+describe('timelineJoins', () => {
+  it('finds each join between bars that follow each other, in time order', () => {
+    const joins = timelineJoins([
+      { key: 'c', at: 3, duration: 1 },
+      { key: 'a', at: 0, duration: 1 },
+      { key: 'b', at: 1, duration: 1.5 },
+    ]);
+    // a and b meet at 1; b runs to 2.5, leaving a gap before c at 3.
+    assert.deepEqual(joins, [
+      { fromKey: 'a', toKey: 'b', time: 1 },
+      { fromKey: 'b', toKey: 'c', time: 2.75 },
+    ]);
+  });
+
+  it('puts the join at the next bar\'s start when the first runs over it, and finds none for one bar', () => {
+    assert.deepEqual(timelineJoins([{ key: 'a', at: 0, duration: 2 }, { key: 'b', at: 1.5, duration: 1 }]), [
+      { fromKey: 'a', toKey: 'b', time: 1.5 },
+    ]);
+    assert.deepEqual(timelineJoins([{ key: 'a', at: 0, duration: 2 }]), []);
   });
 });

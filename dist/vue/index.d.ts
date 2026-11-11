@@ -483,6 +483,49 @@ type ControlMeta = {
 };
 /** How a panel's top-level folders open. See `PanelConfig.folderMode`. */
 type FolderMode = 'independent' | 'accordion';
+/** What a panel's version UI calls a saved version. */
+type PresetWord = {
+    singular: string;
+    plural: string;
+};
+/** How DialKit draws a panel's versions, and what a click on one asks first. */
+type PresetOptions = {
+    /**
+     * The word every version string DialKit draws uses: the save button, the
+     * menu and list labels, and the hints. Default "Version" / "Versions".
+     */
+    presetWord?: PresetWord;
+    /**
+     * The save button's text where DialKit draws one: "Save version" over the
+     * pictures, "New version" in the version menu.
+     */
+    saveLabel?: string;
+    /**
+     * `false` leaves the base version (the values before any saved one) out of
+     * every list DialKit draws: the pictures, the grid, the version menu.
+     * Default `true`.
+     */
+    showBasePreset?: boolean;
+    /**
+     * The label drawn for each saved version, by its place among the saved
+     * ones. The stored name does not change.
+     */
+    presetLabel?: (preset: {
+        id: string;
+        name: string;
+    }, index: number) => string;
+    /**
+     * A short mark on a version's picture ("Draft"), or null for none. When
+     * what it returns changes, call `DialStore.refreshPresetDisplay`.
+     */
+    presetBadge?: (presetId: string) => string | null;
+    /**
+     * Asked before a click switches to another version, with that version's id
+     * ("base" for the base version). It switches only on true. A click on the
+     * version already shown does not ask.
+     */
+    onBeforePresetSwitch?: (presetId: string) => boolean | Promise<boolean>;
+};
 type PanelConfig = {
     id: string;
     name: string;
@@ -540,7 +583,7 @@ type PanelConfig = {
      * versions are "V1", "V2"…
      */
     versionPrefix?: string;
-};
+} & PresetOptions;
 type Listener$2 = () => void;
 type ActionListener = (action: string) => void;
 type ResetListener = (folderPath: string) => void;
@@ -623,7 +666,7 @@ type DialStorePanelOptions = {
      * versions are "V1", "V2"…
      */
     versionPrefix?: string;
-};
+} & PresetOptions;
 declare class DialStoreClass {
     private panelOpenListeners;
     private panelOpenStates;
@@ -795,6 +838,43 @@ declare class DialStoreClass {
     /** Whether the version menu shows lock buttons: only on an editable menu. See `presetsLockable`. */
     isPresetsLockable(panelId: string): boolean;
     getActivePresetId(panelId: string): string | null;
+    /** What the panel's version UI calls a version (`presetWord`), else `fallback`. */
+    getPresetWord(panelId: string, fallback?: PresetWord): PresetWord;
+    /** The save button's text the panel sets (`saveLabel`), if it sets one. */
+    getSaveLabel(panelId: string): string | undefined;
+    /** Whether DialKit lists the base version with the saved ones. See `showBasePreset`. */
+    showsBasePreset(panelId: string): boolean;
+    /** Whether the panel draws its versions under labels of its own (`presetLabel`). */
+    hasPresetLabel(panelId: string): boolean;
+    /** The label drawn for a saved version at `index` among the saved ones: its name, unless `presetLabel` gives another. */
+    getPresetLabel(panelId: string, preset: Pick<Preset, 'id' | 'name'>, index: number): string;
+    /** The mark on a version's picture (`presetBadge`), or null. */
+    getPresetBadge(panelId: string, presetId: string): string | null;
+    /**
+     * Draws the panel's versions again, for a host whose `presetLabel` or
+     * `presetBadge` now returns something else. The versions do not change.
+     */
+    refreshPresetDisplay(panelId: string): void;
+    /**
+     * Whether a click may switch to a version (a saved one's id, or null for
+     * the base version): the answer of `onBeforePresetSwitch`. Without one,
+     * or for the version already shown, it is true at once, so the switch
+     * happens in the same click.
+     */
+    confirmPresetSwitch(panelId: string, presetId: string | null): boolean | Promise<boolean>;
+    /**
+     * Switches to a version (null for the base version) once
+     * `confirmPresetSwitch` allows it. Resolves with whether it switched; with
+     * no question to ask, it switches before returning.
+     */
+    switchPresetFromClick(panelId: string, presetId: string | null, load?: () => void): boolean | Promise<boolean>;
+    /** Loads a saved version, or the base version for null. */
+    selectPreset(panelId: string, presetId: string | null): void;
+    /**
+     * Renames a saved version from a field that showed its label: with a
+     * `presetLabel`, a label left as it showed keeps the stored name.
+     */
+    renamePresetFromLabel(panelId: string, presetId: string, name: string): void;
     clearActivePreset(panelId: string): void;
     /** Saved curves and springs, shared by every transition control. */
     getTransitionPresets(): TransitionPreset[];

@@ -199,6 +199,49 @@ type ControlMeta = {
 };
 /** How a panel's top-level folders open. See `PanelConfig.folderMode`. */
 type FolderMode = 'independent' | 'accordion';
+/** What a panel's version UI calls a saved version. */
+type PresetWord = {
+    singular: string;
+    plural: string;
+};
+/** How DialKit draws a panel's versions, and what a click on one asks first. */
+type PresetOptions = {
+    /**
+     * The word every version string DialKit draws uses: the save button, the
+     * menu and list labels, and the hints. Default "Version" / "Versions".
+     */
+    presetWord?: PresetWord;
+    /**
+     * The save button's text where DialKit draws one: "Save version" over the
+     * pictures, "New version" in the version menu.
+     */
+    saveLabel?: string;
+    /**
+     * `false` leaves the base version (the values before any saved one) out of
+     * every list DialKit draws: the pictures, the grid, the version menu.
+     * Default `true`.
+     */
+    showBasePreset?: boolean;
+    /**
+     * The label drawn for each saved version, by its place among the saved
+     * ones. The stored name does not change.
+     */
+    presetLabel?: (preset: {
+        id: string;
+        name: string;
+    }, index: number) => string;
+    /**
+     * A short mark on a version's picture ("Draft"), or null for none. When
+     * what it returns changes, call `DialStore.refreshPresetDisplay`.
+     */
+    presetBadge?: (presetId: string) => string | null;
+    /**
+     * Asked before a click switches to another version, with that version's id
+     * ("base" for the base version). It switches only on true. A click on the
+     * version already shown does not ask.
+     */
+    onBeforePresetSwitch?: (presetId: string) => boolean | Promise<boolean>;
+};
 type PanelConfig = {
     id: string;
     name: string;
@@ -256,7 +299,7 @@ type PanelConfig = {
      * versions are "V1", "V2"…
      */
     versionPrefix?: string;
-};
+} & PresetOptions;
 type TransitionMode = 'easing' | 'simple' | 'advanced';
 /** A curve or spring the user saved, shared by every transition control. */
 type TransitionPreset = {
@@ -271,4 +314,4 @@ type CopiedTransition = {
     mode: TransitionMode;
 };
 
-export type { ControlMeta as C, DialValue as D, EasingConfig as E, ImageOption as I, PanelConfig as P, SpringConfig as S, TransitionConfig as T, TransitionMode as a, TransitionPreset as b, CopiedTransition as c, ShortcutConfig as d };
+export type { ControlMeta as C, DialValue as D, EasingConfig as E, ImageOption as I, PanelConfig as P, SpringConfig as S, TransitionConfig as T, TransitionMode as a, TransitionPreset as b, CopiedTransition as c, ShortcutConfig as d, PresetWord as e };

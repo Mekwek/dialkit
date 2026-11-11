@@ -9,19 +9,30 @@ export type VersionEntry = GridVersion & { presetId: string | null; locked?: boo
 
 const SETTLE_DELAY_MS = 900;
 
-/** All versions of a panel, oldest first, starting with the base version. */
+/**
+ * All versions of a panel, oldest first, starting with the base version
+ * unless the panel hides it (`showBasePreset`). Each is named by its label
+ * (`presetLabel`), and carries its badge (`presetBadge`) when it has one.
+ */
 export function listVersions(panelId: string): VersionEntry[] {
   const thumbnails = ThumbnailStore.getAll(panelId);
   const presets = DialStore.getPresets(panelId);
+  const base: VersionEntry[] = DialStore.showsBasePreset(panelId)
+    ? [{ key: BASE_VERSION, presetId: null, name: DialStore.getBaseName(panelId), thumbnail: thumbnails[BASE_VERSION] }]
+    : [];
   return [
-    { key: BASE_VERSION, presetId: null, name: DialStore.getBaseName(panelId), thumbnail: thumbnails[BASE_VERSION] },
-    ...presets.map((preset) => ({
-      key: preset.id,
-      presetId: preset.id,
-      name: preset.name,
-      locked: preset.locked,
-      thumbnail: thumbnails[preset.id],
-    })),
+    ...base,
+    ...presets.map((preset, index) => {
+      const badge = DialStore.getPresetBadge(panelId, preset.id);
+      return {
+        key: preset.id,
+        presetId: preset.id,
+        name: DialStore.getPresetLabel(panelId, preset, index),
+        locked: preset.locked,
+        thumbnail: thumbnails[preset.id],
+        ...(badge ? { badge } : {}),
+      };
+    }),
   ];
 }
 
@@ -30,8 +41,32 @@ export function selectVersion(panelId: string, key: string): void {
   else DialStore.loadPreset(panelId, key);
 }
 
+/**
+ * Whether the list of version pictures shows, for `count` listed versions:
+ * once there are two to compare, or with the base version hidden
+ * (`showBasePreset: false`), from the first saved one.
+ */
+export function showsVersionStrip(panelId: string, count: number): boolean {
+  return count >= (DialStore.showsBasePreset(panelId) ? 2 : 1);
+}
+
+/** Whether a click may switch to a version: see `DialStore.confirmPresetSwitch`. */
+export function confirmVersion(panelId: string, key: string): boolean | Promise<boolean> {
+  return DialStore.confirmPresetSwitch(panelId, key === BASE_VERSION ? null : key);
+}
+
+/**
+ * A click on a version: selects it once the panel's `onBeforePresetSwitch`
+ * allows. Without one, it selects at once. Resolves with whether it did.
+ */
+export function pickVersion(panelId: string, key: string): boolean | Promise<boolean> {
+  return DialStore.switchPresetFromClick(panelId, key === BASE_VERSION ? null : key, () => selectVersion(panelId, key));
+}
+
+/** Renames a version from a field that showed its label (see `DialStore.renamePresetFromLabel`). */
 export function renameVersion(panelId: string, key: string, name: string): void {
-  DialStore.renamePreset(panelId, key === BASE_VERSION ? null : key, name);
+  if (key === BASE_VERSION) DialStore.renamePreset(panelId, null, name);
+  else DialStore.renamePresetFromLabel(panelId, key, name);
 }
 
 export function deleteVersion(panelId: string, key: string): void {
@@ -125,6 +160,8 @@ export function openVersionsOverview(panelId: string, theme?: 'light' | 'dark' |
     versions: listVersions(panelId),
     activeKey: key,
     theme,
+    word: DialStore.getPresetWord(panelId),
+    beforeSelect: (next) => confirmVersion(panelId, next),
     onSelect: (next) => selectVersion(panelId, next),
     onRename: (next, name) => renameVersion(panelId, next, name),
     onClose: () => { stop(); onClose?.(); },

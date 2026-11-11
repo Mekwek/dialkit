@@ -3,12 +3,12 @@
 // version. Plain DOM, so every framework mounts the same thing.
 
 import { DialStore } from '../store/DialStore';
-import { HINTS, setHint } from '../hints';
+import { presetHints, setHint } from '../hints';
 import { ICON_CLOSE, ICON_GRID, ICON_PLUS } from '../icons';
 import { element, icon, svg, type Mounted } from '../vanilla/dom';
 import { ArrivalStore, saveVersionWithAppshot } from './appshot';
-import { deleteVersion, listVersions, openVersionsOverview, renameVersion, selectVersion, watchVersionThumbnails } from './controller';
-import type { VersionGridHandle } from './grid';
+import { confirmVersion, deleteVersion, listVersions, openVersionsOverview, renameVersion, selectVersion, showsVersionStrip, watchVersionThumbnails } from './controller';
+import { syncVersionBadge, type VersionGridHandle } from './grid';
 import { ThumbnailStore, versionKey } from './thumbnails';
 
 /** How a panel shows its versions: captured thumbnails (default), or a menu. */
@@ -32,14 +32,13 @@ export function mountVersionGallery(host: HTMLElement, initial: VersionGalleryPr
   const actions = element('div', 'dialkit-versions-actions');
   const save = element('button', 'dialkit-versions-button');
   save.dataset.primary = 'true';
-  save.append(icon(ICON_PLUS, '', '0 0 24 24'), 'Save version');
-  setHint(save, HINTS.saveVersion);
+  const saveText = document.createTextNode('Save version');
+  save.append(icon(ICON_PLUS, '', '0 0 24 24'), saveText);
   const toggle = element('button', 'dialkit-versions-button');
   toggle.dataset.icon = 'true';
   const grid = svg('svg', { viewBox: '0 0 24 24', fill: 'currentColor', 'aria-hidden': 'true' });
   for (const d of ICON_GRID) grid.append(svg('path', { d }));
   toggle.append(grid);
-  setHint(toggle, HINTS.allVersions);
   actions.append(save, toggle);
   const strip = element('div', 'dialkit-versions-strip');
   strip.setAttribute('role', 'listbox');
@@ -64,6 +63,14 @@ export function mountVersionGallery(host: HTMLElement, initial: VersionGalleryPr
     const activeKey = versionKey(DialStore.getActivePresetId(panelId));
     const arrival = ArrivalStore.get(panelId);
     const many = versions.length > 1;
+    // The panel's word for a version (presetWord) and save text (saveLabel).
+    const word = DialStore.getPresetWord(panelId);
+    const hints = presetHints(word);
+    const text = DialStore.getSaveLabel(panelId) ?? `Save ${word.singular.toLowerCase()}`;
+    if (saveText.data !== text) saveText.data = text;
+    setHint(save, hints.saveVersion);
+    setHint(toggle, hints.allVersions);
+    strip.setAttribute('aria-label', word.plural);
 
     root.dataset.panel = panelId;
     toggle.hidden = !many;
@@ -72,9 +79,9 @@ export function mountVersionGallery(host: HTMLElement, initial: VersionGalleryPr
     syncCopy(!!overview);
     // The grid only shows the versions it opened with, so saving waits for it to close.
     save.disabled = !!overview || opening;
-    toggle.setAttribute('aria-label', `All versions (${versions.length})`);
+    toggle.setAttribute('aria-label', `All ${word.plural.toLowerCase()} (${versions.length})`);
     // Thumbnails appear once there's something to compare.
-    strip.hidden = !many;
+    strip.hidden = !showsVersionStrip(panelId, versions.length);
 
     const keys = new Set(versions.map((v) => v.key));
     for (const [key, node] of thumbs) {
@@ -86,7 +93,8 @@ export function mountVersionGallery(host: HTMLElement, initial: VersionGalleryPr
       node.dataset.active = String(version.key === activeKey);
       node.dataset.locked = String(!!version.locked);
       frame.setAttribute('aria-selected', String(version.key === activeKey));
-      frame.setAttribute('aria-label', version.name);
+      syncVersionBadge(frame, version.name, version.badge);
+      setHint(node, hints.version);
       if (arrival?.key === version.key) node.dataset.arrival = arrival.stage;
       else delete node.dataset.arrival;
 
@@ -100,8 +108,11 @@ export function mountVersionGallery(host: HTMLElement, initial: VersionGalleryPr
       }
       const label = node.querySelector<HTMLElement>('.dialkit-version-thumb-label');
       if (label && editing !== version.key) label.textContent = version.name;
-      const remove = node.querySelector('.dialkit-version-thumb-delete');
-      if (remove) remove.setAttribute('aria-label', `Delete ${version.name}`);
+      const remove = node.querySelector<HTMLElement>('.dialkit-version-thumb-delete');
+      if (remove) {
+        remove.setAttribute('aria-label', `Delete ${version.name}`);
+        setHint(remove, hints.deleteVersion);
+      }
 
       if (strip.children[index] !== node) strip.insertBefore(node, strip.children[index] ?? null);
     });
@@ -110,13 +121,18 @@ export function mountVersionGallery(host: HTMLElement, initial: VersionGalleryPr
   const createThumb = (key: string) => {
     const node = element('div', 'dialkit-version-thumb');
     node.dataset.version = key;
-    setHint(node, HINTS.version);
     const frame = element('button', 'dialkit-version-thumb-frame');
     frame.setAttribute('role', 'option');
-    // With the grid open, picking a thumbnail zooms into that version.
-    frame.addEventListener('click', () => {
+    // With the grid open, picking a thumbnail zooms into that version. Either
+    // waits for the host to allow it (onBeforePresetSwitch).
+    const pick = () => {
       if (overview) overview.select(key);
       else void switchTo(key);
+    };
+    frame.addEventListener('click', () => {
+      const allowed = confirmVersion(props.panelId, key);
+      if (allowed === true) pick();
+      else if (allowed !== false) void allowed.then((ok) => { if (ok && !destroyed) pick(); }, () => {});
     });
     const label = element('span', 'dialkit-version-thumb-label');
     label.addEventListener('dblclick', () => rename(key, label));
@@ -124,7 +140,6 @@ export function mountVersionGallery(host: HTMLElement, initial: VersionGalleryPr
     if (key !== versionKey(null)) {
       const remove = element('button', 'dialkit-version-thumb-delete');
       remove.append(icon(ICON_CLOSE));
-      setHint(remove, HINTS.deleteVersion);
       remove.addEventListener('click', () => deleteVersion(props.panelId, key));
       node.append(remove);
     }
@@ -144,7 +159,7 @@ export function mountVersionGallery(host: HTMLElement, initial: VersionGalleryPr
     const current = listVersions(props.panelId).find((v) => v.key === key)?.name ?? '';
     const input = element('input', 'dialkit-version-thumb-label dialkit-version-thumb-input');
     input.value = current;
-    input.setAttribute('aria-label', 'Version name');
+    input.setAttribute('aria-label', `${DialStore.getPresetWord(props.panelId).singular} name`);
     editing = key;
     let done = false;
     const end = (commit: boolean) => {

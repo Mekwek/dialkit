@@ -3221,11 +3221,23 @@
   transform-origin: left top;
 }
 
+/* A hint on one side of its element (data-hint-side, hints.ts) grows from
+   the edge that faces the element. */
+.dialkit-hint[data-side="right"] { transform-origin: left center; }
+.dialkit-hint[data-side="left"] { transform-origin: right center; }
+.dialkit-hint[data-side="above"] { transform-origin: center bottom; }
+.dialkit-hint[data-side="below"] { transform-origin: center top; }
+
 .dialkit-hint[data-open] {
   opacity: 1;
   visibility: visible;
   scale: 1;
   transition: opacity 0.12s ease-out, scale 0.12s ease-out, translate 0.15s ease-out;
+}
+
+/* A hint on a side fades in place: it does not glide from the row before. */
+.dialkit-hint[data-side][data-open] {
+  transition: opacity 0.12s ease-out, scale 0.12s ease-out;
 }
 
 /* The rest of the panel fades toward its background, except the row whose
@@ -3284,7 +3296,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dialkit-hint, .dialkit-hint[data-open] { scale: none; transition: none; }
+  .dialkit-hint, .dialkit-hint[data-open], .dialkit-hint[data-side][data-open] { scale: none; transition: none; }
   .dialkit-hint-dim, .dialkit-hint-dim-hole { animation: none; transition: none; }
 }
 
@@ -3973,6 +3985,20 @@
    bars; its clear border keeps the fill, grips and labels 1px inside. */
 .dialkit-timeline-section[data-track="single"] .dialkit-timeline-row:not(.dialkit-timeline-ruler-row) {
   height: 34px;
+}
+
+/* A host's element on each join of a single track (renderJoin): centred on
+   where the next bar starts, its bottom 2px above the bars' top edge (bars
+   sit 3px into their row), above the ruler and the playhead. */
+.dialkit-timeline-row[data-joins] {
+  position: relative;
+}
+
+.dialkit-timeline-join {
+  position: absolute;
+  bottom: calc(100% - 1px);
+  z-index: 9;
+  translate: -50% 0;
 }
 
 .dialkit-timeline-section[data-track="single"] .dialkit-timeline-clip {
@@ -5021,6 +5047,22 @@ span.dialkit-version-thumb-label {
   gap: 14px;
   min-width: 0;
   color: var(--dialkit-overlay-text);
+}
+
+/* A version's badge (presetBadge, grid.ts syncVersionBadge), in the top left
+   corner of its picture in the list and the grid: a dot, then the word. */
+.dialkit-version-badge {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 2;
+  height: 16px;
+  padding: 0 6px 0 15px;
+  border-radius: 8px;
+  font: 500 10px/16px system-ui, -apple-system, sans-serif;
+  color: #fff;
+  background: radial-gradient(circle at 8px 50%, #3b82f6 3px, transparent 3.5px), rgba(0, 0, 0, 0.6);
+  pointer-events: none;
 }
 
 .dialkit-version-card-frame {

@@ -1,7 +1,8 @@
 // src/hints.ts
-import { DialStore } from "dialkit/store";
+import { DEFAULT_PRESET_WORD, DialStore } from "dialkit/store";
 var TIP_KEY = "dialkit-hint-tip-seen";
 var GAP = 6;
+var SIDE_GAP = 8;
 var MARGIN = 8;
 var FADE_MS = 120;
 var FOCUSABLE = "button, input, select, textarea, [tabindex]";
@@ -29,6 +30,15 @@ var HINTS = {
   imageUpload: "Adds an image from your computer.",
   imageClear: "Removes the image."
 };
+function presetHints(word = DEFAULT_PRESET_WORD) {
+  const noun = word.singular.toLowerCase();
+  return {
+    saveVersion: `Saves the current values as a new ${noun}, with a picture of the page.`,
+    version: `Switches to this ${noun}. Double-click its name to rename it.`,
+    deleteVersion: `Deletes this ${noun}.`,
+    allVersions: `Shows every ${noun} side by side. Click one to switch to it.`
+  };
+}
 function versionHints(noun = "version", { editable = true, lockable = true } = {}) {
   if (!editable) return { versions: `Switches to another ${noun}.`, versionActions: "" };
   return lockable ? {
@@ -140,6 +150,18 @@ function getHintPosition(row, root, size, viewport) {
   const left = Math.max(MARGIN, Math.min(row.left, viewport.width - size.width - MARGIN));
   const y = above ? row.top - GAP : row.bottom + GAP;
   return { left: left - root.left, y: y - root.top, above };
+}
+function hintSideOf(element) {
+  const side = element.dataset.hintSide;
+  return side === "left" || side === "right" || side === "above" || side === "below" ? side : void 0;
+}
+function getHintSidePosition(row, root, size, viewport, side) {
+  const left = side === "right" ? row.right + SIDE_GAP : side === "left" ? row.left - SIDE_GAP - size.width : (row.left + row.right - size.width) / 2;
+  const top = side === "below" ? row.bottom + SIDE_GAP : side === "above" ? row.top - SIDE_GAP - size.height : (row.top + row.bottom - size.height) / 2;
+  return {
+    left: Math.max(MARGIN, Math.min(left, viewport.width - size.width - MARGIN)) - root.left,
+    top: Math.max(MARGIN, Math.min(top, viewport.height - size.height - MARGIN)) - root.top
+  };
 }
 var DIM_AREAS = [
   ".dialkit-color-popover",
@@ -270,16 +292,25 @@ function listen() {
     layer.style.transform = scale.x === 1 && scale.y === 1 ? "" : `scale(${scale.x}, ${scale.y})`;
     const origin = layer.getBoundingClientRect();
     const box = shown.getBoundingClientRect();
-    const { left, y, above } = getHintPosition(
-      { left: shown.closest(ALIGN)?.getBoundingClientRect().left ?? box.left, top: box.top, bottom: box.bottom },
-      origin,
-      { width: tooltip.offsetWidth * scale.x, height: tooltip.offsetHeight * scale.y },
-      { width: window.innerWidth, height: window.innerHeight }
-    );
-    const x = left / scale.x;
-    const top = y / scale.y;
-    tooltip.style.translate = above ? `${x}px calc(${top}px - 100%)` : `${x}px ${top}px`;
-    tooltip.toggleAttribute("data-below", !above);
+    const size = { width: tooltip.offsetWidth * scale.x, height: tooltip.offsetHeight * scale.y };
+    const viewport = { width: window.innerWidth, height: window.innerHeight };
+    const side = hintSideOf(shown);
+    if (side) {
+      const { left, top } = getHintSidePosition(box, origin, size, viewport, side);
+      tooltip.style.translate = `${left / scale.x}px ${top / scale.y}px`;
+      tooltip.removeAttribute("data-below");
+    } else {
+      const { left, y, above } = getHintPosition(
+        { left: shown.closest(ALIGN)?.getBoundingClientRect().left ?? box.left, top: box.top, bottom: box.bottom },
+        origin,
+        size,
+        viewport
+      );
+      const x = left / scale.x;
+      const top = y / scale.y;
+      tooltip.style.translate = above ? `${x}px calc(${top}px - 100%)` : `${x}px ${top}px`;
+      tooltip.toggleAttribute("data-below", !above);
+    }
     if (!area) return;
     const outer = area.getBoundingClientRect();
     Object.assign(dim.style, {
@@ -325,6 +356,9 @@ function listen() {
       area = next;
       shown = row;
       row.setAttribute("data-hint-shown", "");
+      const side = hintSideOf(row);
+      if (side) tooltip.dataset.side = side;
+      else delete tooltip.dataset.side;
       describe(row);
       observer.disconnect();
       mutations.disconnect();
@@ -445,9 +479,12 @@ export {
   HintStore,
   TIMELINE_HINTS,
   getHintPosition,
+  getHintSidePosition,
   hasActionHints,
+  hintSideOf,
   isHintKey,
   mountHints,
+  presetHints,
   setHint,
   versionHints
 };
