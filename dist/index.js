@@ -3033,7 +3033,7 @@ function createPanelSectionTransition(folder, initiallyOpen) {
           activePanel.scrollTop = scrollFrom + (scrollTo - scrollFrom) * progress;
         }
         if (time < 1) {
-          activeGroup.frame = requestAnimationFrame(tick);
+          activeGroup.frame = requestAnimationFrame((next2) => tick(next2));
           return;
         }
         for (const fold of activeGroup.sections.values()) finishSectionFold(fold);
@@ -3953,7 +3953,12 @@ function formatModifier(modifier) {
 import { jsx as jsx2 } from "react/jsx-runtime";
 var ShortcutContext = createContext({ activePanelId: null, activePath: null });
 function ShortcutListener({ children }) {
-  const [activeShortcut, setActiveShortcut] = useState2({ activePanelId: null, activePath: null });
+  const [activeShortcut, setActiveShortcutState] = useState2({ activePanelId: null, activePath: null });
+  const setActiveShortcut = useCallback3((next) => {
+    setActiveShortcutState(
+      (prev) => prev.activePanelId === next.activePanelId && prev.activePath === next.activePath ? prev : next
+    );
+  }, []);
   const activeKeysRef = useRef4(/* @__PURE__ */ new Set());
   const isDraggingRef = useRef4(false);
   const lastMouseXRef = useRef4(null);
@@ -6037,10 +6042,10 @@ function observeDropdownKeyboard(trigger, getPopup, close2, kind = "select") {
   let dispose;
   let stopped = false;
   const connect = () => {
-    if (stopped) return;
+    if (stopped || dispose) return;
     const popup = getPopup();
     if (!popup?.isConnected) {
-      frame = requestAnimationFrame(connect);
+      frame = requestAnimationFrame(() => connect());
       return;
     }
     popup.inert = false;
@@ -6194,7 +6199,7 @@ function observeDropdownKeyboard(trigger, getPopup, close2, kind = "select") {
       trigger.removeAttribute("aria-controls");
     };
   };
-  frame = requestAnimationFrame(connect);
+  frame = requestAnimationFrame(() => connect());
   return () => {
     stopped = true;
     cancelAnimationFrame(frame);
@@ -6366,7 +6371,7 @@ function SelectDropdown({ label, value, options, onChange, hint: hint2, add }) {
 }
 
 // src/components/ColorControl.tsx
-import { useEffect as useEffect11, useRef as useRef13 } from "react";
+import { useEffect as useEffect11, useLayoutEffect as useLayoutEffect4, useRef as useRef13 } from "react";
 
 // src/control-fields.ts
 function element2(tag, className, text) {
@@ -7039,7 +7044,7 @@ function ColorControl(props) {
   const control = useRef13();
   const latest = useRef13(props);
   latest.current = props;
-  useEffect11(() => {
+  useLayoutEffect4(() => {
     control.current = mountColorControl(host.current, latest.current);
     return () => control.current?.destroy();
   }, []);
@@ -7050,7 +7055,7 @@ function ColorControl(props) {
 }
 
 // src/components/ImageControl.tsx
-import { useEffect as useEffect12, useRef as useRef14 } from "react";
+import { useEffect as useEffect12, useLayoutEffect as useLayoutEffect5, useRef as useRef14 } from "react";
 
 // src/image-control.ts
 var imageControlId = 0;
@@ -7426,7 +7431,7 @@ function ImageControl(props) {
   const control = useRef14();
   const latest = useRef14(props);
   latest.current = props;
-  useEffect12(() => {
+  useLayoutEffect5(() => {
     control.current = mountImageControl(host.current, latest.current);
     return () => control.current?.destroy();
   }, []);
@@ -7437,7 +7442,7 @@ function ImageControl(props) {
 }
 
 // src/components/DialPad.tsx
-import { useEffect as useEffect13, useRef as useRef15 } from "react";
+import { useEffect as useEffect13, useLayoutEffect as useLayoutEffect6, useRef as useRef15 } from "react";
 
 // src/dial-pad-control.ts
 var nextId2 = 0;
@@ -7712,7 +7717,7 @@ function DialPad(props) {
   const control = useRef15();
   const latest = useRef15(props);
   latest.current = props;
-  useEffect13(() => {
+  useLayoutEffect6(() => {
     control.current = mountDialPad(host.current, latest.current);
     return () => control.current?.destroy();
   }, []);
@@ -10432,7 +10437,7 @@ function BackgroundControl(props) {
 }
 
 // src/components/LayerListControl.tsx
-import { useEffect as useEffect17, useLayoutEffect as useLayoutEffect4, useRef as useRef19 } from "react";
+import { useEffect as useEffect17, useLayoutEffect as useLayoutEffect7, useRef as useRef19 } from "react";
 
 // src/layer-list-control.ts
 var LAYER_HINTS = {
@@ -10723,7 +10728,7 @@ function LayerListControl(props) {
   const control = useRef19();
   const latest = useRef19(props);
   latest.current = props;
-  useLayoutEffect4(() => {
+  useLayoutEffect7(() => {
     control.current = mountLayerListControl(host.current, latest.current);
     return () => control.current?.destroy();
   }, []);
@@ -10734,7 +10739,7 @@ function LayerListControl(props) {
 }
 
 // src/components/PictureListControl.tsx
-import { useEffect as useEffect18, useLayoutEffect as useLayoutEffect5, useRef as useRef20 } from "react";
+import { useEffect as useEffect18, useLayoutEffect as useLayoutEffect8, useRef as useRef20 } from "react";
 
 // src/store/PictureHost.ts
 var STATE_KEY2 = /* @__PURE__ */ Symbol.for("dialkit.pictureHost");
@@ -11039,7 +11044,7 @@ function PictureListControl(props) {
   const control = useRef20();
   const latest = useRef20(props);
   latest.current = props;
-  useLayoutEffect5(() => {
+  useLayoutEffect8(() => {
     control.current = mountPictureListControl(host.current, latest.current);
     return () => control.current?.destroy();
   }, []);
@@ -11743,7 +11748,7 @@ function Icon({ paths }) {
 }
 
 // src/components/VersionGallery.tsx
-import { useLayoutEffect as useLayoutEffect6, useRef as useRef23 } from "react";
+import { useLayoutEffect as useLayoutEffect9, useRef as useRef23 } from "react";
 
 // src/versions/spring.ts
 function bakedSpring(easing, duration) {
@@ -13011,7 +13016,7 @@ import { jsx as jsx25 } from "react/jsx-runtime";
 function VersionGallery(props) {
   const hostRef = useRef23(null);
   const galleryRef = useRef23(null);
-  useLayoutEffect6(() => {
+  useLayoutEffect9(() => {
     const gallery = mountVersionGallery(hostRef.current, props);
     galleryRef.current = gallery;
     return () => {
@@ -13019,7 +13024,7 @@ function VersionGallery(props) {
       galleryRef.current = null;
     };
   }, []);
-  useLayoutEffect6(() => {
+  useLayoutEffect9(() => {
     galleryRef.current?.update(props);
   }, [props.panelId, props.theme]);
   return /* @__PURE__ */ jsx25("div", { ref: hostRef, className: "dialkit-versions-host" });
@@ -14763,7 +14768,7 @@ function useDialTimeline(name, config, options) {
 }
 
 // src/components/Timeline/DialTimeline.tsx
-import { memo, useCallback as useCallback16, useEffect as useEffect24, useLayoutEffect as useLayoutEffect7, useRef as useRef27, useState as useState11, useSyncExternalStore as useSyncExternalStore10 } from "react";
+import { memo, useCallback as useCallback16, useEffect as useEffect24, useLayoutEffect as useLayoutEffect10, useRef as useRef27, useState as useState11, useSyncExternalStore as useSyncExternalStore10 } from "react";
 import { createPortal as createPortal4 } from "react-dom";
 import { AnimatePresence as AnimatePresence6, motion as motion8 } from "motion/react";
 import { Fragment as Fragment7, jsx as jsx29, jsxs as jsxs14 } from "react/jsx-runtime";
@@ -15264,7 +15269,7 @@ var TimelineSection = memo(function TimelineSection2({
   const laneAreaRef = useRef27(null);
   const horizontalScrollRef = useRef27(null);
   const [laneWidth, setLaneWidth] = useState11(0);
-  useLayoutEffect7(() => {
+  useLayoutEffect10(() => {
     if (!open) return;
     const ruler = laneAreaRef.current;
     if (!ruler) return;
@@ -15288,7 +15293,7 @@ var TimelineSection = memo(function TimelineSection2({
   useEffect24(() => {
     setViewStart((current2) => clampViewStart(current2, meta.duration, meta.duration / zoom));
   }, [meta.duration, zoom]);
-  useLayoutEffect7(() => {
+  useLayoutEffect10(() => {
     const scroller = horizontalScrollRef.current;
     if (!scroller || pxPerSecond <= 0) return;
     const nextScrollLeft = safeViewStart * pxPerSecond;
@@ -16069,7 +16074,7 @@ function ClipPopover({
   }));
   const hostPanels = useSyncExternalStore10(subscribePanels, readPanels, readPanels);
   const hostPanel = popover.clip.panel ? hostPanels.find((panel) => panel.name === popover.clip.panel) : void 0;
-  useLayoutEffect7(() => {
+  useLayoutEffect10(() => {
     const element11 = ref.current;
     if (!element11) return;
     const measure = () => setNaturalHeight(element11.scrollHeight + 2);
@@ -16670,7 +16675,7 @@ function paintBackgroundPreview(canvas, value) {
 }
 
 // src/components/VersionPictures.tsx
-import { useLayoutEffect as useLayoutEffect8, useRef as useRef28 } from "react";
+import { useLayoutEffect as useLayoutEffect11, useRef as useRef28 } from "react";
 
 // src/versions/reorder.ts
 var ITEM = '.dialkit-version-thumb[data-draggable="true"]';
@@ -17137,7 +17142,7 @@ import { jsx as jsx32 } from "react/jsx-runtime";
 function VersionPictures(props) {
   const hostRef = useRef28(null);
   const listRef = useRef28(null);
-  useLayoutEffect8(() => {
+  useLayoutEffect11(() => {
     const list = mountVersionPictures(hostRef.current, props);
     listRef.current = list;
     return () => {
@@ -17145,7 +17150,7 @@ function VersionPictures(props) {
       listRef.current = null;
     };
   }, []);
-  useLayoutEffect8(() => {
+  useLayoutEffect11(() => {
     listRef.current?.update(props);
   }, [props.panelId, props.gridOpen]);
   return /* @__PURE__ */ jsx32("div", { ref: hostRef, className: "dialkit-versions-host" });
@@ -17153,7 +17158,7 @@ function VersionPictures(props) {
 function VersionActions(props) {
   const hostRef = useRef28(null);
   const rowRef = useRef28(null);
-  useLayoutEffect8(() => {
+  useLayoutEffect11(() => {
     const row = mountVersionActions(hostRef.current, props);
     rowRef.current = row;
     return () => {
@@ -17161,7 +17166,7 @@ function VersionActions(props) {
       rowRef.current = null;
     };
   }, []);
-  useLayoutEffect8(() => {
+  useLayoutEffect11(() => {
     rowRef.current?.update(props);
   }, [props.panelId, props.gridOpen, props.onToggleGrid]);
   return /* @__PURE__ */ jsx32("div", { ref: hostRef, className: "dialkit-versions-host" });

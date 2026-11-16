@@ -5091,10 +5091,10 @@ Apply these values as the new defaults in the ${hookName} call.`;
     let dispose;
     let stopped = false;
     const connect = () => {
-      if (stopped) return;
+      if (stopped || dispose) return;
       const popup = getPopup();
       if (!popup?.isConnected) {
-        frame = requestAnimationFrame(connect);
+        frame = requestAnimationFrame(() => connect());
         return;
       }
       popup.inert = false;
@@ -5248,7 +5248,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
         trigger.removeAttribute("aria-controls");
       };
     };
-    frame = requestAnimationFrame(connect);
+    frame = requestAnimationFrame(() => connect());
     return () => {
       stopped = true;
       cancelAnimationFrame(frame);
@@ -6166,7 +6166,7 @@ Apply these values as the new defaults in the ${hookName} call.`;
             activePanel.scrollTop = scrollFrom + (scrollTo - scrollFrom) * progress;
           }
           if (time < 1) {
-            activeGroup.frame = requestAnimationFrame(tick);
+            activeGroup.frame = requestAnimationFrame((next2) => tick(next2));
             return;
           }
           for (const fold of activeGroup.sections.values()) finishSectionFold(fold);

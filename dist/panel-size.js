@@ -137,7 +137,7 @@ function createPanelSectionTransition(folder, initiallyOpen) {
           activePanel.scrollTop = scrollFrom + (scrollTo - scrollFrom) * progress;
         }
         if (time < 1) {
-          activeGroup.frame = requestAnimationFrame(tick);
+          activeGroup.frame = requestAnimationFrame((next2) => tick(next2));
           return;
         }
         for (const fold of activeGroup.sections.values()) finishSectionFold(fold);

@@ -3146,7 +3146,7 @@ function createPanelSectionTransition(folder, initiallyOpen) {
           activePanel.scrollTop = scrollFrom + (scrollTo - scrollFrom) * progress;
         }
         if (time < 1) {
-          activeGroup.frame = requestAnimationFrame(tick);
+          activeGroup.frame = requestAnimationFrame((next2) => tick(next2));
           return;
         }
         for (const fold of activeGroup.sections.values()) finishSectionFold(fold);
@@ -4066,7 +4066,12 @@ function formatModifier(modifier) {
 var import_jsx_runtime2 = require("react/jsx-runtime");
 var ShortcutContext = (0, import_react7.createContext)({ activePanelId: null, activePath: null });
 function ShortcutListener({ children }) {
-  const [activeShortcut, setActiveShortcut] = (0, import_react7.useState)({ activePanelId: null, activePath: null });
+  const [activeShortcut, setActiveShortcutState] = (0, import_react7.useState)({ activePanelId: null, activePath: null });
+  const setActiveShortcut = (0, import_react7.useCallback)((next) => {
+    setActiveShortcutState(
+      (prev) => prev.activePanelId === next.activePanelId && prev.activePath === next.activePath ? prev : next
+    );
+  }, []);
   const activeKeysRef = (0, import_react7.useRef)(/* @__PURE__ */ new Set());
   const isDraggingRef = (0, import_react7.useRef)(false);
   const lastMouseXRef = (0, import_react7.useRef)(null);
@@ -6150,10 +6155,10 @@ function observeDropdownKeyboard(trigger, getPopup, close2, kind = "select") {
   let dispose;
   let stopped = false;
   const connect = () => {
-    if (stopped) return;
+    if (stopped || dispose) return;
     const popup = getPopup();
     if (!popup?.isConnected) {
-      frame = requestAnimationFrame(connect);
+      frame = requestAnimationFrame(() => connect());
       return;
     }
     popup.inert = false;
@@ -6307,7 +6312,7 @@ function observeDropdownKeyboard(trigger, getPopup, close2, kind = "select") {
       trigger.removeAttribute("aria-controls");
     };
   };
-  frame = requestAnimationFrame(connect);
+  frame = requestAnimationFrame(() => connect());
   return () => {
     stopped = true;
     cancelAnimationFrame(frame);
@@ -7152,7 +7157,7 @@ function ColorControl(props) {
   const control = (0, import_react18.useRef)();
   const latest = (0, import_react18.useRef)(props);
   latest.current = props;
-  (0, import_react18.useEffect)(() => {
+  (0, import_react18.useLayoutEffect)(() => {
     control.current = mountColorControl(host.current, latest.current);
     return () => control.current?.destroy();
   }, []);
@@ -7539,7 +7544,7 @@ function ImageControl(props) {
   const control = (0, import_react19.useRef)();
   const latest = (0, import_react19.useRef)(props);
   latest.current = props;
-  (0, import_react19.useEffect)(() => {
+  (0, import_react19.useLayoutEffect)(() => {
     control.current = mountImageControl(host.current, latest.current);
     return () => control.current?.destroy();
   }, []);
@@ -7825,7 +7830,7 @@ function DialPad(props) {
   const control = (0, import_react20.useRef)();
   const latest = (0, import_react20.useRef)(props);
   latest.current = props;
-  (0, import_react20.useEffect)(() => {
+  (0, import_react20.useLayoutEffect)(() => {
     control.current = mountDialPad(host.current, latest.current);
     return () => control.current?.destroy();
   }, []);

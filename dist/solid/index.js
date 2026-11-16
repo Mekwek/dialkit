@@ -4895,7 +4895,7 @@ function createPanelSectionTransition(folder, initiallyOpen) {
           activePanel.scrollTop = scrollFrom + (scrollTo - scrollFrom) * progress;
         }
         if (time < 1) {
-          activeGroup.frame = requestAnimationFrame(tick);
+          activeGroup.frame = requestAnimationFrame((next2) => tick(next2));
           return;
         }
         for (const fold of activeGroup.sections.values()) finishSectionFold(fold);
@@ -7895,10 +7895,10 @@ function observeDropdownKeyboard(trigger, getPopup, close2, kind = "select") {
   let dispose;
   let stopped = false;
   const connect = () => {
-    if (stopped) return;
+    if (stopped || dispose) return;
     const popup = getPopup();
     if (!popup?.isConnected) {
-      frame = requestAnimationFrame(connect);
+      frame = requestAnimationFrame(() => connect());
       return;
     }
     popup.inert = false;
@@ -8052,7 +8052,7 @@ function observeDropdownKeyboard(trigger, getPopup, close2, kind = "select") {
       trigger.removeAttribute("aria-controls");
     };
   };
-  frame = requestAnimationFrame(connect);
+  frame = requestAnimationFrame(() => connect());
   return () => {
     stopped = true;
     cancelAnimationFrame(frame);

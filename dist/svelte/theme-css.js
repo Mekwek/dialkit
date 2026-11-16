@@ -2864,7 +2864,9 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 }
 
 /* Rename, lock and delete fold behind the menu icon until it is hovered or focused.
-   A locked row shows its lock in the menu icon's place, and rename on hover. */
+   A locked row shows its lock in the menu icon's place, and rename on hover or keyboard
+   focus. The menu focuses the selected row on every open so the arrows start there; after a
+   click that focus is not visible, so it must not show rename. */
 .dialkit-preset-rename,
 .dialkit-preset-lock,
 .dialkit-preset-delete {
@@ -2884,7 +2886,7 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
 
 .dialkit-preset-actions:hover > button,
 .dialkit-preset-actions:focus-within > button,
-:where(.dialkit-preset-item[data-locked="true"]:hover, .dialkit-preset-item[data-locked="true"]:focus-within) .dialkit-preset-rename {
+:where(.dialkit-preset-item[data-locked="true"]:hover, .dialkit-preset-item[data-locked="true"]:has(:focus-visible)) .dialkit-preset-rename {
   width: 24px;
   opacity: 0.6;
 }
@@ -2900,7 +2902,7 @@ export const themeCSS = `@import url('https://fonts.googleapis.com/css2?family=G
   opacity: 1;
 }
 
-:where(.dialkit-preset-item[data-locked="true"]:hover, .dialkit-preset-item[data-locked="true"]:focus-within) .dialkit-preset-lock {
+:where(.dialkit-preset-item[data-locked="true"]:hover, .dialkit-preset-item[data-locked="true"]:has(:focus-visible)) .dialkit-preset-lock {
   opacity: 0.6;
 }
 
