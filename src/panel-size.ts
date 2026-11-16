@@ -174,7 +174,11 @@ export function createPanelSectionTransition(folder: HTMLElement, initiallyOpen:
           activePanel.scrollTop = scrollFrom + (scrollTo - scrollFrom) * progress;
         }
         if (time < 1) {
-          activeGroup.frame = requestAnimationFrame(tick);
+          // Fork: an arrow, not `requestAnimationFrame(tick)`. A host that
+          // patches rAF by its source text (Tempus) turns a callback that
+          // schedules itself by name into an endless per-frame loop, and this
+          // one would then reset the panel's scroll every frame.
+          activeGroup.frame = requestAnimationFrame((next) => tick(next));
           return;
         }
         for (const fold of activeGroup.sections.values()) finishSectionFold(fold);
