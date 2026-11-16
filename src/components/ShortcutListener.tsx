@@ -15,10 +15,17 @@ export const ShortcutContext = createContext<{
 }>({ activePanelId: null, activePath: null });
 
 export function ShortcutListener({ children }: { children: React.ReactNode }) {
-  const [activeShortcut, setActiveShortcut] = useState<{
+  const [activeShortcut, setActiveShortcutState] = useState<{
     activePanelId: string | null;
     activePath: string | null;
   }>({ activePanelId: null, activePath: null });
+  // Every control reads this value, so a new object with the same content
+  // re-rendered them all on each key press and release. Keep the old one.
+  const setActiveShortcut = useCallback((next: { activePanelId: string | null; activePath: string | null }) => {
+    setActiveShortcutState((prev) =>
+      prev.activePanelId === next.activePanelId && prev.activePath === next.activePath ? prev : next
+    );
+  }, []);
 
   const activeKeysRef = useRef<Set<string>>(new Set());
   const isDraggingRef = useRef(false);
