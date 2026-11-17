@@ -10941,33 +10941,61 @@ function layer(className) {
 // src/scroll-edges.ts
 function observeScrollEdges(scroller, paused = () => false) {
   let frame = 0;
+  let measured = null;
+  const measure = () => {
+    const { scrollTop, clientHeight, scrollHeight } = scroller;
+    measured = {
+      above: `${Math.max(0, scrollTop)}px`,
+      below: `${Math.max(0, scrollHeight - clientHeight - scrollTop)}px`
+    };
+  };
+  const write = () => {
+    if (!measured) return;
+    for (const [name, value] of [
+      ["--dial-edge-above", measured.above],
+      ["--dial-edge-below", measured.below]
+    ]) {
+      if (scroller.style.getPropertyValue(name) !== value) scroller.style.setProperty(name, value);
+    }
+    measured = null;
+  };
   const update = () => {
     frame = 0;
-    if (paused()) return;
-    const { scrollTop, clientHeight, scrollHeight } = scroller;
-    scroller.style.setProperty("--dial-edge-above", `${Math.max(0, scrollTop)}px`);
-    scroller.style.setProperty("--dial-edge-below", `${Math.max(0, scrollHeight - clientHeight - scrollTop)}px`);
+    if (paused()) {
+      measured = null;
+      return;
+    }
+    if (!measured) measure();
+    write();
   };
   const schedule = () => {
     if (!frame) frame = requestAnimationFrame(update);
   };
-  const resize = new ResizeObserver(schedule);
+  const changed = () => {
+    measured = null;
+    schedule();
+  };
+  const resize = new ResizeObserver(() => {
+    if (paused()) return;
+    measure();
+    schedule();
+  });
   const watchChildren = () => {
     for (const child of scroller.children) resize.observe(child);
   };
   const children = new MutationObserver(() => {
     watchChildren();
-    schedule();
+    changed();
   });
   resize.observe(scroller);
   children.observe(scroller, { childList: true });
-  scroller.addEventListener("scroll", schedule, { passive: true });
+  scroller.addEventListener("scroll", changed, { passive: true });
   watchChildren();
   update();
   return () => {
     resize.disconnect();
     children.disconnect();
-    scroller.removeEventListener("scroll", schedule);
+    scroller.removeEventListener("scroll", changed);
     cancelAnimationFrame(frame);
     scroller.style.removeProperty("--dial-edge-above");
     scroller.style.removeProperty("--dial-edge-below");
