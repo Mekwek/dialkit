@@ -14733,7 +14733,8 @@ function useDialTimeline(name, config, options) {
     persist: options?.persist,
     kind: "timeline",
     presetsEditable: options?.presetsEditable,
-    presetsLockable: options?.presetsLockable
+    presetsLockable: options?.presetsLockable,
+    showBasePreset: options?.showBasePreset
   });
   const staticTimeline = useMemo3(
     () => computeStaticTimeline(parsed, flatValues),

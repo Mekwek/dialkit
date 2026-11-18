@@ -62,6 +62,34 @@ describe('useDialTimeline (React)', () => {
     }
   });
 
+  it('leaves the base sequence out of the menu when showBasePreset is false', () => {
+    const config = { intro: { at: 0, duration: 0.1 } } as TimelineConfig;
+    let renderer: ReactTestRenderer | undefined;
+
+    function BaseHarness({ id, showBasePreset }: { id: string; showBasePreset?: boolean }) {
+      useDialTimeline('React Base Sequence Test', config, { id, autoplay: false, showBasePreset });
+      return null;
+    }
+
+    try {
+      act(() => {
+        renderer = create(
+          createElement(
+            StrictMode,
+            null,
+            createElement(BaseHarness, { id: 'react-timeline-base-hidden', showBasePreset: false }),
+            createElement(BaseHarness, { id: 'react-timeline-base-shown' })
+          )
+        );
+      });
+
+      assert.equal(DialStore.showsBasePreset('react-timeline-base-hidden'), false);
+      assert.equal(DialStore.showsBasePreset('react-timeline-base-shown'), true);
+    } finally {
+      act(() => renderer?.unmount());
+    }
+  });
+
   it('extends the registered transport when a live physics edit grows the final clip', () => {
     const id = 'react-timeline-live-duration';
     const config = {

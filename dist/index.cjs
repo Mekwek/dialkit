@@ -14846,7 +14846,8 @@ function useDialTimeline(name, config, options) {
     persist: options?.persist,
     kind: "timeline",
     presetsEditable: options?.presetsEditable,
-    presetsLockable: options?.presetsLockable
+    presetsLockable: options?.presetsLockable,
+    showBasePreset: options?.showBasePreset
   });
   const staticTimeline = (0, import_react38.useMemo)(
     () => computeStaticTimeline(parsed, flatValues),

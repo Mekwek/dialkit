@@ -1300,6 +1300,11 @@ interface DialTimelineOptions$1 {
     presetsEditable?: boolean;
     /** `false` drops the lock button from the sequence menu. Default `true`. */
     presetsLockable?: boolean;
+    /**
+     * `false` leaves the base sequence (the clips before any saved sequence)
+     * out of the sequence menu. Default `true`. React only for now.
+     */
+    showBasePreset?: boolean;
     /** Start playing on mount. Defaults to true. */
     autoplay?: boolean;
     /**
